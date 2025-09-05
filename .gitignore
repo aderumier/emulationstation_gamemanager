@@ -1,0 +1,145 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Flask
+instance/
+.webassets-cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Media files and directories
+media/
+medias/
+images/
+videos/
+screenshots/
+boxart/
+marquees/
+thumbnails/
+fanart/
+titleshots/
+manuals/
+boxbacks/
+extra1/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.webm
+*.pdf
+
+# XML files (gamelist files, metadata)
+*.xml
+gamelist.xml
+Metadata.xml
+sample_gamelist.xml
+var/Metadata.xml
+var/Metadata.xml.backup.*
+
+# ROM files and directories
+roms/
+*.zip
+*.7z
+*.rar
+*.iso
+*.bin
+*.cue
+*.nes
+*.sfc
+*.smc
+*.gba
+*.gb
+*.gbc
+*.nds
+*.3ds
+*.psx
+*.ps2
+*.ps3
+*.ps4
+*.xbox
+*.xbox360
+*.xboxone
+
+# Configuration files with sensitive data (optional)
+# config.json
+# secrets.json
+
+# Session files
+sessions/
+
+# Variable data directory (but allow config files)
+var/
+!var/config/
+!var/config/config.json
+!var/config/user.cfg
+*.backup.*

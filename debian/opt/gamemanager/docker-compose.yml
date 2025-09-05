@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  cursorscraper:
+    build: .
+    container_name: cursorscraper
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount application data directories
+      - ./roms:/app/roms
+      - ./media:/app/media
+      - ./cache:/app/cache
+      - ./var/task_logs:/app/var/task_logs
+      # Mount config file for easy editing
+      - ./var/config/config.json:/app/var/config/config.json
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # User mapping (optional)
+    user: "1000:1000"
+    # Network mode
+    network_mode: "bridge"
+
+# Optional: Add a reverse proxy service
+# Uncomment if you want to use nginx as reverse proxy
+# services:
+#   nginx:
+#     image: nginx:alpine
+#     container_name: cursorscraper-nginx
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+#       - ./ssl:/etc/nginx/ssl:ro
+#     depends_on:
+#       - cursorscraper
+#     restart: unless-stopped

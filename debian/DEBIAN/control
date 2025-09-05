@@ -1,0 +1,25 @@
+Package: gamemanager
+Version: 1.5-1
+Section: games
+Priority: optional
+Architecture: all
+Depends: python3, python3-flask, python3-flask-login, python3-flask-socketio, python3-flask-cors, python3-requests, python3-httpx, python3-h2, python3-aiofiles, python3-bs4, python3-pil, python3-lxml, python3-bcrypt, python3-dotenv, python3-wand, imagemagick, ffmpeg, curl, wget
+Maintainer: GameManager Team <admin@gamemanager.local>
+Description: Game Collection Management System
+ GameManager is a comprehensive game collection management system that helps
+ you organize, manage, and enhance your game library with metadata and media
+ from LaunchBox database.
+ .
+ Features:
+  * Game collection management with CRUD operations
+  * LaunchBox integration for metadata and media downloading
+  * Media management with image/video preview and upload
+  * 2D box art generation using ImageMagick
+  * Video processing with YouTube integration and cropping
+  * Background task management with real-time updates
+  * User authentication with Discord integration
+  * Docker support and production deployment guides
+  * Dynamic media mapping and region priority detection
+ .
+ The application provides a web-based interface for managing game collections
+ with support for multiple platforms and comprehensive media organization.

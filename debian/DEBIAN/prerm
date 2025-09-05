@@ -1,0 +1,37 @@
+#!/bin/bash
+set -e
+
+# Pre-removal script for GameManager
+
+# Check if this is a removal (not an upgrade)
+if [ "$1" = "remove" ]; then
+    echo "Stopping GameManager service..."
+
+    # Stop the service if it's running
+    if systemctl is-active --quiet gamemanager; then
+        systemctl stop gamemanager
+        echo "GameManager service stopped."
+    fi
+
+    # Disable the service
+    if systemctl is-enabled --quiet gamemanager; then
+        systemctl disable gamemanager
+        echo "GameManager service disabled."
+    fi
+
+    echo "Pre-removal completed."
+elif [ "$1" = "upgrade" ] || [ "$1" = "disappear" ]; then
+    echo "Preparing GameManager for upgrade..."
+    
+    # Stop the service for upgrade
+    if systemctl is-active --quiet gamemanager; then
+        systemctl stop gamemanager
+        echo "GameManager service stopped for upgrade."
+    fi
+    
+    echo "Ready for upgrade."
+else
+    echo "Pre-removal script completed."
+fi
+
+exit 0

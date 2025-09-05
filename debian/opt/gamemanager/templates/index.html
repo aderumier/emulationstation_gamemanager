@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batocera Game Collection Manager</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- AG Grid CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-theme-alpine.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Manual Crop CSS -->
+    <style>
+        .crop-controls {
+            margin-top: 15px;
+        }
+        #cropImage {
+            display: block;
+            min-width: 600px;
+            min-height: 400px;
+            max-width: 100%;
+            max-height: 80vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+        #videoCroppingModal .modal-dialog {
+            max-width: 95vw;
+            width: 1200px;
+        }
+        #videoCroppingModal .card-body {
+            min-height: 520px;
+        }
+        #videoCroppingModal .text-center {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 500px;
+            overflow: hidden;
+        }
+        #videoCroppingModal .modal-body {
+            padding: 1rem;
+        }
+        #videoCroppingModal .card {
+            height: 100%;
+        }
+        #videoCroppingModal .card-body {
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
+    
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
+    
+    <!-- Cropper.js Library -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='js/cropper.min.css') }}">
+    <script src="{{ url_for('static', filename='js/cropper.min.js') }}"></script>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <div class="navbar-brand d-flex align-items-center">
+                <img src="{{ url_for('static', filename='images/pixel-nostalgia-logo.png') }}" alt="Pixel Nostalgia" class="navbar-logo">
+                <span class="navbar-subtitle">gamelist manager</span>
+            </div>
+            
+            <!-- Configuration Menu -->
+            <div class="navbar-nav me-3">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="configurationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-gear me-1"></i>Configuration
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="configurationDropdown">
+                        <li><a class="dropdown-item" href="#" id="openCacheModal">
+                            <i class="bi bi-database me-2"></i>Cache Configuration
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="openLaunchboxModal">
+                            <i class="bi bi-box me-2"></i>LaunchBox Configuration
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="openSystemsModal">
+                            <i class="bi bi-controller me-2"></i>Systems Configuration
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
+                            <i class="bi bi-people me-2"></i>User Management
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" id="openAppConfigModal">
+                            <i class="bi bi-gear me-2"></i>Application Configuration
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- User Menu -->
+            <div class="navbar-nav me-3">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-person-circle me-1"></i>{{ current_user.username }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                        <li><h6 class="dropdown-header">Account</h6></li>
+                        <li><span class="dropdown-item-text">
+                            <i class="bi bi-person me-2"></i>{{ current_user.username }}
+                            {% if current_user.email %}<br><small class="text-muted">{{ current_user.email }}</small>{% endif %}
+                        </span></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
+                            <i class="bi bi-people me-2"></i>User Management
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right me-2"></i>Logout
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- System Selection Dropdown -->
+            <div class="navbar-nav">
+                <div class="nav-item me-3">
+                    <button id="unifiedScanBtn" class="btn btn-outline-light btn-sm" title="Scan ROMs and Media" disabled>
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+                <div class="nav-item dropdown">
+                    <select id="systemSelect" class="form-select form-select-sm" style="width: auto;">
+                        <option value="">Select ROM System...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid mt-3 main-content">
+        <!-- Action Buttons -->
+        <div class="row mb-0">
+            <div class="col">
+
+                
+
+
+
+                
+
+                
+                
+                
+
+            </div>
+        </div>
+
+
+
+        <!-- Games Count -->
+        <div class="row mb-0">
+            <div class="col d-flex align-items-center">
+                <span class="badge bg-primary me-3">Games: <span id="gamesCount">0</span></span>
+                <button id="toggleColumnsPanelBtn" class="btn btn-outline-primary btn-sm" title="Toggle Columns Panel">
+                    <i class="bi bi-columns-gap"></i>
+                </button>
+                <button id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm ms-2" title="Clear All Filters">
+                    <i class="bi bi-funnel"></i>
+                </button>
+                <button id="deleteSelectedBtn" class="btn btn-outline-danger btn-sm ms-2" title="Delete Selected Games" disabled>
+                    <i class="bi bi-trash"></i>
+                </button>
+                <button id="showDuplicatesBtn" class="btn btn-outline-warning btn-sm ms-2" title="Show Duplicate Games">
+                    <i class="bi bi-dup"></i> Show Duplicates
+                </button>
+                <button id="scrapLaunchboxBtn" class="btn btn-primary btn-sm ms-2" disabled>
+                    <i class="bi bi-database-fill"></i> Launchbox Scrap
+                </button>
+                <button id="globalFindBestMatchBtn" class="btn btn-outline-info btn-sm ms-2" disabled>
+                    <i class="bi bi-search"></i> Find Best Match
+                </button>
+                <button id="global2DBoxGeneratorBtn" class="btn btn-outline-success btn-sm ms-2" disabled>
+                    <i class="bi bi-image"></i> 2D Box Generator
+                </button>
+            </div>
+        </div>
+
+        <!-- AG Grid Container -->
+        <div class="grid-section">
+            <div id="gamesGrid" class="ag-theme-alpine"></div>
+            
+            <!-- Custom Columns Panel -->
+            <div id="customColumnsPanel" class="row mt-3 mb-3" style="display: none;">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="bi bi-columns-gap me-2"></i>
+                                Columns Management
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Show/Hide Columns</h6>
+                                    <div id="columnsCheckboxes" class="d-flex flex-column gap-2">
+                                        <!-- Column checkboxes will be generated here -->
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Quick Actions</h6>
+                                    <div class="d-flex flex-column gap-2">
+                                        <button id="showAllColumnsBtn" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-eye"></i> Show All Columns
+                                        </button>
+                                        <button id="hideAllColumnsBtn" class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-eye-slash"></i> Hide All Columns
+                                        </button>
+                                        <button id="resetColumnsBtn" class="btn btn-outline-warning btn-sm">
+                                            <i class="bi bi-arrow-clockwise"></i> Reset to Default
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Combined Media Preview and Task Management Panel -->
+        <div class="row mb-0">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <ul class="nav nav-tabs card-header-tabs" id="combinedPanelTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="media-preview-tab" data-bs-toggle="tab" data-bs-target="#media-preview-content" type="button" role="tab" aria-controls="media-preview-content" aria-selected="true">
+                                    <i class="bi bi-images me-2"></i>Media Preview
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="task-management-tab" data-bs-toggle="tab" data-bs-target="#task-management-content" type="button" role="tab" aria-controls="task-management-content" aria-selected="false">
+                                    <i class="bi bi-list-task me-2"></i>Task Management
+                                </button>
+                            </li>
+                        </ul>
+
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="combinedPanelTabContent">
+                            <!-- Media Preview Tab -->
+                            <div class="tab-pane fade show active" id="media-preview-content" role="tabpanel" aria-labelledby="media-preview-tab">
+                                <div id="mediaPreviewContent" class="d-flex flex-wrap gap-2">
+                                    <!-- Media items will be displayed here -->
+                                </div>
+                            </div>
+                            
+                            <!-- Task Management Tab -->
+                            <div class="tab-pane fade" id="task-management-content" role="tabpanel" aria-labelledby="task-management-tab">
+                                <div id="taskGrid" class="ag-theme-alpine" style="height: 160px; width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Log Modal -->
+    <div class="modal fade" id="taskLogModal" tabindex="-1" aria-labelledby="taskLogModalLabel" aria-hidden="true">
+        <div class="modal-dialog" style="max-width: 90%; width: 90%;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="taskLogModalLabel">Task Log</h5>
+                    <div>
+                        <button type="button" class="btn btn-outline-primary btn-sm me-2" id="downloadTaskLogBtn">
+                            <i class="bi bi-download"></i> Download Log
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Task:</strong> <span id="modalTaskType"></span>
+                        <br>
+                        <strong>Status:</strong> <span id="modalTaskStatus"></span>
+                        <br>
+                        <strong>Started:</strong> <span id="modalTaskStartTime"></span>
+                        <br>
+                        <strong>Duration:</strong> <span id="modalTaskDuration"></span>
+                    </div>
+                    <div id="taskLogContent" class="border rounded p-3" style="height: 400px; overflow-y: auto; background-color: #f8f9fa; font-family: monospace; font-size: 0.9em;">
+                        <!-- Task log content will be displayed here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete <strong id="deleteGameCount">0</strong> selected game(s)?</p>
+                    <p class="text-muted small">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Game Modal -->
+    <div class="modal fade" id="editGameModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Game</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs mb-3" id="editGameModalTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="game-info-tab" data-bs-toggle="tab" data-bs-target="#game-info-content" type="button" role="tab" aria-controls="game-info-content" aria-selected="true">
+                                <i class="bi bi-info-circle me-2"></i>Game Information
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="game-media-tab" data-bs-toggle="tab" data-bs-target="#game-media-content" type="button" role="tab" aria-controls="game-media-content" aria-selected="false">
+                                <i class="bi bi-images me-2"></i>Media Files
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="game-video-tab" data-bs-toggle="tab" data-bs-target="#game-video-content" type="button" role="tab" aria-controls="game-video-content" aria-selected="false">
+                                <i class="bi bi-camera-video me-2"></i>Video Preview
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="editGameModalTabContent">
+                        <!-- Game Information Tab -->
+                        <div class="tab-pane fade show active" id="game-info-content" role="tabpanel" aria-labelledby="game-info-tab" style="min-height: 500px;">
+                            <form id="editGameForm">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="editName" class="form-label">Name</label>
+                                            <input type="text" class="form-control" id="editName" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editPath" class="form-label">Path</label>
+                                            <input type="text" class="form-control" id="editPath" readonly>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editDescription" class="form-label">Description</label>
+                                            <textarea class="form-control" id="editDescription" rows="9"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="editGenre" class="form-label">Genre</label>
+                                            <input type="text" class="form-control" id="editGenre">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editDeveloper" class="form-label">Developer</label>
+                                            <input type="text" class="form-control" id="editDeveloper">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editPublisher" class="form-label">Publisher</label>
+                                            <input type="text" class="form-control" id="editPublisher">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editRating" class="form-label">Rating</label>
+                                            <input type="text" class="form-control" id="editRating">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editPlayers" class="form-label">Players</label>
+                                            <input type="text" class="form-control" id="editPlayers">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editLaunchboxId" class="form-label">Launchbox ID</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="editLaunchboxId" readonly>
+                                                <button type="button" class="btn btn-outline-primary" id="modalFindBestMatchBtn" title="Search for the best matching game in the Launchbox database">
+                                                    <i class="bi bi-search"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Media Files Tab -->
+                        <div class="tab-pane fade" id="game-media-content" role="tabpanel" aria-labelledby="game-media-tab" style="min-height: 500px;">
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-danger btn-sm" id="deleteSelectedEditModalMedia" disabled>
+                                    <i class="bi bi-trash me-1"></i>Delete Selected Media
+                                </button>
+                                <small class="text-muted ms-2">Click on media items to select them, then click Delete to remove.</small>
+                            </div>
+                            <div id="editGameMediaContent" class="d-flex flex-wrap justify-content-center align-items-start" style="gap: 8px; max-height: 450px; overflow-y: auto;">
+                                <!-- Media items will be displayed here with larger cards in 2 rows -->
+                            </div>
+                        </div>
+                        
+                                <!-- Video Preview Tab -->
+        <div class="tab-pane fade" id="game-video-content" role="tabpanel" aria-labelledby="game-video-tab" style="min-height: 500px;">
+            <div id="editGameVideoContent" class="d-flex flex-wrap gap-3">
+                <!-- Video items will be displayed here -->
+            </div>
+            
+            <!-- Video Action Buttons -->
+            <div class="mt-3 d-flex gap-2">
+                <button id="youtubeDownloadBtn" class="btn btn-primary">
+                    <i class="bi bi-youtube me-2"></i>YouTube Download
+                </button>
+                <button id="manualCropBtn" class="btn btn-warning" disabled>
+                    <i class="bi bi-crop me-2"></i>Manual Crop
+                </button>
+                <button id="deleteVideoBtn" class="btn btn-danger" disabled>
+                    <i class="bi bi-trash me-2"></i>Delete Video
+                </button>
+            </div>
+        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="d-flex justify-content-end w-100">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="saveGameChanges">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LaunchBox Media Download Modal -->
+    <div class="modal fade" id="launchboxMediaModal" tabindex="-1" aria-labelledby="launchboxMediaModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="launchboxMediaModalLabel">LaunchBox Media Download</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Game:</strong> <span id="launchboxMediaGameName"></span><br>
+                        <strong>Media Type:</strong> <span id="launchboxMediaType"></span>
+                        <div id="launchboxMediaProgress" class="text-muted mt-1" style="display: none;"></div>
+                    </div>
+                    
+                    <div id="launchboxMediaContent" class="row">
+                        <!-- Media options will be displayed here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Edit Find Best Match Modal -->
+    <div class="modal fade" id="gameEditMatchModal" tabindex="-1" aria-labelledby="gameEditMatchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="gameEditMatchModalLabel">Find Best Match</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Original Game:</strong> <span id="gameEditOriginalGameName"></span>
+                        <div id="gameEditModalProgress" class="text-muted mt-1" style="display: none;"></div>
+                    </div>
+                    
+                    <!-- Original Game Details Section -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-info-circle"></i> Original Game Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>Publisher:</strong> <span id="gameEditOriginalGamePublisher">N/A</span></p>
+                                    <p class="mb-2"><strong>Developer:</strong> <span id="gameEditOriginalGameDeveloper">N/A</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>ROM File:</strong> <span id="gameEditOriginalGameRomFile">N/A</span></p>
+                                    <p class="mb-2"><strong>Release Date:</strong> <span id="gameEditOriginalGameReleaseDate">N/A</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading Spinner -->
+                    <div id="gameEditLoadingSpinner" class="text-center py-4" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Searching for matches...</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <p class="text-muted">Select the best match from the top 20 candidates below. Each match shows the similarity score and detailed information. <strong>Double-click on a match card to apply it automatically.</strong></p>
+                    </div>
+                    <div id="gameEditMatchesList" class="row">
+                        <!-- Match cards will be generated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Find Best Match Modal -->
+    <div class="modal fade" id="globalMatchModal" tabindex="-1" aria-labelledby="globalMatchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="globalMatchModalLabel">Find Best Match</h5>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="globalPrevGameBtn" style="display: none;">
+                            <i class="bi bi-arrow-left me-1"></i>Previous
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" id="globalNextGameBtn" style="display: none;">
+                            <i class="bi bi-arrow-right me-1"></i>Next
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Original Game:</strong> <span id="globalOriginalGameName"></span>
+                        <div id="globalModalProgress" class="text-muted mt-1" style="display: none;"></div>
+                    </div>
+                    
+                    <!-- Original Game Details Section -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-info-circle"></i> Original Game Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>Publisher:</strong> <span id="globalOriginalGamePublisher">N/A</span></p>
+                                    <p class="mb-2"><strong>Developer:</strong> <span id="globalOriginalGameDeveloper">N/A</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>ROM File:</strong> <span id="globalOriginalGameRomFile">N/A</span></p>
+                                    <p class="mb-2"><strong>Release Date:</strong> <span id="globalOriginalGameReleaseDate">N/A</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading Spinner -->
+                    <div id="globalLoadingSpinner" class="text-center py-4" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Searching for matches...</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <p class="text-muted">Select the best match from the top 20 candidates below. Each match shows the similarity score and detailed information. <strong>Double-click on a match card to apply it automatically.</strong></p>
+                    </div>
+                    <div id="globalMatchesList" class="row">
+                        <!-- Match cards will be generated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <!-- Navigation buttons moved to header -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cache Configuration Modal -->
+    <div class="modal fade" id="cacheConfigurationModal" tabindex="-1" aria-labelledby="cacheConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cacheConfigurationModalLabel">
+                        <i class="bi bi-database me-2"></i>Cache Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                                             <!-- Cache Information -->
+                         <div class="card mb-3">
+                             <div class="card-header">
+                                 <h6 class="mb-0"><i class="bi bi-info-circle"></i> Cache Information</h6>
+                             </div>
+                             <div class="card-body">
+                                 <div class="row">
+                                     <div class="col-md-6">
+                                         <p class="mb-2"><strong>Metadata XML Date:</strong></p>
+                                         <span id="metadataXmlDate" class="badge bg-info">Loading...</span>
+                                     </div>
+                                     <div class="col-md-6">
+                                         <p class="mb-2"><strong>Cache Status:</strong></p>
+                                         <span id="cacheStatus" class="badge bg-secondary">Unknown</span>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                         
+                         <!-- Cache Statistics -->
+                         <div class="card mb-3">
+                             <div class="card-header">
+                                 <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Cache Statistics</h6>
+                             </div>
+                             <div class="card-body">
+                                 <div class="row">
+                                     <div class="col-md-4">
+                                         <div class="text-center">
+                                             <div class="h4 text-primary mb-1" id="cacheGamesCount">-</div>
+                                             <small class="text-muted">Games</small>
+                                         </div>
+                                     </div>
+                                     <div class="col-md-4">
+                                         <div class="text-center">
+                                             <div class="h4 text-success mb-1" id="cacheAltNamesCount">-</div>
+                                             <small class="text-muted">Alternative Names</small>
+                                         </div>
+                                     </div>
+                                     <div class="col-md-4">
+                                         <div class="text-center">
+                                             <div class="h4 text-info mb-1" id="cacheGameImagesCount">-</div>
+                                             <small class="text-muted">Game Images</small>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                    
+                                             <!-- Cache Actions -->
+                         <div class="card">
+                             <div class="card-header">
+                                 <h6 class="mb-0"><i class="bi bi-tools"></i> Cache Actions</h6>
+                             </div>
+                             <div class="card-body">
+                                 <div class="d-grid gap-2">
+                                     <button type="button" class="btn btn-success" id="updateMetadataBtn">
+                                         <i class="bi bi-download me-2"></i>Update Metadata.xml
+                                     </button>
+                                 </div>
+                                 <div class="mt-3">
+                                     <small class="text-muted">
+                                         <i class="bi bi-info-circle"></i> 
+                                         Updating metadata will download the latest version from Launchbox Games Database, replace the current metadata.xml file, and automatically refresh the cache.
+                                     </small>
+                                 </div>
+                             </div>
+                         </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LaunchBox Configuration Modal -->
+    <div class="modal fade" id="launchboxConfigurationModal" tabindex="-1" aria-labelledby="launchboxConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="launchboxConfigurationModalLabel">
+                        <i class="bi bi-box me-2"></i>LaunchBox Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Scraping Options -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-database-fill"></i> Scraping Options</h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Force Download Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="forceDownloadImagesModal">
+                                <label class="form-check-label" for="forceDownloadImagesModal">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Force Download
+                                </label>
+                                <div class="form-text">Download images even if media fields are not empty (used during scraping)</div>
+                            </div>
+                            
+                            <!-- Partial Match Modal Option -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="enablePartialMatchModalModal" checked>
+                                <label class="form-check-label" for="enablePartialMatchModalModal">
+                                    <i class="bi bi-search me-2"></i>Partial Match Modal
+                                </label>
+                                <div class="form-text">Show modal for non-perfect matches during scraping</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Information -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> These settings control how the LaunchBox scraping process behaves. Changes are applied immediately and will affect all future scraping operations.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Configuration Modal -->
+    <div class="modal fade" id="appConfigurationModal" tabindex="-1" aria-labelledby="appConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="appConfigurationModalLabel">
+                        <i class="bi bi-gear me-2"></i>Application Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="appConfigForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-folder me-2"></i>Directory Paths</h6>
+                                <div class="mb-3">
+                                    <label for="romsRootDirectory" class="form-label">ROMs Root Directory</label>
+                                    <input type="text" class="form-control" id="romsRootDirectory" placeholder="/path/to/roms">
+                                    <div class="form-text">Absolute path to your ROMs directory</div>
+                                </div>
+
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-server me-2"></i>Server Settings</h6>
+                                <div class="mb-3">
+                                    <label for="serverHost" class="form-label">Server Host</label>
+                                    <input type="text" class="form-control" id="serverHost" placeholder="0.0.0.0">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="serverPort" class="form-label">Server Port</label>
+                                    <input type="number" class="form-control" id="serverPort" placeholder="5000">
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="serverDebug">
+                                    <label class="form-check-label" for="serverDebug">
+                                        Debug Mode
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6><i class="bi bi-list-task me-2"></i>Task Management</h6>
+                                <div class="mb-3">
+                                    <label for="maxTasksToKeep" class="form-label">Max Tasks to Keep</label>
+                                    <input type="number" class="form-control" id="maxTasksToKeep" placeholder="30">
+                                    <div class="form-text">Number of recent tasks to keep in memory</div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="saveAppConfigBtn">Save Configuration</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube Search Modal -->
+    <div class="modal fade" id="youtubeSearchModal" tabindex="-1" aria-labelledby="youtubeSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="youtubeSearchModalLabel">
+                        <i class="bi bi-youtube me-2 text-danger"></i>YouTube Video Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <input type="text" id="youtubeSearchInput" class="form-control" placeholder="Search for videos...">
+                                <button class="btn btn-primary" type="button" id="youtubeSearchBtn">
+                                    <i class="bi bi-search me-2"></i>Search
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-text">Searching for: <span id="youtubeGameName" class="fw-bold"></span></div>
+                        </div>
+                    </div>
+                    
+                    <div id="youtubeSearchResults" class="row g-3">
+                        <!-- Search results will be displayed here -->
+                    </div>
+                    
+                    <div id="youtubeSearchLoading" class="text-center d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Searching YouTube...</p>
+                    </div>
+                    
+                    <div id="youtubeNoResults" class="text-center d-none">
+                        <i class="bi bi-search text-muted" style="font-size: 3rem;"></i>
+                        <p class="mt-2 text-muted">No videos found. Try a different search term.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube Player Modal -->
+    <div class="modal fade" id="youtubePlayerModal" tabindex="-1" aria-labelledby="youtubePlayerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="youtubePlayerModalLabel">
+                        <i class="bi bi-play-circle me-2 text-danger"></i>YouTube Video Preview
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div id="youtubePlayerContainer" class="ratio ratio-16x9">
+                                <div id="youtubePlayer"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Video Information</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h6 id="youtubeVideoTitle" class="card-title"></h6>
+                                    <p id="youtubeVideoDuration" class="text-muted small"></p>
+                                    <p id="youtubeVideoChannel" class="text-muted small"></p>
+                                    
+                                    <div class="mb-3">
+                                        <label for="startTimeInput" class="form-label">Start Time (seconds)</label>
+                                        <div class="input-group">
+                                            <input type="number" id="startTimeInput" class="form-control" min="0" step="1" placeholder="0">
+                                            <button class="btn btn-outline-secondary" type="button" id="getCurrentTimeBtn">
+                                                <i class="bi bi-clock me-2"></i>Get Current
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Set the start time for the 30-second clip</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="autoCropCheckbox" checked>
+                                            <label class="form-check-label" for="autoCropCheckbox">
+                                                <i class="bi bi-crop me-1"></i>Auto Crop (Remove Black Borders)
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Automatically detect and remove black borders using ffmpeg</div>
+                                    </div>
+                                    
+                                    <button id="downloadVideoBtn" class="btn btn-success w-100">
+                                        <i class="bi bi-download me-2"></i>Download 30s Clip
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Cropping Modal -->
+    <div class="modal fade" id="videoCroppingModal" tabindex="-1" aria-labelledby="videoCroppingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="videoCroppingModalLabel">
+                        <i class="bi bi-crop me-2 text-warning"></i>Manual Video Cropping
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Video Frame Preview</h6>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="text-center">
+                                        <img id="cropImage" alt="Video Frame">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Crop Settings</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Crop Area</label>
+                                        <div class="alert alert-info">
+                                            <strong>Dimensions:</strong> <span id="cropDimensions">-</span><br>
+                                            <strong>Position:</strong> <span id="cropPosition">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="keepAspectRatio" checked>
+                                            <label class="form-check-label" for="keepAspectRatio">
+                                                Keep Aspect Ratio
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button id="resetCropBtn" class="btn btn-outline-secondary">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Reset Crop
+                                        </button>
+                                        <button id="applyCropBtn" class="btn btn-success">
+                                            <i class="bi bi-scissors me-1"></i>Apply Crop
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Systems Configuration Modal -->
+    <div class="modal fade" id="systemsConfigurationModal" tabindex="-1" aria-labelledby="systemsConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="systemsConfigurationModalLabel">
+                        <i class="bi bi-controller me-2"></i>Systems Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6>Configured Systems</h6>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm" id="addSystemBtn">
+                                <i class="bi bi-plus-circle me-1"></i>Add System
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSystemsBtn">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover" id="systemsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 15%">System</th>
+                                    <th style="width: 40%">LaunchBox Platform</th>
+                                    <th style="width: 35%">Extensions</th>
+                                    <th style="width: 10%">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="systemsTableBody">
+                                <!-- Systems will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Tip:</strong> Click on any field in the table to edit it directly. Changes are saved automatically when you click away or press Enter.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- AG Grid JS -->
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/dist/ag-grid-community.min.js"></script>
+    
+    <!-- YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    
+    <style>
+        .match-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+            position: relative;
+        }
+        
+        .match-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            border-color: #0d6efd;
+        }
+        
+        .match-card.selected {
+            border: 2px solid #198754 !important;
+            background-color: #f8fff9 !important;
+            box-shadow: 0 4px 12px rgba(25, 135, 84, 0.2);
+        }
+        
+        .match-card::after {
+            content: "Double-click to apply";
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            font-size: 0.75rem;
+            color: #6c757d;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+        
+        .match-card:hover::after {
+            opacity: 1;
+        }
+        
+        /* Media preview item styles */
+        .media-preview-item {
+            transition: all 0.2s ease;
+        }
+        
+        .media-preview-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .media-placeholder {
+            transition: all 0.2s ease !important;
+        }
+        
+        .media-placeholder:hover {
+            border-color: #0d6efd !important;
+            background-color: #f8f9ff !important;
+            transform: scale(1.02);
+        }
+        
+        /* Media replace overlay styles */
+        .media-replace-overlay {
+            pointer-events: none;
+        }
+        
+        .media-preview-item:hover .media-replace-overlay {
+            opacity: 1 !important;
+        }
+        
+        .media-preview-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        /* Media Files Tab - 5 Cards Per Row */
+        #editGameMediaContent {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 8px;
+            max-height: 450px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        #editGameMediaContent .media-preview-item {
+            width: calc(20% - 6.4px); /* 5 cards per row with gap */
+            min-width: 180px;
+            height: 200px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        #editGameMediaContent .media-preview-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-color: #0d6efd;
+        }
+        
+        #editGameMediaContent .media-preview-item.selected {
+            border: 2px solid #dc3545 !important;
+            background-color: #fff5f5 !important;
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2);
+        }
+        
+        #editGameMediaContent .media-preview-item img {
+            width: calc(100% - 20px);
+            height: 140px;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        
+        #editGameMediaContent .media-placeholder {
+            width: calc(100% - 20px);
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #dee2e6;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            transition: all 0.2s ease;
+        }
+        
+        #editGameMediaContent .media-placeholder:hover {
+            border-color: #0d6efd;
+            background-color: #f8f9ff;
+            transform: scale(1.02);
+        }
+        
+        #editGameMediaContent .media-filename {
+            font-size: 0.7rem;
+            margin-top: 4px;
+            text-align: center;
+            max-width: calc(100% - 20px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #6c757d;
+        }
+        
+        #editGameMediaContent .media-filename:hover {
+            white-space: normal;
+            word-break: break-word;
+            max-height: none;
+            overflow: visible;
+        }
+    </style>
+    
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

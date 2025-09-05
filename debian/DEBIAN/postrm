@@ -1,0 +1,59 @@
+#!/bin/bash
+set -e
+
+# Post-removal script for GameManager
+
+# Check if this is a removal (not an upgrade)
+if [ "$1" = "remove" ]; then
+    echo "Cleaning up GameManager..."
+    
+    # Remove systemd service file
+    if [ -f /etc/systemd/system/gamemanager.service ]; then
+        rm /etc/systemd/system/gamemanager.service
+        systemctl daemon-reload
+        echo "Systemd service file removed."
+    fi
+
+    # Ask user if they want to remove application data directories
+    echo ""
+    echo "Do you want to remove the application data directories?"
+    echo "This will delete configuration, logs, and temporary data."
+    echo "NOTE: Your game ROMs and media files in /mnt/roms/ will be preserved."
+    echo "Directories to be removed:"
+    echo "  /opt/gamemanager/var/"
+    echo ""
+    read -p "Remove application data directories? [y/N]: " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Removing application data directories..."
+        rm -rf /opt/gamemanager/var
+        echo "Application data directories removed."
+        echo "Your game ROMs and media files have been preserved in /mnt/roms/"
+    else
+        echo "Application data directories preserved."
+    fi
+
+    # Ask user if they want to remove the gamemanager user
+    echo ""
+    echo "Do you want to remove the gamemanager user account?"
+    echo "This will delete the user and their home directory."
+    echo ""
+    read -p "Remove gamemanager user? [y/N]: " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Removing gamemanager user..."
+        userdel -r gamemanager 2>/dev/null || true
+        echo "GameManager user removed."
+    else
+        echo "GameManager user preserved."
+    fi
+
+    echo "GameManager removal completed."
+elif [ "$1" = "upgrade" ] || [ "$1" = "disappear" ]; then
+    echo "GameManager upgraded successfully."
+    echo "Configuration and data directories preserved."
+else
+    echo "GameManager post-removal script completed."
+fi
+
+exit 0

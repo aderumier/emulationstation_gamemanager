@@ -1,0 +1,35 @@
+# Game Collection Manager - Requirements
+# Core web framework
+Flask>=2.3.0
+Flask-CORS>=4.0.0
+Flask-SocketIO>=5.3.0
+Flask-Login>=0.6.0
+# Flask-Session>=0.5.0  # Removed - using Flask's built-in session management
+
+# HTTP requests and networking
+requests>=2.31.0
+httpx>=0.25.0
+aiofiles>=23.2.0
+
+# Standard library packages (included with Python 3.8+)
+# - os
+# - json
+# - time
+# - xml.etree.ElementTree
+# - threading
+# - re
+# - difflib
+# - shutil
+# - uuid
+# - datetime
+# - concurrent.futures
+
+# Development and testing (optional)
+# pytest>=7.4.0
+# pytest-flask>=1.2.0
+
+# Performance monitoring (optional)
+# psutil>=5.9.0
+
+# Note: This application uses Python 3.8+ standard library features
+# No additional packages are required beyond Flask, Flask-CORS, Flask-SocketIO, and requests

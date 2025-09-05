@@ -1,0 +1,169 @@
+#!/bin/bash
+set -e
+
+# Post-installation script for GameManager
+
+# Check if this is a fresh installation or upgrade
+if [ "$1" = "configure" ] && [ -z "$2" ]; then
+    # Fresh installation
+    echo "Setting up GameManager..."
+
+    # Create gamemanager user if it doesn't exist
+    if ! id "gamemanager" &>/dev/null; then
+        echo "Creating gamemanager user..."
+        useradd --system --shell /bin/false --home-dir /opt/gamemanager --create-home gamemanager
+    fi
+
+    # Set up directories
+    echo "Creating application directories..."
+    mkdir -p /opt/gamemanager/var/task_logs
+    mkdir -p /opt/gamemanager/var/db
+    mkdir -p /opt/gamemanager/var/sessions
+    mkdir -p /opt/gamemanager/var/config
+    mkdir -p /opt/gamemanager/roms
+
+    # Set permissions
+    echo "Setting up permissions..."
+    chown -R gamemanager:gamemanager /opt/gamemanager
+    chmod 755 /opt/gamemanager
+    chmod 755 /opt/gamemanager/var
+    chmod 755 /opt/gamemanager/var/task_logs
+    chmod 755 /opt/gamemanager/var/db
+    chmod 755 /opt/gamemanager/var/sessions
+    chmod 755 /opt/gamemanager/var/config
+    chmod 755 /opt/gamemanager/roms
+
+    # Create systemd service file
+    echo "Installing systemd service..."
+    cat > /etc/systemd/system/gamemanager.service << 'EOF'
+[Unit]
+Description=GameManager Game Collection Management System
+After=network.target
+
+[Service]
+Type=exec
+User=gamemanager
+Group=gamemanager
+WorkingDirectory=/opt/gamemanager
+Environment=PYTHONPATH=/opt/gamemanager
+ExecStart=/usr/bin/python3 app.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gamemanager
+
+# Security settings
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Reload systemd and enable service
+    systemctl daemon-reload
+    systemctl enable gamemanager.service
+
+    echo "GameManager installation completed!"
+    echo ""
+    echo "To start the service:"
+    echo "  sudo systemctl start gamemanager"
+    echo ""
+    echo "To check status:"
+    echo "  sudo systemctl status gamemanager"
+    echo ""
+    echo "To view logs:"
+    echo "  sudo journalctl -u gamemanager -f"
+    echo ""
+    echo "The application will be available at: http://localhost:5000"
+    echo ""
+    echo "Configuration files are located in: /opt/gamemanager/var/config/"
+    echo "Game ROMs should be placed in: /opt/gamemanager/roms/"
+    echo "Media files will be stored in: /opt/gamemanager/roms/<system>/media/"
+
+elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
+    # Upgrade
+    echo "Upgrading GameManager..."
+    
+    # Ensure directories exist (in case they were removed)
+    mkdir -p /opt/gamemanager/var/task_logs
+    mkdir -p /opt/gamemanager/var/db
+    mkdir -p /opt/gamemanager/var/sessions
+    mkdir -p /opt/gamemanager/var/config
+    mkdir -p /opt/gamemanager/roms
+    
+    # Backup existing config files before upgrade
+    if [ -f /opt/gamemanager/var/config/config.json ]; then
+        cp /opt/gamemanager/var/config/config.json /opt/gamemanager/var/config/config.json.backup
+    fi
+    if [ -f /opt/gamemanager/var/config/user.cfg ]; then
+        cp /opt/gamemanager/var/config/user.cfg /opt/gamemanager/var/config/user.cfg.backup
+    fi
+    
+    # Set permissions
+    chown -R gamemanager:gamemanager /opt/gamemanager
+    chmod 755 /opt/gamemanager
+    chmod 755 /opt/gamemanager/var
+    chmod 755 /opt/gamemanager/var/task_logs
+    chmod 755 /opt/gamemanager/var/db
+    chmod 755 /opt/gamemanager/var/sessions
+    chmod 755 /opt/gamemanager/var/config
+    chmod 755 /opt/gamemanager/roms
+
+    # Update systemd service file
+    echo "Updating systemd service..."
+    cat > /etc/systemd/system/gamemanager.service << 'EOF'
+[Unit]
+Description=GameManager Game Collection Management System
+After=network.target
+
+[Service]
+Type=exec
+User=gamemanager
+Group=gamemanager
+WorkingDirectory=/opt/gamemanager
+Environment=PYTHONPATH=/opt/gamemanager
+ExecStart=/usr/bin/python3 app.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gamemanager
+
+# Security settings
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Restore config files if they existed before upgrade
+    if [ -f /opt/gamemanager/var/config/config.json.backup ]; then
+        mv /opt/gamemanager/var/config/config.json.backup /opt/gamemanager/var/config/config.json
+        echo "Restored existing config.json"
+    fi
+    if [ -f /opt/gamemanager/var/config/user.cfg.backup ]; then
+        mv /opt/gamemanager/var/config/user.cfg.backup /opt/gamemanager/var/config/user.cfg
+        echo "Restored existing user.cfg"
+    fi
+    
+    # Reload systemd
+    systemctl daemon-reload
+    
+    # Restart service if it was running
+    if systemctl is-active --quiet gamemanager; then
+        systemctl restart gamemanager
+        echo "GameManager service restarted."
+    fi
+
+    echo "GameManager upgrade completed!"
+    echo "Configuration and data directories preserved."
+    echo "Service has been updated and restarted if it was running."
+
+else
+    echo "GameManager post-installation script completed."
+fi
+
+exit 0

@@ -1,0 +1,1330 @@
+/* Main layout and components */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
+.navbar {
+    background-color: #343a40;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.navbar-brand {
+    font-weight: bold;
+    color: #fff !important;
+}
+
+.navbar-logo {
+    height: 40px;
+    width: auto;
+    margin-right: 12px;
+}
+
+.navbar-subtitle {
+    font-size: 0.75rem;
+    font-weight: normal;
+    color: rgba(255, 255, 255, 0.8);
+    text-transform: lowercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.navbar-nav .nav-link {
+    color: rgba(255,255,255,0.8) !important;
+}
+
+.navbar-nav .nav-link:hover {
+    color: #fff !important;
+}
+
+/* Allow configuration dropdown to extend beyond navbar */
+.navbar {
+    overflow: visible !important;
+}
+
+.navbar .container-fluid {
+    overflow: visible !important;
+}
+
+.navbar-nav {
+    overflow: visible !important;
+}
+
+.navbar-nav .dropdown-menu {
+    z-index: 1050 !important;
+    min-width: 200px !important;
+}
+
+/* Main content area */
+.main-content {
+    padding: 5px;
+    width: 100%;
+    max-width: 100vw;
+    margin: 0 auto;
+    margin-top: 10px;
+    margin-bottom: 0;
+    overflow-x: hidden;
+}
+
+/* Card styling */
+.card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    margin-bottom: 0;
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid #e9ecef;
+    font-weight: 600;
+}
+
+/* Button styling */
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+.btn-success {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.btn-success:hover {
+    background-color: #1e7e34;
+    border-color: #1e7e34;
+}
+
+/* Table styling */
+.table {
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.table thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Form controls */
+.form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Prevent horizontal scrolling */
+.container-fluid {
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+.row {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Navbar styling */
+.navbar {
+    background-color: #343a40;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.navbar-nav .nav-link {
+    color: rgba(255,255,255,0.8) !important;
+}
+
+.navbar-nav .nav-link:hover {
+    color: #fff !important;
+}
+
+
+
+/* AG Grid container styling - Custom class without .ag-theme- prefix to avoid conflicts */
+
+/* Inline editing styles */
+.ag-cell-edit-input {
+    border: 2px solid #007bff !important;
+    border-radius: 4px !important;
+    padding: 4px 8px !important;
+    font-weight: bold !important;
+    background-color: #fff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
+
+.ag-cell-edit-input:focus {
+    outline: none !important;
+    border-color: #0056b3 !important;
+    box-shadow: 0 0 0 0.3rem rgba(0, 123, 255, 0.35) !important;
+}
+
+/* Modified game indicator */
+.ag-cell-modified {
+    background-color: #d4edda !important;
+    border-left: 3px solid #28a745 !important;
+}
+
+/* Hover effect for editable cells */
+.ag-cell[col-id="name"]:hover {
+    background-color: #e3f2fd !important;
+    cursor: pointer !important;
+}
+
+/* Edit icon for modified games */
+.edit-indicator {
+    color: #28a745;
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+/* Columns Tool Panel styling */
+.ag-side-bar {
+    border-left: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+}
+
+.ag-tool-panel-wrapper {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.ag-column-drop-cell {
+    background-color: #e9ecef;
+    border: 2px dashed #6c757d;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 4px;
+    text-align: center;
+    color: #6c757d;
+}
+
+.ag-column-drop-cell.ag-column-drop-cell-hover {
+    background-color: #007bff;
+    border-color: #0056b3;
+    color: #fff;
+}
+
+/* Tool panel button styling */
+#toggleColumnsPanelBtn.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+#toggleColumnsPanelBtn.btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+/* Custom Columns Panel styling */
+#customColumnsPanel .card {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    position: relative;
+    z-index: 10;
+}
+
+#customColumnsPanel .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Task Panel styling to ensure proper positioning */
+#taskPanel {
+    position: relative;
+    z-index: 5;
+    margin-top: 0;
+}
+
+
+
+/* Tabbed component container styling */
+#combinedPanelTabContent {
+    transition: height 0.1s ease;
+    min-height: 200px;
+    overflow: hidden;
+}
+
+/* Task grid container styling */
+#taskGrid {
+    transition: height 0.1s ease;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#taskPanel .card {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Ensure proper spacing between panels */
+#customColumnsPanel + #taskPanel {
+    margin-top: 0;
+}
+
+#columnsCheckboxes .form-check {
+    margin-bottom: 0.5rem;
+}
+
+#columnsCheckboxes .form-check-label {
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+#columnsCheckboxes .form-check-input:checked {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+/* Column reordering hint */
+.ag-header-cell {
+    cursor: move;
+}
+
+.ag-header-cell:hover {
+    background-color: #e9ecef;
+}
+
+
+
+/* Custom name editor styling */
+.custom-name-editor {
+    border: 2px solid #007bff !important;
+    border-radius: 4px !important;
+    padding: 4px 8px !important;
+    font-weight: bold !important;
+    background-color: #fff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.custom-name-editor:focus {
+    outline: none !important;
+    border-color: #0056b3 !important;
+    box-shadow: 0 0 0 0.3rem rgba(0, 123, 255, 0.35) !important;
+}
+.game-grid-container {
+    height: 600px;
+    width: 100%;
+    min-height: 400px;
+}
+
+/* Ensure filter popups don't inherit problematic height from theme */
+.ag-popup {
+    height: auto !important;
+    max-height: 300px !important;
+}
+
+.ag-popup-child {
+    height: auto !important;
+    max-height: 300px !important;
+}
+
+/* Filter toolpanel height fix */
+.ag-filter-toolpanel {
+    height: auto !important;
+    max-height: 300px !important;
+    z-index: 1000;
+}
+
+/* Ensure popup elements don't hide grid content */
+.ag-filter-popup {
+    height: auto !important;
+    max-height: 300px !important;
+    overflow: visible !important;
+}
+
+
+
+#mediaPreviewContent {
+    max-height: 200px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+#mediaPreviewContent::-webkit-scrollbar {
+    height: 8px;
+}
+
+#mediaPreviewContent::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+#mediaPreviewContent::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+#mediaPreviewContent::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Media preview items */
+.media-preview-item {
+    display: inline-block;
+    margin: 5px;
+    text-align: center;
+    width: 150px;
+    height: 180px;
+}
+
+/* Media placeholder styling */
+.media-placeholder {
+    transition: all 0.2s ease;
+}
+
+.media-placeholder:hover {
+    background-color: #e9ecef !important;
+    border-color: #adb5bd !important;
+    transform: scale(1.02);
+}
+
+.media-preview-item img,
+.media-preview-item video {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    object-fit: contain;
+    height: 150px;
+    width: 150px;
+    background-color: #f8f9fa;
+}
+
+.media-preview-item small {
+    color: #6c757d;
+    font-size: 0.8rem;
+    margin-top: 5px;
+}
+
+/* AG Grid theme customizations */
+.ag-theme-alpine {
+    --ag-header-height: 40px;
+    --ag-header-background-color: #f8f9fa;
+    --ag-header-foreground-color: #495057;
+    --ag-font-size: 12px;
+    --ag-cell-horizontal-padding: 8px;
+    height: 100%;
+    width: 100%;
+}
+
+/* Grid container to fill available space */
+#gamesGrid {
+    height: 100%;
+    width: 100%;
+    min-height: 400px;
+}
+
+/* Main content area to use flexbox for proper height distribution */
+.main-content {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 120px);
+    min-height: 500px;
+}
+
+/* Grid section to fill remaining space */
+.grid-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Ensure the grid takes all available space */
+.grid-section #gamesGrid {
+    flex: 1;
+    min-height: 0;
+}
+
+
+
+/* Ensure filter panels don't hide the grid */
+.ag-filter-toolpanel {
+    z-index: 1000;
+}
+
+.ag-popup-child {
+    z-index: 1001;
+}
+
+
+
+
+
+/* Favorite badges */
+.favorite-badge {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.favorite-badge.favorite {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.favorite-badge.not-favorite {
+    background-color: #6c757d;
+    color: #fff;
+}
+
+.favorite-badge:hover {
+    transform: scale(1.1);
+}
+
+/* Media indicators */
+.media-indicator {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.media-indicator.has-media {
+    background-color: #28a745;
+    color: white;
+}
+
+.media-indicator.no-media {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .main-content {
+        height: calc(100vh - 100px);
+    }
+    
+    .ag-theme-alpine {
+        --ag-font-size: 11px;
+    }
+}
+
+/* Inline editing styles */
+.ag-theme-alpine .ag-cell-edit-input {
+    border: 2px solid #007bff;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: inherit;
+    font-family: inherit;
+    background-color: #fff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.ag-theme-alpine .ag-cell-edit-input:focus {
+    outline: none;
+    border-color: #0056b3;
+    box-shadow: 0 0 0 0.2rem rgba(0, 86, 179, 0.25);
+}
+
+/* Row editing state */
+.ag-theme-alpine .editing-row {
+    background-color: #e3f2fd !important;
+}
+
+.ag-theme-alpine .editing-row:hover {
+    background-color: #bbdefb !important;
+}
+
+/* Make editable cells more obvious */
+.ag-theme-alpine .ag-cell[col-id="name"],
+.ag-theme-alpine .ag-cell[col-id="desc"] {
+    cursor: pointer;
+}
+
+.ag-theme-alpine .ag-cell[col-id="name"]:hover,
+.ag-theme-alpine .ag-cell[col-id="desc"]:hover {
+    background-color: #f8f9fa;
+}
+
+/* Fix column filter popup z-index issues */
+.ag-theme-alpine .ag-popup {
+    z-index: 1000 !important;
+}
+
+.ag-theme-alpine .ag-popup-child {
+    z-index: 1001 !important;
+}
+
+.ag-theme-alpine .ag-filter-toolpanel {
+    z-index: 1002 !important;
+}
+
+/* Ensure filter popups don't hide grid content */
+.ag-theme-alpine .ag-filter-popup {
+    position: absolute !important;
+    z-index: 1003 !important;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Filter input styling */
+.ag-theme-alpine .ag-filter-popup input,
+.ag-theme-alpine .ag-filter-popup select {
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 4px 8px;
+    margin: 2px;
+    font-size: 12px;
+}
+
+.ag-theme-alpine .ag-filter-popup input:focus,
+.ag-theme-alpine .ag-filter-popup select:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Filter buttons */
+.ag-theme-alpine .ag-filter-popup button {
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 12px;
+    margin: 2px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.ag-theme-alpine .ag-filter-popup button:hover {
+    background: #0056b3;
+}
+
+.ag-theme-alpine .ag-filter-popup button.ag-filter-apply {
+    background: #28a745;
+}
+
+.ag-theme-alpine .ag-filter-popup button.ag-filter-apply:hover {
+    background: #1e7e34;
+}
+
+.ag-theme-alpine .ag-filter-popup button.ag-filter-reset {
+    background: #6c757d;
+}
+
+.ag-theme-alpine .ag-filter-popup button.ag-filter-reset:hover {
+    background: #545b62;
+}
+
+/* Progress Log Styling */
+.log-entry {
+    margin-bottom: 4px;
+    padding: 2px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-entry .timestamp {
+    color: #6c757d;
+    font-weight: 500;
+    margin-right: 8px;
+}
+
+.log-info {
+    color: #0d6efd;
+}
+
+.log-success {
+    color: #198754;
+}
+
+.log-warning {
+    color: #ffc107;
+}
+
+.log-error {
+    color: #dc3545;
+}
+
+
+
+/* Enhanced Progress Log Entry Types */
+.log-current {
+    background-color: #f3e5f5;
+    border-left: 3px solid #9c27b0;
+    color: #6a1b9a;
+    font-weight: bold;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 4px;
+}
+
+.log-match {
+    background-color: #e8f5e8;
+    border-left: 3px solid #4caf50;
+    color: #2e7d32;
+    font-style: italic;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 4px;
+}
+
+.log-changes {
+    background-color: #fff8e1;
+    border-left: 3px solid #ffc107;
+    color: #f57f17;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 4px;
+}
+
+.log-progress {
+    background-color: #fff3e0;
+    border-left: 3px solid #ff9800;
+    color: #e65100;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 4px;
+}
+
+/* Partial Match Modal Styling */
+#partialMatchModal .modal-xl {
+    max-width: 95%;
+}
+
+#partialMatchModal .match-card {
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+    margin-bottom: 1rem;
+}
+
+#partialMatchModal .modal-body {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+#partialMatchModal .match-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+#partialMatchModal .match-card.selected {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+
+#partialMatchModal .match-card.selected .card-header {
+    background-color: #28a745;
+    color: white;
+}
+
+/* Loading Spinner Styling */
+#loadingSpinner {
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#loadingSpinner .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+#loadingSpinner p {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    color: #6c757d;
+}
+
+/* Original Game Details Styling */
+#partialMatchModal .card-header h6 {
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+#partialMatchModal .card-header h6 i {
+    color: #007bff;
+    margin-right: 0.5rem;
+}
+
+#partialMatchModal .card-body p {
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+#partialMatchModal .card-body strong {
+    color: #495057;
+    font-weight: 600;
+}
+
+#partialMatchModal .card-body span {
+    color: #6c757d;
+    font-family: 'Courier New', monospace;
+    background-color: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+}
+
+/* Spinning icon for cache reload */
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Toast notifications */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    min-width: 300px;
+}
+
+/* Task Panel Styling */
+.task-grid {
+    height: 300px;
+    width: 100%;
+}
+
+.task-progress-bar {
+    height: 20px;
+    border-radius: 4px;
+    background-color: #e9ecef;
+    overflow: hidden;
+    position: relative;
+}
+
+.task-progress-fill {
+    height: 100%;
+    background-color: #007bff;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.task-progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+    z-index: 1;
+}
+
+.task-status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+    min-width: 80px;
+}
+
+.task-status-badge.running {
+    background-color: #007bff;
+    color: white;
+}
+
+.task-status-badge.completed {
+    background-color: #28a745;
+    color: white;
+}
+
+.task-status-badge.error {
+    background-color: #dc3545;
+    color: white;
+}
+
+.task-status-badge.queued {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.task-status-badge.idle {
+    background-color: #6c757d;
+    color: white;
+}
+
+.task-actions-cell {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+}
+
+.task-actions-cell button {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+}
+
+/* Task Log Modal */
+#taskLogModal .modal-body {
+    max-height: 80vh;
+}
+
+#taskLogContent {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+#taskLogContent .log-entry {
+    margin-bottom: 2px;
+    padding: 1px 0;
+}
+
+#taskLogContent .log-entry:hover {
+    background-color: #e9ecef;
+}
+
+/* Combined panel with tabs */
+#combinedPanelTabs .nav-link {
+    color: #6c757d;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    background-color: #f8f9fa;
+    margin-right: 2px;
+}
+
+#combinedPanelTabs .nav-link:hover {
+    color: #495057;
+    border-bottom-color: #dee2e6;
+}
+
+#combinedPanelTabs .nav-link.active {
+    color: #0d6efd;
+    border-bottom-color: #0d6efd;
+    background-color: #e3f2fd;
+    font-weight: 600;
+}
+
+#combinedPanelTabs .nav-link i {
+    margin-right: 0.5rem;
+}
+
+/* Media preview tab content */
+#media-preview-content {
+    min-height: 200px;
+}
+
+/* Task management tab content */
+#task-management-content {
+    min-height: 200px;
+}
+
+/* Visual feedback during resizing */
+#taskGrid.resizing {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Height indicator during resizing */
+.height-indicator {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    z-index: 9999;
+    pointer-events: none;
+    display: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    animation: fadeInOut 0.3s ease;
+}
+
+/* Delete button styling */
+#deleteSelectedBtn {
+    transition: all 0.2s ease;
+}
+
+#deleteSelectedBtn:hover:not(:disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+#deleteSelectedBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Active row highlighting for keyboard navigation */
+.ag-row-selected.ag-row-focus {
+    background-color: #e3f2fd !important;
+    border-left: 4px solid #2196f3 !important;
+}
+
+.ag-row-selected.ag-row-focus:hover {
+    background-color: #bbdefb !important;
+}
+
+/* Navigation highlight animation (for preview without selection) */
+.navigated-row-highlight {
+    animation: navigateHighlight 0.3s ease-in-out;
+}
+
+@keyframes navigateHighlight {
+    0% {
+        background-color: #e8f4fd !important;
+        border-left: 3px solid #17a2b8 !important;
+    }
+    50% {
+        background-color: #e8f4fd !important;
+        border-left: 3px solid #17a2b8 !important;
+    }
+    100% {
+        background-color: inherit;
+        border-left: inherit;
+    }
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Edit Game Modal Tabs */
+#editGameModalTabs .nav-link {
+    color: #6c757d;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
+    border-radius: 0;
+    transition: all 0.2s ease;
+}
+
+#editGameModalTabs .nav-link:hover {
+    color: #495057;
+    background-color: transparent;
+    border-bottom-color: #dee2e6;
+}
+
+#editGameModalTabs .nav-link.active {
+    color: #007bff;
+    background-color: transparent;
+    border-bottom-color: #007bff;
+    font-weight: 500;
+}
+
+#editGameModalTabs .nav-link i {
+    font-size: 1.1em;
+}
+
+/* Edit Game Modal Media Tab */
+#editGameMediaContent {
+    min-height: 200px;
+}
+
+#editGameMediaContent .media-preview-item {
+    width: 150px;
+    height: 150px;
+    margin-bottom: 1rem;
+}
+
+#editGameMediaContent .media-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #dee2e6;
+    transition: all 0.2s ease;
+}
+
+#editGameMediaContent .media-preview-item img:hover {
+    border-color: #007bff;
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+}
+
+#editGameMediaContent .media-placeholder {
+    width: 150px;
+    height: 150px;
+    background-color: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    font-size: 0.8rem;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+#editGameMediaContent .media-placeholder:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+    transform: scale(1.02);
+}
+
+/* Media filename display */
+#editGameMediaContent .media-filename {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-align: center;
+    margin: 0.5rem 0;
+    padding: 0.25rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    word-break: break-all;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#editGameMediaContent .media-filename:hover {
+    white-space: normal;
+    word-break: break-word;
+    max-height: none;
+    overflow: visible;
+}
+
+/* Double-click upload functionality */
+#editGameMediaContent .media-preview-item img {
+    transition: all 0.2s ease;
+}
+
+#editGameMediaContent .media-preview-item img:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+#editGameMediaContent .media-placeholder:hover {
+    background-color: #e9ecef;
+    border-color: #007bff;
+    transform: scale(1.02);
+}
+
+/* Media preview selection styling */
+.media-preview-item {
+    transition: all 0.2s ease;
+}
+
+.media-preview-item:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+}
+
+.media-preview-item.selected {
+    border: 3px solid #007bff;
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}
+
+/* Video Preview Tab Styling */
+#editGameVideoContent {
+    min-height: 200px;
+}
+
+.video-preview-item {
+    transition: all 0.2s ease;
+}
+
+.video-preview-item:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+}
+
+.video-preview-item video {
+    transition: all 0.2s ease;
+}
+
+.video-preview-item video:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.video-placeholder {
+    transition: all 0.2s ease;
+}
+
+.video-placeholder:hover {
+    background-color: #e9ecef;
+    border-color: #007bff;
+    transform: scale(1.02);
+}
+
+.video-filename {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-align: center;
+    margin: 0.5rem 0;
+    padding: 0.25rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    word-break: break-all;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.video-filename:hover {
+    white-space: normal;
+    word-break: break-word;
+    max-height: none;
+    overflow: visible;
+}
+
+.media-preview-item.selected img,
+.media-preview-item.selected video {
+    border-radius: 8px;
+}
+
+/* Media preview item cursor and selection feedback */
+.media-preview-item.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: #007bff;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* YouTube Modal Styles */
+.youtube-video-card {
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: 1px solid #dee2e6;
+}
+
+.youtube-video-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.youtube-video-thumbnail {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px 8px 0 0;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.youtube-video-thumbnail:not([src]), 
+.youtube-video-thumbnail[src=""],
+.youtube-video-thumbnail[src*="placeholder"] {
+    background: linear-gradient(135deg, #f8f9fa 25%, #e9ecef 25%, #e9ecef 50%, #f8f9fa 50%, #f8f9fa 75%, #e9ecef 75%, #e9ecef);
+    background-size: 20px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.youtube-video-info {
+    padding: 1rem;
+}
+
+.youtube-video-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.youtube-video-meta {
+    font-size: 0.8rem;
+    color: #6c757d;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.youtube-video-duration,
+.youtube-video-views,
+.youtube-video-channel {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.youtube-video-duration i,
+.youtube-video-views i,
+.youtube-video-channel i {
+    font-size: 0.8rem;
+    color: #007bff;
+}
+
+.youtube-video-duration {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.youtube-video-views {
+    color: #6c757d;
+}
+
+.youtube-video-channel {
+    color: #495057;
+    font-weight: 500;
+}
+
+.youtube-video-published {
+    color: #6c757d;
+    font-style: italic;
+}
+
+#youtubePlayerContainer {
+    background-color: #000;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#youtubePlayer {
+    width: 100%;
+    height: 100%;
+}
