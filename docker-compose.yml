@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  cursorscraper:
+  gamemanager:
     build: .
-    container_name: cursorscraper
+    container_name: gamemanager
     ports:
       - "5000:5000"
     volumes:
@@ -12,11 +12,16 @@ services:
       - ./media:/app/media
       - ./cache:/app/cache
       - ./var/task_logs:/app/var/task_logs
-      # Mount config file for easy editing
+      - ./var/db:/app/var/db
+      - ./var/sessions:/app/var/sessions
+      - ./var/gamelists:/app/var/gamelists
+      # Mount config files for easy editing
       - ./var/config/config.json:/app/var/config/config.json
+      - ./var/config/user.cfg:/app/var/config/user.cfg
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - FLASK_APP=app.py
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]
