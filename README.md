@@ -119,19 +119,19 @@ git diff HEAD~1            # See changes in last commit
 
 #### Ignored Files (not in Git)
 - Python cache (`__pycache__/`)
-- Large data files (`var/db/Metadata.xml`, `roms/`)
+- Large data files (`var/db/launchbox/Metadata.xml`, `roms/`)
 - Environment files (`.env`)
 - IDE files (`.vscode/`, `.idea/`)
 - Temporary files (`*.bak`, `*.tmp`)
 
 ### Adding Large Files (Optional)
 
-If you want to track large files like `var/db/Metadata.xml`:
+If you want to track large files like `var/db/launchbox/Metadata.xml`:
 
 ```bash
 # Add to .gitignore first, then force add
-echo "!var/db/Metadata.xml" >> .gitignore
-git add -f var/db/Metadata.xml
+echo "!var/db/launchbox/Metadata.xml" >> .gitignore
+git add -f var/db/launchbox/Metadata.xml
 git commit -m "Add Metadata.xml for scraping"
 ```
 

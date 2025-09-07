@@ -497,7 +497,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(ROMS_FOLDER, exist_ok=True)
 
 # Launchbox scraping configuration
-LAUNCHBOX_METADATA_PATH = 'var/db/Metadata.xml'
+LAUNCHBOX_METADATA_PATH = 'var/db/launchbox/Metadata.xml'
 
 # Global variables for scraping
 scraping_in_progress = False
