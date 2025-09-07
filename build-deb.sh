@@ -53,17 +53,19 @@ cp DISCORD_SETUP_EXAMPLE.md debian/usr/share/doc/gamemanager/
 
 # Create changelog
 echo "Creating changelog..."
-cat > debian/usr/share/doc/gamemanager/changelog << 'EOF'
-gamemanager (1.0-1) unstable; urgency=medium
+VERSION=$(grep "^Version:" debian/DEBIAN/control | cut -d' ' -f2)
+cat > debian/usr/share/doc/gamemanager/changelog << EOF
+gamemanager ($VERSION) unstable; urgency=medium
 
-  * Initial release of GameManager v1.0
-  * Complete game collection management system
-  * LaunchBox integration for metadata and media
-  * 2D box art generation with ImageMagick
-  * Video processing and YouTube integration
-  * Docker support and production deployment
-  * Systemd service integration
-  * Comprehensive documentation
+  * Version $VERSION release
+  * Add comprehensive confirmation modal for saving gamelist files
+  * Show detailed differences between var/gamelists and roms gamelists
+  * Display games added/removed, media changes, and summary statistics
+  * Move Metadata.xml from var/db/ to var/db/launchbox/ for better organization
+  * Update all documentation and code references to new metadata path
+  * Improve save button visibility with white icon on dark blue topbar
+  * Add backend API endpoint for gamelist comparison
+  * Enhance user experience with loading states and error handling
 
  -- GameManager Team <admin@gamemanager.local>  $(date -R)
 EOF
@@ -82,23 +84,27 @@ find debian/opt/gamemanager/var/config -type f -exec chmod 644 {} \; 2>/dev/null
 chmod 644 debian/usr/share/applications/gamemanager.desktop
 find debian/usr/share/doc/gamemanager -type f -exec chmod 644 {} \; 2>/dev/null || true
 
+# Get version from control file
+VERSION=$(grep "^Version:" debian/DEBIAN/control | cut -d' ' -f2)
+PACKAGE_NAME="gamemanager_${VERSION}_all.deb"
+
 # Build the .deb package
 echo "Building .deb package..."
-dpkg-deb --build debian gamemanager_1.4-1_all.deb
+dpkg-deb --build debian "$PACKAGE_NAME"
 
 # Verify the package
 echo "Verifying package..."
-dpkg-deb --info gamemanager_1.4-1_all.deb
+dpkg-deb --info "$PACKAGE_NAME"
 echo ""
 echo "Package contents:"
-dpkg-deb --contents gamemanager_1.4-1_all.deb
+dpkg-deb --contents "$PACKAGE_NAME"
 
 echo ""
 echo "✅ GameManager .deb package built successfully!"
-echo "Package: gamemanager_1.4-1_all.deb"
+echo "Package: $PACKAGE_NAME"
 echo ""
 echo "To install:"
-echo "  sudo dpkg -i gamemanager_1.4-1_all.deb"
+echo "  sudo dpkg -i $PACKAGE_NAME"
 echo ""
 echo "To fix dependencies:"
 echo "  sudo apt-get install -f"
