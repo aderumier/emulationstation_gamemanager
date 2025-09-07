@@ -1,6 +1,12 @@
-# Batocera Game Collection Manager
+# GameManager - Game Collection Management System
 
 A Flask-based web application for managing ROM collections, scanning media files, and scraping metadata from Launchbox.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+Copyright (C) 2024 Alexandre Derumier <aderumier@gmail.com>
 
 ## Features
 

@@ -726,6 +726,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     selected_games = task.get('selected_games')
     enable_partial_match_modal = task.get('enable_partial_match_modal', False)
     force_download = task.get('force_download', False)
+    selected_fields = task.get('selected_fields', None)
 
     mapping_config, system_platform_mapping = load_launchbox_config()
     current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
@@ -770,7 +771,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         return {'success': False, 'error': 'Metadata.xml not found'}
     
     # Load only platform-specific metadata cache (games + alternate names, no images)
-    platform_cache = load_platform_metadata_cache(current_system_platform)
+    platform_cache = load_platform_metadata_cache(current_system_platform, mapping_config=mapping_config)
     games_cache = platform_cache['games_cache']
     alternate_names_cache = platform_cache['alternate_names_cache']
     
@@ -779,13 +780,20 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     
     # Convert platform cache to metadata_games format for compatibility
     metadata_games = []
+    
+    # Get the fields to load from mapping configuration
+    fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
+    if mapping_config:
+        # Add all LaunchBox fields from the mapping configuration
+        fields_to_load.update(mapping_config.keys())
+    
     for db_id, game_elem in games_cache.items():
         if game_elem is not None:
             game_data = {}
             for child in game_elem:
                 tag = child.tag
                 text = child.text.strip() if child.text else ''
-                if tag in ('Name', 'Overview', 'Developer', 'Publisher', 'Platform', 'Genre', 'Rating', 'Players', 'DatabaseID'):
+                if tag in fields_to_load:
                     game_data[tag] = text
             
             # Add alternate names
@@ -816,7 +824,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                 result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠️  Failed to save partial gamelist: {_e}"})
             result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"🛑 Task stopped by user after processing {stats['processed_games']} game(s)"})
             return {'success': False, 'error': 'Task stopped by user', 'stopped': True, 'stats': stats, 'gamelist_path': gamelist_path, 'rom_paths': matched_rom_paths, 'force_download': force_download, 'system_name': system_name}
-        result = process_single_game_worker((game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), platform_cache))
+        result = process_single_game_worker((game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), platform_cache, selected_fields))
         stats['processed_games'] += 1
         # compute progress
         try:
@@ -1041,7 +1049,7 @@ def reset_task_stop_event():
 def process_single_game_worker(args):
     """Worker function to process a single game in multiprocessing context"""
     try:
-        game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, platform_cache = args
+        game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, platform_cache, selected_fields = args
         
         game_name = game_data.get('name', '')
         if not game_name:
@@ -1067,7 +1075,7 @@ def process_single_game_worker(args):
         
         # Find best match in Launchbox metadata
         existing_launchboxid = game_data.get('launchboxid', '')
-        best_match, score = find_best_match(game_name, metadata_games, current_system_platform, existing_launchboxid, platform_cache)
+        best_match, score = find_best_match(game_name, metadata_games, current_system_platform, existing_launchboxid, platform_cache, mapping_config)
         
         # Generate detailed progress message
         game_name_clean = game_name
@@ -1113,6 +1121,10 @@ def process_single_game_worker(args):
                         changes.append(f"launchboxid: '{old_launchboxid or 'None'}' → '{new_launchboxid}'")
             
             for launchbox_field, gamelist_field in mapping_config.items():
+                # Skip field if not in selected fields (except launchboxid which is always processed)
+                if selected_fields and launchbox_field not in selected_fields and launchbox_field != 'launchboxid':
+                    continue
+                    
                 if launchbox_field in best_match and best_match[launchbox_field]:
                     old_value = game_data.get(gamelist_field, '')
                     new_value = best_match[launchbox_field]
@@ -1206,7 +1218,7 @@ def process_single_game_worker(args):
                 partial_match_request = None
                 if enable_partial_match_modal:
                     # Get top matches for the modal instead of just the best match
-                    top_matches = get_top_matches(game_name_clean, metadata_games, current_system_platform, top_n=20)
+                    top_matches = get_top_matches(game_name_clean, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
                     partial_match_request = {
                         'game_name': game_name_clean,
                         'game_data': game_data,
@@ -1968,6 +1980,7 @@ def run_image_download_task(system_name, data):
         game_name = data.get('game_name') if data else None
         selected_games = data.get('selected_games') if data else None
         force_download = data.get('force_download', False) if data else False
+        selected_fields = data.get('selected_fields', None) if data else None
         
         # Load gamelist
         gamelist_path = ensure_gamelist_exists(system_name)
@@ -2092,7 +2105,8 @@ def run_image_download_task(system_name, data):
                 'force_download': force_download,
                 'image_config': image_config,
                 'media_config': media_config,
-                'region_config': region_config
+                'region_config': region_config,
+                'selected_fields': selected_fields
             })
         
         # Execute game processing in parallel
@@ -2116,6 +2130,7 @@ def run_image_download_task(system_name, data):
             image_config = task_data['image_config']
             media_config = task_data['media_config']
             region_config = task_data['region_config']
+            selected_fields = task_data['selected_fields']
             
             # Check if task has been stopped before processing
             if task.status != TASK_STATUS_RUNNING:
@@ -2143,7 +2158,7 @@ def run_image_download_task(system_name, data):
                 if not rom_filename:
                     rom_filename = os.path.splitext(game.get('name', ''))[0]
              
-                downloaded_images = get_game_images_from_launchbox(launchbox_id, image_config, system_path, rom_filename, game_name=game_name, current_game_data=game, force_download=force_download, media_config=media_config, region_config=region_config)
+                downloaded_images = get_game_images_from_launchbox(launchbox_id, image_config, system_path, rom_filename, game_name=game_name, current_game_data=game, force_download=force_download, media_config=media_config, region_config=region_config, selected_fields=selected_fields)
                 
                 
                 if downloaded_images:
@@ -2525,7 +2540,7 @@ def get_cached_games_by_platform(platform):
     
     return platform_games
 
-def load_platform_metadata_cache(platform, use_global_cache=False):
+def load_platform_metadata_cache(platform, use_global_cache=False, mapping_config=None):
     """Load only games and alternate names cache for a specific platform (no images)"""
     try:
         print(f"DEBUG: Loading platform-specific metadata cache for {platform}...")
@@ -2718,6 +2733,8 @@ def parse_gamelist_xml(file_path):
                     game_data['extra1'] = text
                 elif tag == 'launchboxid':
                     game_data['launchboxid'] = text
+                elif tag == 'igdbid':
+                    game_data['igdbid'] = text
             
             # Ensure required fields exist
             if 'id' not in game_data:
@@ -3163,28 +3180,19 @@ def parse_launchbox_metadata(metadata_path, target_platform, skip_global_cache=F
             game_data = {}
             
             # Parse basic game fields from cached element
+            # Get the fields to load from mapping configuration
+            fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
+            mapping_config = config.get('launchbox', {}).get('mapping', {})
+            if mapping_config:
+                # Add all LaunchBox fields from the mapping configuration
+                fields_to_load.update(mapping_config.keys())
+            
             for child in game_elem:
                 tag = child.tag
                 text = child.text.strip() if child.text else ''
                 
-                if tag == 'Name':
-                    game_data['Name'] = text
-                elif tag == 'Overview':
-                    game_data['Overview'] = text
-                elif tag == 'Developer':
-                    game_data['Developer'] = text
-                elif tag == 'Publisher':
-                    game_data['Publisher'] = text
-                elif tag == 'Platform':
-                    game_data['Platform'] = text
-                elif tag == 'Genre':
-                    game_data['Genre'] = text
-                elif tag == 'Rating':
-                    game_data['Rating'] = text
-                elif tag == 'Players':
-                    game_data['Players'] = text
-                elif tag == 'DatabaseID':
-                    game_data['DatabaseID'] = text
+                if tag in fields_to_load:
+                    game_data[tag] = text
             
             # Only include games for the current platform
             if game_data.get('Platform') == target_platform:
@@ -3229,7 +3237,7 @@ def normalize_game_name(name):
         normalized = normalized.replace(char, '')
     return normalized
 
-def find_best_match(game_name, metadata_games, target_platform, existing_launchboxid=None, platform_cache=None):
+def find_best_match(game_name, metadata_games, target_platform, existing_launchboxid=None, platform_cache=None, mapping_config=None):
     """Find the best matching game in Launchbox metadata"""
     if not metadata_games:
         return None, 0
@@ -3248,10 +3256,17 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
             if game_elem is not None:
                 # Build a minimal game dict consistent with metadata_games entries
                 game_data = {}
+                
+                # Get the fields to load from mapping configuration
+                fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
+                if mapping_config:
+                    # Add all LaunchBox fields from the mapping configuration
+                    fields_to_load.update(mapping_config.keys())
+                
                 for child in game_elem:
                     tag = child.tag
                     text = child.text.strip() if child.text else ''
-                    if tag in ('Name', 'Overview', 'Developer', 'Publisher', 'Platform', 'Genre', 'Rating', 'Players', 'DatabaseID'):
+                    if tag in fields_to_load:
                         game_data[tag] = text
                 # Attach alternate names from cache (platform check not required for unique DBIDs)
                 alt_names = []
@@ -3434,7 +3449,7 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
     return best_match, best_score
 
 
-def get_top_matches(game_name, metadata_games, target_platform, top_n=20):
+def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mapping_config=None):
     """Get top N matches for a game name, sorted by similarity score"""
     if not metadata_games:
         return []
@@ -3523,11 +3538,13 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20):
             'name': game.get('Name', ''),
             'overview': game.get('Overview', ''),
             'developer': game.get('Developer', ''),
-            'publisher': game.get('Publisher', ''),
-            'genre': game.get('Genre', ''),
-            'rating': game.get('Rating', ''),
-            'players': game.get('Players', '')
+            'publisher': game.get('Publisher', '')
         }
+        
+        # Add mapped fields dynamically based on mapping configuration
+        if mapping_config:
+            for launchbox_field, gamelist_field in mapping_config.items():
+                match_info[gamelist_field] = game.get(launchbox_field, '')
         
         matches.append(match_info)
     
@@ -3612,6 +3629,7 @@ def scrap_launchbox():
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
+            'selected_fields': selected_fields,
         }
         _worker_task_queue.put(payload)
         
@@ -3656,6 +3674,7 @@ def scrap_launchbox_simple(system_name):
         selected_games = None
         enable_partial_match_modal = False
         force_download = False  # Default force download to False
+        selected_fields = None
         
         if request.method == 'POST':
             try:
@@ -3681,6 +3700,13 @@ def scrap_launchbox_simple(system_name):
                             scraping_progress.append("Force download enabled - will overwrite existing media fields")
                         else:
                             scraping_progress.append("Force download disabled - will only update empty media fields")
+                    
+                    if 'selected_fields' in data:
+                        selected_fields = data['selected_fields']
+                        if selected_fields:
+                            scraping_progress.append(f"Field selection enabled - will only scrape: {', '.join(selected_fields)}")
+                        else:
+                            scraping_progress.append("No fields selected - will scrape all fields")
             except Exception as e:
                 scraping_progress.append(f"Error parsing POST data: {e}")
                 pass  # Ignore JSON parsing errors
@@ -3690,7 +3716,8 @@ def scrap_launchbox_simple(system_name):
             'system_name': system_name,
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
-            'force_download': force_download
+            'force_download': force_download,
+            'selected_fields': selected_fields
         })
         current_task_id = task.id
         task.start()
@@ -3704,6 +3731,7 @@ def scrap_launchbox_simple(system_name):
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
+            'selected_fields': selected_fields,
         }
         _worker_task_queue.put(payload)
         
@@ -3792,10 +3820,16 @@ def find_best_matches_endpoint():
         for db_id, game_elem in platform_games.items():
             if game_elem is not None:
                 game_data = {}
+                # Get the fields to load from mapping configuration
+                fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
+                if mapping_config:
+                    # Add all LaunchBox fields from the mapping configuration
+                    fields_to_load.update(mapping_config.keys())
+                
                 for child in game_elem:
                     tag = child.tag
                     text = child.text.strip() if child.text else ''
-                    if tag in ('Name', 'Overview', 'Developer', 'Publisher', 'Platform', 'Genre', 'Rating', 'Players', 'DatabaseID'):
+                    if tag in fields_to_load:
                         game_data[tag] = text
                 
                 # Add alternate names
@@ -3835,11 +3869,11 @@ def find_best_matches_endpoint():
             existing_launchboxid = game_data.get('launchboxid')
             
             # Find best match
-            best_match, score = find_best_match(game_name, metadata_games, current_system_platform, existing_launchboxid, platform_cache)
+            best_match, score = find_best_match(game_name, metadata_games, current_system_platform, existing_launchboxid, platform_cache, mapping_config)
             
             if best_match and score > 0.5:  # Only include games with reasonable matches
                 # Get top matches for the modal
-                top_matches = get_top_matches(game_name, metadata_games, current_system_platform, top_n=20)
+                top_matches = get_top_matches(game_name, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
                 
                 result = {
                     'game_name': game_name,
@@ -4087,7 +4121,7 @@ def get_top_matches_endpoint():
             return jsonify({'error': 'No metadata found for current platform'}), 404
         
         # Get top matches
-        top_matches = get_top_matches(game_name, metadata_games, target_platform, top_n=20)
+        top_matches = get_top_matches(game_name, metadata_games, target_platform, top_n=20, mapping_config=mapping_config)
         
         return jsonify({
             'success': True,
@@ -4320,7 +4354,7 @@ def get_region_priority_from_game_name(game_name, default_priority):
     
     return new_priority
 
-async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, system_path, rom_filename, game_name=None, current_game_data=None, force_download=False, media_config=None, region_config=None):
+async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, system_path, rom_filename, game_name=None, current_game_data=None, force_download=False, media_config=None, region_config=None, selected_fields=None):
     """Get available images for a game from LaunchBox metadata and download them using aiohttp"""
     import time
     
@@ -4350,6 +4384,17 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
     else:
 
         fields_to_download = list(image_config.get('image_type_mappings', {}).values())
+    
+    # Filter fields based on selected_fields
+    if selected_fields:
+        # Create reverse mapping from gamelist field to LaunchBox image type
+        field_to_launchbox_type = {}
+        for launchbox_type, gamelist_field in image_config.get('image_type_mappings', {}).items():
+            field_to_launchbox_type[gamelist_field] = launchbox_type
+        
+        # Filter fields_to_download to only include selected media fields
+        selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_type.values()]
+        fields_to_download = [field for field in fields_to_download if field_to_launchbox_type.get(field) in selected_media_fields]
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
@@ -4577,7 +4622,7 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
             threading.Thread(target=update_task_progress, args=(f"{game_prefix} ❌ Error: {e}",), daemon=True).start()
         return downloaded_images
 
-def get_game_images_from_launchbox(game_launchbox_id, image_config, system_path, rom_filename, game_name=None, current_game_data=None, force_download=False, media_config=None, region_config=None):
+def get_game_images_from_launchbox(game_launchbox_id, image_config, system_path, rom_filename, game_name=None, current_game_data=None, force_download=False, media_config=None, region_config=None, selected_fields=None):
     """Synchronous wrapper for get_game_images_from_launchbox_async"""
     import asyncio
     
@@ -4592,7 +4637,7 @@ def get_game_images_from_launchbox(game_launchbox_id, image_config, system_path,
     return loop.run_until_complete(
         get_game_images_from_launchbox_async(
             game_launchbox_id, image_config, system_path, rom_filename, 
-            game_name, current_game_data, force_download, media_config, region_config
+            game_name, current_game_data, force_download, media_config, region_config, selected_fields
         )
     )
 
@@ -8370,6 +8415,1145 @@ def download_launchbox_media():
     except Exception as e:
         print(f"Error downloading LaunchBox media: {e}")
         return jsonify({'error': f'Failed to download media: {str(e)}'}), 500
+
+# =============================================================================
+# IGDB Integration Functions
+# =============================================================================
+
+def get_igdb_config():
+    """Get IGDB configuration from config.json"""
+    try:
+        config = load_config()
+        return config.get('igdb', {})
+    except Exception as e:
+        print(f"Error loading IGDB config: {e}")
+        return {}
+
+def ensure_igdb_directory():
+    """Ensure IGDB database directory exists"""
+    try:
+        igdb_config = get_igdb_config()
+        igdb_dir = igdb_config.get('database_directory', 'var/db/igdb')
+        os.makedirs(igdb_dir, exist_ok=True)
+        return igdb_dir
+    except Exception as e:
+        print(f"Error creating IGDB directory: {e}")
+        return None
+
+def get_igdb_access_token():
+    """Get IGDB access token"""
+    try:
+        igdb_config = get_igdb_config()
+        if not igdb_config.get('enabled', False):
+            return None
+            
+        client_id = igdb_config.get('client_id')
+        client_secret = igdb_config.get('client_secret')
+        
+        if not client_id or not client_secret:
+            print("IGDB credentials not configured")
+            return None
+        
+        # Get access token from IGDB
+        import httpx
+        
+        token_url = "https://id.twitch.tv/oauth2/token"
+        token_data = {
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'grant_type': 'client_credentials'
+        }
+        
+        with httpx.Client(http2=True) as client:
+            response = client.post(token_url, data=token_data)
+            
+            if response.status_code == 200:
+                token_info = response.json()
+                return token_info.get('access_token')
+            else:
+                print(f"Failed to get IGDB access token: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"Error getting IGDB access token: {e}")
+        return None
+
+async def search_igdb_game_by_name_async(game_name, platform_id, access_token, client_id, async_client):
+    """Search for a game in IGDB by name and platform (async)"""
+    try:
+        import re
+        
+        # Clean game name - remove parentheses and extra text
+        clean_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+        clean_name = re.sub(r'\s*\[[^\]]*\]', '', clean_name).strip()
+        
+        # Search for games with more detailed fields
+        search_url = "https://api.igdb.com/v4/games"
+        search_data = f'fields id,name,summary,first_release_date,platforms,genres,total_rating,rating_count,player_perspectives,game_modes,cover,screenshots,artworks; search "{clean_name}"; where platforms = ({platform_id}); limit 10;'
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        # Make the request (rate limiting will be handled by aiometer)
+        response = await async_client.post(search_url, headers=headers, content=search_data)
+        
+        if response.status_code == 200:
+            games = response.json()
+            if games:
+                # Return the first match (best match)
+                return games[0]
+            else:
+                # No games found for this platform
+                return None
+        else:
+            print(f"IGDB API error: {response.status_code} - {response.text}")
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error searching IGDB for game '{game_name}': {e}")
+        return None
+
+async def fetch_igdb_game_by_id_async(game_id, access_token, client_id, async_client):
+    """Fetch a specific game from IGDB by ID"""
+    try:
+        search_url = "https://api.igdb.com/v4/games"
+        search_data = f'fields id,name,summary,first_release_date,platforms,genres,total_rating,rating_count,player_perspectives,game_modes,cover,screenshots,artworks; where id = {game_id};'
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        response = await async_client.post(search_url, headers=headers, content=search_data)
+        
+        if response.status_code == 200:
+            games = response.json()
+            if games:
+                return games[0]  # Return the first (and only) game
+            else:
+                print(f"No game found with ID {game_id}")
+                return None
+        else:
+            print(f"IGDB API error: {response.status_code} - {response.text}")
+            return None
+        
+    except Exception as e:
+        print(f"Error fetching IGDB game by ID {game_id}: {e}")
+        return None
+
+async def fetch_igdb_involved_companies(async_client, access_token, client_id, game_id):
+    """Fetch involved companies for a specific game"""
+    try:
+        search_url = "https://api.igdb.com/v4/involved_companies"
+        search_data = f'fields company,developer,publisher; where game = {game_id};'
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        response = await async_client.post(search_url, headers=headers, content=search_data)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"IGDB involved companies API error: {response.status_code} - {response.text}")
+            return []
+    except Exception as e:
+        print(f"Error fetching IGDB involved companies: {e}")
+        return []
+
+# =============================================================================
+# IGDB HTTP Client and Rate Limiter
+# =============================================================================
+
+# Global httpx async client and rate limiter for IGDB API
+_igdb_async_client = None
+
+async def get_igdb_async_client():
+    """Get or create global httpx async client for IGDB API"""
+    global _igdb_async_client
+    if _igdb_async_client is None:
+        import httpx
+        
+        # Create async client with connection pooling
+        _igdb_async_client = httpx.AsyncClient(
+            http2=True,
+            limits=httpx.Limits(
+                max_connections=8,
+                max_keepalive_connections=8,
+                keepalive_expiry=30.0
+            ),
+            timeout=httpx.Timeout(30.0, connect=10.0)
+        )
+    
+    return _igdb_async_client
+
+async def close_igdb_async_client():
+    """Close the global httpx async client"""
+    global _igdb_async_client
+    if _igdb_async_client is not None:
+        await _igdb_async_client.aclose()
+        _igdb_async_client = None
+
+# =============================================================================
+# IGDB Platform Cache Functions
+# =============================================================================
+
+def get_igdb_platform_cache_path():
+    """Get the path to the IGDB platform cache file"""
+    cache_dir = os.path.join(os.getcwd(), 'var', 'db', 'igdb')
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, 'platforms.json')
+
+def load_igdb_platform_cache():
+    """Load IGDB platform cache from file"""
+    cache_path = get_igdb_platform_cache_path()
+    try:
+        if os.path.exists(cache_path):
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Check if cache is still valid (less than 7 days old)
+                if 'timestamp' in data and 'platforms' in data:
+                    cache_age = time.time() - data['timestamp']
+                    if cache_age < 7 * 24 * 3600:  # 7 days
+                        return data['platforms']
+        return {}
+    except Exception as e:
+        print(f"Error loading IGDB platform cache: {e}")
+        return {}
+
+def save_igdb_platform_cache(platforms):
+    """Save IGDB platform cache to file"""
+    cache_path = get_igdb_platform_cache_path()
+    try:
+        data = {
+            'timestamp': time.time(),
+            'platforms': platforms
+        }
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"IGDB platform cache saved to {cache_path}")
+    except Exception as e:
+        print(f"Error saving IGDB platform cache: {e}")
+
+async def fetch_igdb_platforms(async_client, access_token, client_id):
+    """Fetch all IGDB platforms and return as ID->name mapping"""
+    try:
+        search_url = "https://api.igdb.com/v4/platforms"
+        search_data = 'fields id,name; limit 500;'
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        response = await async_client.post(search_url, headers=headers, content=search_data)
+        
+        if response.status_code == 200:
+            platforms = response.json()
+            # Convert to ID->name mapping
+            platform_map = {str(platform['id']): platform['name'] for platform in platforms}
+            return platform_map
+        else:
+            print(f"IGDB platforms API error: {response.status_code} - {response.text}")
+            return {}
+    except Exception as e:
+        print(f"Error fetching IGDB platforms: {e}")
+        return {}
+
+def get_igdb_platform_name(platform_id, platform_cache=None):
+    """Get platform name from cache or return platform_id if not found"""
+    if platform_cache is None:
+        platform_cache = load_igdb_platform_cache()
+    
+    platform_id_str = str(platform_id)
+    return platform_cache.get(platform_id_str, f"Platform {platform_id}")
+
+async def ensure_igdb_platform_cache():
+    """Ensure IGDB platform cache is up to date"""
+    cache = load_igdb_platform_cache()
+    
+    # If cache is empty or very old, refresh it
+    if not cache:
+        print("IGDB platform cache is empty, fetching from API...")
+        
+        # Get IGDB configuration
+        igdb_config = get_igdb_config()
+        if not igdb_config.get('enabled', False):
+            print("IGDB integration is disabled")
+            return cache
+        
+        # Get access token
+        access_token = get_igdb_access_token()
+        if not access_token:
+            print("Failed to get IGDB access token")
+            return cache
+        
+        # Fetch platforms
+        async_client = await get_igdb_async_client()
+        try:
+            platforms = await fetch_igdb_platforms(
+                async_client, 
+                access_token, 
+                igdb_config['client_id']
+            )
+            if platforms:
+                save_igdb_platform_cache(platforms)
+                return platforms
+        except Exception as e:
+            print(f"Error refreshing IGDB platform cache: {e}")
+    
+    return cache
+
+# =============================================================================
+# IGDB Company Cache Functions
+# =============================================================================
+
+def get_igdb_company_cache_path():
+    """Get the path to the IGDB company cache file"""
+    cache_dir = os.path.join(os.getcwd(), 'var', 'db', 'igdb')
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, 'companies.json')
+
+def load_igdb_company_cache():
+    """Load IGDB company cache from file"""
+    cache_path = get_igdb_company_cache_path()
+    try:
+        if os.path.exists(cache_path):
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Check if cache is still valid (less than 7 days old)
+                if 'timestamp' in data and 'companies' in data:
+                    cache_age = time.time() - data['timestamp']
+                    if cache_age < 7 * 24 * 3600:  # 7 days
+                        return data['companies']
+        return {}
+    except Exception as e:
+        print(f"Error loading IGDB company cache: {e}")
+        return {}
+
+def save_igdb_company_cache(companies):
+    """Save IGDB company cache to file"""
+    cache_path = get_igdb_company_cache_path()
+    try:
+        data = {
+            'timestamp': time.time(),
+            'companies': companies
+        }
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"IGDB company cache saved to {cache_path}")
+    except Exception as e:
+        print(f"Error saving IGDB company cache: {e}")
+
+async def fetch_igdb_companies(async_client, access_token, client_id, company_ids):
+    """Fetch specific IGDB companies and return as ID->name mapping"""
+    try:
+        if not company_ids:
+            return {}
+            
+        # Convert to comma-separated string
+        ids_str = ','.join(map(str, company_ids))
+        
+        search_url = "https://api.igdb.com/v4/companies"
+        search_data = f'fields id,name; where id = ({ids_str}); limit 500;'
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        response = await async_client.post(search_url, headers=headers, content=search_data)
+        
+        if response.status_code == 200:
+            companies = response.json()
+            # Convert to ID->name mapping
+            company_map = {str(company['id']): company['name'] for company in companies}
+            return company_map
+        else:
+            print(f"IGDB companies API error: {response.status_code} - {response.text}")
+            return {}
+    except Exception as e:
+        print(f"Error fetching IGDB companies: {e}")
+        return {}
+
+def get_igdb_company_name(company_id, company_cache=None):
+    """Get company name from cache or return company_id if not found"""
+    if company_cache is None:
+        company_cache = load_igdb_company_cache()
+    
+    company_id_str = str(company_id)
+    return company_cache.get(company_id_str, f"Company {company_id}")
+
+async def ensure_igdb_company_cache(company_ids):
+    """Ensure IGDB company cache contains the required companies"""
+    cache = load_igdb_company_cache()
+    
+    # Check which companies are missing from cache
+    missing_ids = []
+    for company_id in company_ids:
+        if str(company_id) not in cache:
+            missing_ids.append(company_id)
+    
+    # If we have missing companies, fetch them
+    if missing_ids:
+        print(f"IGDB company cache missing {len(missing_ids)} companies, fetching from API...")
+        
+        # Get IGDB configuration
+        igdb_config = get_igdb_config()
+        if not igdb_config.get('enabled', False):
+            print("IGDB integration is disabled")
+            return cache
+        
+        # Get access token
+        access_token = get_igdb_access_token()
+        if not access_token:
+            print("Failed to get IGDB access token")
+            return cache
+        
+        # Fetch missing companies
+        async_client = await get_igdb_async_client()
+        try:
+            new_companies = await fetch_igdb_companies(
+                async_client, 
+                access_token, 
+                igdb_config['client_id'],
+                missing_ids
+            )
+            if new_companies:
+                # Merge with existing cache
+                cache.update(new_companies)
+                save_igdb_company_cache(cache)
+                print(f"Added {len(new_companies)} companies to cache")
+        except Exception as e:
+            print(f"Error refreshing IGDB company cache: {e}")
+    
+    return cache
+
+# =============================================================================
+# IGDB Scraper Task
+# =============================================================================
+
+def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache=None):
+    """Populate gamelist fields with IGDB data if fields are empty"""
+    try:
+        
+        mapping = igdb_config.get('mapping', {})
+        updated = False
+        
+        # Helper function to get or create element
+        def get_or_create_element(tag_name):
+            elem = game.find(tag_name)
+            if elem is None:
+                elem = ET.SubElement(game, tag_name)
+            return elem
+        
+        # Helper function to safely get text from element
+        def get_element_text(tag_name):
+            elem = game.find(tag_name)
+            return elem.text.strip() if elem is not None and elem.text else ""
+        
+        # Resolve company IDs to names from involved_companies
+        developer_names = []
+        publisher_names = []
+        
+        if igdb_game.get('involved_companies'):
+            for involvement in igdb_game['involved_companies']:
+                company_id = involvement.get('company')
+                is_developer = involvement.get('developer', False)
+                is_publisher = involvement.get('publisher', False)
+                
+                if company_id:
+                    company_name = get_igdb_company_name(company_id, company_cache)
+                    if company_name and not company_name.startswith('Company '):
+                        if is_developer:
+                            developer_names.append(company_name)
+                        if is_publisher:
+                            publisher_names.append(company_name)
+        
+        # Map IGDB fields to gamelist fields
+        field_mappings = {
+            'name': igdb_game.get('name', ''),
+            'summary': igdb_game.get('summary', ''),
+            'developer': ', '.join(developer_names) if developer_names else '',
+            'publisher': ', '.join(publisher_names) if publisher_names else '',
+            'genre': ', '.join([str(g) for g in igdb_game.get('genres', [])]) if igdb_game.get('genres') else '',
+            'rating': str(int(igdb_game.get('total_rating', 0))) if igdb_game.get('total_rating') else '',
+            'players': str(igdb_game.get('player_perspectives', [0])[0]) if igdb_game.get('player_perspectives') else '',
+            'release_date': str(igdb_game.get('first_release_date', '')) if igdb_game.get('first_release_date') else ''
+        }
+        
+        # Clean up empty values
+        for key, value in field_mappings.items():
+            if not value or value == '0' or value == '':
+                field_mappings[key] = ''
+        
+        # Get overwrite settings from cookies (passed from frontend)
+        overwrite_text_fields = igdb_config.get('overwrite_text_fields', False)
+        overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
+        
+        print(f"🔧 DEBUG: populate_gamelist_with_igdb_data - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        
+        # Get selected fields from config
+        selected_fields = igdb_config.get('selected_fields', [])
+        
+        # Update fields based on overwrite settings
+        for igdb_field, gamelist_field in mapping.items():
+            # Skip field if not in selected fields (except igdbid which is always processed)
+            if selected_fields and igdb_field not in selected_fields and igdb_field != 'igdbid':
+                continue
+                
+            if igdb_field in field_mappings:
+                igdb_value = field_mappings[igdb_field]
+                current_value = get_element_text(gamelist_field)
+                
+                # Determine if this is a text field or media field
+                is_text_field = igdb_field in ['name', 'summary', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date']
+                is_media_field = igdb_field in ['cover', 'screenshots', 'artworks']
+                
+                # Check if we should update this field
+                should_update = False
+                if is_text_field and overwrite_text_fields:
+                    # Always overwrite text fields if setting is enabled
+                    should_update = bool(igdb_value)
+                elif is_media_field and overwrite_media_fields:
+                    # Always overwrite media fields if setting is enabled
+                    should_update = bool(igdb_value)
+                else:
+                    # Only update if current field is empty and IGDB has data
+                    should_update = not current_value and bool(igdb_value)
+                
+                if should_update:
+                    elem = get_or_create_element(gamelist_field)
+                    elem.text = igdb_value
+                    updated = True
+                    overwrite_indicator = " (overwritten)" if current_value else ""
+                    print(f"  📝 Updated {gamelist_field}: {igdb_value}{overwrite_indicator}")
+        
+        return updated
+        
+    except Exception as e:
+        print(f"Error populating gamelist with IGDB data: {e}")
+        return False
+
+async def process_game_async(game, igdb_platform_id, access_token, client_id, async_client, igdb_config, company_cache=None):
+    """Process a single game asynchronously"""
+    try:
+        # Get game name
+        name_elem = game.find('name')
+        if name_elem is None or not name_elem.text:
+            return None, False, False  # game, found, error
+        
+        game_name = name_elem.text.strip()
+        
+        # Check if already has IGDB ID
+        igdbid_elem = game.find('igdbid')
+        existing_igdb_id = None
+        if igdbid_elem is not None and igdbid_elem.text:
+            existing_igdb_id = igdbid_elem.text
+            print(f"🔄 Game '{game_name}' already has IGDB ID: {existing_igdb_id} - will still process for field updates")
+        
+        # Get IGDB game data
+        if existing_igdb_id:
+            # Use existing IGDB ID to fetch game data
+            print(f"🔍 Fetching IGDB data for existing ID: {existing_igdb_id}")
+            igdb_game = await fetch_igdb_game_by_id_async(
+                existing_igdb_id,
+                access_token,
+                client_id,
+                async_client
+            )
+        else:
+            # Search for game in IGDB by name
+            print(f"🔍 Searching IGDB for game: {game_name}")
+            igdb_game = await search_igdb_game_by_name_async(
+                game_name, 
+                igdb_platform_id, 
+                access_token, 
+                client_id,
+                async_client
+            )
+        
+        if igdb_game:
+            # Add IGDB ID to gamelist (only if it doesn't already exist)
+            if not existing_igdb_id:
+                if igdbid_elem is None:
+                    igdbid_elem = ET.SubElement(game, 'igdbid')
+                igdbid_elem.text = str(igdb_game['id'])
+                print(f"✅ Added IGDB ID for '{game_name}': {igdb_game['id']}")
+            else:
+                print(f"✅ Using existing IGDB ID for '{game_name}': {existing_igdb_id}")
+            
+            # Fetch involved companies data
+            involved_companies = await fetch_igdb_involved_companies(
+                async_client, 
+                access_token, 
+                client_id, 
+                igdb_game['id']
+            )
+            igdb_game['involved_companies'] = involved_companies
+            
+            # Populate other fields with IGDB data
+            fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache)
+            
+            print(f"✅ Found IGDB ID for '{game_name}': {igdb_game['id']}" + (" (fields updated)" if fields_updated else ""))
+            return game, True, False  # game, found, error
+        else:
+            print(f"❌ No IGDB match for '{game_name}'")
+            return game, False, True  # game, found, error
+            
+    except Exception as e:
+        print(f"Error processing game: {e}")
+        return game, False, True  # game, found, error
+
+def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_text_fields=False, overwrite_media_fields=False, selected_fields=None):
+    """Run IGDB scraper task for a specific system"""
+    import asyncio
+    import multiprocessing
+    import queue
+    
+    # Create result queue for progress updates
+    result_q = multiprocessing.Queue()
+    
+    # Create cancel map for task cancellation
+    cancel_map = multiprocessing.Manager().dict()
+    
+    # Start the async scraper in a subprocess with result queue
+    process = multiprocessing.Process(
+        target=_run_igdb_scraper_worker,
+        args=(system_name, task_id, selected_games, result_q, cancel_map, overwrite_text_fields, overwrite_media_fields, selected_fields)
+    )
+    process.start()
+    
+    # Start result listener to handle progress updates (runs in main process)
+    listener_thread = threading.Thread(
+        target=_igdb_scraping_result_listener,
+        args=(result_q, process),
+        daemon=True
+    )
+    listener_thread.start()
+
+def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, cancel_map, overwrite_text_fields=False, overwrite_media_fields=False, selected_fields=None):
+    """IGDB scraper worker process"""
+    import asyncio
+    
+    async def async_scraper():
+        try:
+            print(f"Starting IGDB scraper task for system: {system_name}")
+            
+            # Get IGDB configuration
+            igdb_config = get_igdb_config()
+            if not igdb_config.get('enabled', False):
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': "IGDB integration is disabled",
+                    'progress_percentage': 100
+                })
+                return
+            
+            # Add overwrite settings to IGDB config
+            igdb_config['overwrite_text_fields'] = overwrite_text_fields
+            igdb_config['overwrite_media_fields'] = overwrite_media_fields
+            igdb_config['selected_fields'] = selected_fields or []
+            
+            print(f"🔧 DEBUG: Worker received overwrite settings - text: {overwrite_text_fields}, media: {overwrite_media_fields}")
+            print(f"🔧 DEBUG: Worker received selected fields: {selected_fields}")
+            
+            # Get system configuration
+            config = load_config()
+            systems_config = config.get('systems', {})
+            system_config = systems_config.get(system_name, {})
+            
+            if not system_config:
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': f"System '{system_name}' not configured",
+                    'progress_percentage': 100
+                })
+                return
+            
+            # Get IGDB platform ID
+            igdb_platform_id = system_config.get('igdb')
+            if not igdb_platform_id:
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': f"No IGDB platform ID configured for system '{system_name}'",
+                    'progress_percentage': 100
+                })
+                return
+            
+            # Get access token
+            access_token = get_igdb_access_token()
+            if not access_token:
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': "Failed to get IGDB access token",
+                    'progress_percentage': 100
+                })
+                return
+            
+            # Get gamelist path
+            gamelist_path = get_gamelist_path(system_name)
+            if not os.path.exists(gamelist_path):
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': f"Gamelist not found: {gamelist_path}",
+                    'progress_percentage': 100
+                })
+                return
+            
+            # Parse gamelist
+            tree = ET.parse(gamelist_path)
+            root = tree.getroot()
+            
+            all_games = root.findall('game')
+            total_games = len(all_games)
+            
+            if total_games == 0:
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': "No games found in gamelist",
+                    'progress_percentage': 100
+                })
+                return
+            
+            # Filter games based on selection
+            games = all_games
+            if selected_games and len(selected_games) > 0:
+                # Filter to only selected games by ROM file path
+                games = [g for g in all_games if g.find('path').text in selected_games]
+                if not games:
+                    result_q.put({
+                        'type': 'progress',
+                        'task_id': task_id,
+                        'message': f"None of the selected ROM files found in gamelist",
+                        'progress_percentage': 100
+                    })
+                    return
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': f"Processing {len(games)} selected games out of {total_games} total games",
+                    'current_step': 0,
+                    'total_steps': len(games),
+                    'progress_percentage': 0
+                })
+            else:
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': f"Processing all {total_games} games",
+                    'current_step': 0,
+                    'total_steps': total_games,
+                    'progress_percentage': 0
+                })
+            
+            print(f"Found {len(games)} games to process")
+            
+            # Get async client
+            async_client = await get_igdb_async_client()
+            
+            # Collect all company IDs from games to cache them
+            all_company_ids = set()
+            for game in games:
+                # We'll collect company IDs after we get the IGDB data
+                pass
+            
+            # Ensure company cache is available (we'll populate it as we go)
+            company_cache = load_igdb_company_cache()
+            
+            processed_count = 0
+            found_count = 0
+            error_count = 0
+            
+            # Process games in batches of 8 (max concurrent requests)
+            batch_size = 8
+            
+            for i in range(0, len(games), batch_size):
+                batch = games[i:i + batch_size]
+                
+                # Create tasks for concurrent processing using functools.partial
+                import functools
+                import aiometer
+                
+                tasks = []
+                for game in batch:
+                    # Use functools.partial to create callable functions
+                    task_func = functools.partial(
+                        process_game_async,
+                        game, 
+                        igdb_platform_id, 
+                        access_token, 
+                        igdb_config['client_id'],
+                        async_client,
+                        igdb_config,
+                        company_cache
+                    )
+                    tasks.append(task_func)
+                
+                # Process batch with rate limiting using aiometer
+                results = await aiometer.run_all(tasks, max_at_once=8, max_per_second=4)
+                
+                # Process results and collect company IDs for caching
+                batch_company_ids = set()
+                for result in results:
+                    if isinstance(result, Exception):
+                        error_count += 1
+                        print(f"Exception in batch processing: {result}")
+                        processed_count += 1
+                    else:
+                        game, found, error = result
+                        if found and game is not None:
+                            # Get IGDB data to collect company IDs
+                            igdbid_elem = game.find('igdbid')
+                            if igdbid_elem and igdbid_elem.text:
+                                # We need to get the full game data to extract company IDs
+                                # For now, we'll handle this in the next iteration
+                                pass
+                        if found:
+                            found_count += 1
+                        if error:
+                            error_count += 1
+                        processed_count += 1
+                        
+                        # Get game name for progress message
+                        game_name = "Unknown"
+                        if game is not None:
+                            name_elem = game.find('name')
+                            if name_elem is not None and name_elem.text:
+                                game_name = name_elem.text.strip()
+                        
+                        # Send individual game progress update
+                        progress_percent = int((processed_count / len(games)) * 100)
+                        status_icon = "✅" if found else "❌" if error else "⏭️"
+                        progress_update = {
+                            'type': 'progress',
+                            'task_id': task_id,
+                            'message': f"{status_icon} {game_name}",
+                            'current_step': processed_count,
+                            'total_steps': len(games),
+                            'progress_percentage': progress_percent
+                        }
+                        print(f"DEBUG: Sending progress update: {progress_update}")
+                        result_q.put(progress_update)
+                
+                # Update company cache if we found new company IDs
+                if batch_company_ids:
+                    company_cache = await ensure_igdb_company_cache(list(batch_company_ids))
+            
+            # Save updated gamelist
+            tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+            
+            # Complete task
+            result_q.put({
+                'type': 'result',
+                'task_id': task_id,
+                'success': True,
+                'message': f"✅ IGDB scraping completed! Found {found_count} games, {error_count} errors"
+            })
+            print(f"IGDB scraper completed for {system_name}: {found_count} games found, {error_count} errors")
+            
+        except Exception as e:
+            print(f"Error in IGDB scraper task: {e}")
+            result_q.put({
+                'type': 'result',
+                'task_id': task_id,
+                'success': False,
+                'error': str(e)
+            })
+        finally:
+            # Close async client
+            await close_igdb_async_client()
+    
+    # Run the async scraper
+    asyncio.run(async_scraper())
+
+def _igdb_scraping_result_listener(result_q, process):
+    """Listen for results from IGDB scraper worker and update task progress"""
+    import queue
+    
+    print(f"DEBUG: IGDB result listener started for process {process.pid}")
+    
+    while process.is_alive():
+        try:
+            res = result_q.get(timeout=1)
+            if res is None:
+                break
+                
+            print(f"DEBUG: IGDB result listener received: {res}")
+                
+            # Handle progress updates
+            if isinstance(res, dict) and res.get('type') == 'progress':
+                msg_task_id = res.get('task_id')
+                message = res.get('message', '')
+                curr = res.get('current_step')
+                total = res.get('total_steps')
+                pct = res.get('progress_percentage')
+                
+                print(f"DEBUG: Processing progress update for task {msg_task_id}: {message}")
+                
+                if msg_task_id and msg_task_id in tasks:
+                    try:
+                        t = tasks[msg_task_id]
+                        if t.status == TASK_STATUS_RUNNING:
+                            t.update_progress(message, progress_percentage=pct, current_step=curr, total_steps=total)
+                            print(f"DEBUG: Updated task {msg_task_id} progress: {message}")
+                        else:
+                            print(f"DEBUG: Task {msg_task_id} status is {t.status}, not running")
+                    except Exception as e:
+                        print(f"DEBUG: Error updating task {msg_task_id}: {e}")
+                else:
+                    print(f"DEBUG: Task {msg_task_id} not found in tasks dictionary")
+                continue
+            
+            # Handle final result
+            task_id = res.get('task_id')
+            if task_id and task_id in tasks:
+                try:
+                    t = tasks[task_id]
+                    if res.get('success'):
+                        t.complete(True, res.get('message', 'IGDB scraping completed successfully'))
+                    else:
+                        t.complete(False, res.get('error', 'IGDB scraping failed'))
+                except Exception as e:
+                    print(f"DEBUG: Error completing task {task_id}: {e}")
+                break
+                
+        except queue.Empty:
+            continue
+        except Exception as e:
+            print(f"Error in IGDB result listener: {e}")
+            break
+    
+    print(f"DEBUG: IGDB result listener ended for process {process.pid}")
+
+# =============================================================================
+# IGDB Scraper API Routes
+# =============================================================================
+
+@app.route('/api/scrap-igdb/<system_name>', methods=['POST'])
+@login_required
+def scrap_igdb_system(system_name):
+    """Start IGDB scraping process for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Check if IGDB is enabled
+        igdb_config = get_igdb_config()
+        if not igdb_config.get('enabled', False):
+            return jsonify({'error': 'IGDB integration is disabled'}), 400
+        
+        # Check if system has IGDB platform ID configured
+        config = load_config()
+        systems_config = config.get('systems', {})
+        system_config = systems_config.get(system_name, {})
+        
+        if not system_config.get('igdb'):
+            return jsonify({'error': f'No IGDB platform ID configured for system "{system_name}"'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        
+        # Get overwrite settings from cookies
+        overwrite_text_fields = request.cookies.get('overwriteTextFields', 'false').lower() == 'true'
+        overwrite_media_fields = request.cookies.get('overwriteMediaFields', 'false').lower() == 'true'
+        
+        print(f"🍪 DEBUG: Cookie values - overwriteTextFields: '{request.cookies.get('overwriteTextFields', 'NOT_SET')}', overwriteMediaFields: '{request.cookies.get('overwriteMediaFields', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: Parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        print(f"🍪 DEBUG: Selected fields: {selected_fields}")
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        task = Task('igdb_scraping', task_data, username)
+        
+        # Set global current task ID for progress updates
+        global current_task_id
+        current_task_id = task.id
+        
+        # Add to tasks list
+        tasks[task.id] = task
+        
+        # Start the task
+        task.start()
+        
+        # Start the scraper task in a separate thread
+        import threading
+        scraper_thread = threading.Thread(
+            target=run_igdb_scraper_task,
+            args=(system_name, task.id, selected_games, overwrite_text_fields, overwrite_media_fields, selected_fields),
+            daemon=True
+        )
+        scraper_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'IGDB scraping started for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting IGDB scraper: {e}")
+        return jsonify({'error': f'Failed to start IGDB scraper: {str(e)}'}), 500
+
+@app.route('/api/igdb/search', methods=['POST'])
+@login_required
+def search_igdb_games_api():
+    """Search for games in IGDB database"""
+    try:
+        data = request.get_json()
+        game_name = data.get('game_name', '').strip()
+        platform_id = data.get('platform_id')
+        limit = data.get('limit', 10)
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        if not platform_id:
+            return jsonify({'error': 'Platform ID is required'}), 400
+        
+        # Get IGDB configuration
+        igdb_config = get_igdb_config()
+        if not igdb_config.get('enabled', False):
+            return jsonify({'error': 'IGDB integration is disabled'}), 400
+        
+        # Get access token
+        access_token = get_igdb_access_token()
+        if not access_token:
+            return jsonify({'error': 'Failed to get IGDB access token'}), 500
+        
+        # Search for games
+        import asyncio
+        
+        async def search_games():
+            async_client = await get_igdb_async_client()
+            try:
+                # Ensure platform cache is available
+                platform_cache = await ensure_igdb_platform_cache()
+                
+                # Clean game name - remove parentheses and extra text
+                import re
+                clean_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+                clean_name = re.sub(r'\s*\[[^\]]*\]', '', clean_name).strip()
+                
+                # Search for games with platform filter
+                search_url = "https://api.igdb.com/v4/games"
+                search_data = f'fields id,name,summary,first_release_date,platforms,genres,total_rating,rating_count,player_perspectives,game_modes,cover,screenshots,artworks; search "{clean_name}"; where platforms = ({platform_id}); limit {limit};'
+                
+                headers = {
+                    'Client-ID': igdb_config['client_id'],
+                    'Authorization': f'Bearer {access_token}',
+                    'Content-Type': 'text/plain'
+                }
+                
+                response = await async_client.post(search_url, headers=headers, content=search_data)
+                
+                if response.status_code == 200:
+                    games = response.json()
+                    if games:
+                        # Fetch involved companies for each game
+                        for game in games:
+                            involved_companies = await fetch_igdb_involved_companies(
+                                async_client, 
+                                access_token, 
+                                igdb_config['client_id'], 
+                                game['id']
+                            )
+                            game['involved_companies'] = involved_companies
+                        
+                        # Collect company IDs for caching
+                        company_ids = set()
+                        for game in games:
+                            if game.get('involved_companies'):
+                                for involvement in game['involved_companies']:
+                                    company_id = involvement.get('company')
+                                    if company_id:
+                                        company_ids.add(company_id)
+                        
+                        # Ensure company cache is available
+                        company_cache = await ensure_igdb_company_cache(list(company_ids))
+                        
+                        # Enhance games with cached platform and company names
+                        for game in games:
+                            if 'platforms' in game and game['platforms']:
+                                game['platforms'] = [
+                                    {'id': platform_id, 'name': get_igdb_platform_name(platform_id, platform_cache)}
+                                    for platform_id in game['platforms']
+                                ]
+                            
+                            # Add company names from involved_companies
+                            developer_names = []
+                            publisher_names = []
+                            
+                            if game.get('involved_companies'):
+                                for involvement in game['involved_companies']:
+                                    company_id = involvement.get('company')
+                                    is_developer = involvement.get('developer', False)
+                                    is_publisher = involvement.get('publisher', False)
+                                    
+                                    if company_id:
+                                        company_name = get_igdb_company_name(company_id, company_cache)
+                                        if company_name and not company_name.startswith('Company '):
+                                            if is_developer:
+                                                developer_names.append(company_name)
+                                            if is_publisher:
+                                                publisher_names.append(company_name)
+                            
+                            if developer_names:
+                                game['developer_names'] = developer_names
+                            if publisher_names:
+                                game['publisher_names'] = publisher_names
+                        
+                        return games
+                    else:
+                        # No games found for this platform
+                        return []
+                else:
+                    print(f"IGDB API error: {response.status_code} - {response.text}")
+                    return []
+                    
+            finally:
+                await close_igdb_async_client()
+        
+        # Run the async search
+        games = asyncio.run(search_games())
+        
+        return jsonify({
+            'success': True,
+            'games': games,
+            'count': len(games)
+        })
+        
+    except Exception as e:
+        print(f"Error searching IGDB games: {e}")
+        return jsonify({'error': f'Failed to search IGDB games: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Initialize default admin user

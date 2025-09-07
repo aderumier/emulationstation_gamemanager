@@ -1,3 +1,21 @@
+/**
+ * GameManager - Game Collection Management System
+ * Copyright (C) 2024 Alexandre Derumier <aderumier@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 class GameCollectionManager {
     constructor() {
         this.games = [];
@@ -1273,6 +1291,8 @@ class GameCollectionManager {
 
         // Button event listeners
         document.getElementById('unifiedScanBtn').addEventListener('click', () => this.unifiedScan());
+        document.getElementById('saveGamelistBtn').addEventListener('click', () => this.saveGamelist());
+        document.getElementById('confirmGamelistSave').addEventListener('click', () => this.confirmGamelistSave());
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
@@ -4104,6 +4124,137 @@ class GameCollectionManager {
         }
     }
 
+    async saveGamelist() {
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+
+        // Show the modal and load differences
+        await this.showGamelistSaveModal();
+    }
+
+    async showGamelistSaveModal() {
+        // Set system name in modal
+        document.getElementById('gamelistSaveSystemName').textContent = this.currentSystem;
+        document.getElementById('gamelistSaveSourcePath').textContent = this.currentSystem;
+        document.getElementById('gamelistSaveDestPath').textContent = this.currentSystem;
+
+        // Show loading state
+        document.getElementById('gamelistSaveLoading').style.display = 'block';
+        document.getElementById('gamelistSaveContent').style.display = 'none';
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('gamelistSaveModal'));
+        modal.show();
+
+        try {
+            // Fetch differences
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist-diff`);
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    this.populateGamelistSaveModal(result);
+                } else {
+                    this.showGamelistSaveError(result.error || 'Failed to load differences');
+                }
+            } else {
+                const errorData = await response.json();
+                this.showGamelistSaveError(errorData.error || 'Failed to load differences');
+            }
+        } catch (error) {
+            console.error('Error loading gamelist differences:', error);
+            this.showGamelistSaveError('Error loading differences: ' + error.message);
+        }
+    }
+
+    populateGamelistSaveModal(data) {
+        // Hide loading, show content
+        document.getElementById('gamelistSaveLoading').style.display = 'none';
+        document.getElementById('gamelistSaveContent').style.display = 'block';
+
+        // Update counts
+        document.getElementById('gamesAddedCount').textContent = data.games_added;
+        document.getElementById('gamesRemovedCount').textContent = data.games_removed;
+        document.getElementById('mediaAddedCount').textContent = data.media_added;
+        document.getElementById('mediaRemovedCount').textContent = data.media_removed;
+        document.getElementById('totalGamesCount').textContent = data.total_games;
+        document.getElementById('totalMediaCount').textContent = data.total_media;
+
+        // Update game lists
+        const addedList = document.getElementById('gamesAddedList');
+        const removedList = document.getElementById('gamesRemovedList');
+
+        if (data.games_added_list.length > 0) {
+            addedList.innerHTML = data.games_added_list.map(game => 
+                `<div class="mb-1"><strong>${game.name}</strong><br><small class="text-muted">${game.path}</small></div>`
+            ).join('');
+        } else {
+            addedList.innerHTML = '<div class="text-muted">No games added</div>';
+        }
+
+        if (data.games_removed_list.length > 0) {
+            removedList.innerHTML = data.games_removed_list.map(game => 
+                `<div class="mb-1"><strong>${game.name}</strong><br><small class="text-muted">${game.path}</small></div>`
+            ).join('');
+        } else {
+            removedList.innerHTML = '<div class="text-muted">No games removed</div>';
+        }
+    }
+
+    showGamelistSaveError(errorMessage) {
+        // Hide loading, show content with error
+        document.getElementById('gamelistSaveLoading').style.display = 'none';
+        document.getElementById('gamelistSaveContent').style.display = 'block';
+
+        // Show error in all sections
+        const errorHtml = `<div class="alert alert-danger">${errorMessage}</div>`;
+        document.getElementById('gamesAddedList').innerHTML = errorHtml;
+        document.getElementById('gamesRemovedList').innerHTML = errorHtml;
+        
+        // Disable save button
+        document.getElementById('confirmGamelistSave').disabled = true;
+    }
+
+    async confirmGamelistSave() {
+        const button = document.getElementById('confirmGamelistSave');
+        const originalText = button.innerHTML;
+
+        try {
+            // Show loading state
+            button.innerHTML = '<i class="spinner-border spinner-border-sm"></i>';
+            button.disabled = true;
+
+            // Call the save API
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/save-gamelist`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    this.showAlert(result.message, 'success');
+                    // Close the modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('gamelistSaveModal'));
+                    modal.hide();
+                } else {
+                    this.showAlert(result.error || 'Failed to save gamelist', 'danger');
+                }
+            } else {
+                const errorData = await response.json();
+                this.showAlert(errorData.error || 'Failed to save gamelist', 'danger');
+            }
+        } catch (error) {
+            console.error('Error saving gamelist:', error);
+            this.showAlert('Error saving gamelist: ' + error.message, 'danger');
+        } finally {
+            // Restore button state
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    }
+
     async deleteGame(game) {
         if (!confirm(`Are you sure you want to delete "${game.name}" (ROM: ${game.path})"?`)) return;
 
@@ -6269,6 +6420,7 @@ class GameCollectionManager {
 
     enableButtons() {
         document.getElementById('unifiedScanBtn').disabled = false;
+        document.getElementById('saveGamelistBtn').disabled = false;
 
         document.getElementById('scrapLaunchboxBtn').disabled = false; // Allow full collection scraping
         

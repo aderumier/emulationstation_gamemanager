@@ -48,8 +48,6 @@ Thumbs.db
 
 # Application data (will be mounted as volumes)
 roms/
-media/
-cache/
 var/task_logs/
 var/sessions/
 var/db/

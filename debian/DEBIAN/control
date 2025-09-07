@@ -3,7 +3,7 @@ Version: 1.6-1
 Section: games
 Priority: optional
 Architecture: all
-Depends: python3, python3-flask, python3-flask-login, python3-flask-socketio, python3-flask-cors, python3-requests, python3-httpx, python3-h2, python3-aiofiles, python3-bs4, python3-pil, python3-lxml, python3-bcrypt, python3-dotenv, python3-wand, imagemagick, ffmpeg, curl, wget
+Depends: python3, python3-flask, python3-flask-login, python3-flask-socketio, python3-flask-cors, python3-requests, python3-httpx, python3-httpx-limiter, python3-h2, python3-aiofiles, python3-bs4, python3-pil, python3-lxml, python3-bcrypt, python3-dotenv, python3-wand, imagemagick, ffmpeg, curl, wget
 Maintainer: GameManager Team <admin@gamemanager.local>
 Description: Game Collection Management System
  GameManager is a comprehensive game collection management system that helps

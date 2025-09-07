@@ -158,6 +158,25 @@ cursorscraper/
 
 ## Installation & Setup
 
+### Docker Deployment (Recommended)
+
+For easy deployment, use the pre-built Docker image:
+
+```bash
+# Pull the latest image
+docker pull aderumier/emulationstation_gamemanager:latest
+
+# Run the container
+docker run -d \
+  --name gamemanager \
+  -p 5000:5000 \
+  -v $(pwd)/roms:/opt/gamemanager/roms \
+  -v $(pwd)/var:/opt/gamemanager/var \
+  aderumier/emulationstation_gamemanager:latest
+```
+
+**📖 For detailed Docker deployment instructions on Linux and Windows, see [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)**
+
 ### Debian/Ubuntu Installation
 
 #### 1. System Requirements

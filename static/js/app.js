@@ -1295,6 +1295,7 @@ class GameCollectionManager {
         document.getElementById('confirmGamelistSave').addEventListener('click', () => this.confirmGamelistSave());
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
+        document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
 
@@ -1334,6 +1335,60 @@ class GameCollectionManager {
         // Force download toggle (in LaunchBox Configuration modal)
         document.getElementById('forceDownloadImagesModal').addEventListener('change', (e) => {
             this.setCookie('forceDownloadImages', e.target.checked);
+        });
+
+        // IGDB overwrite text fields toggle (in IGDB Configuration modal)
+        document.getElementById('overwriteTextFieldsModal').addEventListener('change', (e) => {
+            this.setCookie('overwriteTextFields', e.target.checked);
+        });
+
+        // IGDB overwrite media fields toggle (in IGDB Configuration modal)
+        document.getElementById('overwriteMediaFieldsModal').addEventListener('change', (e) => {
+            this.setCookie('overwriteMediaFields', e.target.checked);
+        });
+
+        // IGDB field selection checkboxes
+        document.querySelectorAll('.igdb-field-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', async () => {
+                await this.saveIgdbFieldSettings();
+            });
+        });
+
+        // IGDB field selection quick actions
+        document.getElementById('selectAllFields').addEventListener('click', async () => {
+            document.querySelectorAll('.igdb-field-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            await this.saveIgdbFieldSettings();
+        });
+
+        document.getElementById('deselectAllFields').addEventListener('click', async () => {
+            document.querySelectorAll('.igdb-field-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            await this.saveIgdbFieldSettings();
+        });
+
+        // LaunchBox field selection checkboxes
+        document.querySelectorAll('.launchbox-field-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', async () => {
+                await this.saveLaunchboxFieldSettings();
+            });
+        });
+
+        // LaunchBox field selection quick actions
+        document.getElementById('selectAllLaunchboxFields').addEventListener('click', async () => {
+            document.querySelectorAll('.launchbox-field-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            await this.saveLaunchboxFieldSettings();
+        });
+
+        document.getElementById('deselectAllLaunchboxFields').addEventListener('click', async () => {
+            document.querySelectorAll('.launchbox-field-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            await this.saveLaunchboxFieldSettings();
         });
 
         // Grid selection change - handled by grid API listener
@@ -1990,6 +2045,21 @@ class GameCollectionManager {
                         fontSize: '0.9em'
                     }
                 },
+                { 
+                    field: 'igdbid', 
+                    headerName: 'IGDB ID', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    flex: 1,
+                    headerTooltip: 'IGDB Database ID for exact matching. Auto-populated when scraping.',
+                    cellStyle: { 
+                        backgroundColor: '#e8f4fd',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em'
+                    }
+                },
 
                 { 
                     field: 'path', 
@@ -2506,6 +2576,7 @@ class GameCollectionManager {
         document.getElementById('editRating').value = game.rating || '';
         document.getElementById('editPlayers').value = game.players || '';
         document.getElementById('editLaunchboxId').value = game.launchboxid || '';
+        document.getElementById('editIgdbId').value = game.igdbid || '';
         
         // Populate the media tab with the same media display as the preview panel
         await this.showEditGameMedia(game);
@@ -2521,6 +2592,9 @@ class GameCollectionManager {
         
         // Initialize Find Best Match button for edit modal
         this.initializeEditModalFindBestMatch();
+        
+        // Initialize IGDB search button for edit modal
+        this.initializeEditModalIgdbSearch();
         
         // Initialize delete video button
         this.initializeDeleteVideoButton(game);
@@ -3264,6 +3338,7 @@ class GameCollectionManager {
         game.publisher = document.getElementById('editPublisher').value;
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
+        game.igdbid = document.getElementById('editIgdbId').value;
 
         console.log('Updated game object:', game);
         
@@ -3368,6 +3443,166 @@ class GameCollectionManager {
         
         // Show the game edit match modal
         this.showPartialMatches(gameName, null, 'gameEdit');
+    }
+    
+    async showGameEditIgdbSearch() {
+        // Get current game data from edit modal
+        const gameName = document.getElementById('editName').value;
+        const systemName = this.currentSystem;
+        
+        if (!gameName || !systemName) {
+            this.showAlert('Please select a game and system first', 'warning');
+            return;
+        }
+        
+        // Get system configuration to find IGDB platform ID
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+            this.showAlert('Failed to load system configuration', 'error');
+            return;
+        }
+        const config = await response.json();
+        const systemsConfig = config.systems || {};
+        const systemConfig = systemsConfig[systemName] || {};
+        const igdbPlatformId = systemConfig.igdb;
+        
+        if (!igdbPlatformId) {
+            this.showAlert(`No IGDB platform ID configured for system '${systemName}'`, 'warning');
+            return;
+        }
+        
+        // Store current modal context
+        this.currentModalContext = 'gameEdit';
+        this.currentGameData = {
+            name: gameName,
+            system: systemName,
+            igdbPlatformId: igdbPlatformId
+        };
+        
+        // Show the IGDB search modal
+        this.showIgdbSearchModal(gameName, igdbPlatformId, systemName);
+    }
+    
+    async showIgdbSearchModal(gameName, platformId, systemName) {
+        // Set the game name in the modal
+        document.getElementById('igdbSearchGameName').textContent = gameName;
+        
+        // Store system name for use in results display
+        this.currentIgdbSearchSystem = systemName;
+        
+        // Clear previous results
+        document.getElementById('igdbSearchResults').innerHTML = '';
+        document.getElementById('igdbSearchError').style.display = 'none';
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('igdbSearchModal'));
+        modal.show();
+        
+        // Show spinner
+        document.getElementById('igdbSearchSpinner').style.display = 'inline-block';
+        
+        try {
+            // Search for games in IGDB
+            const response = await fetch('/api/igdb/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    platform_id: platformId,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('igdbSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displayIgdbSearchResults(result.games);
+            } else {
+                this.showIgdbSearchError(result.error || 'Failed to search IGDB games');
+            }
+            
+        } catch (error) {
+            console.error('Error searching IGDB games:', error);
+            document.getElementById('igdbSearchSpinner').style.display = 'none';
+            this.showIgdbSearchError('Error searching IGDB games: ' + error.message);
+        }
+    }
+    
+    displayIgdbSearchResults(games) {
+        const resultsContainer = document.getElementById('igdbSearchResults');
+        
+        if (!games || games.length === 0) {
+            resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in IGDB database.</div></div>';
+            return;
+        }
+        
+        let html = '';
+        games.forEach((game, index) => {
+            const rating = game.rating ? Math.round(game.rating) : 'N/A';
+            const summary = game.summary ? (game.summary.length > 200 ? game.summary.substring(0, 200) + '...' : game.summary) : 'No description available';
+            
+            // Get platform names from IGDB data
+            const platformNames = game.platforms && game.platforms.length > 0 
+                ? game.platforms.map(p => p.name).join(', ') 
+                : 'Unknown Platform';
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">${game.name}</h6>
+                            <p class="card-text small text-muted">${summary}</p>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">Rating: ${rating}/100</small>
+                                <small class="text-muted">ID: ${game.id}</small>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="badge bg-info">${platformNames}</small>
+                                <small class="text-muted">IGDB</small>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="button" class="btn btn-info btn-sm w-100" onclick="gameManager.selectIgdbGame(${game.id}, '${game.name.replace(/'/g, "\\'")}')">
+                                <i class="bi bi-check-circle me-1"></i>Select This Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+    }
+    
+    showIgdbSearchError(message) {
+        const errorContainer = document.getElementById('igdbSearchError');
+        errorContainer.textContent = message;
+        errorContainer.style.display = 'block';
+    }
+    
+    selectIgdbGame(igdbId, gameName) {
+        // Update the IGDB ID field in the edit modal
+        document.getElementById('editIgdbId').value = igdbId;
+        
+        // Close the IGDB search modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('igdbSearchModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // Show success message
+        this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
+        
+        // Mark the game as modified
+        if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
+            const game = this.games[this.editingGameIndex];
+            this.modifiedGames.add(game.id);
+        }
     }
 
     async findBestMatchForSelected() {
@@ -3559,6 +3794,9 @@ class GameCollectionManager {
             // Get force download setting
             const forceDownload = document.getElementById('forceDownloadImagesModal').checked;
             
+            // Get selected fields for LaunchBox scraping
+            const selectedFields = await this.getSelectedLaunchboxFields();
+            
             const response = await fetch(`/api/scrap-launchbox/${this.currentSystem}`, {
                 method: 'POST',
                 headers: {
@@ -3567,7 +3805,8 @@ class GameCollectionManager {
                 body: JSON.stringify({
                     selected_games: gamesToScrape.map(game => game.path),
                     enable_partial_match_modal: enablePartialMatchModal,
-                    force_download: forceDownload
+                    force_download: forceDownload,
+                    selected_fields: selectedFields
                 })
             });
             
@@ -4640,6 +4879,15 @@ class GameCollectionManager {
         }
     }
     
+    initializeEditModalIgdbSearch() {
+        const modalFindIgdbMatchBtn = document.getElementById('modalFindIgdbMatchBtn');
+        if (modalFindIgdbMatchBtn) {
+            modalFindIgdbMatchBtn.addEventListener('click', () => {
+                this.showGameEditIgdbSearch();
+            });
+        }
+    }
+    
     initializeDeleteVideoButton(game) {
         const deleteVideoBtn = document.getElementById('deleteVideoBtn');
         if (deleteVideoBtn) {
@@ -5319,6 +5567,19 @@ class GameCollectionManager {
             console.warn('openLaunchboxModal element not found');
         }
 
+        // Add event listener for opening IGDB modal
+        const openIgdbModal = document.getElementById('openIgdbModal');
+        if (openIgdbModal) {
+            console.log('Found openIgdbModal element, adding click listener');
+            openIgdbModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('IGDB modal link clicked');
+                this.openIgdbConfigurationModal();
+            });
+        } else {
+            console.warn('openIgdbModal element not found');
+        }
+
         // Add event listener for opening Systems modal
         const openSystemsModal = document.getElementById('openSystemsModal');
         if (openSystemsModal) {
@@ -5383,6 +5644,275 @@ class GameCollectionManager {
         
         if (forceDownloadCheckbox) {
             forceDownloadCheckbox.checked = savedForceDownload === 'true';
+        }
+    }
+    
+    openIgdbConfigurationModal() {
+        // Load current settings before opening modal
+        this.loadIgdbSettings();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('igdbConfigurationModal'));
+        modal.show();
+    }
+    
+    loadIgdbSettings() {
+        // Load saved settings from cookies
+        const savedOverwriteTextFields = this.getCookie('overwriteTextFields');
+        const savedOverwriteMediaFields = this.getCookie('overwriteMediaFields');
+        
+        // Update modal checkboxes with saved values
+        const overwriteTextCheckbox = document.getElementById('overwriteTextFieldsModal');
+        const overwriteMediaCheckbox = document.getElementById('overwriteMediaFieldsModal');
+        
+        if (overwriteTextCheckbox) {
+            overwriteTextCheckbox.checked = savedOverwriteTextFields === 'true';
+        }
+        
+        if (overwriteMediaCheckbox) {
+            overwriteMediaCheckbox.checked = savedOverwriteMediaFields === 'true';
+        }
+        
+        // Load field selection settings
+        this.loadIgdbFieldSettings();
+        
+        // Load LaunchBox field selection settings
+        this.loadLaunchboxFieldSettings();
+    }
+    
+    async loadIgdbFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get IGDB field mappings from config
+            const textFields = Object.keys(config.igdb?.mapping || {});
+            const mediaFields = Object.keys(config.igdb?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Load saved field selections from cookies
+            allFields.forEach(field => {
+                const savedValue = this.getCookie(`igdbField_${field}`);
+                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                
+                if (checkbox) {
+                    // Default to checked if no saved value (first time)
+                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                }
+            });
+        } catch (error) {
+            console.error('Error loading IGDB field settings:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'name', 'summary', 'developer', 'publisher', 'genre', 
+                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks'
+            ];
+            
+            fallbackFields.forEach(field => {
+                const savedValue = this.getCookie(`igdbField_${field}`);
+                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                
+                if (checkbox) {
+                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                }
+            });
+        }
+    }
+    
+    async saveIgdbFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get IGDB field mappings from config
+            const textFields = Object.keys(config.igdb?.mapping || {});
+            const mediaFields = Object.keys(config.igdb?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Save field selections to cookies
+            allFields.forEach(field => {
+                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                if (checkbox) {
+                    this.setCookie(`igdbField_${field}`, checkbox.checked);
+                }
+            });
+        } catch (error) {
+            console.error('Error saving IGDB field settings:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'name', 'summary', 'developer', 'publisher', 'genre', 
+                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks'
+            ];
+            
+            fallbackFields.forEach(field => {
+                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                if (checkbox) {
+                    this.setCookie(`igdbField_${field}`, checkbox.checked);
+                }
+            });
+        }
+    }
+    
+    async getSelectedIgdbFields() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get IGDB field mappings from config
+            const textFields = Object.keys(config.igdb?.mapping || {});
+            const mediaFields = Object.keys(config.igdb?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            const selectedFields = [];
+            allFields.forEach(field => {
+                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                if (checkbox && checkbox.checked) {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
+        } catch (error) {
+            console.error('Error getting selected IGDB fields:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'name', 'summary', 'developer', 'publisher', 'genre', 
+                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks'
+            ];
+            
+            const selectedFields = [];
+            fallbackFields.forEach(field => {
+                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                if (checkbox && checkbox.checked) {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
+        }
+    }
+    
+    async loadLaunchboxFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get LaunchBox field mappings from config
+            const textFields = Object.keys(config.launchbox?.mapping || {});
+            const mediaFields = Object.keys(config.launchbox?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Load saved field selections from cookies
+            allFields.forEach(field => {
+                const savedValue = this.getCookie(`launchboxField_${field}`);
+                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
+                
+                if (checkbox) {
+                    // Default to checked if no saved value (first time)
+                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                }
+            });
+        } catch (error) {
+            console.error('Error loading LaunchBox field settings:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
+                'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
+                'Fanart - Background', 'Cart - Front'
+            ];
+            
+            fallbackFields.forEach(field => {
+                const savedValue = this.getCookie(`launchboxField_${field}`);
+                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
+                
+                if (checkbox) {
+                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                }
+            });
+        }
+    }
+    
+    async saveLaunchboxFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get LaunchBox field mappings from config
+            const textFields = Object.keys(config.launchbox?.mapping || {});
+            const mediaFields = Object.keys(config.launchbox?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Save field selections to cookies
+            allFields.forEach(field => {
+                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
+                if (checkbox) {
+                    this.setCookie(`launchboxField_${field}`, checkbox.checked);
+                }
+            });
+        } catch (error) {
+            console.error('Error saving LaunchBox field settings:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
+                'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
+                'Fanart - Background', 'Cart - Front'
+            ];
+            
+            fallbackFields.forEach(field => {
+                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
+                if (checkbox) {
+                    this.setCookie(`launchboxField_${field}`, checkbox.checked);
+                }
+            });
+        }
+    }
+    
+    async getSelectedLaunchboxFields() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get LaunchBox field mappings from config
+            const textFields = Object.keys(config.launchbox?.mapping || {});
+            const mediaFields = Object.keys(config.launchbox?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            const selectedFields = [];
+            allFields.forEach(field => {
+                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
+                if (checkbox && checkbox.checked) {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
+        } catch (error) {
+            console.error('Error getting selected LaunchBox fields:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
+                'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
+                'Fanart - Background', 'Cart - Front'
+            ];
+            
+            const selectedFields = [];
+            fallbackFields.forEach(field => {
+                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
+                if (checkbox && checkbox.checked) {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
         }
     }
     
@@ -6423,6 +6953,7 @@ class GameCollectionManager {
         document.getElementById('saveGamelistBtn').disabled = false;
 
         document.getElementById('scrapLaunchboxBtn').disabled = false; // Allow full collection scraping
+        document.getElementById('scrapIgdbBtn').disabled = false; // Allow IGDB scraping
         
 
         
@@ -6453,6 +6984,64 @@ class GameCollectionManager {
                 alertDiv.remove();
             }
         }, 5000);
+    }
+
+    async scrapIgdb() {
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapIgdbBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Determine scraping mode
+            const isFullCollection = this.selectedGames.length === 0;
+            const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
+            
+            this.showAlert('Starting IGDB scraping...', 'info');
+            
+            // Get selected fields for IGDB scraping
+            const selectedFields = await this.getSelectedIgdbFields();
+            
+            const response = await fetch(`/api/scrap-igdb/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: gamesToScrape.map(game => game.path),
+                    selected_fields: selectedFields
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showAlert(`✅ ${result.message}`, 'success');
+                console.log('IGDB scraping started:', result);
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
+                console.error('IGDB scraping failed:', result);
+            }
+            
+        } catch (error) {
+            console.error('Error starting IGDB scraping:', error);
+            this.showAlert(`❌ Error starting IGDB scraping: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapIgdbBtn');
+            button.innerHTML = '<i class="bi bi-globe"></i> IGDB Scrap';
+            button.disabled = false;
+        }
     }
 
     showInlineEditNotification(field, oldValue, newValue) {

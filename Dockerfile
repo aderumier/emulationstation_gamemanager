@@ -9,19 +9,31 @@ ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 
 # Set working directory
-WORKDIR /app
+WORKDIR /opt/gamemanager
 
-# Install system dependencies
+# Install system dependencies and .deb package dependencies
 RUN apt-get update && apt-get install -y \
     # Python and development tools
     python3 \
     python3-pip \
     python3-venv \
     python3-dev \
-    python3-requests \
-    python3-lxml \
-    python3-pil \
     python3-setuptools \
+    # .deb package dependencies
+    python3-flask \
+    python3-flask-login \
+    python3-flask-socketio \
+    python3-flask-cors \
+    python3-requests \
+    python3-httpx \
+    python3-h2 \
+    python3-aiofiles \
+    python3-bs4 \
+    python3-pil \
+    python3-lxml \
+    python3-bcrypt \
+    python3-dotenv \
+    python3-wand \
     # Application dependencies
     imagemagick \
     ffmpeg \
@@ -39,36 +51,28 @@ RUN apt-get update && apt-get install -y \
 RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
-# Copy requirements first for better Docker layer caching
-COPY requirements.txt .
+# Copy the .deb package
+COPY gamemanager_1.6-1_all.deb .
 
-# Install Python dependencies using virtual environment
-RUN python3 -m venv /app/venv && \
-    /app/venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /app/venv/bin/pip install --no-cache-dir -r requirements.txt
+# Extract the .deb package manually (skip postinst script for Docker)
+RUN dpkg-deb -x gamemanager_1.6-1_all.deb / && \
+    rm gamemanager_1.6-1_all.deb
 
 # Create necessary directories with proper structure first
 RUN mkdir -p \
-    /app/roms \
-    /app/media \
-    /app/cache \
-    /app/var/task_logs \
-    /app/var/db/launchbox \
-    /app/var/sessions \
-    /app/var/gamelists \
-    /app/var/config \
-    /app/venv
+    /opt/gamemanager/roms \
+    /opt/gamemanager/media \
+    /opt/gamemanager/cache \
+    /opt/gamemanager/var/task_logs \
+    /opt/gamemanager/var/db/launchbox \
+    /opt/gamemanager/var/sessions \
+    /opt/gamemanager/var/gamelists \
+    /opt/gamemanager/var/config
 
-# Copy application files
-COPY app.py .
-COPY box_generator.py .
-COPY download_manager.py .
-COPY tools/ ./tools/
-COPY static/ ./static/
-COPY templates/ ./templates/
+# Application files are installed by the .deb package
 
 # Set ownership
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /opt/gamemanager
 
 # Switch to non-root user
 USER appuser
@@ -81,7 +85,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
 # Set default command
-CMD ["/app/venv/bin/python", "app.py"]
+CMD ["python3", "/opt/gamemanager/app.py"]
 
 # Labels for metadata
 LABEL maintainer="GameManager Team <admin@gamemanager.local>"

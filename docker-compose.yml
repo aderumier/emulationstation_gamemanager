@@ -8,16 +8,8 @@ services:
       - "5000:5000"
     volumes:
       # Mount application data directories
-      - ./roms:/app/roms
-      - ./media:/app/media
-      - ./cache:/app/cache
-      - ./var/task_logs:/app/var/task_logs
-      - ./var/db:/app/var/db
-      - ./var/sessions:/app/var/sessions
-      - ./var/gamelists:/app/var/gamelists
-      # Mount config files for easy editing
-      - ./var/config/config.json:/app/var/config/config.json
-      - ./var/config/user.cfg:/app/var/config/user.cfg
+      - ./roms:/opt/gamemanager/roms
+      - ./var:/opt/gamemanager/var
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
