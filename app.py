@@ -6922,7 +6922,7 @@ def run_rom_scan_task(system_name):
                 new_game = {
                     'id': next_id,
                     'path': f'./{rom_file}',
-                    'name': os.path.splitext(rom_file)[0],  # Use filename without extension as name
+                    'name': os.path.splitext(os.path.basename(rom_file))[0],  # Use basename without extension as name
                     'desc': '',
                     'genre': '',
                     'developer': '',
@@ -7105,7 +7105,7 @@ def scan_rom_files_confirm(system_name):
             new_game = {
                 'id': next_id,
                 'path': f'./{rom_file}',
-                'name': os.path.splitext(rom_file)[0],
+                'name': os.path.splitext(os.path.basename(rom_file))[0],  # Use basename without extension as name
                 'desc': '',
                 'genre': '',
                 'developer': '',
