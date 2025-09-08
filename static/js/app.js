@@ -5066,6 +5066,9 @@ class GameCollectionManager {
         
         console.log('Opening YouTube preview for URL:', youtubeUrl);
         
+        // Set flag to prevent YouTube search modal from reopening when player modal closes
+        this.suppressYouTubeSearchReopen = true;
+        
         // Create a mock video object for the player
         const video = {
             url: youtubeUrl,
@@ -8815,6 +8818,9 @@ class GameCollectionManager {
         if (!this.suppressYouTubeSearchReopen) {
             this.returnToYouTubeSearchModal();
         }
+        
+        // Reset the suppression flag for next time
+        this.suppressYouTubeSearchReopen = false;
     }
     
     returnToYouTubeSearchModal() {
