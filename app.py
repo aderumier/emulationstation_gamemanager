@@ -8518,6 +8518,37 @@ def get_igdb_access_token():
         print(f"Error getting IGDB access token: {e}")
         return None
 
+async def make_igdb_request_with_retry(async_client, url, headers, data, max_retries=3):
+    """Make an IGDB API request with retry logic for rate limiting"""
+    import asyncio
+    
+    for attempt in range(max_retries):
+        try:
+            response = await async_client.post(url, headers=headers, content=data)
+            
+            if response.status_code == 200:
+                return response
+            elif response.status_code == 429:
+                # Rate limited - wait and retry
+                wait_time = (2 ** attempt) + 1  # Exponential backoff: 2, 5, 9 seconds
+                print(f"IGDB API rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(wait_time)
+                continue
+            else:
+                print(f"IGDB API error: {response.status_code} - {response.text}")
+                return response
+                
+        except Exception as e:
+            print(f"IGDB API request error (attempt {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                wait_time = (2 ** attempt) + 1
+                await asyncio.sleep(wait_time)
+                continue
+            else:
+                raise e
+    
+    return None
+
 async def search_igdb_game_by_name_async(game_name, platform_id, access_token, client_id, async_client):
     """Search for a game in IGDB by name and platform (async)"""
     try:
@@ -8537,10 +8568,10 @@ async def search_igdb_game_by_name_async(game_name, platform_id, access_token, c
             'Content-Type': 'text/plain'
         }
         
-        # Make the request (rate limiting will be handled by aiometer)
-        response = await async_client.post(search_url, headers=headers, content=search_data)
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
         
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             games = response.json()
             if games:
                 # Return the first match (best match)
@@ -8549,7 +8580,8 @@ async def search_igdb_game_by_name_async(game_name, platform_id, access_token, c
                 # No games found for this platform
                 return None
         else:
-            print(f"IGDB API error: {response.status_code} - {response.text}")
+            if response:
+                print(f"IGDB API error: {response.status_code} - {response.text}")
         
         return None
         
@@ -8569,9 +8601,10 @@ async def fetch_igdb_game_by_id_async(game_id, access_token, client_id, async_cl
             'Content-Type': 'text/plain'
         }
         
-        response = await async_client.post(search_url, headers=headers, content=search_data)
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
         
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             games = response.json()
             if games:
                 return games[0]  # Return the first (and only) game
@@ -8579,7 +8612,8 @@ async def fetch_igdb_game_by_id_async(game_id, access_token, client_id, async_cl
                 print(f"No game found with ID {game_id}")
                 return None
         else:
-            print(f"IGDB API error: {response.status_code} - {response.text}")
+            if response:
+                print(f"IGDB API error: {response.status_code} - {response.text}")
             return None
         
     except Exception as e:
@@ -8598,12 +8632,14 @@ async def fetch_igdb_involved_companies(async_client, access_token, client_id, g
             'Content-Type': 'text/plain'
         }
         
-        response = await async_client.post(search_url, headers=headers, content=search_data)
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
         
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             return response.json()
         else:
-            print(f"IGDB involved companies API error: {response.status_code} - {response.text}")
+            if response:
+                print(f"IGDB involved companies API error: {response.status_code} - {response.text}")
             return []
     except Exception as e:
         print(f"Error fetching IGDB involved companies: {e}")
@@ -9584,7 +9620,7 @@ def search_igdb_games_api():
                     'Content-Type': 'text/plain'
                 }
                 
-                response = await async_client.post(search_url, headers=headers, content=search_data)
+                response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
                 
                 if response.status_code == 200:
                     games = response.json()
