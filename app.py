@@ -8721,11 +8721,19 @@ async def download_igdb_fanart(async_client, artwork_data, system_name, game_nam
         image_id = artwork_data.get('image_id')
         image_url = artwork_data.get('url')
         print(f"🎨 DEBUG: download_igdb_fanart called - image_id: {image_id}, system: {system_name}, game: {game_name}")
-        print(f"🎨 DEBUG: Using URL from artwork API: {image_url}")
+        print(f"🎨 DEBUG: Raw URL from artwork API: {image_url}")
         
         if not image_url:
             print(f"🎨 DEBUG: ERROR - No URL found in artwork data!")
             return None
+        
+        # IGDB returns relative URLs, need to prefix with base URL
+        if image_url.startswith('//'):
+            image_url = f"https:{image_url}"
+        elif not image_url.startswith('http'):
+            image_url = f"https://images.igdb.com{image_url}"
+        
+        print(f"🎨 DEBUG: Final image URL: {image_url}")
         
         # Create fanart directory for the system
         fanart_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'fanarts')
