@@ -2806,7 +2806,8 @@ def list_rom_systems():
         for system_name in os.listdir(ROMS_FOLDER):
             system_path = os.path.join(ROMS_FOLDER, system_name)
             if os.path.isdir(system_path):
-                gamelist_path = os.path.join(system_path, 'gamelist.xml')
+                # Count games from var/<system>/gamelist.xml instead of roms/<system>/gamelist.xml
+                gamelist_path = get_gamelist_path(system_name)
                 rom_count = 0
                 if os.path.exists(gamelist_path):
                     # Parse the actual gamelist.xml to get real count
