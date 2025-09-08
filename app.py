@@ -8755,8 +8755,12 @@ async def download_igdb_fanart(async_client, artwork_data, system_name, game_nam
         
         # Download the image
         print(f"🎨 DEBUG: Starting image download...")
-        response = await async_client.get(image_url)
-        print(f"🎨 DEBUG: Download response status: {response.status_code}")
+        try:
+            response = await async_client.get(image_url, timeout=20.0)  # 20 second timeout
+            print(f"🎨 DEBUG: Download response status: {response.status_code}")
+        except Exception as e:
+            print(f"🎨 DEBUG: Error downloading image: {e}")
+            return None
         
         if response.status_code == 200:
             print(f"🎨 DEBUG: Writing image to file...")
@@ -9282,26 +9286,49 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                 if fanart_elem is None or not fanart_elem.text or overwrite_media_fields:
                     print(f"🎨 DEBUG: Proceeding with fanart download for '{game_name}'...")
                     print(f"🎨 Fetching fanart for '{game_name}'...")
-                    artwork = await fetch_igdb_artworks(async_client, access_token, client_id, igdb_game['id'])
+                    try:
+                        # Add timeout to artwork fetching as well
+                        import asyncio
+                        artwork = await asyncio.wait_for(
+                            fetch_igdb_artworks(async_client, access_token, client_id, igdb_game['id']),
+                            timeout=15.0  # 15 second timeout for API call
+                        )
+                    except asyncio.TimeoutError:
+                        print(f"⏰ Timeout fetching artworks for '{game_name}' (15s limit)")
+                        artwork = None
+                    except Exception as e:
+                        print(f"❌ Error fetching artworks for '{game_name}': {e}")
+                        artwork = None
                     if artwork and artwork.get('image_id'):
                         print(f"🎨 DEBUG: Artwork found, proceeding with download...")
                         # Get system name from the current system being processed
                         # We need to pass this from the calling function
                         system_name = igdb_config.get('system_name', 'unknown')
                         print(f"🎨 DEBUG: System name from config: {system_name}")
-                        fanart_path = await download_igdb_fanart(
-                            async_client, 
-                            artwork, 
-                            system_name, 
-                            game_name
-                        )
-                        if fanart_path:
-                            if fanart_elem is None:
-                                fanart_elem = ET.SubElement(game, 'fanart')
-                            fanart_elem.text = fanart_path
-                            print(f"✅ Downloaded fanart for '{game_name}': {fanart_path}")
-                        else:
-                            print(f"❌ Failed to download fanart for '{game_name}'")
+                        
+                        try:
+                            # Add timeout to prevent hanging
+                            import asyncio
+                            fanart_path = await asyncio.wait_for(
+                                download_igdb_fanart(
+                                    async_client, 
+                                    artwork, 
+                                    system_name, 
+                                    game_name
+                                ),
+                                timeout=30.0  # 30 second timeout
+                            )
+                            if fanart_path:
+                                if fanart_elem is None:
+                                    fanart_elem = ET.SubElement(game, 'fanart')
+                                fanart_elem.text = fanart_path
+                                print(f"✅ Downloaded fanart for '{game_name}': {fanart_path}")
+                            else:
+                                print(f"❌ Failed to download fanart for '{game_name}'")
+                        except asyncio.TimeoutError:
+                            print(f"⏰ Timeout downloading fanart for '{game_name}' (30s limit)")
+                        except Exception as e:
+                            print(f"❌ Error downloading fanart for '{game_name}': {e}")
                     else:
                         print(f"❌ No suitable fanart found for '{game_name}'")
                 else:
