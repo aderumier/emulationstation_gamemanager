@@ -1302,7 +1302,9 @@ class GameCollectionManager {
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
         document.getElementById('startYoutubeDownloadBtn').addEventListener('click', () => this.startYoutubeDownload());
-
+        
+        // IGDB credentials save button
+        document.getElementById('saveIgdbCredentialsBtn').addEventListener('click', () => this.saveIgdbCredentials());
 
         
         // Task log modal download button
@@ -5950,11 +5952,82 @@ class GameCollectionManager {
             overwriteMediaCheckbox.checked = savedOverwriteMediaFields === 'true';
         }
         
+        // Load IGDB credentials status
+        this.loadIgdbCredentialsStatus();
+        
         // Load field selection settings
         this.loadIgdbFieldSettings();
         
         // Load LaunchBox field selection settings
         this.loadLaunchboxFieldSettings();
+    }
+    
+    async loadIgdbCredentialsStatus() {
+        try {
+            const response = await fetch('/api/igdb-credentials');
+            if (response.ok) {
+                const data = await response.json();
+                this.updateIgdbCredentialsStatus(data);
+            } else {
+                console.error('Failed to load IGDB credentials status');
+            }
+        } catch (error) {
+            console.error('Error loading IGDB credentials status:', error);
+        }
+    }
+    
+    updateIgdbCredentialsStatus(data) {
+        const statusElement = document.getElementById('igdbCredentialsStatus');
+        if (statusElement) {
+            if (data.has_client_id && data.has_client_secret) {
+                statusElement.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>Credentials configured';
+                statusElement.className = 'text-success';
+            } else {
+                statusElement.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Credentials not configured';
+                statusElement.className = 'text-warning';
+            }
+        }
+    }
+    
+    async saveIgdbCredentials() {
+        const clientId = document.getElementById('igdbClientId').value.trim();
+        const clientSecret = document.getElementById('igdbClientSecret').value.trim();
+        
+        if (!clientId || !clientSecret) {
+            alert('Please enter both Client ID and Client Secret');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/igdb-credentials', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    client_id: clientId,
+                    client_secret: clientSecret
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                alert('IGDB credentials saved successfully!');
+                
+                // Clear the form fields
+                document.getElementById('igdbClientId').value = '';
+                document.getElementById('igdbClientSecret').value = '';
+                
+                // Update status
+                await this.loadIgdbCredentialsStatus();
+            } else {
+                const error = await response.json();
+                alert(`Failed to save credentials: ${error.error}`);
+            }
+        } catch (error) {
+            console.error('Error saving IGDB credentials:', error);
+            alert('Error saving credentials. Please try again.');
+        }
     }
     
     async loadIgdbFieldSettings() {

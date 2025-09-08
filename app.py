@@ -2879,6 +2879,44 @@ def get_config():
         except Exception as e:
             return jsonify({'error': f'Failed to update configuration: {str(e)}'}), 500
 
+@app.route('/api/igdb-credentials', methods=['GET', 'POST'])
+@login_required
+def manage_igdb_credentials():
+    """Manage IGDB credentials"""
+    try:
+        if request.method == 'GET':
+            # Return current IGDB credentials (without exposing the actual values)
+            igdb_config = get_igdb_config()
+            return jsonify({
+                'has_client_id': bool(igdb_config.get('client_id')),
+                'has_client_secret': bool(igdb_config.get('client_secret')),
+                'enabled': igdb_config.get('enabled', False)
+            })
+        
+        elif request.method == 'POST':
+            # Save IGDB credentials
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            client_id = data.get('client_id', '').strip()
+            client_secret = data.get('client_secret', '').strip()
+            
+            if not client_id or not client_secret:
+                return jsonify({'error': 'Both client_id and client_secret are required'}), 400
+            
+            # Save credentials to credentials.json
+            success = save_igdb_credentials(client_id, client_secret)
+            
+            if success:
+                return jsonify({'success': True, 'message': 'IGDB credentials saved successfully'})
+            else:
+                return jsonify({'error': 'Failed to save IGDB credentials'}), 500
+                
+    except Exception as e:
+        print(f"Error managing IGDB credentials: {e}")
+        return jsonify({'error': f'Failed to manage IGDB credentials: {str(e)}'}), 500
+
 @app.route('/api/systems', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def manage_systems():
@@ -8888,15 +8926,25 @@ def download_launchbox_media():
 # =============================================================================
 
 def get_igdb_config():
-    """Get IGDB configuration from config.json with credentials from environment variables"""
+    """Get IGDB configuration from config.json with credentials from environment variables or credentials.json"""
     try:
         # Load base configuration from config.json
         config = load_config()
         igdb_config = config.get('igdb', {})
         
-        # Override credentials with environment variables if they exist
-        client_id = os.getenv('IGDB_CLIENT_ID')
-        client_secret = os.getenv('IGDB_CLIENT_SECRET')
+        # Try to load credentials from credentials.json
+        credentials = {}
+        try:
+            credentials_path = 'var/config/credentials.json'
+            if os.path.exists(credentials_path):
+                with open(credentials_path, 'r', encoding='utf-8') as f:
+                    credentials = json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load credentials.json: {e}")
+        
+        # Priority order: environment variables > credentials.json > config.json
+        client_id = os.getenv('IGDB_CLIENT_ID') or credentials.get('igdb', {}).get('client_id')
+        client_secret = os.getenv('IGDB_CLIENT_SECRET') or credentials.get('igdb', {}).get('client_secret')
         
         if client_id:
             igdb_config['client_id'] = client_id
@@ -8907,6 +8955,42 @@ def get_igdb_config():
     except Exception as e:
         print(f"Error loading IGDB config: {e}")
         return {}
+
+def save_igdb_credentials(client_id, client_secret):
+    """Save IGDB credentials to credentials.json file"""
+    try:
+        credentials_path = 'var/config/credentials.json'
+        
+        # Ensure the config directory exists
+        os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
+        
+        # Load existing credentials or create new structure
+        credentials = {}
+        if os.path.exists(credentials_path):
+            try:
+                with open(credentials_path, 'r', encoding='utf-8') as f:
+                    credentials = json.load(f)
+            except Exception as e:
+                print(f"Warning: Could not load existing credentials.json: {e}")
+                credentials = {}
+        
+        # Update IGDB credentials
+        if 'igdb' not in credentials:
+            credentials['igdb'] = {}
+        
+        credentials['igdb']['client_id'] = client_id
+        credentials['igdb']['client_secret'] = client_secret
+        
+        # Save to file
+        with open(credentials_path, 'w', encoding='utf-8') as f:
+            json.dump(credentials, f, indent=4, ensure_ascii=False)
+        
+        print(f"IGDB credentials saved to {credentials_path}")
+        return True
+        
+    except Exception as e:
+        print(f"Error saving IGDB credentials: {e}")
+        return False
 
 def ensure_igdb_directory():
     """Ensure IGDB database directory exists"""
