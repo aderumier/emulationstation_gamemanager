@@ -2756,6 +2756,8 @@ def parse_gamelist_xml(file_path):
                     game_data['launchboxid'] = text
                 elif tag == 'igdbid':
                     game_data['igdbid'] = text
+                elif tag == 'youtubeurl':
+                    game_data['youtubeurl'] = text
             
             # Ensure required fields exist
             if 'id' not in game_data:
@@ -4860,7 +4862,7 @@ def save_gamelist_xml(file_path, games):
             # Add all fields - include empty values for media fields to ensure they're saved
             for field, value in game.items():
                 # Always include media-related fields, even if empty
-                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']:
+                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl']:
                     elem = ET.SubElement(game_elem, field)
                     elem.text = str(value) if value else ''
                 elif value:  # For non-media fields, only add if they have values
@@ -8767,6 +8769,60 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
         traceback.print_exc()
         return None
 
+async def fetch_igdb_game_videos(async_client, access_token, client_id, game_id):
+    """Fetch game videos from IGDB"""
+    try:
+        print(f"🎥 DEBUG: fetch_igdb_game_videos called for game_id: {game_id}")
+        search_url = "https://api.igdb.com/v4/game_videos"
+        search_data = f'fields id,video_id,name; where game = {game_id};'
+        
+        print(f"🎥 DEBUG: Game videos API request - URL: {search_url}")
+        print(f"🎥 DEBUG: Game videos API request - Data: {search_data}")
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        
+        if response and response.status_code == 200:
+            videos = response.json()
+            print(f"🎥 DEBUG: Received {len(videos)} videos from API")
+            
+            # Debug: Print all videos
+            for i, video in enumerate(videos):
+                video_id = video.get('video_id', 'N/A')
+                name = video.get('name', 'N/A')
+                print(f"🎥 DEBUG: Video {i+1}: id={video.get('id')}, video_id={video_id}, name={name}")
+            
+            # Return the first video's video_id (which is the YouTube URL) if any exist
+            if videos:
+                selected = videos[0]
+                video_id = selected.get('video_id')
+                if video_id:
+                    print(f"🎥 DEBUG: Selected video: {selected.get('id')} with video_id: {video_id}")
+                    return video_id
+                else:
+                    print(f"🎥 DEBUG: No video_id found in selected video")
+                    return None
+            else:
+                print(f"🎥 DEBUG: No videos found for game {game_id}")
+                return None
+        else:
+            if response:
+                print(f"🎥 DEBUG: IGDB game videos API error: {response.status_code} - {response.text}")
+            else:
+                print(f"🎥 DEBUG: No response received from game videos API")
+            return None
+    except Exception as e:
+        print(f"🎥 DEBUG: Error fetching IGDB game videos: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id):
     """Fetch screenshots for a specific game and return the first one"""
     try:
@@ -9933,6 +9989,49 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                     print(f"🏷️ DEBUG: Skipping logo download - already exists and overwrite disabled")
             else:
                 print(f"🏷️ DEBUG: Logo field not selected, skipping logo processing")
+            
+            # Fetch and set YouTube URL if selected fields include youtubeurl
+            if not selected_fields or 'youtubeurl' in selected_fields:
+                print(f"🎥 DEBUG: YouTube URL field is selected or no field selection (all fields)")
+                # Check if youtubeurl field is selected or if no field selection (all fields)
+                youtubeurl_elem = game.find('youtubeurl')
+                overwrite_text_fields = igdb_config.get('overwrite_text_fields', False)
+                
+                print(f"🎥 DEBUG: Existing youtubeurl element: {youtubeurl_elem is not None}")
+                if youtubeurl_elem is not None:
+                    print(f"🎥 DEBUG: Existing youtubeurl text: '{youtubeurl_elem.text}'")
+                print(f"🎥 DEBUG: Overwrite text fields: {overwrite_text_fields}")
+                
+                # Only fetch YouTube URL if it doesn't exist or if overwrite is enabled
+                if youtubeurl_elem is None or not youtubeurl_elem.text or overwrite_text_fields:
+                    print(f"🎥 DEBUG: Proceeding with YouTube URL fetch for '{game_name}'...")
+                    print(f"🎥 Fetching YouTube URL for '{game_name}'...")
+                    try:
+                        # Add timeout to video fetching as well
+                        import asyncio
+                        youtube_url = await asyncio.wait_for(
+                            fetch_igdb_game_videos(async_client, access_token, client_id, igdb_game['id']),
+                            timeout=15.0  # 15 second timeout for API call
+                        )
+                    except asyncio.TimeoutError:
+                        print(f"⏰ Timeout fetching videos for '{game_name}' (15s limit)")
+                        youtube_url = None
+                    except Exception as e:
+                        print(f"❌ Error fetching videos for '{game_name}': {e}")
+                        youtube_url = None
+                    
+                    if youtube_url:
+                        print(f"🎥 DEBUG: YouTube URL found: {youtube_url}")
+                        if youtubeurl_elem is None:
+                            youtubeurl_elem = ET.SubElement(game, 'youtubeurl')
+                        youtubeurl_elem.text = youtube_url
+                        print(f"✅ Set YouTube URL for '{game_name}': {youtube_url}")
+                    else:
+                        print(f"❌ No YouTube URL found for '{game_name}'")
+                else:
+                    print(f"🎥 DEBUG: Skipping YouTube URL fetch - already exists and overwrite disabled")
+            else:
+                print(f"🎥 DEBUG: YouTube URL field not selected, skipping YouTube URL processing")
             
             # Populate other fields with IGDB data
             fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache)
