@@ -8742,6 +8742,27 @@ class GameCollectionManager {
         const romBasename = this.getRomBasename(currentGame.path);
         const outputFilename = `${romBasename}.mp4`;
         
+        // Update the YouTube URL field in the game object and edit modal
+        if (this.currentYouTubeVideo.url) {
+            console.log('Updating YouTube URL field with:', this.currentYouTubeVideo.url);
+            
+            // Update the game object
+            currentGame.youtubeurl = this.currentYouTubeVideo.url;
+            
+            // Update the edit modal field if it's open
+            const editModal = document.getElementById('editGameModal');
+            if (editModal && editModal.classList.contains('show')) {
+                const youtubeurlField = document.getElementById('editYoutubeurl');
+                if (youtubeurlField) {
+                    youtubeurlField.value = this.currentYouTubeVideo.url;
+                    console.log('Updated YouTube URL field in edit modal');
+                }
+            }
+            
+            // Mark the game as modified so changes can be saved
+            this.markGameAsModified(currentGame);
+        }
+        
         // Debug logging
         console.log('Download parameters:', {
             video_url: this.currentYouTubeVideo.url,
