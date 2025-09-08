@@ -3736,15 +3736,19 @@ def scrap_launchbox_simple(system_name):
                     
                     if 'overwrite_text_fields' in data:
                         overwrite_text_fields = data['overwrite_text_fields']
+                        print(f"🔧 DEBUG: Received overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)})")
                         if overwrite_text_fields:
                             scraping_progress.append("Overwrite text fields enabled - will overwrite existing text fields")
                         else:
                             scraping_progress.append("Overwrite text fields disabled - will only update empty text fields")
+                    else:
+                        print(f"🔧 DEBUG: overwrite_text_fields not found in request data. Available keys: {list(data.keys())}")
             except Exception as e:
                 scraping_progress.append(f"Error parsing POST data: {e}")
                 pass  # Ignore JSON parsing errors
         
         # Create and start new task (after parsing POST data)
+        print(f"🔧 DEBUG: Creating task with overwrite_text_fields: {overwrite_text_fields}")
         task = create_task('scraping', {
             'system_name': system_name,
             'selected_games': selected_games,

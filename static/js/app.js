@@ -3817,6 +3817,7 @@ class GameCollectionManager {
             
             // Get overwrite text fields setting
             const overwriteTextFields = document.getElementById('overwriteTextFieldsLaunchbox').checked;
+            console.log('🔧 DEBUG: overwriteTextFields checkbox checked:', overwriteTextFields);
             
             // Get selected fields for LaunchBox scraping
             const selectedFields = await this.getSelectedLaunchboxFields();
@@ -5732,6 +5733,7 @@ class GameCollectionManager {
         
         if (overwriteTextFieldsCheckbox) {
             overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
+            console.log('🔧 DEBUG: Setting overwriteTextFields checkbox to:', savedOverwriteTextFields === 'true', '(saved value:', savedOverwriteTextFields, ')');
         }
     }
     
