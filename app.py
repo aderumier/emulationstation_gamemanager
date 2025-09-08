@@ -9151,7 +9151,6 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         os.makedirs(media_dir, exist_ok=True)
         
         # Create safe filename from ROM filename (without extension)
-        import os
         rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
         safe_rom_name = "".join(c for c in rom_name_without_ext if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_rom_name = safe_rom_name.replace(' ', '_')
