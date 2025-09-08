@@ -8840,10 +8840,119 @@ async def ensure_igdb_company_cache(company_ids):
     return cache
 
 # =============================================================================
+# IGDB Genre Cache Functions
+# =============================================================================
+
+def get_igdb_genre_cache_path():
+    """Get the path to the IGDB genre cache file"""
+    cache_dir = os.path.join('var', 'db', 'igdb')
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, 'genres_cache.json')
+
+def load_igdb_genre_cache():
+    """Load IGDB genre cache from file"""
+    cache_path = get_igdb_genre_cache_path()
+    try:
+        if os.path.exists(cache_path):
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+                # Check if cache is still valid (7 days)
+                if time.time() - cache_data.get('timestamp', 0) < 7 * 24 * 3600:
+                    return cache_data.get('genres', {})
+        return {}
+    except Exception as e:
+        print(f"Error loading IGDB genre cache: {e}")
+        return {}
+
+def save_igdb_genre_cache(genres):
+    """Save IGDB genre cache to file"""
+    cache_path = get_igdb_genre_cache_path()
+    try:
+        cache_data = {
+            'timestamp': time.time(),
+            'genres': genres
+        }
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        print(f"Saved {len(genres)} IGDB genres to cache")
+    except Exception as e:
+        print(f"Error saving IGDB genre cache: {e}")
+
+def get_igdb_genre_name(genre_id, genre_cache=None):
+    """Get genre name from cache by ID"""
+    if genre_cache is None:
+        genre_cache = load_igdb_genre_cache()
+    return genre_cache.get(str(genre_id), f"Genre {genre_id}")
+
+async def ensure_igdb_genre_cache(genre_ids):
+    """Ensure genre cache contains the specified genre IDs"""
+    if not genre_ids:
+        return {}
+    
+    # Load existing cache
+    genre_cache = load_igdb_genre_cache()
+    
+    # Check which genre IDs are missing from cache
+    missing_ids = [str(gid) for gid in genre_ids if str(gid) not in genre_cache]
+    
+    if not missing_ids:
+        return genre_cache
+    
+    print(f"Fetching {len(missing_ids)} missing IGDB genres...")
+    
+    # Fetch missing genres from IGDB API
+    access_token = get_igdb_access_token()
+    if not access_token:
+        print("Failed to get IGDB access token for genre fetching")
+        return genre_cache
+    
+    async_client = httpx.AsyncClient(
+        http2=True,
+        limits=httpx.Limits(max_keepalive_connections=8, max_connections=8)
+    )
+    
+    try:
+        # Build query for missing genre IDs
+        genre_ids_str = ','.join(missing_ids)
+        search_data = f'fields name; where id = ({genre_ids_str});'
+        
+        response = await async_client.post(
+            'https://api.igdb.com/v4/genres',
+            headers={
+                'Client-ID': config.get('igdb', {}).get('client_id', ''),
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'text/plain'
+            },
+            content=search_data,
+            timeout=30.0
+        )
+        
+        if response.status_code == 200:
+            genres_data = response.json()
+            
+            # Add new genres to cache
+            for genre in genres_data:
+                genre_cache[str(genre['id'])] = genre['name']
+            
+            # Save updated cache
+            save_igdb_genre_cache(genre_cache)
+            print(f"Successfully cached {len(genres_data)} new IGDB genres")
+        else:
+            print(f"IGDB API error when fetching genres: {response.status_code} - {response.text}")
+    
+    except Exception as e:
+        print(f"Error fetching IGDB genres: {e}")
+    
+    finally:
+        await async_client.aclose()
+    
+    return genre_cache
+
+# =============================================================================
 # IGDB Scraper Task
 # =============================================================================
 
-def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache=None):
+def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache=None, genre_cache=None):
     """Populate gamelist fields with IGDB data if fields are empty"""
     try:
         
@@ -8886,7 +8995,7 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
             'summary': igdb_game.get('summary', ''),
             'developer': ', '.join(developer_names) if developer_names else '',
             'publisher': ', '.join(publisher_names) if publisher_names else '',
-            'genre': ', '.join([str(g) for g in igdb_game.get('genres', [])]) if igdb_game.get('genres') else '',
+            'genre': ', '.join([get_igdb_genre_name(g, genre_cache) for g in igdb_game.get('genres', [])]) if igdb_game.get('genres') else '',
             'rating': str(int(igdb_game.get('total_rating', 0))) if igdb_game.get('total_rating') else '',
             'players': str(igdb_game.get('player_perspectives', [0])[0]) if igdb_game.get('player_perspectives') else '',
             'release_date': str(igdb_game.get('first_release_date', '')) if igdb_game.get('first_release_date') else ''
@@ -8945,7 +9054,7 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
         print(f"Error populating gamelist with IGDB data: {e}")
         return False
 
-async def process_game_async(game, igdb_platform_id, access_token, client_id, async_client, igdb_config, company_cache=None):
+async def process_game_async(game, igdb_platform_id, access_token, client_id, async_client, igdb_config, company_cache=None, genre_cache=None):
     """Process a single game asynchronously"""
     try:
         # Get game name
@@ -9002,8 +9111,12 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             )
             igdb_game['involved_companies'] = involved_companies
             
+            # Ensure genre cache is populated for this game's genres
+            if igdb_game.get('genres'):
+                genre_cache = await ensure_igdb_genre_cache(igdb_game['genres'])
+            
             # Populate other fields with IGDB data
-            fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache)
+            fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache, genre_cache)
             
             print(f"✅ Found IGDB ID for '{game_name}': {igdb_game['id']}" + (" (fields updated)" if fields_updated else ""))
             return game, True, False  # game, found, error
@@ -9177,6 +9290,9 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             # Ensure company cache is available (we'll populate it as we go)
             company_cache = load_igdb_company_cache()
             
+            # Ensure genre cache is available (we'll populate it as we go)
+            genre_cache = load_igdb_genre_cache()
+            
             processed_count = 0
             found_count = 0
             error_count = 0
@@ -9202,7 +9318,8 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                         igdb_config['client_id'],
                         async_client,
                         igdb_config,
-                        company_cache
+                        company_cache,
+                        genre_cache
                     )
                     tasks.append(task_func)
                 
@@ -9500,6 +9617,15 @@ def search_igdb_games_api():
                         # Ensure company cache is available
                         company_cache = await ensure_igdb_company_cache(list(company_ids))
                         
+                        # Collect genre IDs for caching
+                        genre_ids = set()
+                        for game in games:
+                            if game.get('genres'):
+                                genre_ids.update(game['genres'])
+                        
+                        # Ensure genre cache is available
+                        genre_cache = await ensure_igdb_genre_cache(list(genre_ids))
+                        
                         # Enhance games with cached platform and company names
                         for game in games:
                             if 'platforms' in game and game['platforms']:
@@ -9530,6 +9656,11 @@ def search_igdb_games_api():
                                 game['developer_names'] = developer_names
                             if publisher_names:
                                 game['publisher_names'] = publisher_names
+                            
+                            # Add genre names from genre IDs
+                            if game.get('genres'):
+                                genre_names = [get_igdb_genre_name(genre_id, genre_cache) for genre_id in game['genres']]
+                                game['genre_names'] = genre_names
                         
                         return games
                     else:

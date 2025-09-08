@@ -67,6 +67,7 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+database-latest.json
 
 # Media files and directories
 media/
