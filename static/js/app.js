@@ -2630,6 +2630,9 @@ class GameCollectionManager {
         // Initialize IGDB search button for edit modal
         this.initializeEditModalIgdbSearch();
         
+        // Initialize YouTube preview button for edit modal
+        this.initializeEditModalYoutubePreview();
+        
         // Initialize delete video button
         this.initializeDeleteVideoButton(game);
         
@@ -5016,6 +5019,62 @@ class GameCollectionManager {
                 this.showGameEditIgdbSearch();
             });
         }
+    }
+    
+    initializeEditModalYoutubePreview() {
+        const modalPreviewYoutubeBtn = document.getElementById('modalPreviewYoutubeBtn');
+        if (modalPreviewYoutubeBtn) {
+            modalPreviewYoutubeBtn.addEventListener('click', () => {
+                this.showGameEditYoutubePreview();
+            });
+        }
+    }
+    
+    showGameEditYoutubePreview() {
+        // Get the YouTube URL from the edit modal field
+        const youtubeUrlField = document.getElementById('editYoutubeurl');
+        if (!youtubeUrlField) {
+            console.error('YouTube URL field not found');
+            return;
+        }
+        
+        const youtubeUrl = youtubeUrlField.value.trim();
+        if (!youtubeUrl) {
+            console.log('YouTube URL is empty, doing nothing');
+            return;
+        }
+        
+        // Validate that it's a YouTube URL
+        if (!youtubeUrl.includes('youtube')) {
+            console.log('URL does not contain "youtube", doing nothing');
+            return;
+        }
+        
+        console.log('Opening YouTube preview for URL:', youtubeUrl);
+        
+        // Create a mock video object for the player
+        const video = {
+            url: youtubeUrl,
+            title: 'Game Video Preview',
+            game: this.getCurrentEditingGame() || {}
+        };
+        
+        // Store the current video for the player
+        this.currentYouTubeVideo = video;
+        
+        // Show the YouTube player modal
+        const playerModal = new bootstrap.Modal(document.getElementById('youtubePlayerModal'));
+        playerModal.show();
+        
+        // Wait for modal to be fully visible before initializing player
+        setTimeout(() => {
+            // Initialize YouTube player
+            this.initializeYouTubePlayer(youtubeUrl);
+            
+            // Initialize player controls
+            this.initializePlayerControls();
+            
+        }, 300);
     }
     
     initializeDeleteVideoButton(game) {
