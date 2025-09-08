@@ -8888,12 +8888,13 @@ def download_launchbox_media():
 # =============================================================================
 
 def get_igdb_config():
-    """Get IGDB configuration from environment variables or config.json"""
+    """Get IGDB configuration from config.json with credentials from environment variables"""
     try:
+        # Load base configuration from config.json
         config = load_config()
         igdb_config = config.get('igdb', {})
         
-        # Override with environment variables if they exist
+        # Override credentials with environment variables if they exist
         client_id = os.getenv('IGDB_CLIENT_ID')
         client_secret = os.getenv('IGDB_CLIENT_SECRET')
         
