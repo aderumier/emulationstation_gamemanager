@@ -9131,6 +9131,11 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             image_url = image_url.replace('/t_thumb/', '/t_720p/')
             print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
         
+        # Replace file extension with .png
+        if not image_url.endswith('.png'):
+            image_url = image_url.replace('.jpg', '.png').replace('.jpeg', '.png').replace('.webp', '.png')
+            print(f"{emoji} DEBUG: Modified URL to use .png extension")
+        
         print(f"{emoji} DEBUG: Final image URL: {image_url}")
         
         # Create appropriate directory for the system
