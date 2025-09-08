@@ -7577,14 +7577,32 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         # Process each game
         successful_downloads = 0
         failed_downloads = 0
+        total_games = len(games_to_process)
+        
+        # Initialize progress tracking
+        task.update_progress(f"🚀 Starting batch download of {total_games} games...", progress_percentage=0, current_step=0, total_steps=total_games)
         
         for i, game in enumerate(games_to_process):
+            # Check if task has been stopped
+            if is_task_stopped():
+                progress_percent = int((i / total_games) * 100)
+                task.update_progress(f"🛑 Task stopped by user after processing {i}/{total_games} games", progress_percentage=progress_percent, current_step=i, total_steps=total_games)
+                # Save partial progress and mark as completed
+                if successful_downloads > 0:
+                    task.grid_refresh_needed = True
+                    task.complete(True, f'Task stopped by user: {successful_downloads} successful, {failed_downloads} failed')
+                else:
+                    task.complete(True, f'Task stopped by user: {failed_downloads} failed downloads')
+                return
+            
             try:
                 game_name = game.get('name', 'Unknown')
                 rom_path = game.get('path', '')
                 youtube_url = game.get('youtubeurl', '')
                 
-                task.update_progress(f"Processing {i+1}/{len(games_to_process)}: {game_name}")
+                # Calculate progress percentage
+                progress_percent = int(((i + 1) / total_games) * 100)
+                task.update_progress(f"Processing {i+1}/{total_games}: {game_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
                 
                 # Generate output filename from ROM path
                 rom_basename = os.path.splitext(os.path.basename(rom_path))[0]
@@ -7622,7 +7640,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 print(f"Error processing game {game_name}: {e}")
         
         # Complete the task
-        task.update_progress(f"Batch download completed:")
+        task.update_progress(f"Batch download completed:", progress_percentage=100, current_step=total_games, total_steps=total_games)
         task.update_progress(f"  ✅ Successful: {successful_downloads}")
         task.update_progress(f"  ❌ Failed: {failed_downloads}")
         
