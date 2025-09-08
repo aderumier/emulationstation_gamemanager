@@ -8715,16 +8715,68 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
         traceback.print_exc()
         return None
 
-async def download_igdb_fanart(artwork_data, system_name, game_name):
-    """Download fanart image from IGDB and save it to the fanart directory"""
+async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id):
+    """Fetch screenshots for a specific game and return the first one"""
     try:
-        image_id = artwork_data.get('image_id')
-        image_url = artwork_data.get('url')
-        print(f"🎨 DEBUG: download_igdb_fanart called - image_id: {image_id}, system: {system_name}, game: {game_name}")
-        print(f"🎨 DEBUG: Raw URL from artwork API: {image_url}")
+        print(f"📸 DEBUG: fetch_igdb_screenshots called for game_id: {game_id}")
+        search_url = "https://api.igdb.com/v4/screenshots"
+        search_data = f'fields id,image_id,width,height,url; where game = {game_id};'
+        
+        print(f"📸 DEBUG: Screenshots API request - URL: {search_url}")
+        print(f"📸 DEBUG: Screenshots API request - Data: {search_data}")
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        
+        if response and response.status_code == 200:
+            screenshots = response.json()
+            print(f"📸 DEBUG: Received {len(screenshots)} screenshots from API")
+            
+            # Debug: Print all screenshots
+            for i, screenshot in enumerate(screenshots):
+                width = screenshot.get('width', 0)
+                height = screenshot.get('height', 0)
+                image_id = screenshot.get('image_id', 'N/A')
+                url = screenshot.get('url', 'N/A')
+                print(f"📸 DEBUG: Screenshot {i+1}: id={screenshot.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}")
+            
+            # Return the first screenshot
+            if screenshots:
+                selected = screenshots[0]
+                print(f"📸 DEBUG: Selected screenshot: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
+                return selected
+            else:
+                print(f"📸 DEBUG: No screenshots found for game {game_id}")
+                return None
+        else:
+            if response:
+                print(f"📸 DEBUG: IGDB screenshots API error: {response.status_code} - {response.text}")
+            else:
+                print(f"📸 DEBUG: No response received from screenshots API")
+            return None
+    except Exception as e:
+        print(f"📸 DEBUG: Error fetching IGDB screenshots: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+async def download_igdb_image(image_data, system_name, game_name, image_type="fanart"):
+    """Download image from IGDB and save it to the appropriate directory"""
+    try:
+        image_id = image_data.get('image_id')
+        image_url = image_data.get('url')
+        emoji = "🎨" if image_type == "fanart" else "📸"
+        print(f"{emoji} DEBUG: download_igdb_image called - type: {image_type}, image_id: {image_id}, system: {system_name}, game: {game_name}")
+        print(f"{emoji} DEBUG: Raw URL from API: {image_url}")
         
         if not image_url:
-            print(f"🎨 DEBUG: ERROR - No URL found in artwork data!")
+            print(f"{emoji} DEBUG: ERROR - No URL found in image data!")
             return None
         
         # IGDB returns relative URLs, need to prefix with base URL
@@ -8736,25 +8788,29 @@ async def download_igdb_fanart(artwork_data, system_name, game_name):
         # Replace thumb size with 720p for better quality
         if '/t_thumb/' in image_url:
             image_url = image_url.replace('/t_thumb/', '/t_720p/')
-            print(f"🎨 DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
+            print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
         
-        print(f"🎨 DEBUG: Final image URL: {image_url}")
+        print(f"{emoji} DEBUG: Final image URL: {image_url}")
         
-        # Create fanart directory for the system
-        fanart_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'fanarts')
-        print(f"🎨 DEBUG: Fanart directory: {fanart_dir}")
-        os.makedirs(fanart_dir, exist_ok=True)
+        # Create appropriate directory for the system
+        if image_type == "fanart":
+            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'fanarts')
+        else:  # screenshot
+            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'screenshots')
+        
+        print(f"{emoji} DEBUG: Media directory: {media_dir}")
+        os.makedirs(media_dir, exist_ok=True)
         
         # Create safe filename from game name
         safe_game_name = "".join(c for c in game_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_game_name = safe_game_name.replace(' ', '_')
         filename = f"{safe_game_name}.png"  # Always save as PNG
-        file_path = os.path.join(fanart_dir, filename)
-        print(f"🎨 DEBUG: Safe filename: {filename}")
-        print(f"🎨 DEBUG: Full file path: {file_path}")
+        file_path = os.path.join(media_dir, filename)
+        print(f"{emoji} DEBUG: Safe filename: {filename}")
+        print(f"{emoji} DEBUG: Full file path: {file_path}")
         
         # Download the image using httpx with separate connection pool
-        print(f"🎨 DEBUG: Starting image download with httpx...")
+        print(f"{emoji} DEBUG: Starting image download with httpx...")
         try:
             import httpx
             # Use a separate connection pool for image downloads to avoid interference with IGDB API calls
@@ -8766,17 +8822,17 @@ async def download_igdb_fanart(artwork_data, system_name, game_name):
                 headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             ) as image_client:
                 response = await image_client.get(image_url)
-                print(f"🎨 DEBUG: Download response status: {response.status_code}")
+                print(f"{emoji} DEBUG: Download response status: {response.status_code}")
         except Exception as e:
-            print(f"🎨 DEBUG: Error downloading image: {e}")
+            print(f"{emoji} DEBUG: Error downloading image: {e}")
             return None
         
         if response.status_code == 200:
-            print(f"🎨 DEBUG: Writing image to file...")
+            print(f"{emoji} DEBUG: Writing image to file...")
             
             # Get the content type to determine if we need to convert
             content_type = response.headers.get('content-type', '').lower()
-            print(f"🎨 DEBUG: Content type: {content_type}")
+            print(f"{emoji} DEBUG: Content type: {content_type}")
             
             # Write the raw image data to a temporary file first
             temp_file_path = file_path + '.temp'
@@ -8785,7 +8841,7 @@ async def download_igdb_fanart(artwork_data, system_name, game_name):
             
             # Check if we need to convert from WebP to PNG
             if 'webp' in content_type or temp_file_path.endswith('.webp'):
-                print(f"🎨 DEBUG: Converting WebP to PNG...")
+                print(f"{emoji} DEBUG: Converting WebP to PNG...")
                 try:
                     from PIL import Image
                     
@@ -8801,43 +8857,47 @@ async def download_igdb_fanart(artwork_data, system_name, game_name):
                             rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
                             rgb_img.save(file_path, 'PNG')
                     
-                    print(f"🎨 DEBUG: WebP converted to PNG successfully")
+                    print(f"{emoji} DEBUG: WebP converted to PNG successfully")
                     
                     # Remove the temporary file
                     os.remove(temp_file_path)
                     
                 except ImportError:
-                    print(f"🎨 DEBUG: PIL not available, trying to save as-is...")
+                    print(f"{emoji} DEBUG: PIL not available, trying to save as-is...")
                     # If PIL is not available, just rename the temp file
                     os.rename(temp_file_path, file_path)
                 except Exception as conv_error:
-                    print(f"🎨 DEBUG: Error converting WebP: {conv_error}")
+                    print(f"{emoji} DEBUG: Error converting WebP: {conv_error}")
                     # Fallback: just rename the temp file
                     os.rename(temp_file_path, file_path)
             else:
-                print(f"🎨 DEBUG: No conversion needed, renaming temp file...")
+                print(f"{emoji} DEBUG: No conversion needed, renaming temp file...")
                 # No conversion needed, just rename the temp file
                 os.rename(temp_file_path, file_path)
             
             # Check if file was written successfully
             if os.path.exists(file_path):
                 file_size = os.path.getsize(file_path)
-                print(f"🎨 DEBUG: File written successfully, size: {file_size} bytes")
+                print(f"{emoji} DEBUG: File written successfully, size: {file_size} bytes")
             else:
-                print(f"🎨 DEBUG: ERROR - File was not created!")
+                print(f"{emoji} DEBUG: ERROR - File was not created!")
                 return None
             
             # Return relative path for gamelist
-            relative_path = f"./media/fanarts/{filename}"
-            print(f"🎨 DEBUG: Returning relative path: {relative_path}")
+            if image_type == "fanart":
+                relative_path = f"./media/fanarts/{filename}"
+            else:  # screenshot
+                relative_path = f"./media/screenshots/{filename}"
+            
+            print(f"{emoji} DEBUG: Returning relative path: {relative_path}")
             return relative_path
         else:
-            print(f"🎨 DEBUG: Failed to download fanart image: {response.status_code}")
-            print(f"🎨 DEBUG: Response text: {response.text}")
+            print(f"{emoji} DEBUG: Failed to download image: {response.status_code}")
+            print(f"{emoji} DEBUG: Response text: {response.text}")
             return None
             
     except Exception as e:
-        print(f"🎨 DEBUG: Error downloading fanart image: {e}")
+        print(f"{emoji} DEBUG: Error downloading image: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -9319,10 +9379,11 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                             # Add timeout to prevent hanging
                             import asyncio
                             fanart_path = await asyncio.wait_for(
-                                download_igdb_fanart(
+                                download_igdb_image(
                                     artwork, 
                                     system_name, 
-                                    game_name
+                                    game_name,
+                                    "fanart"
                                 ),
                                 timeout=30.0  # 30 second timeout
                             )
@@ -9343,6 +9404,71 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                     print(f"🎨 DEBUG: Skipping fanart download - already exists and overwrite disabled")
             else:
                 print(f"🎨 DEBUG: Fanart field not selected, skipping fanart processing")
+            
+            # Fetch and download screenshot if selected fields include screenshots
+            if not selected_fields or 'screenshots' in selected_fields:
+                print(f"📸 DEBUG: Screenshot field is selected or no field selection (all fields)")
+                # Check if screenshot field is selected or if no field selection (all fields)
+                screenshot_elem = game.find('screenshot')
+                overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
+                
+                print(f"📸 DEBUG: Existing screenshot element: {screenshot_elem is not None}")
+                if screenshot_elem is not None:
+                    print(f"📸 DEBUG: Existing screenshot text: '{screenshot_elem.text}'")
+                print(f"📸 DEBUG: Overwrite media fields: {overwrite_media_fields}")
+                
+                # Only download screenshot if it doesn't exist or if overwrite is enabled
+                if screenshot_elem is None or not screenshot_elem.text or overwrite_media_fields:
+                    print(f"📸 DEBUG: Proceeding with screenshot download for '{game_name}'...")
+                    print(f"📸 Fetching screenshot for '{game_name}'...")
+                    try:
+                        # Add timeout to screenshot fetching as well
+                        import asyncio
+                        screenshot = await asyncio.wait_for(
+                            fetch_igdb_screenshots(async_client, access_token, client_id, igdb_game['id']),
+                            timeout=15.0  # 15 second timeout for API call
+                        )
+                    except asyncio.TimeoutError:
+                        print(f"⏰ Timeout fetching screenshots for '{game_name}' (15s limit)")
+                        screenshot = None
+                    except Exception as e:
+                        print(f"❌ Error fetching screenshots for '{game_name}': {e}")
+                        screenshot = None
+                    if screenshot and screenshot.get('image_id'):
+                        print(f"📸 DEBUG: Screenshot found, proceeding with download...")
+                        # Get system name from the current system being processed
+                        system_name = igdb_config.get('system_name', 'unknown')
+                        print(f"📸 DEBUG: System name from config: {system_name}")
+                        
+                        try:
+                            # Add timeout to prevent hanging
+                            import asyncio
+                            screenshot_path = await asyncio.wait_for(
+                                download_igdb_image(
+                                    screenshot, 
+                                    system_name, 
+                                    game_name,
+                                    "screenshot"
+                                ),
+                                timeout=30.0  # 30 second timeout
+                            )
+                            if screenshot_path:
+                                if screenshot_elem is None:
+                                    screenshot_elem = ET.SubElement(game, 'screenshot')
+                                screenshot_elem.text = screenshot_path
+                                print(f"✅ Downloaded screenshot for '{game_name}': {screenshot_path}")
+                            else:
+                                print(f"❌ Failed to download screenshot for '{game_name}'")
+                        except asyncio.TimeoutError:
+                            print(f"⏰ Timeout downloading screenshot for '{game_name}' (30s limit)")
+                        except Exception as e:
+                            print(f"❌ Error downloading screenshot for '{game_name}': {e}")
+                    else:
+                        print(f"❌ No suitable screenshot found for '{game_name}'")
+                else:
+                    print(f"📸 DEBUG: Skipping screenshot download - already exists and overwrite disabled")
+            else:
+                print(f"📸 DEBUG: Screenshot field not selected, skipping screenshot processing")
             
             # Populate other fields with IGDB data
             fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache)
