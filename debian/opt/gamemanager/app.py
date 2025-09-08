@@ -8878,9 +8878,13 @@ def download_launchbox_media():
         if not media_directory:
             return jsonify({'error': f'Unknown media type: {media_type}'}), 400
         
-        # Get the game from the current system
-        system_path = os.path.join(ROMS_FOLDER, system_name)
-        gamelist_path = os.path.join(system_path, 'gamelist.xml')
+        # Get the game from the current system (use var/gamelists, not roms)
+        gamelist_path = os.path.join(GAMELISTS_FOLDER, system_name, 'gamelist.xml')
+        
+        print(f"DEBUG: GAMELISTS_FOLDER: {GAMELISTS_FOLDER}")
+        print(f"DEBUG: system_name: {system_name}")
+        print(f"DEBUG: gamelist_path: {gamelist_path}")
+        print(f"DEBUG: gamelist exists: {os.path.exists(gamelist_path)}")
         
         if not os.path.exists(gamelist_path):
             return jsonify({'error': 'Gamelist not found'}), 404
@@ -8898,7 +8902,12 @@ def download_launchbox_media():
                 break
         
         if not game_element:
-            return jsonify({'error': 'Game not found in gamelist'}), 404
+            # Check if any games in this system have launchboxid fields
+            has_launchboxid = any(game.find('launchboxid') is not None for game in root.findall('game'))
+            if not has_launchboxid:
+                return jsonify({'error': f'No games in {system_name} system have LaunchBox IDs. Please scrape the games first to link them to LaunchBox.'}), 404
+            else:
+                return jsonify({'error': f'Game with LaunchBox ID {game_id} not found in {system_name} gamelist'}), 404
         
         # Get ROM filename for naming the media file
         rom_path = game_element.find('path')
@@ -8908,6 +8917,7 @@ def download_launchbox_media():
         rom_filename = os.path.splitext(os.path.basename(rom_path.text))[0]
         
         # Create media directory if it doesn't exist
+        system_path = os.path.join(ROMS_FOLDER, system_name)
         media_dir = os.path.join(system_path, 'media', media_directory)
         os.makedirs(media_dir, exist_ok=True)
         
