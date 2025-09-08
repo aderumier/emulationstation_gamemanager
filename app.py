@@ -7652,6 +7652,9 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             video_url
         ]
         
+        # Log the yt-dlp command
+        task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+        
         # Run download
         process = subprocess.Popen(
             download_cmd, 
@@ -7672,8 +7675,16 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             return False
         
         if process.returncode != 0:
-            task.update_progress(f"  ❌ Download failed for {game_name}: {stdout}")
+            task.update_progress(f"  ❌ Download failed for {game_name}")
+            task.update_progress(f"  yt-dlp output: {stdout}")
+            if stderr:
+                task.update_progress(f"  yt-dlp error: {stderr}")
             return False
+        else:
+            # Log successful yt-dlp output
+            task.update_progress(f"  ✅ Download completed for {game_name}")
+            if stdout:
+                task.update_progress(f"  yt-dlp output: {stdout}")
         
         # Find the downloaded file
         temp_files = [f for f in os.listdir(videos_dir) if f.startswith('temp_')]
@@ -7723,7 +7734,9 @@ def apply_auto_crop(task, video_path, game_name):
             cropped_path
         ]
         
+        # Log the ffmpeg command
         task.update_progress(f"  🔧 Applying auto crop to {game_name}")
+        task.update_progress(f"  ffmpeg command: {' '.join(crop_cmd)}")
         
         result = subprocess.run(crop_cmd, capture_output=True, text=True, timeout=120)
         
@@ -7731,9 +7744,15 @@ def apply_auto_crop(task, video_path, game_name):
             # Replace original with cropped version
             os.replace(cropped_path, video_path)
             task.update_progress(f"  ✅ Auto crop completed for {game_name}")
+            if result.stdout:
+                task.update_progress(f"  ffmpeg output: {result.stdout}")
             return True
         else:
-            task.update_progress(f"  ❌ Auto crop failed for {game_name}: {result.stderr}")
+            task.update_progress(f"  ❌ Auto crop failed for {game_name}")
+            if result.stderr:
+                task.update_progress(f"  ffmpeg error: {result.stderr}")
+            if result.stdout:
+                task.update_progress(f"  ffmpeg output: {result.stdout}")
             return False
             
     except Exception as e:
