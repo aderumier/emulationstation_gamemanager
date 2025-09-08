@@ -7692,15 +7692,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         
         if process.returncode != 0:
             task.update_progress(f"  ❌ Download failed for {game_name}")
-            task.update_progress(f"  yt-dlp output: {stdout}")
-            if stderr:
-                task.update_progress(f"  yt-dlp error: {stderr}")
             return False
         else:
-            # Log successful yt-dlp output
+            # Log successful completion (without yt-dlp output)
             task.update_progress(f"  ✅ Download completed for {game_name}")
-            if stdout:
-                task.update_progress(f"  yt-dlp output: {stdout}")
         
         # Find the downloaded file
         temp_files = [f for f in os.listdir(videos_dir) if f.startswith('temp_')]
@@ -7766,15 +7761,9 @@ def apply_auto_crop(task, video_path, game_name):
             # Replace original with cropped version
             os.replace(cropped_path, video_path)
             task.update_progress(f"  ✅ Auto crop completed for {game_name}")
-            if result.stdout:
-                task.update_progress(f"  ffmpeg output: {result.stdout}")
             return True
         else:
             task.update_progress(f"  ❌ Auto crop failed for {game_name}")
-            if result.stderr:
-                task.update_progress(f"  ffmpeg error: {result.stderr}")
-            if result.stdout:
-                task.update_progress(f"  ffmpeg output: {result.stdout}")
             # Clean up failed cropped file if it exists
             if os.path.exists(cropped_path):
                 os.remove(cropped_path)
