@@ -28,6 +28,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import json
+from dotenv import load_dotenv
 import time
 import xml.etree.ElementTree as ET
 import threading
@@ -466,6 +467,9 @@ def get_yt_dlp_path():
         return 'yt-dlp'
 
 app = Flask(__name__)
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Use a fixed secret key for persistent sessions (in production, use environment variable)
 app.secret_key = 'cursorscraper-secret-key-2024-persistent-sessions'
@@ -8884,10 +8888,21 @@ def download_launchbox_media():
 # =============================================================================
 
 def get_igdb_config():
-    """Get IGDB configuration from config.json"""
+    """Get IGDB configuration from environment variables or config.json"""
     try:
         config = load_config()
-        return config.get('igdb', {})
+        igdb_config = config.get('igdb', {})
+        
+        # Override with environment variables if they exist
+        client_id = os.getenv('IGDB_CLIENT_ID')
+        client_secret = os.getenv('IGDB_CLIENT_SECRET')
+        
+        if client_id:
+            igdb_config['client_id'] = client_id
+        if client_secret:
+            igdb_config['client_secret'] = client_secret
+            
+        return igdb_config
     except Exception as e:
         print(f"Error loading IGDB config: {e}")
         return {}
