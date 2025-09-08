@@ -8747,32 +8747,9 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
                 artwork_type = logo.get('artwork_type', 'N/A')
                 print(f"🏷️ DEBUG: Logo {i+1}: id={logo.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}, artwork_type={artwork_type}")
             
-            # Prioritize PNG versions for logos to preserve transparency
+            # Return the first logo if any exist (use original format)
             if logos:
-                # Try to find a PNG version first
-                png_logo = None
-                for logo in logos:
-                    url = logo.get('url', '')
-                    if '.png' in url.lower():
-                        png_logo = logo
-                        print(f"🏷️ DEBUG: Found PNG logo: {logo.get('id')} with url: {url}")
-                        break
-                
-                # If no PNG found, use the first logo and modify URL to PNG
-                if png_logo:
-                    selected = png_logo
-                else:
-                    selected = logos[0]
-                    # Modify URL to use PNG format by changing extension only
-                    original_url = selected.get('url', '')
-                    if original_url and not original_url.endswith('.png'):
-                        # Replace file extension with PNG, keep original preset
-                        png_url = original_url.replace('.jpg', '.png')
-                        png_url = png_url.replace('.jpeg', '.png')
-                        png_url = png_url.replace('.webp', '.png')
-                        selected['url'] = png_url
-                        print(f"🏷️ DEBUG: Modified logo URL to PNG format: {png_url}")
-                
+                selected = logos[0]
                 print(f"🏷️ DEBUG: Selected logo: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
                 return selected
             else:
@@ -9149,18 +9126,8 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         elif not image_url.startswith('http'):
             image_url = f"https://images.igdb.com{image_url}"
         
-        # For logos, try to get PNG format by changing file extension
-        if image_type == "logo":
-            if not image_url.endswith('.png'):
-                # Replace other formats with PNG extension
-                image_url = image_url.replace('.jpg', '.png').replace('.jpeg', '.png').replace('.webp', '.png')
-                print(f"{emoji} DEBUG: Modified logo URL to PNG format for transparency")
-            # Keep the original preset (/t_thumb/ or /t_720p/) but change extension to .png
-        else:
-            # For other image types, replace thumb size with 720p for better quality
-            if '/t_thumb/' in image_url:
-                image_url = image_url.replace('/t_thumb/', '/t_720p/')
-                print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
+        # Use original format - no URL modification needed
+        # The API returns all formats, so we use the original format
         
         print(f"{emoji} DEBUG: Final image URL: {image_url}")
         
@@ -9181,9 +9148,13 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
         
-        # Create filename from ROM filename (without extension)
+        # Create filename from ROM filename (without extension) + original extension
         rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
-        filename = f"{rom_name_without_ext}.png"  # Always save as PNG with same name as ROM
+        # Get original file extension from URL
+        original_ext = os.path.splitext(os.path.basename(image_url))[1]
+        if not original_ext:
+            original_ext = '.png'  # Fallback to PNG if no extension found
+        filename = f"{rom_name_without_ext}{original_ext}"
         file_path = os.path.join(media_dir, filename)
         print(f"{emoji} DEBUG: Safe filename: {filename}")
         print(f"{emoji} DEBUG: Full file path: {file_path}")
@@ -9218,62 +9189,10 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
             
-            # Check if we need to convert from WebP to PNG
-            # Skip conversion if it's already PNG (especially for logos)
-            if 'png' in content_type or image_url.endswith('.png'):
-                print(f"{emoji} DEBUG: Image is already PNG, skipping conversion...")
-                # No conversion needed, just rename the temp file
-                os.rename(temp_file_path, file_path)
-            elif 'webp' in content_type or temp_file_path.endswith('.webp'):
-                print(f"{emoji} DEBUG: Converting WebP to PNG...")
-                try:
-                    from PIL import Image
-                    
-                    # Open the WebP image and convert to PNG
-                    with Image.open(temp_file_path) as img:
-                        print(f"{emoji} DEBUG: Original image mode: {img.mode}, has transparency: {img.mode in ('RGBA', 'LA', 'P')}")
-                        
-                        # For logos, always preserve transparency
-                        if image_type == "logo":
-                            # Ensure we have RGBA mode to preserve alpha channel
-                            if img.mode not in ('RGBA', 'LA'):
-                                # Convert to RGBA, preserving any existing alpha
-                                img = img.convert('RGBA')
-                            elif img.mode == 'LA':
-                                # Convert LA (grayscale + alpha) to RGBA
-                                img = img.convert('RGBA')
-                            
-                            # Save with explicit alpha channel preservation
-                            img.save(file_path, 'PNG', optimize=False)
-                            print(f"{emoji} DEBUG: Logo converted to PNG with alpha channel preserved (mode: {img.mode})")
-                        else:
-                            # For other image types, convert to RGB if necessary (WebP can have transparency)
-                            if img.mode in ('RGBA', 'LA'):
-                                # Keep transparency for PNG
-                                img.save(file_path, 'PNG')
-                            else:
-                                # Convert to RGB for better compatibility
-                                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
-                                rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
-                                rgb_img.save(file_path, 'PNG')
-                    
-                    print(f"{emoji} DEBUG: WebP converted to PNG successfully")
-                    
-                    # Remove the temporary file
-                    os.remove(temp_file_path)
-                    
-                except ImportError:
-                    print(f"{emoji} DEBUG: PIL not available, trying to save as-is...")
-                    # If PIL is not available, just rename the temp file
-                    os.rename(temp_file_path, file_path)
-                except Exception as conv_error:
-                    print(f"{emoji} DEBUG: Error converting WebP: {conv_error}")
-                    # Fallback: just rename the temp file
-                    os.rename(temp_file_path, file_path)
-            else:
-                print(f"{emoji} DEBUG: No conversion needed, renaming temp file...")
-                # No conversion needed, just rename the temp file
-                os.rename(temp_file_path, file_path)
+            # Use original format without conversion
+            print(f"{emoji} DEBUG: Using original format, no conversion needed...")
+            # Just rename the temp file to the final file
+            os.rename(temp_file_path, file_path)
             
             # Check if file was written successfully
             if os.path.exists(file_path):
