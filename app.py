@@ -8715,6 +8715,58 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
         traceback.print_exc()
         return None
 
+async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
+    """Fetch logos for a specific game and return the first one"""
+    try:
+        print(f"🏷️ DEBUG: fetch_igdb_logos called for game_id: {game_id}")
+        search_url = "https://api.igdb.com/v4/artworks"
+        search_data = f'fields id,image_id,width,height,url,artwork_type; where game = {game_id} & artwork_type = 7;'
+        
+        print(f"🏷️ DEBUG: Logos API request - URL: {search_url}")
+        print(f"🏷️ DEBUG: Logos API request - Data: {search_data}")
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        
+        if response and response.status_code == 200:
+            logos = response.json()
+            print(f"🏷️ DEBUG: Received {len(logos)} logos from API")
+            
+            # Debug: Print all logos
+            for i, logo in enumerate(logos):
+                width = logo.get('width', 0)
+                height = logo.get('height', 0)
+                image_id = logo.get('image_id', 'N/A')
+                url = logo.get('url', 'N/A')
+                artwork_type = logo.get('artwork_type', 'N/A')
+                print(f"🏷️ DEBUG: Logo {i+1}: id={logo.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}, artwork_type={artwork_type}")
+            
+            # Return the first logo if any exist
+            if logos:
+                selected = logos[0]
+                print(f"🏷️ DEBUG: Selected logo: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
+                return selected
+            else:
+                print(f"🏷️ DEBUG: No logos found for game {game_id}")
+                return None
+        else:
+            if response:
+                print(f"🏷️ DEBUG: IGDB logos API error: {response.status_code} - {response.text}")
+            else:
+                print(f"🏷️ DEBUG: No response received from logos API")
+            return None
+    except Exception as e:
+        print(f"🏷️ DEBUG: Error fetching IGDB logos: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id):
     """Fetch screenshots for a specific game and return the first one"""
     try:
@@ -9057,6 +9109,8 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
             emoji = "📸"
         elif image_type == "cover":
             emoji = "🖼️"
+        elif image_type == "logo":
+            emoji = "🏷️"
         else:
             emoji = "🖼️"
         print(f"{emoji} DEBUG: download_igdb_image called - type: {image_type}, image_id: {image_id}, system: {system_name}, game: {game_name}")
@@ -9087,6 +9141,9 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
         elif image_type == "cover":
             # Cover maps to extra1 field, which uses box2d directory
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'box2d')
+        elif image_type == "logo":
+            # Logo maps to marquee field
+            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'marquee')
         else:
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'images')
         
@@ -9183,6 +9240,9 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
             elif image_type == "cover":
                 # Cover maps to extra1 field, which uses box2d directory
                 relative_path = f"./media/box2d/{filename}"
+            elif image_type == "logo":
+                # Logo maps to marquee field
+                relative_path = f"./media/marquee/{filename}"
             else:
                 relative_path = f"./media/images/{filename}"
             
@@ -9831,6 +9891,71 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                     print(f"🖼️ DEBUG: Skipping cover download - already exists and overwrite disabled")
             else:
                 print(f"🖼️ DEBUG: Cover field not selected, skipping cover processing")
+            
+            # Fetch and download logo if selected fields include logos
+            if not selected_fields or 'logos' in selected_fields:
+                print(f"🏷️ DEBUG: Logo field is selected or no field selection (all fields)")
+                # Check if logo field is selected or if no field selection (all fields)
+                marquee_elem = game.find('marquee')
+                overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
+                
+                print(f"🏷️ DEBUG: Existing marquee element: {marquee_elem is not None}")
+                if marquee_elem is not None:
+                    print(f"🏷️ DEBUG: Existing marquee text: '{marquee_elem.text}'")
+                print(f"🏷️ DEBUG: Overwrite media fields: {overwrite_media_fields}")
+                
+                # Only download logo if it doesn't exist or if overwrite is enabled
+                if marquee_elem is None or not marquee_elem.text or overwrite_media_fields:
+                    print(f"🏷️ DEBUG: Proceeding with logo download for '{game_name}'...")
+                    print(f"🏷️ Fetching logo for '{game_name}'...")
+                    try:
+                        # Add timeout to logo fetching as well
+                        import asyncio
+                        logo = await asyncio.wait_for(
+                            fetch_igdb_logos(async_client, access_token, client_id, igdb_game['id']),
+                            timeout=15.0  # 15 second timeout for API call
+                        )
+                    except asyncio.TimeoutError:
+                        print(f"⏰ Timeout fetching logos for '{game_name}' (15s limit)")
+                        logo = None
+                    except Exception as e:
+                        print(f"❌ Error fetching logos for '{game_name}': {e}")
+                        logo = None
+                    if logo and logo.get('image_id'):
+                        print(f"🏷️ DEBUG: Logo found, proceeding with download...")
+                        # Get system name from the current system being processed
+                        system_name = igdb_config.get('system_name', 'unknown')
+                        print(f"🏷️ DEBUG: System name from config: {system_name}")
+                        
+                        try:
+                            # Add timeout to prevent hanging
+                            import asyncio
+                            logo_path = await asyncio.wait_for(
+                                download_igdb_image(
+                                    logo, 
+                                    system_name, 
+                                    game_name,
+                                    "logo"
+                                ),
+                                timeout=30.0  # 30 second timeout
+                            )
+                            if logo_path:
+                                if marquee_elem is None:
+                                    marquee_elem = ET.SubElement(game, 'marquee')
+                                marquee_elem.text = logo_path
+                                print(f"✅ Downloaded logo for '{game_name}': {logo_path}")
+                            else:
+                                print(f"❌ Failed to download logo for '{game_name}'")
+                        except asyncio.TimeoutError:
+                            print(f"⏰ Timeout downloading logo for '{game_name}' (30s limit)")
+                        except Exception as e:
+                            print(f"❌ Error downloading logo for '{game_name}': {e}")
+                    else:
+                        print(f"❌ No suitable logo found for '{game_name}'")
+                else:
+                    print(f"🏷️ DEBUG: Skipping logo download - already exists and overwrite disabled")
+            else:
+                print(f"🏷️ DEBUG: Logo field not selected, skipping logo processing")
             
             # Populate other fields with IGDB data
             fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache)
