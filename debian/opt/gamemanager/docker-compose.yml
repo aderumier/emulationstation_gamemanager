@@ -1,22 +1,22 @@
 version: '3.8'
 
 services:
-  cursorscraper:
+  gamemanager:
     build: .
-    container_name: cursorscraper
+    container_name: gamemanager
     ports:
       - "5000:5000"
     volumes:
       # Mount application data directories
-      - ./roms:/app/roms
-      - ./media:/app/media
-      - ./cache:/app/cache
-      - ./var/task_logs:/app/var/task_logs
-      # Mount config file for easy editing
-      - ./var/config/config.json:/app/var/config/config.json
+      - ./roms:/opt/gamemanager/roms
+      - ./var:/opt/gamemanager/var
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - FLASK_APP=app.py
+      # IGDB API Credentials (set these in your environment or .env file)
+      - IGDB_CLIENT_ID=${IGDB_CLIENT_ID}
+      - IGDB_CLIENT_SECRET=${IGDB_CLIENT_SECRET}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]

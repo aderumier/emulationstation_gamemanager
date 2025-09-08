@@ -8,8 +8,27 @@ Flask-Login>=0.6.0
 
 # HTTP requests and networking
 requests>=2.31.0
-httpx>=0.25.0
+httpx[http2]>=0.25.0
+aiometer>=1.0.0
 aiofiles>=23.2.0
+
+# HTML parsing and processing
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Security and authentication
+bcrypt>=4.0.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Image manipulation
+Wand>=0.6.0
+
+# IGDB API integration (using httpx directly)
 
 # Standard library packages (included with Python 3.8+)
 # - os

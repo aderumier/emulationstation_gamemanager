@@ -104,6 +104,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openLaunchboxModal">
                             <i class="bi bi-box me-2"></i>LaunchBox Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openIgdbModal">
+                            <i class="bi bi-globe me-2"></i>IGDB Configuration
+                        </a></li>
                         <li><a class="dropdown-item" href="#" id="openSystemsModal">
                             <i class="bi bi-controller me-2"></i>Systems Configuration
                         </a></li>
@@ -204,11 +207,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <button id="scrapLaunchboxBtn" class="btn btn-primary btn-sm ms-2" disabled>
                     <i class="bi bi-database-fill"></i> Launchbox Scrap
                 </button>
+                <button id="scrapIgdbBtn" class="btn btn-info btn-sm ms-2" disabled>
+                    <i class="bi bi-globe"></i> IGDB Scrap
+                </button>
                 <button id="globalFindBestMatchBtn" class="btn btn-outline-info btn-sm ms-2" disabled>
                     <i class="bi bi-search"></i> Find Best Match
                 </button>
                 <button id="global2DBoxGeneratorBtn" class="btn btn-outline-success btn-sm ms-2" disabled>
                     <i class="bi bi-image"></i> 2D Box Generator
+                </button>
+                <button id="globalYoutubeDownloadBtn" class="btn btn-outline-danger btn-sm ms-2" disabled>
+                    <i class="bi bi-youtube"></i> YouTube Download
                 </button>
             </div>
         </div>
@@ -431,6 +440,24 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 </button>
                                             </div>
                                         </div>
+                                        <div class="mb-3">
+                                            <label for="editIgdbId" class="form-label">IGDB ID</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="editIgdbId" readonly>
+                                                <button type="button" class="btn btn-outline-info" id="modalFindIgdbMatchBtn" title="Search for the best matching game in the IGDB database">
+                                                    <i class="bi bi-globe"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editYoutubeurl" class="form-label">YouTube URL</label>
+                                            <div class="input-group">
+                                                <input type="url" class="form-control" id="editYoutubeurl" placeholder="https://www.youtube.com/watch?v=...">
+                                                <button type="button" class="btn btn-outline-info" id="modalPreviewYoutubeBtn" title="Preview YouTube video">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
@@ -458,7 +485,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             <!-- Video Action Buttons -->
             <div class="mt-3 d-flex gap-2">
                 <button id="youtubeDownloadBtn" class="btn btn-primary">
-                    <i class="bi bi-youtube me-2"></i>YouTube Download
+                    <i class="bi bi-youtube me-2"></i>YouTube Search
                 </button>
                 <button id="manualCropBtn" class="btn btn-warning" disabled>
                     <i class="bi bi-crop me-2"></i>Manual Crop
@@ -552,6 +579,42 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     </div>
                     <div id="gameEditMatchesList" class="row">
                         <!-- Match cards will be generated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IGDB Search Modal -->
+    <div class="modal fade" id="igdbSearchModal" tabindex="-1" aria-labelledby="igdbSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="igdbSearchModalLabel">
+                        <i class="bi bi-globe me-2 text-info"></i>IGDB Game Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Searching for:</strong> <span id="igdbSearchGameName"></span>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>Search Results:</strong></span>
+                            <div class="spinner-border spinner-border-sm text-info" id="igdbSearchSpinner" style="display: none;" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="igdbSearchResults" class="row">
+                        <!-- Search results will be populated here -->
+                    </div>
+                    <div id="igdbSearchError" class="alert alert-danger" style="display: none;">
+                        <!-- Error messages will be shown here -->
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -736,13 +799,115 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <div class="form-text">Download images even if media fields are not empty (used during scraping)</div>
                             </div>
                             
-                            <!-- Partial Match Modal Option -->
+                            <!-- Overwrite Text Fields Option -->
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="enablePartialMatchModalModal" checked>
-                                <label class="form-check-label" for="enablePartialMatchModalModal">
-                                    <i class="bi bi-search me-2"></i>Partial Match Modal
+                                <input class="form-check-input" type="checkbox" id="overwriteTextFieldsLaunchbox">
+                                <label class="form-check-label" for="overwriteTextFieldsLaunchbox">
+                                    <i class="bi bi-pencil-square me-2"></i>Overwrite Text Fields
                                 </label>
-                                <div class="form-text">Show modal for non-perfect matches during scraping</div>
+                                <div class="form-text">Overwrite existing text fields with new values from LaunchBox metadata</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Field Selection -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-list-check"></i> Field Selection</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Text Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-file-text me-2"></i>Text Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldName" data-field="Name" checked>
+                                        <label class="form-check-label" for="launchboxFieldName">Name</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldOverview" data-field="Overview" checked>
+                                        <label class="form-check-label" for="launchboxFieldOverview">Description</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldDeveloper" data-field="Developer" checked>
+                                        <label class="form-check-label" for="launchboxFieldDeveloper">Developer</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldPublisher" data-field="Publisher" checked>
+                                        <label class="form-check-label" for="launchboxFieldPublisher">Publisher</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldGenres" data-field="Genres" checked>
+                                        <label class="form-check-label" for="launchboxFieldGenres">Genre</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldCommunityRating" data-field="CommunityRating" checked>
+                                        <label class="form-check-label" for="launchboxFieldCommunityRating">Rating</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldMaxPlayers" data-field="MaxPlayers" checked>
+                                        <label class="form-check-label" for="launchboxFieldMaxPlayers">Players</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldVideoURL" data-field="VideoURL" checked>
+                                        <label class="form-check-label" for="launchboxFieldVideoURL">YouTube URL</label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Media Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-image me-2"></i>Media Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldBoxFront" data-field="Box - Front" checked>
+                                        <label class="form-check-label" for="launchboxFieldBoxFront">Box - Front</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldBoxBack" data-field="Box - Back" checked>
+                                        <label class="form-check-label" for="launchboxFieldBoxBack">Box - Back</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldBox3D" data-field="Box - 3D" checked>
+                                        <label class="form-check-label" for="launchboxFieldBox3D">Box - 3D</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldClearLogo" data-field="Clear Logo" checked>
+                                        <label class="form-check-label" for="launchboxFieldClearLogo">Clear Logo</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldScreenshotTitle" data-field="Screenshot - Game Title" checked>
+                                        <label class="form-check-label" for="launchboxFieldScreenshotTitle">Screenshot - Game Title</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldScreenshotGameplay" data-field="Screenshot - Gameplay" checked>
+                                        <label class="form-check-label" for="launchboxFieldScreenshotGameplay">Screenshot - Gameplay</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldFanart" data-field="Fanart - Background" checked>
+                                        <label class="form-check-label" for="launchboxFieldFanart">Fanart - Background</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="launchboxFieldCartFront" data-field="Cart - Front" checked>
+                                        <label class="form-check-label" for="launchboxFieldCartFront">Cart - Front</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary" id="selectAllLaunchboxFields">
+                                        <i class="bi bi-check-all me-1"></i>Select All
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="deselectAllLaunchboxFields">
+                                        <i class="bi bi-x-square me-1"></i>Deselect All
+                                    </button>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        <strong>Note:</strong> LaunchBox ID is always scraped regardless of field selection.
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -751,6 +916,173 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Note:</strong> These settings control how the LaunchBox scraping process behaves. Changes are applied immediately and will affect all future scraping operations.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IGDB Configuration Modal -->
+    <div class="modal fade" id="igdbConfigurationModal" tabindex="-1" aria-labelledby="igdbConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="igdbConfigurationModalLabel">
+                        <i class="bi bi-globe me-2"></i>IGDB Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- IGDB Credentials -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-key-fill"></i> IGDB API Credentials</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="igdbClientId" class="form-label">Client ID</label>
+                                <input type="text" class="form-control" id="igdbClientId" placeholder="Enter your IGDB Client ID">
+                                <div class="form-text">Get your Client ID from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="igdbClientSecret" class="form-label">Client Secret</label>
+                                <input type="password" class="form-control" id="igdbClientSecret" placeholder="Enter your IGDB Client Secret">
+                                <div class="form-text">Get your Client Secret from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div id="igdbCredentialsStatus" class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>No credentials configured
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm" id="saveIgdbCredentialsBtn">
+                                    <i class="bi bi-save me-1"></i>Save Credentials
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Scraping Options -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-database-fill"></i> Scraping Options</h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Overwrite Text Fields Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="overwriteTextFieldsModal">
+                                <label class="form-check-label" for="overwriteTextFieldsModal">
+                                    <i class="bi bi-file-text me-2"></i>Overwrite Text Fields
+                                </label>
+                                <div class="form-text">Always overwrite text fields (name, description, developer, etc.) during IGDB scraping, even if they already have values</div>
+                            </div>
+                            
+                            <!-- Overwrite Media Fields Option -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="overwriteMediaFieldsModal">
+                                <label class="form-check-label" for="overwriteMediaFieldsModal">
+                                    <i class="bi bi-image me-2"></i>Overwrite Media Fields
+                                </label>
+                                <div class="form-text">Always overwrite media fields (cover, screenshots, artworks) during IGDB scraping, even if they already have values</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Field Selection -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-list-check"></i> Field Selection</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Text Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-file-text me-2"></i>Text Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldName" data-field="name" checked>
+                                        <label class="form-check-label" for="igdbFieldName">Name</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldSummary" data-field="summary" checked>
+                                        <label class="form-check-label" for="igdbFieldSummary">Description</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldDeveloper" data-field="developer" checked>
+                                        <label class="form-check-label" for="igdbFieldDeveloper">Developer</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldPublisher" data-field="publisher" checked>
+                                        <label class="form-check-label" for="igdbFieldPublisher">Publisher</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldGenre" data-field="genre" checked>
+                                        <label class="form-check-label" for="igdbFieldGenre">Genre</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldRating" data-field="rating" checked>
+                                        <label class="form-check-label" for="igdbFieldRating">Rating</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldPlayers" data-field="players" checked>
+                                        <label class="form-check-label" for="igdbFieldPlayers">Players</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldReleaseDate" data-field="release_date" checked>
+                                        <label class="form-check-label" for="igdbFieldReleaseDate">Release Date</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldYoutubeurl" data-field="youtubeurl" checked>
+                                        <label class="form-check-label" for="igdbFieldYoutubeurl">YouTube URL</label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Media Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-image me-2"></i>Media Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldCover" data-field="cover" checked>
+                                        <label class="form-check-label" for="igdbFieldCover">Cover Art</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldScreenshots" data-field="screenshots" checked>
+                                        <label class="form-check-label" for="igdbFieldScreenshots">Screenshots</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldArtworks" data-field="artworks" checked>
+                                        <label class="form-check-label" for="igdbFieldArtworks">Artworks</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input igdb-field-checkbox" type="checkbox" id="igdbFieldLogos" data-field="logos" checked>
+                                        <label class="form-check-label" for="igdbFieldLogos">Logos</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary" id="selectAllFields">
+                                        <i class="bi bi-check-all me-1"></i>Select All
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="deselectAllFields">
+                                        <i class="bi bi-x-square me-1"></i>Deselect All
+                                    </button>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        <strong>Note:</strong> IGDB ID is always scraped regardless of field selection.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Information -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> These settings control how the IGDB scraping process behaves. When disabled, only empty fields will be populated. Changes are applied immediately and will affect all future IGDB scraping operations.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1150,6 +1482,52 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube Download Modal -->
+    <div class="modal fade" id="youtubeDownloadModal" tabindex="-1" aria-labelledby="youtubeDownloadModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="youtubeDownloadModalLabel">
+                        <i class="bi bi-youtube me-2 text-danger"></i>Batch YouTube Download
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="youtubeStartTime" class="form-label">Start Time (seconds)</label>
+                        <input type="number" class="form-control" id="youtubeStartTime" value="0" min="0" placeholder="0">
+                        <div class="form-text">Start downloading the video from this time in seconds</div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="youtubeAutoCrop">
+                        <label class="form-check-label" for="youtubeAutoCrop">
+                            Auto Crop
+                        </label>
+                        <div class="form-text">Automatically crop the video using ffmpeg</div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="youtubeOverwriteExisting">
+                        <label class="form-check-label" for="youtubeOverwriteExisting">
+                            Overwrite Existing Video
+                        </label>
+                        <div class="form-text">Download and overwrite videos even if they already exist</div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This will download YouTube videos for all games (or selected games) that have a YouTube URL. 
+                        Videos will be saved to the game's media directory and the video field will be updated.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="startYoutubeDownloadBtn">
+                        <i class="bi bi-youtube me-2"></i>Start Download
+                    </button>
                 </div>
             </div>
         </div>
