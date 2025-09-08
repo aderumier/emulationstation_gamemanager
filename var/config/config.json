@@ -1,0 +1,282 @@
+{
+    "roms_root_directory": "/home/aderumier/cursorscraper/roms",
+    "media_root_directory": "media",
+    "task_logs_directory": "var/task_logs",
+    "cache_directory": "cache",
+    "max_tasks_to_keep": 30,
+    "server": {
+        "host": "0.0.0.0",
+        "port": 5000,
+        "debug": false
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "app.log"
+    },
+    "launchbox": {
+        "mapping": {
+            "Name": "name",
+            "Overview": "desc",
+            "Developer": "developer",
+            "Publisher": "publisher",
+            "Genres": "genre",
+            "CommunityRating": "rating",
+            "MaxPlayers": "players",
+            "VideoURL": "youtubeurl"
+        },
+        "image_base_url": "https://images.launchbox-app.com/",
+        "image_type_mappings": {
+            "Box - Front": "extra1",
+            "Box - Back": "boxback",
+            "Box - 3D": "boxart",
+            "Clear Logo": "marquee",
+            "Screenshot - Game Title": "titleshot",
+            "Screenshot - Gameplay": "screenshot",
+            "Fanart - Background": "fanart",
+            "Cart - Front": "cartridge"
+        },
+        "region": {
+            "priority": [
+                "World",
+                "North America",
+                "Europe",
+                "Japan"
+            ],
+            "description": "Region priority order for image downloads. Images are selected by type and region priority, with only one image per type being downloaded."
+        }
+    },
+    "media": {
+        "mappings": {
+            "videos": "video",
+            "marquee": "marquee",
+            "boxart": "boxart",
+            "screenshots": "screenshot",
+            "cartridges": "cartridge",
+            "fanarts": "fanart",
+            "titles": "titleshot",
+            "manuals": "manual",
+            "boxback": "boxback",
+            "box2d": "extra1"
+        },
+        "extensions": {
+            "videos": [
+                ".mp4"
+            ],
+            "marquee": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "boxart": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "thumbnails": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "screenshots": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "cartridges": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "fanarts": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "titles": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "manuals": [
+                ".pdf"
+            ],
+            "boxback": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ],
+            "box2d": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "scan_settings": {
+            "recursive_search": true,
+            "case_sensitive": false,
+            "auto_update_gamelist": true
+        }
+    },
+    "systems": {
+        "mame": {
+            "extensions": [
+                ".zip",
+                ".ZIP",
+                ".7z",
+                ".7Z"
+            ],
+            "launchbox": "Arcade",
+            "igdb": "Arcade"
+        },
+        "nes": {
+            "extensions": [
+                ".nes",
+                ".NES"
+            ],
+            "launchbox": "Nintendo Entertainment System",
+            "igdb": "Nintendo Entertainment System"
+        },
+        "snes": {
+            "extensions": [
+                ".sfc",
+                ".smc",
+                ".SFC",
+                ".SMC"
+            ],
+            "launchbox": "Super Nintendo Entertainment System",
+            "igdb": "Super Nintendo Entertainment System"
+        },
+        "windows": {
+            "extensions": [
+                ".wsquashfs"
+            ],
+            "launchbox": "Windows",
+            "igdb": "PC (Microsoft Windows)"
+        },
+        "gba": {
+            "launchbox": "Nintendo Game Boy Advance",
+            "extensions": [
+                ".gba",
+                ".GBA2"
+            ],
+            "igdb": "Game Boy Advance"
+        },
+        "gbc": {
+            "launchbox": "Nintendo Game Boy Color",
+            "igdb": "Game Boy Color"
+        },
+        "gb": {
+            "launchbox": "Nintendo Game Boy",
+            "igdb": "Game Boy"
+        },
+        "n64": {
+            "launchbox": "Nintendo 64",
+            "igdb": "Nintendo 64"
+        },
+        "psx": {
+            "launchbox": "Sony Playstation",
+            "igdb": "PlayStation"
+        },
+        "ps2": {
+            "launchbox": "Sony Playstation 2",
+            "igdb": "PlayStation 2"
+        },
+        "psp": {
+            "launchbox": "Sony Playstation Portable",
+            "igdb": "PlayStation Portable"
+        },
+        "xbox": {
+            "launchbox": "Microsoft Xbox",
+            "igdb": "Xbox"
+        },
+        "xbox360": {
+            "launchbox": "Microsoft Xbox 360",
+            "igdb": "Xbox 360"
+        },
+        "xbla": {
+            "extensions": [
+                ".x360"
+            ],
+            "launchbox": "Microsoft Xbox 360",
+            "igdb": "Xbox 360"
+        },
+        "wii": {
+            "launchbox": "Nintendo Wii",
+            "igdb": "Wii"
+        },
+        "wiiu": {
+            "launchbox": "Nintendo Wii U",
+            "igdb": "Wii U"
+        },
+        "switch": {
+            "launchbox": "Nintendo Switch",
+            "igdb": "Nintendo Switch"
+        },
+        "genesis": {
+            "launchbox": "Sega Genesis",
+            "igdb": "Sega Genesis"
+        },
+        "saturn": {
+            "launchbox": "Sega Saturn",
+            "igdb": "Sega Saturn"
+        },
+        "dreamcast": {
+            "launchbox": "Sega Dreamcast",
+            "extensions": [],
+            "igdb": "Dreamcast"
+        },
+        "lcdgames": {
+            "launchbox": "LCD Games",
+            "extensions": [
+                ".zip"
+            ],
+            "igdb": "Arcade"
+        },
+        "vectrex": {
+            "extensions": [
+                ".vec"
+            ],
+            "launchbox": "GCE Vectrex",
+            "igdb": "Vectrex"
+        }
+    },
+    "download": {
+        "max_concurrent_downloads": 10,
+        "download_timeout": 2,
+        "retry_attempts": 5,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    },
+    "discord": {
+        "client_id": "your_discord_client_id_here",
+        "client_secret": "your_discord_client_secret_here",
+        "redirect_uri": "http://localhost:5000/discord/callback",
+        "scope": "identify email"
+    },
+    "igdb": {
+        "database_directory": "var/db/igdb",
+        "enabled": true,
+        "mapping": {
+            "name": "name",
+            "summary": "desc",
+            "developer": "developer",
+            "publisher": "publisher",
+            "genre": "genre",
+            "rating": "rating",
+            "players": "players",
+            "release_date": "releasedate",
+            "youtubeurl": "youtubeurl"
+        },
+        "image_type_mappings": {
+            "cover": "extra1",
+            "screenshots": "screenshot",
+            "artworks": "fanart",
+            "logos": "marquee"
+        },
+        "region_priority": [
+            "World",
+            "North America",
+            "Europe",
+            "Japan"
+        ]
+    }
+}
