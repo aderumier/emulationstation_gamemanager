@@ -165,7 +165,7 @@ For easy deployment, use the pre-built Docker image:
 
 ```bash
 # Pull the latest image
-docker pull aderumier/cursorscraper:latest
+docker pull aderumier/emulationstation_gamemanager:latest
 
 # Run the container with IGDB credentials
 docker run -d \
@@ -175,7 +175,7 @@ docker run -d \
   -v $(pwd)/var:/opt/gamemanager/var \
   -e IGDB_CLIENT_ID=your_igdb_client_id \
   -e IGDB_CLIENT_SECRET=your_igdb_client_secret \
-  aderumier/cursorscraper:latest
+  aderumier/emulationstation_gamemanager:latest
 ```
 
 #### IGDB Integration Setup
@@ -752,7 +752,7 @@ sudo certbot renew --dry-run
 version: '3.8'
 services:
   cursorscraper:
-    image: aderumier/cursorscraper:latest
+    image: aderumier/emulationstation_gamemanager:latest
     container_name: cursorscraper
     ports:
       - "127.0.0.1:5000:5000"  # Bind to localhost only

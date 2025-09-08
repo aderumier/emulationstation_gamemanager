@@ -16,7 +16,7 @@ This guide explains how to deploy GameManager using Docker from DockerHub on bot
 
 ### Pull the Image
 ```bash
-docker pull aderumier/cursorscraper:latest
+docker pull aderumier/emulationstation_gamemanager:latest
 ```
 
 ### Run the Container
@@ -28,7 +28,7 @@ docker run -d \
   -v $(pwd)/var:/opt/gamemanager/var \
   -e IGDB_CLIENT_ID=your_igdb_client_id \
   -e IGDB_CLIENT_SECRET=your_igdb_client_secret \
-  aderumier/cursorscraper:latest
+  aderumier/emulationstation_gamemanager:latest
 ```
 
 **Note**: Replace `your_igdb_client_id` and `your_igdb_client_secret` with your actual IGDB API credentials. See [IGDB_SETUP.md](IGDB_SETUP.md) for detailed setup instructions.
@@ -66,7 +66,7 @@ docker run -d \
   -e FLASK_ENV=production \
   -e IGDB_CLIENT_ID=your_igdb_client_id \
   -e IGDB_CLIENT_SECRET=your_igdb_client_secret \
-  aderumier/cursorscraper:latest
+  aderumier/emulationstation_gamemanager:latest
 ```
 
 #### 4. Run with Docker Compose (Recommended)
@@ -76,7 +76,7 @@ version: '3.8'
 
 services:
   gamemanager:
-    image: aderumier/cursorscraper:latest
+    image: aderumier/emulationstation_gamemanager:latest
     container_name: gamemanager
     ports:
       - "5000:5000"
@@ -146,7 +146,7 @@ docker run -d ^
   -e FLASK_ENV=production ^
   -e IGDB_CLIENT_ID=your_igdb_client_id ^
   -e IGDB_CLIENT_SECRET=your_igdb_client_secret ^
-  aderumier/cursorscraper:latest
+  aderumier/emulationstation_gamemanager:latest
 ```
 
 #### 3. Using PowerShell
@@ -167,7 +167,7 @@ docker run -d `
   -e FLASK_ENV=production `
   -e IGDB_CLIENT_ID=your_igdb_client_id `
   -e IGDB_CLIENT_SECRET=your_igdb_client_secret `
-  aderumier/cursorscraper:latest
+  aderumier/emulationstation_gamemanager:latest
 ```
 
 #### 4. Using Docker Compose on Windows
@@ -178,7 +178,7 @@ version: '3.8'
 
 services:
   gamemanager:
-    image: aderumier/cursorscraper:latest
+    image: aderumier/emulationstation_gamemanager:latest
     container_name: gamemanager
     ports:
       - "5000:5000"
@@ -278,14 +278,14 @@ docker rm gamemanager
 ### Update to Latest Version
 ```bash
 # Pull latest image
-docker pull aderumier/cursorscraper:latest
+docker pull aderumier/emulationstation_gamemanager:latest
 
 # Stop and remove old container
 docker stop gamemanager
 docker rm gamemanager
 
 # Run new container (same command as initial setup)
-docker run -d --name gamemanager --restart unless-stopped -p 5000:5000 -v $(pwd)/roms:/opt/gamemanager/roms -v $(pwd)/var:/opt/gamemanager/var -e FLASK_ENV=production -e IGDB_CLIENT_ID=your_igdb_client_id -e IGDB_CLIENT_SECRET=your_igdb_client_secret aderumier/cursorscraper:latest
+docker run -d --name gamemanager --restart unless-stopped -p 5000:5000 -v $(pwd)/roms:/opt/gamemanager/roms -v $(pwd)/var:/opt/gamemanager/var -e FLASK_ENV=production -e IGDB_CLIENT_ID=your_igdb_client_id -e IGDB_CLIENT_SECRET=your_igdb_client_secret aderumier/emulationstation_gamemanager:latest
 ```
 
 ## Troubleshooting
@@ -356,7 +356,7 @@ For issues and support:
 ## Version Information
 
 - **Current Version**: 1.8-1
-- **Docker Image**: `aderumier/cursorscraper:latest`
+- **Docker Image**: `aderumier/emulationstation_gamemanager:latest`
 - **Base Image**: Debian 13-slim
 - **Application**: GameManager Game Collection Management System
 
