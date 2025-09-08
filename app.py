@@ -9396,6 +9396,28 @@ def get_igdb_platform_name(platform_id, platform_cache=None):
     platform_id_str = str(platform_id)
     return platform_cache.get(platform_id_str, f"Platform {platform_id}")
 
+def get_igdb_platform_id(platform_name_or_id, platform_cache=None):
+    """Convert platform name to ID, or return ID if already an ID"""
+    if platform_cache is None:
+        platform_cache = load_igdb_platform_cache()
+    
+    # If it's already a number (ID), return it
+    if isinstance(platform_name_or_id, (int, str)) and str(platform_name_or_id).isdigit():
+        return int(platform_name_or_id)
+    
+    # If it's a string (platform name), find the corresponding ID
+    if isinstance(platform_name_or_id, str):
+        # Create reverse mapping: name -> id
+        name_to_id = {name: id_str for id_str, name in platform_cache.items()}
+        platform_id = name_to_id.get(platform_name_or_id)
+        if platform_id:
+            return int(platform_id)
+        else:
+            print(f"Warning: Platform name '{platform_name_or_id}' not found in IGDB platform cache")
+            return None
+    
+    return None
+
 async def ensure_igdb_platform_cache():
     """Ensure IGDB platform cache is up to date"""
     cache = load_igdb_platform_cache()
@@ -10119,13 +10141,25 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 })
                 return
             
-            # Get IGDB platform ID
-            igdb_platform_id = system_config.get('igdb')
+            # Get IGDB platform ID (convert name to ID if needed)
+            igdb_platform_name_or_id = system_config.get('igdb')
+            if not igdb_platform_name_or_id:
+                result_q.put({
+                    'type': 'progress',
+                    'task_id': task_id,
+                    'message': f"No IGDB platform configured for system '{system_name}'",
+                    'progress_percentage': 100
+                })
+                return
+            
+            # Ensure platform cache is available and convert name to ID
+            platform_cache = await ensure_igdb_platform_cache()
+            igdb_platform_id = get_igdb_platform_id(igdb_platform_name_or_id, platform_cache)
             if not igdb_platform_id:
                 result_q.put({
                     'type': 'progress',
                     'task_id': task_id,
-                    'message': f"No IGDB platform ID configured for system '{system_name}'",
+                    'message': f"Invalid IGDB platform '{igdb_platform_name_or_id}' for system '{system_name}'",
                     'progress_percentage': 100
                 })
                 return
@@ -10470,7 +10504,7 @@ def scrap_igdb_system(system_name):
         system_config = systems_config.get(system_name, {})
         
         if not system_config.get('igdb'):
-            return jsonify({'error': f'No IGDB platform ID configured for system "{system_name}"'}), 400
+            return jsonify({'error': f'No IGDB platform configured for system "{system_name}"'}), 400
         
         # Get request data
         data = request.get_json() or {}
@@ -10533,14 +10567,14 @@ def search_igdb_games_api():
     try:
         data = request.get_json()
         game_name = data.get('game_name', '').strip()
-        platform_id = data.get('platform_id')
+        platform_name_or_id = data.get('platform_id')
         limit = data.get('limit', 10)
         
         if not game_name:
             return jsonify({'error': 'Game name is required'}), 400
         
-        if not platform_id:
-            return jsonify({'error': 'Platform ID is required'}), 400
+        if not platform_name_or_id:
+            return jsonify({'error': 'Platform is required'}), 400
         
         # Get IGDB configuration
         igdb_config = get_igdb_config()
@@ -10551,6 +10585,12 @@ def search_igdb_games_api():
         access_token = get_igdb_access_token()
         if not access_token:
             return jsonify({'error': 'Failed to get IGDB access token'}), 500
+        
+        # Convert platform name to ID if needed
+        platform_cache = await ensure_igdb_platform_cache()
+        platform_id = get_igdb_platform_id(platform_name_or_id, platform_cache)
+        if not platform_id:
+            return jsonify({'error': f'Invalid platform: {platform_name_or_id}'}), 400
         
         # Search for games
         import asyncio

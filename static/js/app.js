@@ -3479,7 +3479,7 @@ class GameCollectionManager {
             return;
         }
         
-        // Get system configuration to find IGDB platform ID
+        // Get system configuration to find IGDB platform
         const response = await fetch('/api/config');
         if (!response.ok) {
             this.showAlert('Failed to load system configuration', 'error');
@@ -3488,10 +3488,10 @@ class GameCollectionManager {
         const config = await response.json();
         const systemsConfig = config.systems || {};
         const systemConfig = systemsConfig[systemName] || {};
-        const igdbPlatformId = systemConfig.igdb;
+        const igdbPlatform = systemConfig.igdb;
         
-        if (!igdbPlatformId) {
-            this.showAlert(`No IGDB platform ID configured for system '${systemName}'`, 'warning');
+        if (!igdbPlatform) {
+            this.showAlert(`No IGDB platform configured for system '${systemName}'`, 'warning');
             return;
         }
         
@@ -3500,14 +3500,14 @@ class GameCollectionManager {
         this.currentGameData = {
             name: gameName,
             system: systemName,
-            igdbPlatformId: igdbPlatformId
+            igdbPlatform: igdbPlatform
         };
         
         // Show the IGDB search modal
-        this.showIgdbSearchModal(gameName, igdbPlatformId, systemName);
+        this.showIgdbSearchModal(gameName, igdbPlatform, systemName);
     }
     
-    async showIgdbSearchModal(gameName, platformId, systemName) {
+    async showIgdbSearchModal(gameName, platformNameOrId, systemName) {
         // Set the game name in the modal
         document.getElementById('igdbSearchGameName').textContent = gameName;
         
@@ -3534,7 +3534,7 @@ class GameCollectionManager {
                 },
                 body: JSON.stringify({
                     game_name: gameName,
-                    platform_id: platformId,
+                    platform_id: platformNameOrId,
                     limit: 10
                 })
             });
