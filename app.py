@@ -9154,7 +9154,7 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
         safe_rom_name = "".join(c for c in rom_name_without_ext if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_rom_name = safe_rom_name.replace(' ', '_')
-        filename = f"{safe_rom_name}_{image_type}.png"  # Always save as PNG with media type
+        filename = f"{safe_rom_name}.png"  # Always save as PNG with same name as ROM
         file_path = os.path.join(media_dir, filename)
         print(f"{emoji} DEBUG: Safe filename: {filename}")
         print(f"{emoji} DEBUG: Full file path: {file_path}")
