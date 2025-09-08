@@ -8733,6 +8733,11 @@ async def download_igdb_fanart(async_client, artwork_data, system_name, game_nam
         elif not image_url.startswith('http'):
             image_url = f"https://images.igdb.com{image_url}"
         
+        # Replace thumb size with 720p for better quality
+        if '/t_thumb/' in image_url:
+            image_url = image_url.replace('/t_thumb/', '/t_720p/')
+            print(f"🎨 DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
+        
         print(f"🎨 DEBUG: Final image URL: {image_url}")
         
         # Create fanart directory for the system
