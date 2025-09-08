@@ -6586,7 +6586,6 @@ class GameCollectionManager {
                 
                 // Populate form fields
                 document.getElementById('romsRootDirectory').value = config.roms_root_directory || '';
-                document.getElementById('mediaRootDirectory').value = config.media_root_directory || '';
                 document.getElementById('serverHost').value = config.server?.host || '0.0.0.0';
                 document.getElementById('serverPort').value = config.server?.port || 5000;
                 document.getElementById('serverDebug').checked = config.server?.debug || false;
@@ -6605,7 +6604,6 @@ class GameCollectionManager {
         try {
             const configData = {
                 roms_root_directory: document.getElementById('romsRootDirectory').value,
-                media_root_directory: document.getElementById('mediaRootDirectory').value,
                 server: {
                     host: document.getElementById('serverHost').value,
                     port: parseInt(document.getElementById('serverPort').value),

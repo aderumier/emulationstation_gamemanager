@@ -1,8 +1,6 @@
 {
     "roms_root_directory": "/home/aderumier/cursorscraper/roms",
-    "media_root_directory": "media",
     "task_logs_directory": "var/task_logs",
-    "cache_directory": "cache",
     "max_tasks_to_keep": 30,
     "server": {
         "host": "0.0.0.0",
@@ -13,6 +11,8 @@
         "level": "INFO",
         "file": "app.log"
     },
+    "media_root_directory": "media",
+    "cache_directory": "cache",
     "launchbox": {
         "mapping": {
             "Name": "name",
@@ -154,90 +154,572 @@
             "igdb": "PC (Microsoft Windows)"
         },
         "gba": {
-            "launchbox": "Nintendo Game Boy Advance",
             "extensions": [
                 ".gba",
                 ".GBA2"
             ],
+            "launchbox": "Nintendo Game Boy Advance",
             "igdb": "Game Boy Advance"
         },
         "gbc": {
+            "extensions": [
+                ".gbc",
+                ".GBC"
+            ],
             "launchbox": "Nintendo Game Boy Color",
             "igdb": "Game Boy Color"
         },
         "gb": {
+            "extensions": [
+                ".gb",
+                ".GB"
+            ],
             "launchbox": "Nintendo Game Boy",
             "igdb": "Game Boy"
         },
         "n64": {
+            "extensions": [
+                ".n64",
+                ".v64",
+                ".z64",
+                ".N64",
+                ".V64",
+                ".Z64"
+            ],
             "launchbox": "Nintendo 64",
             "igdb": "Nintendo 64"
         },
         "psx": {
+            "extensions": [
+                ".bin",
+                ".cue",
+                ".img",
+                ".iso",
+                ".mdf",
+                ".mds",
+                ".BIN",
+                ".CUE",
+                ".IMG",
+                ".ISO",
+                ".MDF",
+                ".MDS"
+            ],
             "launchbox": "Sony Playstation",
             "igdb": "PlayStation"
         },
         "ps2": {
+            "extensions": [
+                ".bin",
+                ".cue",
+                ".img",
+                ".iso",
+                ".mdf",
+                ".mds",
+                ".BIN",
+                ".CUE",
+                ".IMG",
+                ".ISO",
+                ".MDF",
+                ".MDS"
+            ],
             "launchbox": "Sony Playstation 2",
             "igdb": "PlayStation 2"
         },
+        "ps3": {
+            "extensions": [
+                ".iso",
+                ".pkg",
+                ".ISO",
+                ".PKG"
+            ],
+            "launchbox": "Sony Playstation 3",
+            "igdb": "PlayStation 3"
+        },
+        "ps4": {
+            "extensions": [
+                ".pkg",
+                ".PKG"
+            ],
+            "launchbox": "Sony Playstation 4",
+            "igdb": "PlayStation 4"
+        },
+        "ps5": {
+            "extensions": [
+                ".pkg",
+                ".PKG"
+            ],
+            "launchbox": "Sony Playstation 5",
+            "igdb": "PlayStation 5"
+        },
         "psp": {
+            "extensions": [
+                ".iso",
+                ".cso",
+                ".ISO",
+                ".CSO"
+            ],
             "launchbox": "Sony Playstation Portable",
             "igdb": "PlayStation Portable"
         },
+        "psvita": {
+            "extensions": [
+                ".vpk",
+                ".VPK"
+            ],
+            "launchbox": "Sony Playstation Vita",
+            "igdb": "PlayStation Vita"
+        },
         "xbox": {
+            "extensions": [
+                ".iso",
+                ".xbe",
+                ".ISO",
+                ".XBE"
+            ],
             "launchbox": "Microsoft Xbox",
             "igdb": "Xbox"
         },
         "xbox360": {
+            "extensions": [
+                ".iso",
+                ".xex",
+                ".ISO",
+                ".XEX"
+            ],
             "launchbox": "Microsoft Xbox 360",
             "igdb": "Xbox 360"
         },
+        "xboxone": {
+            "extensions": [
+                ".xvc",
+                ".XVC"
+            ],
+            "launchbox": "Microsoft Xbox One",
+            "igdb": "Xbox One"
+        },
+        "xboxseries": {
+            "extensions": [
+                ".xvc",
+                ".XVC"
+            ],
+            "launchbox": "Microsoft Xbox Series X|S",
+            "igdb": "Xbox Series X|S"
+        },
         "xbla": {
             "extensions": [
-                ".x360"
+                ".x360",
+                ".X360"
             ],
             "launchbox": "Microsoft Xbox 360",
             "igdb": "Xbox 360"
         },
         "wii": {
+            "extensions": [
+                ".iso",
+                ".wbfs",
+                ".ciso",
+                ".ISO",
+                ".WBFS",
+                ".CISO"
+            ],
             "launchbox": "Nintendo Wii",
             "igdb": "Wii"
         },
         "wiiu": {
+            "extensions": [
+                ".wud",
+                ".wux",
+                ".WUD",
+                ".WUX"
+            ],
             "launchbox": "Nintendo Wii U",
             "igdb": "Wii U"
         },
         "switch": {
+            "extensions": [
+                ".nsp",
+                ".xci",
+                ".NSP",
+                ".XCI"
+            ],
             "launchbox": "Nintendo Switch",
             "igdb": "Nintendo Switch"
         },
         "genesis": {
+            "extensions": [
+                ".gen",
+                ".md",
+                ".smd",
+                ".GEN",
+                ".MD",
+                ".SMD"
+            ],
             "launchbox": "Sega Genesis",
             "igdb": "Sega Genesis"
         },
+        "megadrive": {
+            "extensions": [
+                ".gen",
+                ".md",
+                ".smd",
+                ".GEN",
+                ".MD",
+                ".SMD"
+            ],
+            "launchbox": "Sega Mega Drive",
+            "igdb": "Sega Mega Drive"
+        },
         "saturn": {
+            "extensions": [
+                ".bin",
+                ".cue",
+                ".iso",
+                ".BIN",
+                ".CUE",
+                ".ISO"
+            ],
             "launchbox": "Sega Saturn",
             "igdb": "Sega Saturn"
         },
         "dreamcast": {
+            "extensions": [
+                ".cdi",
+                ".gdi",
+                ".iso",
+                ".CDI",
+                ".GDI",
+                ".ISO"
+            ],
             "launchbox": "Sega Dreamcast",
-            "extensions": [],
             "igdb": "Dreamcast"
         },
-        "lcdgames": {
-            "launchbox": "LCD Games",
+        "gamegear": {
             "extensions": [
-                ".zip"
+                ".gg",
+                ".GG"
             ],
-            "igdb": "Arcade"
+            "launchbox": "Sega Game Gear",
+            "igdb": "Game Gear"
+        },
+        "mastersystem": {
+            "extensions": [
+                ".sms",
+                ".SMS"
+            ],
+            "launchbox": "Sega Master System",
+            "igdb": "Master System"
+        },
+        "sega32x": {
+            "extensions": [
+                ".32x",
+                ".32X"
+            ],
+            "launchbox": "Sega 32X",
+            "igdb": "Sega 32X"
+        },
+        "segaCD": {
+            "extensions": [
+                ".bin",
+                ".cue",
+                ".iso",
+                ".BIN",
+                ".CUE",
+                ".ISO"
+            ],
+            "launchbox": "Sega CD",
+            "igdb": "Sega CD"
+        },
+        "atari2600": {
+            "extensions": [
+                ".a26",
+                ".bin",
+                ".A26",
+                ".BIN"
+            ],
+            "launchbox": "Atari 2600",
+            "igdb": "Atari 2600"
+        },
+        "atari5200": {
+            "extensions": [
+                ".a52",
+                ".bin",
+                ".A52",
+                ".BIN"
+            ],
+            "launchbox": "Atari 5200",
+            "igdb": "Atari 5200"
+        },
+        "atari7800": {
+            "extensions": [
+                ".a78",
+                ".bin",
+                ".A78",
+                ".BIN"
+            ],
+            "launchbox": "Atari 7800",
+            "igdb": "Atari 7800"
+        },
+        "atarijaguar": {
+            "extensions": [
+                ".j64",
+                ".jag",
+                ".J64",
+                ".JAG"
+            ],
+            "launchbox": "Atari Jaguar",
+            "igdb": "Atari Jaguar"
+        },
+        "atarilynx": {
+            "extensions": [
+                ".lnx",
+                ".LNX"
+            ],
+            "launchbox": "Atari Lynx",
+            "igdb": "Atari Lynx"
         },
         "vectrex": {
             "extensions": [
-                ".vec"
+                ".vec",
+                ".VEC"
             ],
             "launchbox": "GCE Vectrex",
             "igdb": "Vectrex"
+        },
+        "intellivision": {
+            "extensions": [
+                ".int",
+                ".INT"
+            ],
+            "launchbox": "Mattel Intellivision",
+            "igdb": "Intellivision"
+        },
+        "colecovision": {
+            "extensions": [
+                ".col",
+                ".COL"
+            ],
+            "launchbox": "ColecoVision",
+            "igdb": "ColecoVision"
+        },
+        "odyssey2": {
+            "extensions": [
+                ".o2",
+                ".O2"
+            ],
+            "launchbox": "Magnavox Odyssey 2",
+            "igdb": "Magnavox Odyssey 2"
+        },
+        "3do": {
+            "extensions": [
+                ".iso",
+                ".cue",
+                ".ISO",
+                ".CUE"
+            ],
+            "launchbox": "3DO Interactive Multiplayer",
+            "igdb": "3DO"
+        },
+        "amigacd32": {
+            "extensions": [
+                ".iso",
+                ".cue",
+                ".ISO",
+                ".CUE"
+            ],
+            "launchbox": "Amiga CD32",
+            "igdb": "Amiga CD32"
+        },
+        "amstradcpc": {
+            "extensions": [
+                ".dsk",
+                ".tap",
+                ".DSK",
+                ".TAP"
+            ],
+            "launchbox": "Amstrad CPC",
+            "igdb": "Amstrad CPC"
+        },
+        "apple2": {
+            "extensions": [
+                ".dsk",
+                ".do",
+                ".po",
+                ".DSK",
+                ".DO",
+                ".PO"
+            ],
+            "launchbox": "Apple II",
+            "igdb": "Apple II"
+        },
+        "commodore64": {
+            "extensions": [
+                ".d64",
+                ".t64",
+                ".prg",
+                ".D64",
+                ".T64",
+                ".PRG"
+            ],
+            "launchbox": "Commodore 64",
+            "igdb": "Commodore 64"
+        },
+        "commodore128": {
+            "extensions": [
+                ".d64",
+                ".t64",
+                ".prg",
+                ".D64",
+                ".T64",
+                ".PRG"
+            ],
+            "launchbox": "Commodore 128",
+            "igdb": "Commodore 128"
+        },
+        "amiga": {
+            "extensions": [
+                ".adf",
+                ".ipf",
+                ".ADF",
+                ".IPF"
+            ],
+            "launchbox": "Commodore Amiga",
+            "igdb": "Amiga"
+        },
+        "atarist": {
+            "extensions": [
+                ".st",
+                ".msa",
+                ".ST",
+                ".MSA"
+            ],
+            "launchbox": "Atari ST",
+            "igdb": "Atari ST"
+        },
+        "msx": {
+            "extensions": [
+                ".rom",
+                ".mx1",
+                ".mx2",
+                ".ROM",
+                ".MX1",
+                ".MX2"
+            ],
+            "launchbox": "MSX",
+            "igdb": "MSX"
+        },
+        "msx2": {
+            "extensions": [
+                ".rom",
+                ".mx1",
+                ".mx2",
+                ".ROM",
+                ".MX1",
+                ".MX2"
+            ],
+            "launchbox": "MSX2",
+            "igdb": "MSX2"
+        },
+        "pcengine": {
+            "extensions": [
+                ".pce",
+                ".cue",
+                ".PCE",
+                ".CUE"
+            ],
+            "launchbox": "TurboGrafx-16",
+            "igdb": "TurboGrafx-16"
+        },
+        "pcenginecd": {
+            "extensions": [
+                ".cue",
+                ".iso",
+                ".CUE",
+                ".ISO"
+            ],
+            "launchbox": "TurboGrafx-CD",
+            "igdb": "TurboGrafx-CD"
+        },
+        "neogeo": {
+            "extensions": [
+                ".zip",
+                ".ZIP"
+            ],
+            "launchbox": "SNK Neo Geo",
+            "igdb": "Neo Geo"
+        },
+        "neogeocd": {
+            "extensions": [
+                ".cue",
+                ".iso",
+                ".CUE",
+                ".ISO"
+            ],
+            "launchbox": "SNK Neo Geo CD",
+            "igdb": "Neo Geo CD"
+        },
+        "neogeopocket": {
+            "extensions": [
+                ".ngp",
+                ".NGP"
+            ],
+            "launchbox": "SNK Neo Geo Pocket",
+            "igdb": "Neo Geo Pocket"
+        },
+        "neogeopocketcolor": {
+            "extensions": [
+                ".ngc",
+                ".NGC"
+            ],
+            "launchbox": "SNK Neo Geo Pocket Color",
+            "igdb": "Neo Geo Pocket Color"
+        },
+        "wonderswan": {
+            "extensions": [
+                ".ws",
+                ".WS"
+            ],
+            "launchbox": "Bandai WonderSwan",
+            "igdb": "WonderSwan"
+        },
+        "wonderswancolor": {
+            "extensions": [
+                ".wsc",
+                ".WSC"
+            ],
+            "launchbox": "Bandai WonderSwan Color",
+            "igdb": "WonderSwan Color"
+        },
+        "virtualboy": {
+            "extensions": [
+                ".vb",
+                ".VB"
+            ],
+            "launchbox": "Nintendo Virtual Boy",
+            "igdb": "Virtual Boy"
+        },
+        "gameandwatch": {
+            "extensions": [
+                ".mgw",
+                ".MGW"
+            ],
+            "launchbox": "Nintendo Game & Watch",
+            "igdb": "Game & Watch"
+        },
+        "lcdgames": {
+            "extensions": [
+                ".zip",
+                ".ZIP"
+            ],
+            "launchbox": "LCD Games",
+            "igdb": "Arcade"
+        },
+        "fbneo": {
+            "extensions": [
+                ".zip",
+                ".ZIP"
+            ],
+            "launchbox": "Arcade",
+            "igdb": "Arcade"
         }
     },
     "download": {

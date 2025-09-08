@@ -64,7 +64,9 @@ RUN mkdir -p \
     /opt/gamemanager/media \
     /opt/gamemanager/cache \
     /opt/gamemanager/var/task_logs \
+    /opt/gamemanager/var/db \
     /opt/gamemanager/var/db/launchbox \
+    /opt/gamemanager/var/db/igdb \
     /opt/gamemanager/var/sessions \
     /opt/gamemanager/var/gamelists \
     /opt/gamemanager/var/config
@@ -82,13 +84,20 @@ RUN ls -la /opt/gamemanager/var/config/ && \
 
 # Application files are installed by the .deb package
 
-# Create startup script to handle config files for volume mounts
+# Create startup script to handle config files and directories for volume mounts
 RUN cat > /opt/gamemanager/start.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Create var/config directory if it doesn't exist
+# Create all necessary directories if they don't exist (for volume mount scenarios)
+echo "Creating application directories..."
 mkdir -p /opt/gamemanager/var/config
+mkdir -p /opt/gamemanager/var/db
+mkdir -p /opt/gamemanager/var/db/launchbox
+mkdir -p /opt/gamemanager/var/db/igdb
+mkdir -p /opt/gamemanager/var/sessions
+mkdir -p /opt/gamemanager/var/task_logs
+mkdir -p /opt/gamemanager/var/gamelists
 
 # Copy default config files if they don't exist in var/config
 if [ ! -f /opt/gamemanager/var/config/config.json ]; then
@@ -104,7 +113,7 @@ fi
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
 
-echo "✅ Configuration files ready in var/config/"
+echo "✅ All directories and configuration files ready"
 echo "Starting GameManager..."
 
 # Start the application

@@ -524,6 +524,10 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # Create directories if they don't exist
 os.makedirs(ROMS_FOLDER, exist_ok=True)
 os.makedirs(GAMELISTS_FOLDER, exist_ok=True)
+os.makedirs('var/db', exist_ok=True)
+os.makedirs('var/db/launchbox', exist_ok=True)
+os.makedirs('var/db/igdb', exist_ok=True)
+os.makedirs('var/sessions', exist_ok=True)
 
 def get_gamelist_path(system_name):
     """Get the gamelist path for a system, ensuring the directory exists"""
