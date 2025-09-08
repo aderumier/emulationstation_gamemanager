@@ -8658,7 +8658,7 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
     try:
         print(f"🎨 DEBUG: fetch_igdb_artworks called for game_id: {game_id}")
         search_url = "https://api.igdb.com/v4/artworks"
-        search_data = f'fields id,image_id,width,height; where game = {game_id};'
+        search_data = f'fields id,image_id,width,height,url; where game = {game_id};'
         
         print(f"🎨 DEBUG: Artworks API request - URL: {search_url}")
         print(f"🎨 DEBUG: Artworks API request - Data: {search_data}")
@@ -8681,7 +8681,8 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
                 width = artwork.get('width', 0)
                 height = artwork.get('height', 0)
                 image_id = artwork.get('image_id', 'N/A')
-                print(f"🎨 DEBUG: Artwork {i+1}: id={artwork.get('id')}, image_id={image_id}, width={width}, height={height}")
+                url = artwork.get('url', 'N/A')
+                print(f"🎨 DEBUG: Artwork {i+1}: id={artwork.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}")
             
             # Filter for landscape images (width >= 1.5 * height)
             landscape_artworks = []
@@ -8697,7 +8698,7 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
             # Return the first landscape artwork
             if landscape_artworks:
                 selected = landscape_artworks[0]
-                print(f"🎨 DEBUG: Selected artwork: {selected.get('id')} with image_id: {selected.get('image_id')}")
+                print(f"🎨 DEBUG: Selected artwork: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
                 return selected
             else:
                 print(f"🎨 DEBUG: No landscape artworks found for game {game_id}")
@@ -8714,15 +8715,17 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
         traceback.print_exc()
         return None
 
-async def download_igdb_fanart(async_client, image_id, system_name, game_name):
+async def download_igdb_fanart(async_client, artwork_data, system_name, game_name):
     """Download fanart image from IGDB and save it to the fanart directory"""
     try:
+        image_id = artwork_data.get('image_id')
+        image_url = artwork_data.get('url')
         print(f"🎨 DEBUG: download_igdb_fanart called - image_id: {image_id}, system: {system_name}, game: {game_name}")
+        print(f"🎨 DEBUG: Using URL from artwork API: {image_url}")
         
-        # IGDB image URL format: https://images.igdb.com/igdb/image/upload/t_[size]/[image_id].jpg
-        # For fanart, we want a large size, so we'll use t_1080p
-        image_url = f"https://images.igdb.com/igdb/image/upload/t_1080p/{image_id}.jpg"
-        print(f"🎨 DEBUG: Image URL: {image_url}")
+        if not image_url:
+            print(f"🎨 DEBUG: ERROR - No URL found in artwork data!")
+            return None
         
         # Create fanart directory for the system
         fanart_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'fanarts')
@@ -9275,7 +9278,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                         print(f"🎨 DEBUG: System name from config: {system_name}")
                         fanart_path = await download_igdb_fanart(
                             async_client, 
-                            artwork['image_id'], 
+                            artwork, 
                             system_name, 
                             game_name
                         )
