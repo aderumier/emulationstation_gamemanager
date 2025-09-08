@@ -7505,6 +7505,7 @@ class GameCollectionManager {
         const savedMediaPreview = this.getCookie('mediaPreviewEnabled');
         const savedPartialMatchModal = this.getCookie('enablePartialMatchModal');
         const savedForceDownload = this.getCookie('forceDownloadImages');
+        const savedOverwriteTextFields = this.getCookie('launchboxOverwriteTextFields');
         
         // Load available systems first and wait for them to be populated
         await this.loadAvailableSystems();
@@ -7535,6 +7536,15 @@ class GameCollectionManager {
             const forceDownloadCheckbox = document.getElementById('forceDownloadImagesModal');
             if (forceDownloadCheckbox) {
                 forceDownloadCheckbox.checked = savedForceDownload === 'true';
+            }
+        }
+        
+        // Load overwrite text fields checkbox state (in LaunchBox Configuration modal)
+        if (savedOverwriteTextFields !== null) {
+            const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
+            if (overwriteTextFieldsCheckbox) {
+                overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
+                console.log('🔧 DEBUG: loadState - Setting overwriteTextFields checkbox to:', savedOverwriteTextFields === 'true', '(saved value:', savedOverwriteTextFields, ')');
             }
         }
     }
