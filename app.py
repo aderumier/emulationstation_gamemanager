@@ -5936,8 +5936,12 @@ def stop_task_endpoint(task_id):
             except Exception as e:
                 print(f"Warning: could not set IGDB cancel flag: {e}")
         
-        # Stop the task
-        task.stop()
+        # Stop the task (except for YouTube batch download which handles its own completion)
+        if task.type != 'youtube_download_batch':
+            task.stop()
+        else:
+            # For YouTube batch download, just set the stop event - the task will handle completion itself
+            task.update_progress("🛑 Stop requested - task will complete gracefully")
         
         # If this was the current running task, clear it
         if current_task_id == task_id:

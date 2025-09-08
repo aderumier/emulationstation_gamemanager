@@ -350,7 +350,7 @@ class GameCollectionManager {
                 duration: task.duration ? `${task.duration.toFixed(1)}s` : 'N/A',
                 progress: task.progress_percentage || 0,
                 currentStep: task.current_step || 0,
-                totalSteps: totalGames,
+                totalSteps: task.total_steps || totalGames,
                 username: task.username || 'Unknown',
                 system: (task.data && task.data.system_name) ? task.data.system_name : '',
                 data: task
