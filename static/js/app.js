@@ -5772,7 +5772,7 @@ class GameCollectionManager {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'name', 'summary', 'developer', 'publisher', 'genre', 
-                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks'
+                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
             ];
             
             fallbackFields.forEach(field => {
@@ -5809,7 +5809,7 @@ class GameCollectionManager {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'name', 'summary', 'developer', 'publisher', 'genre', 
-                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks'
+                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
             ];
             
             fallbackFields.forEach(field => {
@@ -5846,7 +5846,7 @@ class GameCollectionManager {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'name', 'summary', 'developer', 'publisher', 'genre', 
-                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks'
+                'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
             ];
             
             const selectedFields = [];
