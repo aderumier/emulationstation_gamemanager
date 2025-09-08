@@ -10587,7 +10587,7 @@ def search_igdb_games_api():
             return jsonify({'error': 'Failed to get IGDB access token'}), 500
         
         # Convert platform name to ID if needed
-        platform_cache = await ensure_igdb_platform_cache()
+        platform_cache = load_igdb_platform_cache()
         platform_id = get_igdb_platform_id(platform_name_or_id, platform_cache)
         if not platform_id:
             return jsonify({'error': f'Invalid platform: {platform_name_or_id}'}), 400
