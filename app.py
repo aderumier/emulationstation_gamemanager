@@ -8732,7 +8732,7 @@ async def download_igdb_fanart(async_client, image_id, system_name, game_name):
         # Create safe filename from game name
         safe_game_name = "".join(c for c in game_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_game_name = safe_game_name.replace(' ', '_')
-        filename = f"{safe_game_name}.jpg"
+        filename = f"{safe_game_name}.png"  # Always save as PNG
         file_path = os.path.join(fanart_dir, filename)
         print(f"🎨 DEBUG: Safe filename: {filename}")
         print(f"🎨 DEBUG: Full file path: {file_path}")
@@ -8744,8 +8744,51 @@ async def download_igdb_fanart(async_client, image_id, system_name, game_name):
         
         if response.status_code == 200:
             print(f"🎨 DEBUG: Writing image to file...")
-            with open(file_path, 'wb') as f:
+            
+            # Get the content type to determine if we need to convert
+            content_type = response.headers.get('content-type', '').lower()
+            print(f"🎨 DEBUG: Content type: {content_type}")
+            
+            # Write the raw image data to a temporary file first
+            temp_file_path = file_path + '.temp'
+            with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
+            
+            # Check if we need to convert from WebP to PNG
+            if 'webp' in content_type or temp_file_path.endswith('.webp'):
+                print(f"🎨 DEBUG: Converting WebP to PNG...")
+                try:
+                    from PIL import Image
+                    
+                    # Open the WebP image and convert to PNG
+                    with Image.open(temp_file_path) as img:
+                        # Convert to RGB if necessary (WebP can have transparency)
+                        if img.mode in ('RGBA', 'LA'):
+                            # Keep transparency for PNG
+                            img.save(file_path, 'PNG')
+                        else:
+                            # Convert to RGB for better compatibility
+                            rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                            rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                            rgb_img.save(file_path, 'PNG')
+                    
+                    print(f"🎨 DEBUG: WebP converted to PNG successfully")
+                    
+                    # Remove the temporary file
+                    os.remove(temp_file_path)
+                    
+                except ImportError:
+                    print(f"🎨 DEBUG: PIL not available, trying to save as-is...")
+                    # If PIL is not available, just rename the temp file
+                    os.rename(temp_file_path, file_path)
+                except Exception as conv_error:
+                    print(f"🎨 DEBUG: Error converting WebP: {conv_error}")
+                    # Fallback: just rename the temp file
+                    os.rename(temp_file_path, file_path)
+            else:
+                print(f"🎨 DEBUG: No conversion needed, renaming temp file...")
+                # No conversion needed, just rename the temp file
+                os.rename(temp_file_path, file_path)
             
             # Check if file was written successfully
             if os.path.exists(file_path):
