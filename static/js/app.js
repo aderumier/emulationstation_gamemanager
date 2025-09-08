@@ -2289,6 +2289,9 @@ class GameCollectionManager {
             
             // Update 2D Box Generator button state
             this.update2DBoxGeneratorButtonState();
+            
+            // Update YouTube Download button state
+            this.updateYoutubeDownloadButtonState();
         });
 
         // Add row click listener for immediate media preview
@@ -6857,6 +6860,13 @@ class GameCollectionManager {
             boxGeneratorBtn.disabled = this.selectedGames.length === 0;
         }
     }
+    
+    updateYoutubeDownloadButtonState() {
+        const youtubeDownloadBtn = document.getElementById('globalYoutubeDownloadBtn');
+        if (youtubeDownloadBtn) {
+            youtubeDownloadBtn.disabled = this.selectedGames.length === 0;
+        }
+    }
 
     async toggleDuplicatesFilter() {
         const duplicatesBtn = document.getElementById('showDuplicatesBtn');
@@ -7148,6 +7158,11 @@ class GameCollectionManager {
         
         // Update delete button state
         this.updateDeleteButtonState();
+        
+        // Update other button states
+        this.updateFindBestMatchButtonState();
+        this.update2DBoxGeneratorButtonState();
+        this.updateYoutubeDownloadButtonState();
     }
     
 
