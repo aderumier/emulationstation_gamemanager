@@ -164,16 +164,30 @@ For easy deployment, use the pre-built Docker image:
 
 ```bash
 # Pull the latest image
-docker pull aderumier/emulationstation_gamemanager:latest
+docker pull aderumier/cursorscraper:latest
 
-# Run the container
+# Run the container with IGDB credentials
 docker run -d \
   --name gamemanager \
   -p 5000:5000 \
   -v $(pwd)/roms:/opt/gamemanager/roms \
   -v $(pwd)/var:/opt/gamemanager/var \
-  aderumier/emulationstation_gamemanager:latest
+  -e IGDB_CLIENT_ID=your_igdb_client_id \
+  -e IGDB_CLIENT_SECRET=your_igdb_client_secret \
+  aderumier/cursorscraper:latest
 ```
+
+#### IGDB Integration Setup
+
+To enable IGDB scraping features, you need to provide your IGDB API credentials:
+
+1. **Get IGDB Credentials**: Visit [Twitch Developer Console](https://dev.twitch.tv/console/apps) to create an app and get your Client ID and Client Secret
+2. **Set Environment Variables**: Use the `-e` flags in your Docker run command
+3. **Alternative**: Configure via web interface after container starts
+
+**Environment Variables:**
+- `IGDB_CLIENT_ID`: Your IGDB/Twitch Client ID
+- `IGDB_CLIENT_SECRET`: Your IGDB/Twitch Client Secret
 
 **📖 For detailed Docker deployment instructions on Linux and Windows, see [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)**
 
@@ -735,18 +749,17 @@ sudo certbot renew --dry-run
 version: '3.8'
 services:
   cursorscraper:
-    build: .
+    image: aderumier/cursorscraper:latest
     container_name: cursorscraper
     ports:
       - "127.0.0.1:5000:5000"  # Bind to localhost only
     volumes:
-      - ./roms:/app/roms
-      - ./media:/app/media
-      - ./cache:/app/cache
-      - ./var/task_logs:/app/var/task_logs
-      - ./var/config/config.json:/app/var/config/config.json
+      - ./roms:/opt/gamemanager/roms
+      - ./var:/opt/gamemanager/var
     environment:
       - FLASK_ENV=production
+      - IGDB_CLIENT_ID=your_igdb_client_id
+      - IGDB_CLIENT_SECRET=your_igdb_client_secret
     restart: unless-stopped
 ```
 
