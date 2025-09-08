@@ -2600,6 +2600,20 @@ class GameCollectionManager {
     }
 
     async populateEditModal(game) {
+        // Clear all fields first to ensure no residual data
+        document.getElementById('editName').value = '';
+        document.getElementById('editPath').value = '';
+        document.getElementById('editDescription').value = '';
+        document.getElementById('editGenre').value = '';
+        document.getElementById('editDeveloper').value = '';
+        document.getElementById('editPublisher').value = '';
+        document.getElementById('editRating').value = '';
+        document.getElementById('editPlayers').value = '';
+        document.getElementById('editLaunchboxId').value = '';
+        document.getElementById('editIgdbId').value = '';
+        document.getElementById('editYoutubeurl').value = '';
+        
+        // Now populate with game data
         document.getElementById('editName').value = game.name || '';
         document.getElementById('editPath').value = game.path || '';
         document.getElementById('editDescription').value = game.desc || '';
