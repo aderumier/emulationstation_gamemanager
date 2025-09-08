@@ -2127,6 +2127,25 @@ class GameCollectionManager {
                     flex: 1
                 },
                 { 
+                    field: 'youtubeurl', 
+                    headerName: 'YouTube URL', 
+                    editable: true, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    flex: 2,
+                    headerTooltip: 'YouTube URL for game videos. Can be edited manually or populated by scraping.',
+                    cellStyle: { 
+                        backgroundColor: '#fff3cd',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em'
+                    },
+                    cellEditor: 'agTextCellEditor',
+                    cellEditorParams: {
+                        maxLength: 500
+                    }
+                },
+                { 
                     field: 'image', 
                     headerName: 'Image', 
                     editable: false, 
@@ -2579,6 +2598,7 @@ class GameCollectionManager {
         document.getElementById('editPlayers').value = game.players || '';
         document.getElementById('editLaunchboxId').value = game.launchboxid || '';
         document.getElementById('editIgdbId').value = game.igdbid || '';
+        document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
         // Populate the media tab with the same media display as the preview panel
         await this.showEditGameMedia(game);
@@ -3341,6 +3361,7 @@ class GameCollectionManager {
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
         game.igdbid = document.getElementById('editIgdbId').value;
+        game.youtubeurl = document.getElementById('editYoutubeurl').value;
 
         console.log('Updated game object:', game);
         
@@ -3353,6 +3374,7 @@ class GameCollectionManager {
         if (originalGame.publisher !== game.publisher) changedFields.push('publisher');
         if (originalGame.rating !== game.rating) changedFields.push('rating');
         if (originalGame.players !== game.players) changedFields.push('players');
+        if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
         
         console.log('Changed fields:', changedFields);
         
@@ -8017,6 +8039,7 @@ class GameCollectionManager {
             const ratingField = document.getElementById('editRating');
             const playersField = document.getElementById('editPlayers');
             const launchboxIdField = document.getElementById('editLaunchboxId');
+            const youtubeurlField = document.getElementById('editYoutubeurl');
             
             if (nameField && updatedGame.name) nameField.value = updatedGame.name;
             if (descField && updatedGame.desc) descField.value = updatedGame.desc;
@@ -8026,6 +8049,7 @@ class GameCollectionManager {
             if (ratingField && updatedGame.rating) ratingField.value = updatedGame.rating;
             if (playersField && updatedGame.players) playersField.value = updatedGame.players;
             if (launchboxIdField && updatedGame.launchboxid) launchboxIdField.value = updatedGame.launchboxid;
+            if (youtubeurlField && updatedGame.youtubeurl) youtubeurlField.value = updatedGame.youtubeurl;
             
             console.log('Edit modal fields updated with match data');
         }
