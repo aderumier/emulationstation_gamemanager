@@ -9126,8 +9126,10 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         elif not image_url.startswith('http'):
             image_url = f"https://images.igdb.com{image_url}"
         
-        # Use original format - no URL modification needed
-        # The API returns all formats, so we use the original format
+        # Replace thumb size with 720p for better quality
+        if '/t_thumb/' in image_url:
+            image_url = image_url.replace('/t_thumb/', '/t_720p/')
+            print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
         
         print(f"{emoji} DEBUG: Final image URL: {image_url}")
         
@@ -9148,13 +9150,9 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
         
-        # Create filename from ROM filename (without extension) + original extension
+        # Create filename from ROM filename (without extension) + .png extension
         rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
-        # Get original file extension from URL
-        original_ext = os.path.splitext(os.path.basename(image_url))[1]
-        if not original_ext:
-            original_ext = '.png'  # Fallback to PNG if no extension found
-        filename = f"{rom_name_without_ext}{original_ext}"
+        filename = f"{rom_name_without_ext}.png"  # Always save as PNG
         file_path = os.path.join(media_dir, filename)
         print(f"{emoji} DEBUG: Safe filename: {filename}")
         print(f"{emoji} DEBUG: Full file path: {file_path}")
