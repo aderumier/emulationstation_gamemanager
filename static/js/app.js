@@ -1389,9 +1389,16 @@ class GameCollectionManager {
         });
 
         // LaunchBox overwrite text fields checkbox
-        document.getElementById('overwriteTextFieldsLaunchbox').addEventListener('change', (e) => {
-            this.setCookie('launchboxOverwriteTextFields', e.target.checked);
-        });
+        const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
+        if (overwriteTextFieldsCheckbox) {
+            overwriteTextFieldsCheckbox.addEventListener('change', (e) => {
+                console.log('🔧 DEBUG: LaunchBox overwrite text fields checkbox changed:', e.target.checked);
+                this.setCookie('launchboxOverwriteTextFields', e.target.checked);
+                console.log('🔧 DEBUG: Cookie saved, verifying...', this.getCookie('launchboxOverwriteTextFields'));
+            });
+        } else {
+            console.warn('🔧 DEBUG: overwriteTextFieldsLaunchbox element not found when setting up event listener');
+        }
 
         // Grid selection change - handled by grid API listener
 
@@ -5723,6 +5730,9 @@ class GameCollectionManager {
         const savedForceDownload = this.getCookie('forceDownloadImages');
         const savedOverwriteTextFields = this.getCookie('launchboxOverwriteTextFields');
         
+        console.log('🔧 DEBUG: loadLaunchboxSettings - savedForceDownload:', savedForceDownload);
+        console.log('🔧 DEBUG: loadLaunchboxSettings - savedOverwriteTextFields:', savedOverwriteTextFields);
+        
         // Update modal checkboxes with saved values
         const forceDownloadCheckbox = document.getElementById('forceDownloadImagesModal');
         const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
@@ -7439,6 +7449,11 @@ class GameCollectionManager {
                 console.error(`setCookie: localStorage error for ${name}:`, error);
                 // Fallback to cookie if localStorage fails
             }
+        }
+        
+        // Debug logging for LaunchBox overwrite text fields
+        if (name === 'launchboxOverwriteTextFields') {
+            console.log(`🔧 DEBUG: setCookie called for ${name} with value:`, value, '(type:', typeof value, ')');
         }
         
         // Ensure value is not undefined or null
