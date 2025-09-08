@@ -8747,9 +8747,33 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
                 artwork_type = logo.get('artwork_type', 'N/A')
                 print(f"🏷️ DEBUG: Logo {i+1}: id={logo.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}, artwork_type={artwork_type}")
             
-            # Return the first logo if any exist
+            # Prioritize PNG versions for logos to preserve transparency
             if logos:
-                selected = logos[0]
+                # Try to find a PNG version first
+                png_logo = None
+                for logo in logos:
+                    url = logo.get('url', '')
+                    if '.png' in url.lower() or '/t_png/' in url.lower():
+                        png_logo = logo
+                        print(f"🏷️ DEBUG: Found PNG logo: {logo.get('id')} with url: {url}")
+                        break
+                
+                # If no PNG found, use the first logo and modify URL to PNG
+                if png_logo:
+                    selected = png_logo
+                else:
+                    selected = logos[0]
+                    # Modify URL to use PNG format
+                    original_url = selected.get('url', '')
+                    if original_url and not original_url.endswith('.png'):
+                        # Replace common image format indicators with PNG
+                        png_url = original_url.replace('/t_thumb/', '/t_png/')
+                        png_url = png_url.replace('/t_720p/', '/t_png/')
+                        png_url = png_url.replace('.jpg', '.png')
+                        png_url = png_url.replace('.jpeg', '.png')
+                        selected['url'] = png_url
+                        print(f"🏷️ DEBUG: Modified logo URL to PNG format: {png_url}")
+                
                 print(f"🏷️ DEBUG: Selected logo: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
                 return selected
             else:
