@@ -8766,6 +8766,182 @@ async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id)
         traceback.print_exc()
         return None
 
+# =============================================================================
+# IGDB Game Localizations Cache
+# =============================================================================
+
+def get_igdb_localization_cache_path():
+    """Get the path to the IGDB localization cache file"""
+    cache_dir = ensure_igdb_directory()
+    if cache_dir:
+        return os.path.join(cache_dir, 'localizations_cache.json')
+    return None
+
+def load_igdb_localization_cache():
+    """Load IGDB localization cache from file"""
+    cache_path = get_igdb_localization_cache_path()
+    if cache_path and os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading IGDB localization cache: {e}")
+    return {}
+
+def save_igdb_localization_cache(cache):
+    """Save IGDB localization cache to file"""
+    cache_path = get_igdb_localization_cache_path()
+    if cache_path:
+        try:
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            with open(cache_path, 'w', encoding='utf-8') as f:
+                json.dump(cache, f, indent=2, ensure_ascii=False)
+            print(f"✅ Saved IGDB localization cache with {len(cache)} entries")
+        except Exception as e:
+            print(f"Error saving IGDB localization cache: {e}")
+
+def get_igdb_region_name(localization_id, localization_cache):
+    """Get region name from localization ID"""
+    if localization_id in localization_cache:
+        return localization_cache[localization_id].get('name', 'Unknown')
+    return 'Unknown'
+
+async def ensure_igdb_localization_cache(async_client, access_token, client_id):
+    """Ensure IGDB localization cache is populated"""
+    cache = load_igdb_localization_cache()
+    
+    if not cache:
+        print("🔄 IGDB localization cache is empty, fetching from API...")
+        try:
+            search_url = "https://api.igdb.com/v4/game_localizations"
+            search_data = 'fields id,name,region; limit 500;'
+            
+            headers = {
+                'Client-ID': client_id,
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'text/plain'
+            }
+            
+            response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+            
+            if response and response.status_code == 200:
+                localizations = response.json()
+                print(f"📋 Found {len(localizations)} game localizations")
+                
+                for loc in localizations:
+                    cache[loc['id']] = {
+                        'name': loc.get('name', ''),
+                        'region': loc.get('region', 0)
+                    }
+                
+                save_igdb_localization_cache(cache)
+            else:
+                print(f"❌ Failed to fetch IGDB localizations: {response.status_code if response else 'No response'}")
+        except Exception as e:
+            print(f"❌ Error fetching IGDB localizations: {e}")
+    
+    return cache
+
+def extract_region_from_game_name(game_name):
+    """Extract region from game name if it's in parentheses"""
+    import re
+    # Look for region in parentheses at the end
+    match = re.search(r'\(([^)]+)\)$', game_name)
+    if match:
+        region = match.group(1).strip()
+        print(f"🌍 DEBUG: Extracted region from game name: '{region}'")
+        return region
+    return None
+
+def find_matching_cover(covers, target_region, localization_cache):
+    """Find cover that matches the target region"""
+    if not target_region:
+        return covers[0] if covers else None
+    
+    print(f"🌍 DEBUG: Looking for cover matching region: '{target_region}'")
+    
+    # First, try exact match
+    for cover in covers:
+        if cover.get('game_localization'):
+            region_name = get_igdb_region_name(cover['game_localization'], localization_cache)
+            print(f"🌍 DEBUG: Cover {cover.get('id')} has region: '{region_name}'")
+            if region_name.lower() == target_region.lower():
+                print(f"🌍 DEBUG: Found exact region match!")
+                return cover
+    
+    # If no exact match, try partial match
+    for cover in covers:
+        if cover.get('game_localization'):
+            region_name = get_igdb_region_name(cover['game_localization'], localization_cache)
+            if target_region.lower() in region_name.lower() or region_name.lower() in target_region.lower():
+                print(f"🌍 DEBUG: Found partial region match: '{region_name}'")
+                return cover
+    
+    print(f"🌍 DEBUG: No region match found, using first cover")
+    return covers[0] if covers else None
+
+async def fetch_igdb_covers(async_client, access_token, client_id, game_id, game_name):
+    """Fetch covers for a specific game and return the best match based on region"""
+    try:
+        print(f"🖼️ DEBUG: fetch_igdb_covers called for game_id: {game_id}, game_name: {game_name}")
+        
+        # Ensure localization cache is populated
+        localization_cache = await ensure_igdb_localization_cache(async_client, access_token, client_id)
+        
+        search_url = "https://api.igdb.com/v4/covers"
+        search_data = f'fields id,image_id,width,height,url,game_localization; where game = {game_id};'
+        
+        print(f"🖼️ DEBUG: Covers API request - URL: {search_url}")
+        print(f"🖼️ DEBUG: Covers API request - Data: {search_data}")
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        
+        if response and response.status_code == 200:
+            covers = response.json()
+            print(f"🖼️ DEBUG: Received {len(covers)} covers from API")
+            
+            # Debug: Print all covers
+            for i, cover in enumerate(covers):
+                width = cover.get('width', 0)
+                height = cover.get('height', 0)
+                image_id = cover.get('image_id', 'N/A')
+                url = cover.get('url', 'N/A')
+                localization_id = cover.get('game_localization', 'N/A')
+                region_name = get_igdb_region_name(localization_id, localization_cache) if localization_id != 'N/A' else 'N/A'
+                print(f"🖼️ DEBUG: Cover {i+1}: id={cover.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}, region='{region_name}'")
+            
+            # Extract region from game name
+            target_region = extract_region_from_game_name(game_name)
+            
+            # Find best matching cover
+            selected_cover = find_matching_cover(covers, target_region, localization_cache)
+            
+            if selected_cover:
+                region_name = get_igdb_region_name(selected_cover.get('game_localization'), localization_cache) if selected_cover.get('game_localization') else 'Default'
+                print(f"🖼️ DEBUG: Selected cover: {selected_cover.get('id')} with image_id: {selected_cover.get('image_id')}, url: {selected_cover.get('url')}, region: '{region_name}'")
+                return selected_cover
+            else:
+                print(f"🖼️ DEBUG: No covers found for game {game_id}")
+                return None
+        else:
+            if response:
+                print(f"🖼️ DEBUG: IGDB covers API error: {response.status_code} - {response.text}")
+            else:
+                print(f"🖼️ DEBUG: No response received from covers API")
+            return None
+    except Exception as e:
+        print(f"🖼️ DEBUG: Error fetching IGDB covers: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 async def download_igdb_image(image_data, system_name, game_name, image_type="fanart"):
     """Download image from IGDB and save it to the appropriate directory"""
     try:
@@ -8795,8 +8971,12 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
         # Create appropriate directory for the system
         if image_type == "fanart":
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'fanarts')
-        else:  # screenshot
+        elif image_type == "screenshot":
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'screenshots')
+        elif image_type == "cover":
+            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'boxart')
+        else:
+            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'images')
         
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
@@ -8886,8 +9066,12 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
             # Return relative path for gamelist
             if image_type == "fanart":
                 relative_path = f"./media/fanarts/{filename}"
-            else:  # screenshot
+            elif image_type == "screenshot":
                 relative_path = f"./media/screenshots/{filename}"
+            elif image_type == "cover":
+                relative_path = f"./media/boxart/{filename}"
+            else:
+                relative_path = f"./media/images/{filename}"
             
             print(f"{emoji} DEBUG: Returning relative path: {relative_path}")
             return relative_path
@@ -9469,6 +9653,71 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                     print(f"📸 DEBUG: Skipping screenshot download - already exists and overwrite disabled")
             else:
                 print(f"📸 DEBUG: Screenshot field not selected, skipping screenshot processing")
+            
+            # Fetch and download cover if selected fields include covers
+            if not selected_fields or 'cover' in selected_fields:
+                print(f"🖼️ DEBUG: Cover field is selected or no field selection (all fields)")
+                # Check if cover field is selected or if no field selection (all fields)
+                extra1_elem = game.find('extra1')  # Cover is stored in extra1 field
+                overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
+                
+                print(f"🖼️ DEBUG: Existing extra1 element: {extra1_elem is not None}")
+                if extra1_elem is not None:
+                    print(f"🖼️ DEBUG: Existing extra1 text: '{extra1_elem.text}'")
+                print(f"🖼️ DEBUG: Overwrite media fields: {overwrite_media_fields}")
+                
+                # Only download cover if it doesn't exist or if overwrite is enabled
+                if extra1_elem is None or not extra1_elem.text or overwrite_media_fields:
+                    print(f"🖼️ DEBUG: Proceeding with cover download for '{game_name}'...")
+                    print(f"🖼️ Fetching cover for '{game_name}'...")
+                    try:
+                        # Add timeout to cover fetching as well
+                        import asyncio
+                        cover = await asyncio.wait_for(
+                            fetch_igdb_covers(async_client, access_token, client_id, igdb_game['id'], game_name),
+                            timeout=15.0  # 15 second timeout for API call
+                        )
+                    except asyncio.TimeoutError:
+                        print(f"⏰ Timeout fetching covers for '{game_name}' (15s limit)")
+                        cover = None
+                    except Exception as e:
+                        print(f"❌ Error fetching covers for '{game_name}': {e}")
+                        cover = None
+                    if cover and cover.get('image_id'):
+                        print(f"🖼️ DEBUG: Cover found, proceeding with download...")
+                        # Get system name from the current system being processed
+                        system_name = igdb_config.get('system_name', 'unknown')
+                        print(f"🖼️ DEBUG: System name from config: {system_name}")
+                        
+                        try:
+                            # Add timeout to prevent hanging
+                            import asyncio
+                            cover_path = await asyncio.wait_for(
+                                download_igdb_image(
+                                    cover, 
+                                    system_name, 
+                                    game_name,
+                                    "cover"
+                                ),
+                                timeout=30.0  # 30 second timeout
+                            )
+                            if cover_path:
+                                if extra1_elem is None:
+                                    extra1_elem = ET.SubElement(game, 'extra1')
+                                extra1_elem.text = cover_path
+                                print(f"✅ Downloaded cover for '{game_name}': {cover_path}")
+                            else:
+                                print(f"❌ Failed to download cover for '{game_name}'")
+                        except asyncio.TimeoutError:
+                            print(f"⏰ Timeout downloading cover for '{game_name}' (30s limit)")
+                        except Exception as e:
+                            print(f"❌ Error downloading cover for '{game_name}': {e}")
+                    else:
+                        print(f"❌ No suitable cover found for '{game_name}'")
+                else:
+                    print(f"🖼️ DEBUG: Skipping cover download - already exists and overwrite disabled")
+            else:
+                print(f"🖼️ DEBUG: Cover field not selected, skipping cover processing")
             
             # Populate other fields with IGDB data
             fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache)
