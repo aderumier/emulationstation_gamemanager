@@ -5830,8 +5830,14 @@ class GameCollectionManager {
         }
         
         if (overwriteTextFieldsCheckbox) {
-            overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
-            console.log('🔧 DEBUG: Setting overwriteTextFields checkbox to:', savedOverwriteTextFields === 'true', '(saved value:', savedOverwriteTextFields, ')');
+            if (savedOverwriteTextFields !== null) {
+                overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
+                console.log('🔧 DEBUG: loadLaunchboxSettings - Setting overwriteTextFields checkbox to:', savedOverwriteTextFields === 'true', '(saved value:', savedOverwriteTextFields, ')');
+            } else {
+                // No saved value, set to default (unchecked)
+                overwriteTextFieldsCheckbox.checked = false;
+                console.log('🔧 DEBUG: loadLaunchboxSettings - No saved value, setting overwriteTextFields checkbox to default (false)');
+            }
         }
     }
     
@@ -7540,11 +7546,15 @@ class GameCollectionManager {
         }
         
         // Load overwrite text fields checkbox state (in LaunchBox Configuration modal)
-        if (savedOverwriteTextFields !== null) {
-            const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
-            if (overwriteTextFieldsCheckbox) {
+        const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
+        if (overwriteTextFieldsCheckbox) {
+            if (savedOverwriteTextFields !== null) {
                 overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
                 console.log('🔧 DEBUG: loadState - Setting overwriteTextFields checkbox to:', savedOverwriteTextFields === 'true', '(saved value:', savedOverwriteTextFields, ')');
+            } else {
+                // No saved value, set to default (unchecked)
+                overwriteTextFieldsCheckbox.checked = false;
+                console.log('🔧 DEBUG: loadState - No saved value, setting overwriteTextFields checkbox to default (false)');
             }
         }
     }
