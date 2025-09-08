@@ -8753,7 +8753,7 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
                 png_logo = None
                 for logo in logos:
                     url = logo.get('url', '')
-                    if '.png' in url.lower() or '/t_png/' in url.lower():
+                    if '.png' in url.lower():
                         png_logo = logo
                         print(f"🏷️ DEBUG: Found PNG logo: {logo.get('id')} with url: {url}")
                         break
@@ -8763,14 +8763,13 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
                     selected = png_logo
                 else:
                     selected = logos[0]
-                    # Modify URL to use PNG format
+                    # Modify URL to use PNG format by changing extension only
                     original_url = selected.get('url', '')
                     if original_url and not original_url.endswith('.png'):
-                        # Replace common image format indicators with PNG
-                        png_url = original_url.replace('/t_thumb/', '/t_png/')
-                        png_url = png_url.replace('/t_720p/', '/t_png/')
-                        png_url = png_url.replace('.jpg', '.png')
+                        # Replace file extension with PNG, keep original preset
+                        png_url = original_url.replace('.jpg', '.png')
                         png_url = png_url.replace('.jpeg', '.png')
+                        png_url = png_url.replace('.webp', '.png')
                         selected['url'] = png_url
                         print(f"🏷️ DEBUG: Modified logo URL to PNG format: {png_url}")
                 
@@ -9150,18 +9149,13 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         elif not image_url.startswith('http'):
             image_url = f"https://images.igdb.com{image_url}"
         
-        # For logos, try PNG first to preserve transparency
+        # For logos, try to get PNG format by changing file extension
         if image_type == "logo":
-            if '/t_thumb/' in image_url:
-                image_url = image_url.replace('/t_thumb/', '/t_png/')
-                print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_png/ for logo transparency")
-            elif '/t_720p/' in image_url:
-                image_url = image_url.replace('/t_720p/', '/t_png/')
-                print(f"{emoji} DEBUG: Replaced /t_720p/ with /t_png/ for logo transparency")
-            elif not image_url.endswith('.png'):
-                # Replace other formats with PNG
+            if not image_url.endswith('.png'):
+                # Replace other formats with PNG extension
                 image_url = image_url.replace('.jpg', '.png').replace('.jpeg', '.png').replace('.webp', '.png')
                 print(f"{emoji} DEBUG: Modified logo URL to PNG format for transparency")
+            # Keep the original preset (/t_thumb/ or /t_720p/) but change extension to .png
         else:
             # For other image types, replace thumb size with 720p for better quality
             if '/t_thumb/' in image_url:
