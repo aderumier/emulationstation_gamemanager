@@ -6604,6 +6604,7 @@ def youtube_download_batch(system_name):
         selected_games = data.get('selected_games', [])
         start_time = data.get('start_time', 0)
         auto_crop = data.get('auto_crop', False)
+        overwrite_existing = data.get('overwrite_existing', False)
         
         if not selected_games:
             return jsonify({'error': 'No games selected for download'}), 400
@@ -6625,7 +6626,8 @@ def youtube_download_batch(system_name):
             'system_name': system_name,
             'selected_games': selected_games,
             'start_time': start_time,
-            'auto_crop': auto_crop
+            'auto_crop': auto_crop,
+            'overwrite_existing': overwrite_existing
         }
         
         task = create_task('youtube_download_batch', task_data)
@@ -6633,7 +6635,7 @@ def youtube_download_batch(system_name):
         task.start()
         
         # Start task in background thread
-        thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop))
+        thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing))
         thread.daemon = True
         thread.start()
         
@@ -7495,7 +7497,7 @@ def run_youtube_download_task(task_id, data):
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
 
-def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop):
+def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, overwrite_existing):
     """Run batch YouTube download task in background thread"""
     global current_task_id
     
@@ -7512,6 +7514,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         task.update_progress(f"  Games to process: {len(selected_games)}")
         task.update_progress(f"  Start time: {start_time} seconds")
         task.update_progress(f"  Auto crop: {auto_crop}")
+        task.update_progress(f"  Overwrite existing: {overwrite_existing}")
         
         # Validate system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -7581,10 +7584,12 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 output_path = os.path.join(videos_dir, output_filename)
                 
                 # Check if video already exists
-                if os.path.exists(output_path):
+                if os.path.exists(output_path) and not overwrite_existing:
                     task.update_progress(f"  Video already exists, skipping: {output_filename}")
                     successful_downloads += 1
                     continue
+                elif os.path.exists(output_path) and overwrite_existing:
+                    task.update_progress(f"  Video already exists, overwriting: {output_filename}")
                 
                 # Download the video using the existing YouTube download logic
                 success = download_youtube_video_for_game(
@@ -7698,19 +7703,25 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_file = temp_files[0]
         temp_path = os.path.join(videos_dir, temp_file)
         
-        # Rename to final filename
+        # Apply auto crop if enabled (on temporary file)
+        if auto_crop:
+            task.update_progress(f"  🔧 Applying auto crop to temporary file: {temp_file}")
+            crop_success = apply_auto_crop(task, temp_path, game_name)
+            if not crop_success:
+                task.update_progress(f"  ⚠️ Auto crop failed for {game_name}, using original video")
+        
+        # Move temporary file to final location
         if os.path.exists(temp_path):
+            # Remove existing file if it exists (for overwrite case)
+            if os.path.exists(output_path):
+                os.remove(output_path)
+                task.update_progress(f"  🗑️ Removed existing file: {output_filename_only}")
+            
             os.rename(temp_path, output_path)
-            task.update_progress(f"  📁 Renamed {temp_file} to {output_filename_only}")
+            task.update_progress(f"  📁 Moved {temp_file} to final location: {output_filename_only}")
         else:
             task.update_progress(f"  ❌ Temporary file not found: {temp_file}")
             return False
-        
-        # Apply auto crop if enabled
-        if auto_crop:
-            success = apply_auto_crop(task, output_path, game_name)
-            if not success:
-                task.update_progress(f"  ⚠️ Auto crop failed for {game_name}, but video downloaded")
         
         return True
         
@@ -7723,7 +7734,7 @@ def apply_auto_crop(task, video_path, game_name):
     try:
         import subprocess
         
-        # Create cropped filename
+        # Create temporary cropped filename
         base_path = os.path.splitext(video_path)[0]
         cropped_path = f"{base_path}_cropped.mp4"
         
@@ -7756,6 +7767,9 @@ def apply_auto_crop(task, video_path, game_name):
                 task.update_progress(f"  ffmpeg error: {result.stderr}")
             if result.stdout:
                 task.update_progress(f"  ffmpeg output: {result.stdout}")
+            # Clean up failed cropped file if it exists
+            if os.path.exists(cropped_path):
+                os.remove(cropped_path)
             return False
             
     except Exception as e:

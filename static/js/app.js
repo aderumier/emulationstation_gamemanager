@@ -3776,6 +3776,7 @@ class GameCollectionManager {
             // Get form values
             const startTime = parseInt(document.getElementById('youtubeStartTime').value) || 0;
             const autoCrop = document.getElementById('youtubeAutoCrop').checked;
+            const overwriteExisting = document.getElementById('youtubeOverwriteExisting').checked;
 
             // Determine which games to process
             const gamesToProcess = this.selectedGames.length > 0 ? this.selectedGames : this.games;
@@ -3809,7 +3810,8 @@ class GameCollectionManager {
             const requestBody = {
                 selected_games: gamesWithYoutube.map(game => game.path),
                 start_time: startTime,
-                auto_crop: autoCrop
+                auto_crop: autoCrop,
+                overwrite_existing: overwriteExisting
             };
 
             console.log('Starting YouTube download batch task:', requestBody);
