@@ -9254,7 +9254,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             print(f"🎨 DEBUG: Selected fields: {selected_fields}")
             print(f"🎨 DEBUG: Checking if fanart should be processed...")
             
-            if not selected_fields or 'fanart' in selected_fields:
+            if not selected_fields or 'artworks' in selected_fields:
                 print(f"🎨 DEBUG: Fanart field is selected or no field selection (all fields)")
                 # Check if fanart field is selected or if no field selection (all fields)
                 fanart_elem = game.find('fanart')
