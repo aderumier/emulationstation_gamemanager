@@ -6862,13 +6862,20 @@ def run_rom_scan_task(system_name):
         
         task.update_progress(f"Supported ROM extensions: {', '.join(rom_extensions)}")
         
-        # Scan for ROM files
+        # Scan for ROM files (including subdirectories, excluding media folder)
         rom_files = []
-        for filename in os.listdir(system_path):
-            if any(filename.lower().endswith(ext.lower()) for ext in rom_extensions):
-                rom_files.append(filename)
+        for root, dirs, files in os.walk(system_path):
+            # Skip the media directory
+            if 'media' in dirs:
+                dirs.remove('media')
+            
+            for filename in files:
+                if any(filename.lower().endswith(ext.lower()) for ext in rom_extensions):
+                    # Get relative path from system directory
+                    rel_path = os.path.relpath(os.path.join(root, filename), system_path)
+                    rom_files.append(rel_path)
         
-        task.update_progress(f"Found {len(rom_files)} ROM files in system directory")
+        task.update_progress(f"Found {len(rom_files)} ROM files in system directory (including subdirectories)")
         
         # Load existing gamelist if it exists
         existing_games = []
@@ -6876,18 +6883,21 @@ def run_rom_scan_task(system_name):
             existing_games = parse_gamelist_xml(gamelist_path)
             task.update_progress(f"Loaded {len(existing_games)} existing games from gamelist.xml")
         
-        # Create a set of existing ROM filenames for quick lookup
+        # Create a set of existing ROM paths for quick lookup
         existing_roms = set()
         for game in existing_games:
             rom_path = game.get('path', '')
             if rom_path:
-                rom_filename = os.path.basename(rom_path)
-                existing_roms.add(rom_filename)
+                # Normalize path (remove ./ prefix if present)
+                normalized_path = rom_path.lstrip('./')
+                existing_roms.add(normalized_path)
         
         # Find new ROMs to add
         new_roms = []
         for rom_file in rom_files:
-            if rom_file not in existing_roms:
+            # Normalize path for comparison
+            normalized_rom_file = rom_file.lstrip('./')
+            if normalized_rom_file not in existing_roms:
                 new_roms.append(rom_file)
         
         # Find games with missing ROM files
@@ -6895,8 +6905,9 @@ def run_rom_scan_task(system_name):
         for game in existing_games:
             rom_path = game.get('path', '')
             if rom_path:
-                rom_filename = os.path.basename(rom_path)
-                rom_file_path = os.path.join(system_path, rom_filename)
+                # Normalize path (remove ./ prefix if present)
+                normalized_path = rom_path.lstrip('./')
+                rom_file_path = os.path.join(system_path, normalized_path)
                 if not os.path.exists(rom_file_path):
                     missing_roms.append(game)
         
