@@ -9150,10 +9150,23 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         elif not image_url.startswith('http'):
             image_url = f"https://images.igdb.com{image_url}"
         
-        # Replace thumb size with 720p for better quality
-        if '/t_thumb/' in image_url:
-            image_url = image_url.replace('/t_thumb/', '/t_720p/')
-            print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
+        # For logos, try PNG first to preserve transparency
+        if image_type == "logo":
+            if '/t_thumb/' in image_url:
+                image_url = image_url.replace('/t_thumb/', '/t_png/')
+                print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_png/ for logo transparency")
+            elif '/t_720p/' in image_url:
+                image_url = image_url.replace('/t_720p/', '/t_png/')
+                print(f"{emoji} DEBUG: Replaced /t_720p/ with /t_png/ for logo transparency")
+            elif not image_url.endswith('.png'):
+                # Replace other formats with PNG
+                image_url = image_url.replace('.jpg', '.png').replace('.jpeg', '.png').replace('.webp', '.png')
+                print(f"{emoji} DEBUG: Modified logo URL to PNG format for transparency")
+        else:
+            # For other image types, replace thumb size with 720p for better quality
+            if '/t_thumb/' in image_url:
+                image_url = image_url.replace('/t_thumb/', '/t_720p/')
+                print(f"{emoji} DEBUG: Replaced /t_thumb/ with /t_720p/ for better quality")
         
         print(f"{emoji} DEBUG: Final image URL: {image_url}")
         
@@ -9212,7 +9225,12 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                 f.write(response.content)
             
             # Check if we need to convert from WebP to PNG
-            if 'webp' in content_type or temp_file_path.endswith('.webp'):
+            # Skip conversion if it's already PNG (especially for logos)
+            if 'png' in content_type or image_url.endswith('.png'):
+                print(f"{emoji} DEBUG: Image is already PNG, skipping conversion...")
+                # No conversion needed, just rename the temp file
+                os.rename(temp_file_path, file_path)
+            elif 'webp' in content_type or temp_file_path.endswith('.webp'):
                 print(f"{emoji} DEBUG: Converting WebP to PNG...")
                 try:
                     from PIL import Image
