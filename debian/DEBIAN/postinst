@@ -86,6 +86,12 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     # Upgrade
     echo "Upgrading GameManager..."
     
+    # Ensure gamemanager user exists (in case it was removed)
+    if ! id "gamemanager" &>/dev/null; then
+        echo "Creating gamemanager user..."
+        useradd --system --shell /bin/false --home-dir /opt/gamemanager --create-home gamemanager
+    fi
+    
     # Ensure directories exist (in case they were removed)
     mkdir -p /opt/gamemanager/var/task_logs
     mkdir -p /opt/gamemanager/var/db
