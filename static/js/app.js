@@ -554,7 +554,9 @@ class GameCollectionManager {
             oldGame.publisher !== newGame.publisher ||
             oldGame.genre !== newGame.genre ||
             oldGame.rating !== newGame.rating ||
-            oldGame.players !== newGame.players
+            oldGame.players !== newGame.players ||
+            oldGame.igdbid !== newGame.igdbid ||
+            oldGame.launchboxid !== newGame.launchboxid
         );
     }
 
@@ -1327,11 +1329,6 @@ class GameCollectionManager {
 
         // Media preview is now always enabled (no checkbox needed)
 
-        // Partial match modal toggle (in LaunchBox Configuration modal)
-        document.getElementById('enablePartialMatchModalModal').addEventListener('change', (e) => {
-            this.setCookie('enablePartialMatchModal', e.target.checked);
-        });
-
         // Force download toggle (in LaunchBox Configuration modal)
         document.getElementById('forceDownloadImagesModal').addEventListener('change', (e) => {
             this.setCookie('forceDownloadImages', e.target.checked);
@@ -1389,6 +1386,11 @@ class GameCollectionManager {
                 checkbox.checked = false;
             });
             await this.saveLaunchboxFieldSettings();
+        });
+
+        // LaunchBox overwrite text fields checkbox
+        document.getElementById('overwriteTextFieldsLaunchbox').addEventListener('change', (e) => {
+            this.setCookie('launchboxOverwriteTextFields', e.target.checked);
         });
 
         // Grid selection change - handled by grid API listener
@@ -3788,26 +3790,29 @@ class GameCollectionManager {
             const isFullCollection = this.selectedGames.length === 0;
             const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
             
-            // Get the partial match modal setting
-            const enablePartialMatchModal = document.getElementById('enablePartialMatchModalModal').checked;
-            
             // Get force download setting
             const forceDownload = document.getElementById('forceDownloadImagesModal').checked;
             
+            // Get overwrite text fields setting
+            const overwriteTextFields = document.getElementById('overwriteTextFieldsLaunchbox').checked;
+            
             // Get selected fields for LaunchBox scraping
             const selectedFields = await this.getSelectedLaunchboxFields();
+            
+            const requestBody = {
+                selected_games: gamesToScrape.map(game => game.path),
+                force_download: forceDownload,
+                overwrite_text_fields: overwriteTextFields,
+                selected_fields: selectedFields
+            };
+            console.log('DEBUG: JavaScript - Request body:', requestBody);
             
             const response = await fetch(`/api/scrap-launchbox/${this.currentSystem}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    selected_games: gamesToScrape.map(game => game.path),
-                    enable_partial_match_modal: enablePartialMatchModal,
-                    force_download: forceDownload,
-                    selected_fields: selectedFields
-                })
+                body: JSON.stringify(requestBody)
             });
             
             if (response.ok) {
@@ -5461,6 +5466,8 @@ class GameCollectionManager {
     }
     
     handleTaskCompletion(data) {
+        console.log('Task completion received:', data);
+        
         // Check if this is a manual crop task completion
         if (data.task_type === 'manual_crop' && data.success) {
             console.log('Manual crop task completed successfully');
@@ -5483,6 +5490,65 @@ class GameCollectionManager {
                     this.showEditGameVideo(this.currentCropGame);
                 });
             }
+        }
+        
+        // Check if this is an IGDB scraping task completion
+        if (data.task_type === 'igdb_scraping') {
+            console.log('IGDB scraping task completed:', data);
+            console.log('Current system:', this.currentSystem);
+            console.log('Task system name:', data.system_name);
+            console.log('Task success:', data.success);
+            console.log('Task stopped:', data.stopped);
+            
+            // Refresh the task grid to show updated task status
+            this.refreshTaskGrid();
+            
+            // Refresh the gamelist grid if we're viewing the same system that was scraped
+            // This applies to both successful completion and stopped tasks (since gamelist is saved in both cases)
+            if (data.system_name && data.system_name === this.currentSystem) {
+                console.log('✅ System names match - refreshing gamelist grid for system:', data.system_name);
+                console.log('🔄 About to call loadRomSystem...');
+                
+                // Add a delay to ensure gamelist.xml file write has completed
+                setTimeout(() => {
+                    this.loadRomSystem(this.currentSystem).then(() => {
+                        console.log('✅ Gamelist grid refreshed after IGDB task completion');
+                    }).catch((error) => {
+                        console.error('❌ Error refreshing gamelist grid:', error);
+                    });
+                }, 1000); // 1000ms delay to ensure file write is complete
+            } else {
+                console.log('❌ System names do not match - skipping gamelist refresh');
+                console.log('  - Current system:', this.currentSystem);
+                console.log('  - Task system:', data.system_name);
+            }
+            
+            // Show appropriate message based on success/stopped status
+            if (data.success) {
+                if (data.stopped) {
+                    this.showAlert(data.message || 'IGDB scraping stopped by user (data saved)', 'success');
+                } else {
+                    this.showAlert(data.message || 'IGDB scraping completed successfully', 'success');
+                }
+            } else {
+                this.showAlert(data.message || 'IGDB scraping failed', 'error');
+            }
+        }
+    }
+    
+    async refreshTaskGrid() {
+        try {
+            console.log('Refreshing task grid...');
+            const response = await fetch('/api/tasks');
+            if (response.ok) {
+                const tasks = await response.json();
+                this.displayTasksInGrid(tasks);
+                console.log('Task grid refreshed successfully');
+            } else {
+                console.error('Failed to fetch tasks for grid refresh');
+            }
+        } catch (error) {
+            console.error('Error refreshing task grid:', error);
         }
     }
     
@@ -5631,19 +5697,19 @@ class GameCollectionManager {
     
     loadLaunchboxSettings() {
         // Load saved settings from cookies
-        const savedPartialMatchModal = this.getCookie('enablePartialMatchModal');
         const savedForceDownload = this.getCookie('forceDownloadImages');
+        const savedOverwriteTextFields = this.getCookie('launchboxOverwriteTextFields');
         
         // Update modal checkboxes with saved values
-        const partialMatchCheckbox = document.getElementById('enablePartialMatchModalModal');
         const forceDownloadCheckbox = document.getElementById('forceDownloadImagesModal');
-        
-        if (partialMatchCheckbox) {
-            partialMatchCheckbox.checked = savedPartialMatchModal === 'true';
-        }
+        const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
         
         if (forceDownloadCheckbox) {
             forceDownloadCheckbox.checked = savedForceDownload === 'true';
+        }
+        
+        if (overwriteTextFieldsCheckbox) {
+            overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
         }
     }
     
@@ -5795,6 +5861,7 @@ class GameCollectionManager {
         }
     }
     
+
     async loadLaunchboxFieldSettings() {
         try {
             // Fetch config to get dynamic field mappings

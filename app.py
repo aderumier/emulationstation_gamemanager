@@ -668,6 +668,7 @@ _worker_task_queue = None
 _worker_result_queue = None
 _worker_manager = None
 _worker_cancel_map = None  # dict-like shared across processes: {task_id: True}
+_igdb_cancel_maps = {}  # dict of {task_id: cancel_map} for IGDB tasks
 
 def _ensure_worker_started():
     """Start the single scraping worker process and the result listener thread."""
@@ -727,6 +728,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     enable_partial_match_modal = task.get('enable_partial_match_modal', False)
     force_download = task.get('force_download', False)
     selected_fields = task.get('selected_fields', None)
+    overwrite_text_fields = task.get('overwrite_text_fields', False)
 
     mapping_config, system_platform_mapping = load_launchbox_config()
     current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
@@ -824,7 +826,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                 result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠️  Failed to save partial gamelist: {_e}"})
             result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"🛑 Task stopped by user after processing {stats['processed_games']} game(s)"})
             return {'success': False, 'error': 'Task stopped by user', 'stopped': True, 'stats': stats, 'gamelist_path': gamelist_path, 'rom_paths': matched_rom_paths, 'force_download': force_download, 'system_name': system_name}
-        result = process_single_game_worker((game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), platform_cache, selected_fields))
+        result = process_single_game_worker((game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), platform_cache, selected_fields, overwrite_text_fields))
         stats['processed_games'] += 1
         # compute progress
         try:
@@ -1049,7 +1051,7 @@ def reset_task_stop_event():
 def process_single_game_worker(args):
     """Worker function to process a single game in multiprocessing context"""
     try:
-        game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, platform_cache, selected_fields = args
+        game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, platform_cache, selected_fields, overwrite_text_fields = args
         
         game_name = game_data.get('name', '')
         if not game_name:
@@ -1158,7 +1160,16 @@ def process_single_game_worker(args):
                                 if parentheses_text not in new_value:
                                     new_value = f"{new_value} {parentheses_text}"
                     
-                    if old_value != new_value:
+                    # Check if we should update this field based on overwrite_text_fields setting
+                    should_update = False
+                    if overwrite_text_fields:
+                        # If overwrite is enabled, always update if values are different
+                        should_update = (old_value != new_value)
+                    else:
+                        # If overwrite is disabled, only update if old value is empty
+                        should_update = (old_value == '' or old_value is None) and new_value
+                    
+                    if should_update:
                         game_data[gamelist_field] = new_value
                         updated = True
                         changes.append(f"{gamelist_field}: '{old_value}' → '{new_value}'")
@@ -1389,10 +1400,10 @@ def load_existing_tasks_from_logs():
                             pass
                     elif line.startswith('Status: '):
                         status_str = line.replace('Status: ', '').strip()
-                        if status_str in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_IDLE]:
+                        if status_str in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_STOPPED, TASK_STATUS_IDLE]:
                             task.status = status_str
                         elif 'stopped' in status_str.lower():
-                            task.status = TASK_STATUS_ERROR
+                            task.status = TASK_STATUS_STOPPED
                         elif 'completed' in status_str.lower():
                             task.status = TASK_STATUS_COMPLETED
                 
@@ -1462,6 +1473,7 @@ TASK_STATUS_IDLE = 'idle'
 TASK_STATUS_RUNNING = 'running'
 TASK_STATUS_COMPLETED = 'completed'
 TASK_STATUS_ERROR = 'error'
+TASK_STATUS_STOPPED = 'stopped'
 TASK_STATUS_QUEUED = 'queued'
 
 # Logs directory
@@ -1546,7 +1558,7 @@ class Task:
     
     def stop(self):
         """Stop the task"""
-        self.status = TASK_STATUS_ERROR
+        self.status = TASK_STATUS_STOPPED
         self.end_time = time.time()
         self.error_message = "Task stopped by user"
         self.update_progress("Task stopped by user")
@@ -1669,7 +1681,7 @@ def cleanup_old_tasks(max_tasks=100):
     
     # Remove oldest completed/error tasks
     for task_id, task in sorted_tasks:
-        if task.status in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR] and len(tasks) > max_tasks:
+        if task.status in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_STOPPED] and len(tasks) > max_tasks:
             # Remove log file
             try:
                 if os.path.exists(task.log_file):
@@ -1876,6 +1888,8 @@ def process_next_queued_task():
                 'selected_games': (data.get('selected_games') if data else None),
                 'enable_partial_match_modal': (data.get('enable_partial_match_modal', False) if data else False),
                 'force_download': (data.get('force_download', False) if data else False),
+                'selected_fields': (data.get('selected_fields') if data else None),
+                'overwrite_text_fields': (data.get('overwrite_text_fields', False) if data else False),
             }
             _worker_task_queue.put(payload)
     elif task_type == 'rom_scan':
@@ -3630,6 +3644,7 @@ def scrap_launchbox():
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
             'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
         }
         _worker_task_queue.put(payload)
         
@@ -3675,6 +3690,7 @@ def scrap_launchbox_simple(system_name):
         enable_partial_match_modal = False
         force_download = False  # Default force download to False
         selected_fields = None
+        overwrite_text_fields = False  # Default overwrite text fields to False
         
         if request.method == 'POST':
             try:
@@ -3707,6 +3723,13 @@ def scrap_launchbox_simple(system_name):
                             scraping_progress.append(f"Field selection enabled - will only scrape: {', '.join(selected_fields)}")
                         else:
                             scraping_progress.append("No fields selected - will scrape all fields")
+                    
+                    if 'overwrite_text_fields' in data:
+                        overwrite_text_fields = data['overwrite_text_fields']
+                        if overwrite_text_fields:
+                            scraping_progress.append("Overwrite text fields enabled - will overwrite existing text fields")
+                        else:
+                            scraping_progress.append("Overwrite text fields disabled - will only update empty text fields")
             except Exception as e:
                 scraping_progress.append(f"Error parsing POST data: {e}")
                 pass  # Ignore JSON parsing errors
@@ -3717,7 +3740,8 @@ def scrap_launchbox_simple(system_name):
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
-            'selected_fields': selected_fields
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields
         })
         current_task_id = task.id
         task.start()
@@ -3732,6 +3756,7 @@ def scrap_launchbox_simple(system_name):
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
             'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
         }
         _worker_task_queue.put(payload)
         
@@ -5710,7 +5735,7 @@ def ack_task_refresh(task_id):
         if not task:
             return jsonify({'error': 'Task not found'}), 404
         # Only clear for completed/error/idle tasks
-        if task.status in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_IDLE]:
+        if task.status in [TASK_STATUS_COMPLETED, TASK_STATUS_ERROR, TASK_STATUS_STOPPED, TASK_STATUS_IDLE]:
             task.grid_refresh_needed = False
         return jsonify({'success': True, 'task_id': task_id, 'grid_refresh_needed': task.grid_refresh_needed})
     except Exception as e:
@@ -5864,6 +5889,21 @@ def stop_task_endpoint(task_id):
                     download_manager.stop()
             except Exception as e:
                 task.update_progress(f"⚠️  Warning: Could not stop download manager: {e}")
+        
+        # For IGDB scraping tasks, we need to handle cancellation differently
+        # since they use their own separate process and cancel map
+        if task.type == 'igdb_scraping':
+            task.update_progress("🛑 IGDB scraping task stop requested - worker will save gamelist and exit")
+            # Set the cancel flag in the IGDB-specific cancel map
+            try:
+                global _igdb_cancel_maps
+                if task_id in _igdb_cancel_maps:
+                    _igdb_cancel_maps[task_id][task_id] = True
+                    print(f"DEBUG: Set IGDB cancel flag for task {task_id}")
+                else:
+                    print(f"DEBUG: IGDB cancel map not found for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set IGDB cancel flag: {e}")
         
         # Stop the task
         task.stop()
@@ -9027,6 +9067,10 @@ def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_t
     # Create cancel map for task cancellation
     cancel_map = multiprocessing.Manager().dict()
     
+    # Store the cancel map globally so it can be accessed for cancellation
+    global _igdb_cancel_maps
+    _igdb_cancel_maps[task_id] = cancel_map
+    
     # Start the async scraper in a subprocess with result queue
     process = multiprocessing.Process(
         target=_run_igdb_scraper_worker,
@@ -9037,7 +9081,7 @@ def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_t
     # Start result listener to handle progress updates (runs in main process)
     listener_thread = threading.Thread(
         target=_igdb_scraping_result_listener,
-        args=(result_q, process),
+        args=(result_q, process, system_name),
         daemon=True
     )
     listener_thread.start()
@@ -9185,6 +9229,35 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             batch_size = 8
             
             for i in range(0, len(games), batch_size):
+                # Check for cancellation before processing each batch
+                if cancel_map and cancel_map.get(task_id):
+                    result_q.put({
+                        'type': 'progress',
+                        'task_id': task_id,
+                        'message': '🛑 Task stopped by user - saving gamelist...',
+                        'progress_percentage': int((processed_count / len(games)) * 100)
+                    })
+                    # Save the gamelist before exiting with explicit flushing
+                    print(f"DEBUG: Saving gamelist to {gamelist_path} before task stop...")
+                    tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+                    print(f"DEBUG: Gamelist write completed")
+                    # Force flush to ensure file is written to disk
+                    try:
+                        with open(gamelist_path, 'r+b') as f:
+                            f.flush()
+                            os.fsync(f.fileno())
+                        print(f"DEBUG: Gamelist file flushed to disk")
+                    except Exception as e:
+                        print(f"Warning: Could not flush gamelist file: {e}")
+                    result_q.put({
+                        'type': 'result',
+                        'task_id': task_id,
+                        'success': False,
+                        'error': 'Task stopped by user',
+                        'stopped': True
+                    })
+                    return
+                
                 batch = games[i:i + batch_size]
                 
                 # Create tasks for concurrent processing using functools.partial
@@ -9283,7 +9356,7 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
     # Run the async scraper
     asyncio.run(async_scraper())
 
-def _igdb_scraping_result_listener(result_q, process):
+def _igdb_scraping_result_listener(result_q, process, system_name):
     """Listen for results from IGDB scraper worker and update task progress"""
     import queue
     
@@ -9328,10 +9401,48 @@ def _igdb_scraping_result_listener(result_q, process):
                     t = tasks[task_id]
                     if res.get('success'):
                         t.complete(True, res.get('message', 'IGDB scraping completed successfully'))
+                        
+                        # Emit task completion event to refresh task grid
+                        socketio.emit('task_completed', {
+                            'task_type': 'igdb_scraping',
+                            'success': True,
+                            'message': res.get('message', 'IGDB scraping completed successfully'),
+                            'system_name': system_name
+                        })
+                    elif res.get('stopped'):
+                        # Task was stopped by user - treat as completed since gamelist was saved
+                        t.complete(True, res.get('error', 'Task stopped by user'))
+                        
+                        # Emit task completion event to refresh task grid (same as successful completion)
+                        socketio.emit('task_completed', {
+                            'task_type': 'igdb_scraping',
+                            'success': True,
+                            'stopped': True,
+                            'message': res.get('error', 'Task stopped by user'),
+                            'system_name': system_name
+                        })
                     else:
                         t.complete(False, res.get('error', 'IGDB scraping failed'))
+                        
+                        # Emit task failure event
+                        socketio.emit('task_completed', {
+                            'task_type': 'igdb_scraping',
+                            'success': False,
+                            'message': res.get('error', 'IGDB scraping failed'),
+                            'system_name': system_name
+                        })
                 except Exception as e:
                     print(f"DEBUG: Error completing task {task_id}: {e}")
+                
+                # Clean up the IGDB cancel map when task completes
+                try:
+                    global _igdb_cancel_maps
+                    if task_id in _igdb_cancel_maps:
+                        del _igdb_cancel_maps[task_id]
+                        print(f"DEBUG: Cleaned up IGDB cancel map for task {task_id}")
+                except Exception as e:
+                    print(f"DEBUG: Error cleaning up IGDB cancel map: {e}")
+                
                 break
                 
         except queue.Empty:
