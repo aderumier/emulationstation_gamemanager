@@ -500,7 +500,9 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 @app.before_request
 def log_request_info():
-    print(f"DEBUG REQUEST: {request.method} {request.path} - Endpoint: {request.endpoint}")
+    # Skip logging for frequent API calls to reduce console spam
+    if request.path != '/api/tasks':
+        print(f"DEBUG REQUEST: {request.method} {request.path} - Endpoint: {request.endpoint}")
 
 # Disable Flask's default HTTP request logging to reduce console spam
 import logging
@@ -1060,6 +1062,8 @@ def process_single_game_worker(args):
     try:
         game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, platform_cache, selected_fields, overwrite_text_fields = args
         
+        print(f"🔧 DEBUG: process_single_game_worker - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)})")
+        
         game_name = game_data.get('name', '')
         if not game_name:
             return {
@@ -1172,14 +1176,19 @@ def process_single_game_worker(args):
                     if overwrite_text_fields:
                         # If overwrite is enabled, always update if values are different
                         should_update = (old_value != new_value)
+                        print(f"🔧 DEBUG: overwrite_text_fields=True - comparing '{old_value}' vs '{new_value}' -> should_update: {should_update}")
                     else:
                         # If overwrite is disabled, only update if old value is empty
                         should_update = (old_value == '' or old_value is None) and new_value
+                        print(f"🔧 DEBUG: overwrite_text_fields=False - checking if empty: '{old_value}' -> should_update: {should_update}")
                     
                     if should_update:
                         game_data[gamelist_field] = new_value
                         updated = True
                         changes.append(f"{gamelist_field}: '{old_value}' → '{new_value}'")
+                        print(f"🔧 DEBUG: Updated {gamelist_field}: '{old_value}' → '{new_value}'")
+                    else:
+                        print(f"🔧 DEBUG: Skipped {gamelist_field}: '{old_value}' (overwrite={overwrite_text_fields})")
             
             # Since we only accept perfect matches (score >= 1.0), all matches will be perfect
             match_type = "🎯 PERFECT MATCH"
@@ -6575,6 +6584,72 @@ def youtube_download():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/youtube-download-batch/<system_name>', methods=['POST'])
+@login_required
+def youtube_download_batch(system_name):
+    """Start batch YouTube download process for multiple games"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Validate system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        start_time = data.get('start_time', 0)
+        auto_crop = data.get('auto_crop', False)
+        
+        if not selected_games:
+            return jsonify({'error': 'No games selected for download'}), 400
+        
+        # Check if yt-dlp is available
+        try:
+            import subprocess
+            yt_dlp_path = get_yt_dlp_path()
+            result = subprocess.run([yt_dlp_path, '--version'], capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                return jsonify({'error': 'yt-dlp is not installed or not available'}), 500
+        except FileNotFoundError:
+            return jsonify({'error': 'yt-dlp is not installed'}), 500
+        except subprocess.TimeoutExpired:
+            return jsonify({'error': 'yt-dlp check timed out'}), 500
+        
+        # Create and start batch download task
+        task_data = {
+            'system_name': system_name,
+            'selected_games': selected_games,
+            'start_time': start_time,
+            'auto_crop': auto_crop
+        }
+        
+        task = create_task('youtube_download_batch', task_data)
+        current_task_id = task.id
+        task.start()
+        
+        # Start task in background thread
+        thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop))
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': f'YouTube download batch task started for {len(selected_games)} games',
+            'task_id': current_task_id,
+            'games_count': len(selected_games)
+        })
+        
+    except Exception as e:
+        if current_task_id and current_task_id in tasks:
+            tasks[current_task_id].complete(False, str(e))
+        print(f"Error in youtube_download_batch endpoint: {e}")
+        return jsonify({'error': f'YouTube download batch failed: {str(e)}'}), 500
+
 @app.route('/api/rom-system/<system_name>/download-images', methods=['POST'])
 @login_required
 def download_images_endpoint(system_name):
@@ -7419,6 +7494,262 @@ def run_youtube_download_task(task_id, data):
         traceback.print_exc()
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
+
+def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop):
+    """Run batch YouTube download task in background thread"""
+    global current_task_id
+    
+    try:
+        if not task_id or task_id not in tasks:
+            print(f"Error: Task {task_id} not found for YouTube download batch")
+            return
+        
+        task = tasks[task_id]
+        
+        # Log the received parameters
+        task.update_progress(f"Starting batch YouTube download:")
+        task.update_progress(f"  System: {system_name}")
+        task.update_progress(f"  Games to process: {len(selected_games)}")
+        task.update_progress(f"  Start time: {start_time} seconds")
+        task.update_progress(f"  Auto crop: {auto_crop}")
+        
+        # Validate system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            task.complete(False, f'System not found: {system_path}')
+            return
+        
+        # Parse gamelist to get game data
+        gamelist_path = ensure_gamelist_exists(system_name)
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f'Gamelist not found: {gamelist_path}')
+            return
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            task.complete(False, 'No games found in gamelist.xml')
+            return
+        
+        # Filter games to process (only those with YouTube URLs)
+        games_to_process = []
+        for game in all_games:
+            if game.get('path') in selected_games:
+                youtube_url = game.get('youtubeurl', '')
+                if youtube_url and 'youtube' in youtube_url.lower():
+                    games_to_process.append(game)
+        
+        if not games_to_process:
+            task.complete(False, 'No games with YouTube URLs found to process')
+            return
+        
+        task.update_progress(f"Found {len(games_to_process)} games with YouTube URLs to process")
+        
+        # Create media/videos directory if it doesn't exist
+        videos_dir = os.path.join(system_path, 'media', 'videos')
+        os.makedirs(videos_dir, exist_ok=True)
+        
+        # Process each game
+        successful_downloads = 0
+        failed_downloads = 0
+        
+        for i, game in enumerate(games_to_process):
+            try:
+                game_name = game.get('name', 'Unknown')
+                rom_path = game.get('path', '')
+                youtube_url = game.get('youtubeurl', '')
+                
+                task.update_progress(f"Processing {i+1}/{len(games_to_process)}: {game_name}")
+                
+                # Generate output filename from ROM path
+                rom_basename = os.path.splitext(os.path.basename(rom_path))[0]
+                output_filename = f"{rom_basename}.mp4"
+                output_path = os.path.join(videos_dir, output_filename)
+                
+                # Check if video already exists
+                if os.path.exists(output_path):
+                    task.update_progress(f"  Video already exists, skipping: {output_filename}")
+                    successful_downloads += 1
+                    continue
+                
+                # Download the video using the existing YouTube download logic
+                success = download_youtube_video_for_game(
+                    task, youtube_url, start_time, auto_crop, 
+                    output_path, videos_dir, game_name
+                )
+                
+                if success:
+                    successful_downloads += 1
+                    task.update_progress(f"  ✅ Successfully downloaded: {output_filename}")
+                    
+                    # Update gamelist video field
+                    update_gamelist_video_field(gamelist_path, rom_path, output_filename)
+                    task.update_progress(f"  📝 Updated gamelist video field")
+                else:
+                    failed_downloads += 1
+                    task.update_progress(f"  ❌ Failed to download: {output_filename}")
+                
+            except Exception as e:
+                failed_downloads += 1
+                task.update_progress(f"  ❌ Error processing {game_name}: {str(e)}")
+                print(f"Error processing game {game_name}: {e}")
+        
+        # Complete the task
+        task.update_progress(f"Batch download completed:")
+        task.update_progress(f"  ✅ Successful: {successful_downloads}")
+        task.update_progress(f"  ❌ Failed: {failed_downloads}")
+        
+        if successful_downloads > 0:
+            task.complete(True, f'Batch download completed: {successful_downloads} successful, {failed_downloads} failed')
+        else:
+            task.complete(False, f'Batch download failed: {failed_downloads} failed downloads')
+        
+    except Exception as e:
+        print(f"Error in YouTube download batch task: {e}")
+        import traceback
+        traceback.print_exc()
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+
+def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name):
+    """Download a single YouTube video for a game (helper function)"""
+    try:
+        # Check if yt-dlp is available
+        import subprocess
+        yt_dlp_path = get_yt_dlp_path()
+        
+        # Use just the filename for output to avoid path issues
+        output_filename_only = os.path.basename(output_path)
+        temp_filename = f"temp_{output_filename_only}"
+        output_template = temp_filename.replace('.mp4', '.%(ext)s')
+        
+        # Calculate end time for the 30-second section
+        end_time = start_time + 30
+        
+        # Download command
+        download_cmd = [
+            yt_dlp_path,
+            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            '-o', output_template,
+            '--download-sections', f'*{start_time}-{end_time}',
+            '--force-keyframes-at-cuts',
+            '--progress',
+            '--newline',
+            video_url
+        ]
+        
+        # Run download
+        process = subprocess.Popen(
+            download_cmd, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT, 
+            text=True, 
+            cwd=videos_dir,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # Wait for completion with timeout
+        try:
+            stdout, stderr = process.communicate(timeout=300)  # 5 minute timeout
+        except subprocess.TimeoutExpired:
+            process.kill()
+            task.update_progress(f"  ⏰ Download timeout for {game_name}")
+            return False
+        
+        if process.returncode != 0:
+            task.update_progress(f"  ❌ Download failed for {game_name}: {stdout}")
+            return False
+        
+        # Find the downloaded file
+        temp_files = [f for f in os.listdir(videos_dir) if f.startswith('temp_')]
+        if not temp_files:
+            task.update_progress(f"  ❌ No temporary file found for {game_name}")
+            return False
+        
+        temp_file = temp_files[0]
+        temp_path = os.path.join(videos_dir, temp_file)
+        
+        # Rename to final filename
+        if os.path.exists(temp_path):
+            os.rename(temp_path, output_path)
+            task.update_progress(f"  📁 Renamed {temp_file} to {output_filename_only}")
+        else:
+            task.update_progress(f"  ❌ Temporary file not found: {temp_file}")
+            return False
+        
+        # Apply auto crop if enabled
+        if auto_crop:
+            success = apply_auto_crop(task, output_path, game_name)
+            if not success:
+                task.update_progress(f"  ⚠️ Auto crop failed for {game_name}, but video downloaded")
+        
+        return True
+        
+    except Exception as e:
+        task.update_progress(f"  ❌ Error downloading {game_name}: {str(e)}")
+        return False
+
+def apply_auto_crop(task, video_path, game_name):
+    """Apply automatic cropping to a video (helper function)"""
+    try:
+        import subprocess
+        
+        # Create cropped filename
+        base_path = os.path.splitext(video_path)[0]
+        cropped_path = f"{base_path}_cropped.mp4"
+        
+        # FFmpeg crop command (center crop to 16:9 aspect ratio)
+        crop_cmd = [
+            'ffmpeg', '-i', video_path,
+            '-vf', 'crop=ih*16/9:ih',
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-y',  # Overwrite output file
+            cropped_path
+        ]
+        
+        task.update_progress(f"  🔧 Applying auto crop to {game_name}")
+        
+        result = subprocess.run(crop_cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode == 0 and os.path.exists(cropped_path):
+            # Replace original with cropped version
+            os.replace(cropped_path, video_path)
+            task.update_progress(f"  ✅ Auto crop completed for {game_name}")
+            return True
+        else:
+            task.update_progress(f"  ❌ Auto crop failed for {game_name}: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        task.update_progress(f"  ❌ Auto crop error for {game_name}: {str(e)}")
+        return False
+
+def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
+    """Update the video field in gamelist.xml for a specific game"""
+    try:
+        import xml.etree.ElementTree as ET
+        
+        # Parse the gamelist
+        tree = ET.parse(gamelist_path)
+        root = tree.getroot()
+        
+        # Find the game element
+        for game in root.findall('game'):
+            path_elem = game.find('path')
+            if path_elem is not None and path_elem.text == rom_path:
+                # Update or create video element
+                video_elem = game.find('video')
+                if video_elem is None:
+                    video_elem = ET.SubElement(game, 'video')
+                video_elem.text = f"./media/videos/{video_filename}"
+                break
+        
+        # Save the updated gamelist
+        tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+        
+    except Exception as e:
+        print(f"Error updating gamelist video field: {e}")
 
 def run_manual_crop_task(task_id, data):
     """Run manual crop task in background thread"""
@@ -8807,8 +9138,11 @@ async def fetch_igdb_game_videos(async_client, access_token, client_id, game_id)
                 selected = videos[0]
                 video_id = selected.get('video_id')
                 if video_id:
+                    # Prefix with YouTube URL format
+                    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
                     print(f"🎥 DEBUG: Selected video: {selected.get('id')} with video_id: {video_id}")
-                    return video_id
+                    print(f"🎥 DEBUG: Generated YouTube URL: {youtube_url}")
+                    return youtube_url
                 else:
                     print(f"🎥 DEBUG: No video_id found in selected video")
                     return None

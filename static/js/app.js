@@ -1300,6 +1300,8 @@ class GameCollectionManager {
         document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
+        document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
+        document.getElementById('startYoutubeDownloadBtn').addEventListener('click', () => this.startYoutubeDownload());
 
 
         
@@ -3747,6 +3749,89 @@ class GameCollectionManager {
                 button.disabled = false;
                 button.innerHTML = '<i class="bi bi-image"></i> 2D Box Generator';
             }
+        }
+    }
+
+    openYoutubeDownloadModal() {
+        if (!this.currentSystem) {
+            this.showAlert('No system selected', 'error');
+            return;
+        }
+        
+        // Open the YouTube download modal
+        const modal = new bootstrap.Modal(document.getElementById('youtubeDownloadModal'));
+        modal.show();
+    }
+
+    async startYoutubeDownload() {
+        if (!this.currentSystem) {
+            this.showAlert('No system selected', 'error');
+            return;
+        }
+
+        try {
+            // Get form values
+            const startTime = parseInt(document.getElementById('youtubeStartTime').value) || 0;
+            const autoCrop = document.getElementById('youtubeAutoCrop').checked;
+
+            // Determine which games to process
+            const gamesToProcess = this.selectedGames.length > 0 ? this.selectedGames : this.games;
+            
+            // Filter games that have YouTube URLs
+            const gamesWithYoutube = gamesToProcess.filter(game => {
+                const youtubeUrl = game.youtubeurl || '';
+                return youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('youtube');
+            });
+
+            if (gamesWithYoutube.length === 0) {
+                this.showAlert('No games with YouTube URLs found to download', 'warning');
+                return;
+            }
+
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('youtubeDownloadModal'));
+            if (modal) {
+                modal.hide();
+            }
+
+            // Switch to Task Management tab
+            this.switchTab('task-management');
+
+            // Create request body
+            const requestBody = {
+                selected_games: gamesWithYoutube.map(game => game.path),
+                start_time: startTime,
+                auto_crop: autoCrop
+            };
+
+            console.log('Starting YouTube download batch task:', requestBody);
+
+            // Make the API request
+            const response = await fetch(`/api/youtube-download-batch/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showAlert(`YouTube download batch task started for ${data.games_count} games.`, 'success');
+                // Refresh the task grid to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert('Error starting YouTube download batch: ' + (data.error || 'Unknown error'), 'danger');
+            }
+
+        } catch (error) {
+            console.error('Error starting YouTube download batch:', error);
+            this.showAlert('Error starting YouTube download batch: ' + error.message, 'danger');
         }
     }
     

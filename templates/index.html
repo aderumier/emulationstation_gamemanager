@@ -216,6 +216,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <button id="global2DBoxGeneratorBtn" class="btn btn-outline-success btn-sm ms-2" disabled>
                     <i class="bi bi-image"></i> 2D Box Generator
                 </button>
+                <button id="globalYoutubeDownloadBtn" class="btn btn-outline-danger btn-sm ms-2" disabled>
+                    <i class="bi bi-youtube"></i> YouTube Download
+                </button>
             </div>
         </div>
 
@@ -1447,6 +1450,45 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube Download Modal -->
+    <div class="modal fade" id="youtubeDownloadModal" tabindex="-1" aria-labelledby="youtubeDownloadModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="youtubeDownloadModalLabel">
+                        <i class="bi bi-youtube me-2 text-danger"></i>Batch YouTube Download
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="youtubeStartTime" class="form-label">Start Time (seconds)</label>
+                        <input type="number" class="form-control" id="youtubeStartTime" value="0" min="0" placeholder="0">
+                        <div class="form-text">Start downloading the video from this time in seconds</div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="youtubeAutoCrop">
+                        <label class="form-check-label" for="youtubeAutoCrop">
+                            Auto Crop
+                        </label>
+                        <div class="form-text">Automatically crop the video using ffmpeg</div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This will download YouTube videos for all games (or selected games) that have a YouTube URL. 
+                        Videos will be saved to the game's media directory and the video field will be updated.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="startYoutubeDownloadBtn">
+                        <i class="bi bi-youtube me-2"></i>Start Download
+                    </button>
                 </div>
             </div>
         </div>
