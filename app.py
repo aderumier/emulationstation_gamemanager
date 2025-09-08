@@ -8653,6 +8653,81 @@ async def fetch_igdb_involved_companies(async_client, access_token, client_id, g
         print(f"Error fetching IGDB involved companies: {e}")
         return []
 
+async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
+    """Fetch artworks for a specific game and return the first landscape image"""
+    try:
+        search_url = "https://api.igdb.com/v4/artworks"
+        search_data = f'fields id,image_id,width,height; where game = {game_id};'
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        # Make the request with retry logic
+        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        
+        if response and response.status_code == 200:
+            artworks = response.json()
+            
+            # Filter for landscape images (width >= 1.5 * height)
+            landscape_artworks = []
+            for artwork in artworks:
+                width = artwork.get('width', 0)
+                height = artwork.get('height', 0)
+                if width > 0 and height > 0 and width >= (1.5 * height):
+                    landscape_artworks.append(artwork)
+            
+            # Return the first landscape artwork
+            if landscape_artworks:
+                return landscape_artworks[0]
+            else:
+                print(f"No landscape artworks found for game {game_id}")
+                return None
+        else:
+            if response:
+                print(f"IGDB artworks API error: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"Error fetching IGDB artworks: {e}")
+        return None
+
+async def download_igdb_fanart(async_client, image_id, system_name, game_name):
+    """Download fanart image from IGDB and save it to the fanart directory"""
+    try:
+        # IGDB image URL format: https://images.igdb.com/igdb/image/upload/t_[size]/[image_id].jpg
+        # For fanart, we want a large size, so we'll use t_1080p
+        image_url = f"https://images.igdb.com/igdb/image/upload/t_1080p/{image_id}.jpg"
+        
+        # Create fanart directory for the system
+        fanart_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'fanarts')
+        os.makedirs(fanart_dir, exist_ok=True)
+        
+        # Create safe filename from game name
+        safe_game_name = "".join(c for c in game_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_game_name = safe_game_name.replace(' ', '_')
+        filename = f"{safe_game_name}.jpg"
+        file_path = os.path.join(fanart_dir, filename)
+        
+        # Download the image
+        response = await async_client.get(image_url)
+        if response.status_code == 200:
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+            
+            # Return relative path for gamelist
+            relative_path = f"./media/fanarts/{filename}"
+            print(f"Downloaded fanart: {relative_path}")
+            return relative_path
+        else:
+            print(f"Failed to download fanart image: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"Error downloading fanart image: {e}")
+        return None
+
 # =============================================================================
 # IGDB HTTP Client and Rate Limiter
 # =============================================================================
@@ -9086,6 +9161,37 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             )
             igdb_game['involved_companies'] = involved_companies
             
+            # Fetch and download fanart if selected fields include fanart
+            selected_fields = igdb_config.get('selected_fields', [])
+            if not selected_fields or 'fanart' in selected_fields:
+                # Check if fanart field is selected or if no field selection (all fields)
+                fanart_elem = game.find('fanart')
+                overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
+                
+                # Only download fanart if it doesn't exist or if overwrite is enabled
+                if fanart_elem is None or not fanart_elem.text or overwrite_media_fields:
+                    print(f"🎨 Fetching fanart for '{game_name}'...")
+                    artwork = await fetch_igdb_artworks(async_client, access_token, client_id, igdb_game['id'])
+                    if artwork and artwork.get('image_id'):
+                        # Get system name from the current system being processed
+                        # We need to pass this from the calling function
+                        system_name = igdb_config.get('system_name', 'unknown')
+                        fanart_path = await download_igdb_fanart(
+                            async_client, 
+                            artwork['image_id'], 
+                            system_name, 
+                            game_name
+                        )
+                        if fanart_path:
+                            if fanart_elem is None:
+                                fanart_elem = ET.SubElement(game, 'fanart')
+                            fanart_elem.text = fanart_path
+                            print(f"✅ Downloaded fanart for '{game_name}': {fanart_path}")
+                        else:
+                            print(f"❌ Failed to download fanart for '{game_name}'")
+                    else:
+                        print(f"❌ No suitable fanart found for '{game_name}'")
+            
             # Populate other fields with IGDB data
             fields_updated = populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache)
             
@@ -9153,6 +9259,7 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             igdb_config['overwrite_text_fields'] = overwrite_text_fields
             igdb_config['overwrite_media_fields'] = overwrite_media_fields
             igdb_config['selected_fields'] = selected_fields or []
+            igdb_config['system_name'] = system_name
             
             print(f"🔧 DEBUG: Worker received overwrite settings - text: {overwrite_text_fields}, media: {overwrite_media_fields}")
             print(f"🔧 DEBUG: Worker received selected fields: {selected_fields}")
