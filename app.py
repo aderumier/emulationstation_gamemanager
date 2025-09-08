@@ -7532,11 +7532,26 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         
         # Filter games to process (only those with YouTube URLs)
         games_to_process = []
+        print(f"🎥 DEBUG: Total games in gamelist: {len(all_games)}")
+        print(f"🎥 DEBUG: Selected games to process: {len(selected_games)}")
+        print(f"🎥 DEBUG: Selected game paths: {selected_games[:3]}...")  # Show first 3
+        
         for game in all_games:
-            if game.get('path') in selected_games:
-                youtube_url = game.get('youtubeurl', '')
+            game_path = game.get('path', '')
+            youtube_url = game.get('youtubeurl', '')
+            print(f"🎥 DEBUG: Checking game: {game_path}")
+            print(f"🎥 DEBUG:  - In selected_games: {game_path in selected_games}")
+            print(f"🎥 DEBUG:  - YouTube URL: {youtube_url}")
+            print(f"🎥 DEBUG:  - Has YouTube: {youtube_url and 'youtube' in youtube_url.lower()}")
+            
+            if game_path in selected_games:
                 if youtube_url and 'youtube' in youtube_url.lower():
                     games_to_process.append(game)
+                    print(f"🎥 DEBUG:  - ✅ Added to process list")
+                else:
+                    print(f"🎥 DEBUG:  - ❌ No YouTube URL")
+            else:
+                print(f"🎥 DEBUG:  - ❌ Not in selected games")
         
         if not games_to_process:
             task.complete(False, 'No games with YouTube URLs found to process')

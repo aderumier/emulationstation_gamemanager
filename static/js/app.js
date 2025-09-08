@@ -3783,8 +3783,13 @@ class GameCollectionManager {
             // Filter games that have YouTube URLs
             const gamesWithYoutube = gamesToProcess.filter(game => {
                 const youtubeUrl = game.youtubeurl || '';
-                return youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('youtube');
+                const hasYoutube = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('youtube');
+                console.log('🎥 DEBUG: Checking game:', game.name, 'Path:', game.path, 'YouTube URL:', youtubeUrl, 'Has YouTube:', hasYoutube);
+                return hasYoutube;
             });
+
+            console.log('🎥 DEBUG: Games with YouTube URLs found:', gamesWithYoutube.length);
+            console.log('🎥 DEBUG: Games with YouTube:', gamesWithYoutube.map(g => ({ name: g.name, path: g.path, youtubeurl: g.youtubeurl })));
 
             if (gamesWithYoutube.length === 0) {
                 this.showAlert('No games with YouTube URLs found to download', 'warning');
