@@ -1183,6 +1183,14 @@ def process_single_game_worker(args):
                         print(f"🔧 DEBUG: overwrite_text_fields=False - checking if empty: '{old_value}' -> should_update: {should_update}")
                     
                     if should_update:
+                        # Special validation for VideoURL field - only accept YouTube URLs
+                        if launchbox_field == 'VideoURL' and gamelist_field == 'youtubeurl':
+                            if 'youtube' not in new_value.lower():
+                                print(f"🔧 DEBUG: Skipping VideoURL - not a YouTube URL: '{new_value}'")
+                                continue  # Skip this field update
+                            else:
+                                print(f"🔧 DEBUG: VideoURL validated as YouTube URL: '{new_value}'")
+                        
                         game_data[gamelist_field] = new_value
                         updated = True
                         changes.append(f"{gamelist_field}: '{old_value}' → '{new_value}'")
