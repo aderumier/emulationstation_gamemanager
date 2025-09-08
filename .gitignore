@@ -131,6 +131,9 @@ roms/
 *.xbox360
 *.xboxone
 
+# Debian packages
+*.deb
+
 # Configuration files with sensitive data (optional)
 # config.json
 # secrets.json
