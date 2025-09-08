@@ -13,6 +13,7 @@ Copyright (C) 2024 Alexandre Derumier <aderumier@gmail.com>
 - **ROM Management**: Scan and organize ROM files by system
 - **Media Scanning**: Automatically detect and link media files (screenshots, box art, etc.)
 - **Launchbox Integration**: Scrape metadata from Launchbox XML files
+- **IGDB Integration**: Fetch game metadata, artwork, and videos from IGDB database
 - **Multi-platform Support**: Works with various ROM systems (MAME, NES, GBA, etc.)
 - **Real-time Progress**: Live progress updates during scraping operations
 - **Real-time Multi-user Support**: WebSocket-based real-time updates for collaborative editing
@@ -188,6 +189,8 @@ To enable IGDB scraping features, you need to provide your IGDB API credentials:
 **Environment Variables:**
 - `IGDB_CLIENT_ID`: Your IGDB/Twitch Client ID
 - `IGDB_CLIENT_SECRET`: Your IGDB/Twitch Client Secret
+
+**📖 For detailed IGDB API setup instructions, see [IGDB_SETUP.md](IGDB_SETUP.md)**
 
 **📖 For detailed Docker deployment instructions on Linux and Windows, see [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)**
 
