@@ -526,19 +526,26 @@ def get_gamelist_path(system_name):
     return os.path.join(gamelist_dir, 'gamelist.xml')
 
 def ensure_gamelist_exists(system_name):
-    """Ensure gamelist exists in var/gamelists, copying from roms/ if needed"""
+    """Ensure gamelist exists in var/gamelists (does not auto-copy from roms/)"""
+    gamelist_path = get_gamelist_path(system_name)
+    
+    # Just return the path - don't auto-copy from roms/
+    return gamelist_path
+
+def ensure_gamelist_exists_for_scan(system_name):
+    """Ensure gamelist exists in var/gamelists for ROM scan, copying from roms/ if needed"""
     gamelist_path = get_gamelist_path(system_name)
     
     # If gamelist already exists in var/gamelists, return it
     if os.path.exists(gamelist_path):
         return gamelist_path
     
-    # Check if gamelist exists in roms/ and copy it
+    # Check if gamelist exists in roms/ and copy it (only during scan)
     roms_gamelist_path = os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
     if os.path.exists(roms_gamelist_path):
         try:
             shutil.copy2(roms_gamelist_path, gamelist_path)
-            print(f"Copied gamelist from {roms_gamelist_path} to {gamelist_path}")
+            print(f"Copied gamelist from {roms_gamelist_path} to {gamelist_path} for ROM scan")
             return gamelist_path
         except Exception as e:
             print(f"Error copying gamelist: {e}")
@@ -6673,8 +6680,8 @@ def run_rom_scan_task(system_name):
             task.update_progress(f"System path does not exist: {system_path}")
             return
         
-        # Ensure gamelist exists in var/gamelists, copying from roms/ if needed
-        gamelist_path = ensure_gamelist_exists(system_name)
+        # Ensure gamelist exists in var/gamelists, copying from roms/ if needed (only during scan)
+        gamelist_path = ensure_gamelist_exists_for_scan(system_name)
         task.update_progress(f"Gamelist path: {gamelist_path}")
         
         # Get supported ROM extensions for this system
