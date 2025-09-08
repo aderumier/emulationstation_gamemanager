@@ -9150,11 +9150,11 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
         
-        # Create safe filename from ROM filename (without extension)
+        # Create safe filename from ROM filename (without extension) + media type
         rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
         safe_rom_name = "".join(c for c in rom_name_without_ext if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_rom_name = safe_rom_name.replace(' ', '_')
-        filename = f"{safe_rom_name}.png"  # Always save as PNG
+        filename = f"{safe_rom_name}_{image_type}.png"  # Always save as PNG with media type
         file_path = os.path.join(media_dir, filename)
         print(f"{emoji} DEBUG: Safe filename: {filename}")
         print(f"{emoji} DEBUG: Full file path: {file_path}")
@@ -9197,15 +9197,23 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                     
                     # Open the WebP image and convert to PNG
                     with Image.open(temp_file_path) as img:
-                        # Convert to RGB if necessary (WebP can have transparency)
-                        if img.mode in ('RGBA', 'LA'):
-                            # Keep transparency for PNG
+                        # For logos, always preserve transparency
+                        if image_type == "logo":
+                            # Convert to RGBA to ensure transparency is preserved
+                            if img.mode != 'RGBA':
+                                img = img.convert('RGBA')
                             img.save(file_path, 'PNG')
+                            print(f"{emoji} DEBUG: Logo converted to PNG with transparency preserved")
                         else:
-                            # Convert to RGB for better compatibility
-                            rgb_img = Image.new('RGB', img.size, (255, 255, 255))
-                            rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
-                            rgb_img.save(file_path, 'PNG')
+                            # For other image types, convert to RGB if necessary (WebP can have transparency)
+                            if img.mode in ('RGBA', 'LA'):
+                                # Keep transparency for PNG
+                                img.save(file_path, 'PNG')
+                            else:
+                                # Convert to RGB for better compatibility
+                                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                                rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                                rgb_img.save(file_path, 'PNG')
                     
                     print(f"{emoji} DEBUG: WebP converted to PNG successfully")
                     
