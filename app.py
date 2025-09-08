@@ -9195,13 +9195,21 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                     
                     # Open the WebP image and convert to PNG
                     with Image.open(temp_file_path) as img:
+                        print(f"{emoji} DEBUG: Original image mode: {img.mode}, has transparency: {img.mode in ('RGBA', 'LA', 'P')}")
+                        
                         # For logos, always preserve transparency
                         if image_type == "logo":
-                            # Convert to RGBA to ensure transparency is preserved
-                            if img.mode != 'RGBA':
+                            # Ensure we have RGBA mode to preserve alpha channel
+                            if img.mode not in ('RGBA', 'LA'):
+                                # Convert to RGBA, preserving any existing alpha
                                 img = img.convert('RGBA')
-                            img.save(file_path, 'PNG')
-                            print(f"{emoji} DEBUG: Logo converted to PNG with transparency preserved")
+                            elif img.mode == 'LA':
+                                # Convert LA (grayscale + alpha) to RGBA
+                                img = img.convert('RGBA')
+                            
+                            # Save with explicit alpha channel preservation
+                            img.save(file_path, 'PNG', optimize=False)
+                            print(f"{emoji} DEBUG: Logo converted to PNG with alpha channel preserved (mode: {img.mode})")
                         else:
                             # For other image types, convert to RGB if necessary (WebP can have transparency)
                             if img.mode in ('RGBA', 'LA'):
