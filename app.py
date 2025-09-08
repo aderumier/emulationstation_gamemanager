@@ -8767,54 +8767,54 @@ async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id)
         return None
 
 # =============================================================================
-# IGDB Game Localizations Cache
+# IGDB Regions Cache
 # =============================================================================
 
-def get_igdb_localization_cache_path():
-    """Get the path to the IGDB localization cache file"""
+def get_igdb_regions_cache_path():
+    """Get the path to the IGDB regions cache file"""
     cache_dir = ensure_igdb_directory()
     if cache_dir:
-        return os.path.join(cache_dir, 'localizations_cache.json')
+        return os.path.join(cache_dir, 'regions_cache.json')
     return None
 
-def load_igdb_localization_cache():
-    """Load IGDB localization cache from file"""
-    cache_path = get_igdb_localization_cache_path()
+def load_igdb_regions_cache():
+    """Load IGDB regions cache from file"""
+    cache_path = get_igdb_regions_cache_path()
     if cache_path and os.path.exists(cache_path):
         try:
             with open(cache_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Error loading IGDB localization cache: {e}")
+            print(f"Error loading IGDB regions cache: {e}")
     return {}
 
-def save_igdb_localization_cache(cache):
-    """Save IGDB localization cache to file"""
-    cache_path = get_igdb_localization_cache_path()
+def save_igdb_regions_cache(cache):
+    """Save IGDB regions cache to file"""
+    cache_path = get_igdb_regions_cache_path()
     if cache_path:
         try:
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
             with open(cache_path, 'w', encoding='utf-8') as f:
                 json.dump(cache, f, indent=2, ensure_ascii=False)
-            print(f"✅ Saved IGDB localization cache with {len(cache)} entries")
+            print(f"✅ Saved IGDB regions cache with {len(cache)} entries")
         except Exception as e:
-            print(f"Error saving IGDB localization cache: {e}")
+            print(f"Error saving IGDB regions cache: {e}")
 
-def get_igdb_region_name(localization_id, localization_cache):
-    """Get region name from localization ID"""
-    if localization_id in localization_cache:
-        return localization_cache[localization_id].get('name', 'Unknown')
+def get_igdb_region_name(region_id, regions_cache):
+    """Get region name from region ID"""
+    if region_id in regions_cache:
+        return regions_cache[region_id].get('name', 'Unknown')
     return 'Unknown'
 
-async def ensure_igdb_localization_cache(async_client, access_token, client_id):
-    """Ensure IGDB localization cache is populated"""
-    cache = load_igdb_localization_cache()
+async def ensure_igdb_regions_cache(async_client, access_token, client_id):
+    """Ensure IGDB regions cache is populated"""
+    cache = load_igdb_regions_cache()
     
     if not cache:
-        print("🔄 IGDB localization cache is empty, fetching from API...")
+        print("🔄 IGDB regions cache is empty, fetching from API...")
         try:
-            search_url = "https://api.igdb.com/v4/game_localizations"
-            search_data = 'fields id,name,region; limit 500;'
+            search_url = "https://api.igdb.com/v4/regions"
+            search_data = 'fields id,name; limit 50;'
             
             headers = {
                 'Client-ID': client_id,
@@ -8825,22 +8825,36 @@ async def ensure_igdb_localization_cache(async_client, access_token, client_id):
             response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
             
             if response and response.status_code == 200:
-                localizations = response.json()
-                print(f"📋 Found {len(localizations)} game localizations")
+                regions = response.json()
+                print(f"🌍 Found {len(regions)} regions")
                 
-                for loc in localizations:
-                    cache[loc['id']] = {
-                        'name': loc.get('name', ''),
-                        'region': loc.get('region', 0)
+                for region in regions:
+                    cache[region['id']] = {
+                        'name': region.get('name', '')
                     }
                 
-                save_igdb_localization_cache(cache)
+                save_igdb_regions_cache(cache)
             else:
-                print(f"❌ Failed to fetch IGDB localizations: {response.status_code if response else 'No response'}")
+                print(f"❌ Failed to fetch IGDB regions: {response.status_code if response else 'No response'}")
         except Exception as e:
-            print(f"❌ Error fetching IGDB localizations: {e}")
+            print(f"❌ Error fetching IGDB regions: {e}")
     
     return cache
+
+def get_igdb_region_priority():
+    """Get IGDB region priority from config"""
+    try:
+        config = load_config()
+        igdb_config = config.get('igdb', {})
+        return igdb_config.get('region_priority', [
+            "World",
+            "North America", 
+            "Europe",
+            "Japan"
+        ])
+    except Exception as e:
+        print(f"Error loading IGDB region priority: {e}")
+        return ["World", "North America", "Europe", "Japan"]
 
 def extract_region_from_game_name(game_name):
     """Extract region from game name if it's in parentheses"""
@@ -8853,41 +8867,66 @@ def extract_region_from_game_name(game_name):
         return region
     return None
 
-def find_matching_cover(covers, target_region, localization_cache):
-    """Find cover that matches the target region"""
-    if not target_region:
-        return covers[0] if covers else None
+def find_matching_cover(covers, target_region, regions_cache, game_localizations):
+    """Find cover that matches the target region or uses region priority"""
+    if not covers:
+        return None
     
-    print(f"🌍 DEBUG: Looking for cover matching region: '{target_region}'")
+    # If we have a target region from game name, try to match it
+    if target_region:
+        print(f"🌍 DEBUG: Looking for cover matching region: '{target_region}'")
+        
+        # First, try exact match
+        for cover in covers:
+            if cover.get('game_localization'):
+                # Get the region ID from game_localization
+                localization = game_localizations.get(cover['game_localization'])
+                if localization and localization.get('region'):
+                    region_name = get_igdb_region_name(localization['region'], regions_cache)
+                    print(f"🌍 DEBUG: Cover {cover.get('id')} has region: '{region_name}'")
+                    if region_name.lower() == target_region.lower():
+                        print(f"🌍 DEBUG: Found exact region match!")
+                        return cover
+        
+        # If no exact match, try partial match
+        for cover in covers:
+            if cover.get('game_localization'):
+                localization = game_localizations.get(cover['game_localization'])
+                if localization and localization.get('region'):
+                    region_name = get_igdb_region_name(localization['region'], regions_cache)
+                    if target_region.lower() in region_name.lower() or region_name.lower() in target_region.lower():
+                        print(f"🌍 DEBUG: Found partial region match: '{region_name}'")
+                        return cover
     
-    # First, try exact match
-    for cover in covers:
-        if cover.get('game_localization'):
-            region_name = get_igdb_region_name(cover['game_localization'], localization_cache)
-            print(f"🌍 DEBUG: Cover {cover.get('id')} has region: '{region_name}'")
-            if region_name.lower() == target_region.lower():
-                print(f"🌍 DEBUG: Found exact region match!")
-                return cover
+    # If no target region or no match found, use region priority
+    print(f"🌍 DEBUG: Using region priority to select cover")
+    region_priority = get_igdb_region_priority()
+    print(f"🌍 DEBUG: Region priority: {region_priority}")
     
-    # If no exact match, try partial match
-    for cover in covers:
-        if cover.get('game_localization'):
-            region_name = get_igdb_region_name(cover['game_localization'], localization_cache)
-            if target_region.lower() in region_name.lower() or region_name.lower() in target_region.lower():
-                print(f"🌍 DEBUG: Found partial region match: '{region_name}'")
-                return cover
+    # Try to find cover matching region priority order
+    for priority_region in region_priority:
+        for cover in covers:
+            if cover.get('game_localization'):
+                localization = game_localizations.get(cover['game_localization'])
+                if localization and localization.get('region'):
+                    region_name = get_igdb_region_name(localization['region'], regions_cache)
+                    if region_name.lower() == priority_region.lower():
+                        print(f"🌍 DEBUG: Found cover matching priority region: '{region_name}'")
+                        return cover
     
-    print(f"🌍 DEBUG: No region match found, using first cover")
-    return covers[0] if covers else None
+    # If no priority match, use first cover
+    print(f"🌍 DEBUG: No priority region match found, using first cover")
+    return covers[0]
 
 async def fetch_igdb_covers(async_client, access_token, client_id, game_id, game_name):
     """Fetch covers for a specific game and return the best match based on region"""
     try:
         print(f"🖼️ DEBUG: fetch_igdb_covers called for game_id: {game_id}, game_name: {game_name}")
         
-        # Ensure localization cache is populated
-        localization_cache = await ensure_igdb_localization_cache(async_client, access_token, client_id)
+        # Ensure regions cache is populated
+        regions_cache = await ensure_igdb_regions_cache(async_client, access_token, client_id)
         
+        # Fetch covers
         search_url = "https://api.igdb.com/v4/covers"
         search_data = f'fields id,image_id,width,height,url,game_localization; where game = {game_id};'
         
@@ -8907,28 +8946,64 @@ async def fetch_igdb_covers(async_client, access_token, client_id, game_id, game
             covers = response.json()
             print(f"🖼️ DEBUG: Received {len(covers)} covers from API")
             
-            # Debug: Print all covers
+            if not covers:
+                print(f"🖼️ DEBUG: No covers found for game {game_id}")
+                return None
+            
+            # Get unique localization IDs from covers
+            localization_ids = list(set([cover.get('game_localization') for cover in covers if cover.get('game_localization')]))
+            
+            # Fetch game localizations for this specific game
+            game_localizations = {}
+            if localization_ids:
+                print(f"🖼️ DEBUG: Fetching {len(localization_ids)} game localizations...")
+                localization_url = "https://api.igdb.com/v4/game_localizations"
+                localization_data = f'fields id,name,region; where id = ({",".join(map(str, localization_ids))});'
+                
+                localization_response = await make_igdb_request_with_retry(async_client, localization_url, headers, localization_data)
+                
+                if localization_response and localization_response.status_code == 200:
+                    localizations = localization_response.json()
+                    for loc in localizations:
+                        game_localizations[loc['id']] = {
+                            'name': loc.get('name', ''),
+                            'region': loc.get('region', 0)
+                        }
+                    print(f"🖼️ DEBUG: Loaded {len(game_localizations)} game localizations")
+            
+            # Debug: Print all covers with region info
             for i, cover in enumerate(covers):
                 width = cover.get('width', 0)
                 height = cover.get('height', 0)
                 image_id = cover.get('image_id', 'N/A')
                 url = cover.get('url', 'N/A')
                 localization_id = cover.get('game_localization', 'N/A')
-                region_name = get_igdb_region_name(localization_id, localization_cache) if localization_id != 'N/A' else 'N/A'
+                
+                region_name = 'N/A'
+                if localization_id != 'N/A' and localization_id in game_localizations:
+                    region_id = game_localizations[localization_id].get('region')
+                    if region_id:
+                        region_name = get_igdb_region_name(region_id, regions_cache)
+                
                 print(f"🖼️ DEBUG: Cover {i+1}: id={cover.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}, region='{region_name}'")
             
             # Extract region from game name
             target_region = extract_region_from_game_name(game_name)
             
             # Find best matching cover
-            selected_cover = find_matching_cover(covers, target_region, localization_cache)
+            selected_cover = find_matching_cover(covers, target_region, regions_cache, game_localizations)
             
             if selected_cover:
-                region_name = get_igdb_region_name(selected_cover.get('game_localization'), localization_cache) if selected_cover.get('game_localization') else 'Default'
+                region_name = 'Default'
+                if selected_cover.get('game_localization') and selected_cover.get('game_localization') in game_localizations:
+                    region_id = game_localizations[selected_cover.get('game_localization')].get('region')
+                    if region_id:
+                        region_name = get_igdb_region_name(region_id, regions_cache)
+                
                 print(f"🖼️ DEBUG: Selected cover: {selected_cover.get('id')} with image_id: {selected_cover.get('image_id')}, url: {selected_cover.get('url')}, region: '{region_name}'")
                 return selected_cover
             else:
-                print(f"🖼️ DEBUG: No covers found for game {game_id}")
+                print(f"🖼️ DEBUG: No suitable cover found for game {game_id}")
                 return None
         else:
             if response:
