@@ -9098,7 +9098,7 @@ async def fetch_igdb_covers(async_client, access_token, client_id, game_id, game
         traceback.print_exc()
         return None
 
-async def download_igdb_image(image_data, system_name, game_name, image_type="fanart"):
+async def download_igdb_image(image_data, system_name, rom_filename, image_type="fanart"):
     """Download image from IGDB and save it to the appropriate directory"""
     try:
         image_id = image_data.get('image_id')
@@ -9113,7 +9113,7 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
             emoji = "🏷️"
         else:
             emoji = "🖼️"
-        print(f"{emoji} DEBUG: download_igdb_image called - type: {image_type}, image_id: {image_id}, system: {system_name}, game: {game_name}")
+        print(f"{emoji} DEBUG: download_igdb_image called - type: {image_type}, image_id: {image_id}, system: {system_name}, rom: {rom_filename}")
         print(f"{emoji} DEBUG: Raw URL from API: {image_url}")
         
         if not image_url:
@@ -9150,10 +9150,12 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
         
-        # Create safe filename from game name
-        safe_game_name = "".join(c for c in game_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_game_name = safe_game_name.replace(' ', '_')
-        filename = f"{safe_game_name}.png"  # Always save as PNG
+        # Create safe filename from ROM filename (without extension)
+        import os
+        rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
+        safe_rom_name = "".join(c for c in rom_name_without_ext if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_rom_name = safe_rom_name.replace(' ', '_')
+        filename = f"{safe_rom_name}.png"  # Always save as PNG
         file_path = os.path.join(media_dir, filename)
         print(f"{emoji} DEBUG: Safe filename: {filename}")
         print(f"{emoji} DEBUG: Full file path: {file_path}")
@@ -9645,6 +9647,10 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
         
         game_name = name_elem.text.strip()
         
+        # Get ROM filename for media downloads
+        path_elem = game.find('path')
+        rom_filename = path_elem.text if path_elem is not None and path_elem.text else game_name
+        
         # Check if already has IGDB ID
         igdbid_elem = game.find('igdbid')
         existing_igdb_id = None
@@ -9739,7 +9745,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     artwork, 
                                     system_name, 
-                                    game_name,
+                                    rom_filename,
                                     "fanart"
                                 ),
                                 timeout=30.0  # 30 second timeout
@@ -9804,7 +9810,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     screenshot, 
                                     system_name, 
-                                    game_name,
+                                    rom_filename,
                                     "screenshot"
                                 ),
                                 timeout=30.0  # 30 second timeout
@@ -9869,7 +9875,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     cover, 
                                     system_name, 
-                                    game_name,
+                                    rom_filename,
                                     "cover"
                                 ),
                                 timeout=30.0  # 30 second timeout
@@ -9934,7 +9940,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     logo, 
                                     system_name, 
-                                    game_name,
+                                    rom_filename,
                                     "logo"
                                 ),
                                 timeout=30.0  # 30 second timeout
