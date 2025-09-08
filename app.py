@@ -8884,9 +8884,27 @@ def find_matching_cover(covers, target_region, regions_cache, game_localizations
                 if localization and localization.get('region'):
                     region_name = get_igdb_region_name(localization['region'], regions_cache)
                     print(f"🌍 DEBUG: Cover {cover.get('id')} has region: '{region_name}'")
-                    if region_name.lower() == target_region.lower():
+                    
+                    # Normalize both regions for comparison
+                    target_normalized = target_region.lower().strip()
+                    region_normalized = region_name.lower().strip()
+                    
+                    if region_normalized == target_normalized:
                         print(f"🌍 DEBUG: Found exact region match!")
                         return cover
+                    
+                    # Special case mappings for common regions
+                    region_mappings = {
+                        'japan': ['japan', 'jp'],
+                        'usa': ['usa', 'united states', 'north america', 'us'],
+                        'europe': ['europe', 'eu', 'european'],
+                        'world': ['world', 'global', 'international']
+                    }
+                    
+                    for key, values in region_mappings.items():
+                        if target_normalized in values and region_normalized in values:
+                            print(f"🌍 DEBUG: Found mapped region match: '{region_name}' matches '{target_region}' via mapping")
+                            return cover
         
         # If no exact match, try partial match
         for cover in covers:
@@ -8894,7 +8912,10 @@ def find_matching_cover(covers, target_region, regions_cache, game_localizations
                 localization = game_localizations.get(cover['game_localization'])
                 if localization and localization.get('region'):
                     region_name = get_igdb_region_name(localization['region'], regions_cache)
-                    if target_region.lower() in region_name.lower() or region_name.lower() in target_region.lower():
+                    target_normalized = target_region.lower().strip()
+                    region_normalized = region_name.lower().strip()
+                    
+                    if target_normalized in region_normalized or region_normalized in target_normalized:
                         print(f"🌍 DEBUG: Found partial region match: '{region_name}'")
                         return cover
     
@@ -8910,8 +8931,16 @@ def find_matching_cover(covers, target_region, regions_cache, game_localizations
                 localization = game_localizations.get(cover['game_localization'])
                 if localization and localization.get('region'):
                     region_name = get_igdb_region_name(localization['region'], regions_cache)
-                    if region_name.lower() == priority_region.lower():
+                    priority_normalized = priority_region.lower().strip()
+                    region_normalized = region_name.lower().strip()
+                    
+                    if region_normalized == priority_normalized:
                         print(f"🌍 DEBUG: Found cover matching priority region: '{region_name}'")
+                        return cover
+                    
+                    # Also try partial matching for priority regions
+                    if priority_normalized in region_normalized or region_normalized in priority_normalized:
+                        print(f"🌍 DEBUG: Found cover matching priority region (partial): '{region_name}' matches '{priority_region}'")
                         return cover
     
     # If no priority match, use first cover
@@ -9056,7 +9085,8 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
         elif image_type == "screenshot":
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'screenshots')
         elif image_type == "cover":
-            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'boxart')
+            # Cover maps to extra1 field, which uses box2d directory
+            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'box2d')
         else:
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'images')
         
@@ -9151,7 +9181,8 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
             elif image_type == "screenshot":
                 relative_path = f"./media/screenshots/{filename}"
             elif image_type == "cover":
-                relative_path = f"./media/boxart/{filename}"
+                # Cover maps to extra1 field, which uses box2d directory
+                relative_path = f"./media/box2d/{filename}"
             else:
                 relative_path = f"./media/images/{filename}"
             
