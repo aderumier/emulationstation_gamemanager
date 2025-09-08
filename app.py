@@ -4063,7 +4063,7 @@ def apply_partial_match():
             return jsonify({'error': 'Missing required fields'}), 400
         
         # Load the current gamelist
-        gamelist_path = f'roms/{system_name}/gamelist.xml'
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             return jsonify({'error': 'Gamelist not found'}), 404
         
