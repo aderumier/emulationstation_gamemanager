@@ -8715,7 +8715,7 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
         traceback.print_exc()
         return None
 
-async def download_igdb_fanart(async_client, artwork_data, system_name, game_name):
+async def download_igdb_fanart(artwork_data, system_name, game_name):
     """Download fanart image from IGDB and save it to the fanart directory"""
     try:
         image_id = artwork_data.get('image_id')
@@ -8753,11 +8753,20 @@ async def download_igdb_fanart(async_client, artwork_data, system_name, game_nam
         print(f"🎨 DEBUG: Safe filename: {filename}")
         print(f"🎨 DEBUG: Full file path: {file_path}")
         
-        # Download the image
-        print(f"🎨 DEBUG: Starting image download...")
+        # Download the image using httpx with separate connection pool
+        print(f"🎨 DEBUG: Starting image download with httpx...")
         try:
-            response = await async_client.get(image_url, timeout=20.0)  # 20 second timeout
-            print(f"🎨 DEBUG: Download response status: {response.status_code}")
+            import httpx
+            # Use a separate connection pool for image downloads to avoid interference with IGDB API calls
+            limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+            async with httpx.AsyncClient(
+                timeout=20.0,
+                limits=limits,
+                http2=True,  # Enable HTTP/2 for better performance
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            ) as image_client:
+                response = await image_client.get(image_url)
+                print(f"🎨 DEBUG: Download response status: {response.status_code}")
         except Exception as e:
             print(f"🎨 DEBUG: Error downloading image: {e}")
             return None
@@ -9311,7 +9320,6 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                             import asyncio
                             fanart_path = await asyncio.wait_for(
                                 download_igdb_fanart(
-                                    async_client, 
                                     artwork, 
                                     system_name, 
                                     game_name
