@@ -9022,7 +9022,14 @@ async def download_igdb_image(image_data, system_name, game_name, image_type="fa
     try:
         image_id = image_data.get('image_id')
         image_url = image_data.get('url')
-        emoji = "🎨" if image_type == "fanart" else "📸"
+        if image_type == "fanart":
+            emoji = "🎨"
+        elif image_type == "screenshot":
+            emoji = "📸"
+        elif image_type == "cover":
+            emoji = "🖼️"
+        else:
+            emoji = "🖼️"
         print(f"{emoji} DEBUG: download_igdb_image called - type: {image_type}, image_id: {image_id}, system: {system_name}, game: {game_name}")
         print(f"{emoji} DEBUG: Raw URL from API: {image_url}")
         
