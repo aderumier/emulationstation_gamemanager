@@ -52,11 +52,11 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-COPY gamemanager_1.8-1_all.deb .
+COPY gamemanager_1.8.1-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_1.8-1_all.deb / && \
-    rm gamemanager_1.8-1_all.deb
+RUN dpkg-deb -x gamemanager_1.8.1-1_all.deb / && \
+    rm gamemanager_1.8.1-1_all.deb
 
 # Create necessary directories with proper structure first
 RUN mkdir -p \
@@ -64,7 +64,9 @@ RUN mkdir -p \
     /opt/gamemanager/media \
     /opt/gamemanager/cache \
     /opt/gamemanager/var/task_logs \
+    /opt/gamemanager/var/db \
     /opt/gamemanager/var/db/launchbox \
+    /opt/gamemanager/var/db/igdb \
     /opt/gamemanager/var/sessions \
     /opt/gamemanager/var/gamelists \
     /opt/gamemanager/var/config
@@ -82,13 +84,20 @@ RUN ls -la /opt/gamemanager/var/config/ && \
 
 # Application files are installed by the .deb package
 
-# Create startup script to handle config files for volume mounts
+# Create startup script to handle config files and directories for volume mounts
 RUN cat > /opt/gamemanager/start.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Create var/config directory if it doesn't exist
+# Create all necessary directories if they don't exist (for volume mount scenarios)
+echo "Creating application directories..."
 mkdir -p /opt/gamemanager/var/config
+mkdir -p /opt/gamemanager/var/db
+mkdir -p /opt/gamemanager/var/db/launchbox
+mkdir -p /opt/gamemanager/var/db/igdb
+mkdir -p /opt/gamemanager/var/sessions
+mkdir -p /opt/gamemanager/var/task_logs
+mkdir -p /opt/gamemanager/var/gamelists
 
 # Copy default config files if they don't exist in var/config
 if [ ! -f /opt/gamemanager/var/config/config.json ]; then
@@ -104,7 +113,7 @@ fi
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
 
-echo "✅ Configuration files ready in var/config/"
+echo "✅ All directories and configuration files ready"
 echo "Starting GameManager..."
 
 # Start the application
@@ -133,6 +142,6 @@ CMD ["/opt/gamemanager/start.sh"]
 # Labels for metadata
 LABEL maintainer="GameManager Team <admin@gamemanager.local>"
 LABEL description="Game Collection Management System with LaunchBox integration"
-LABEL version="1.8-1"
+LABEL version="1.8.1-1"
 LABEL org.opencontainers.image.source="https://github.com/yourusername/gamemanager"
 LABEL org.opencontainers.image.description="Flask-based web application for managing game collections with metadata and media from LaunchBox database"

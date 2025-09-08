@@ -524,6 +524,10 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # Create directories if they don't exist
 os.makedirs(ROMS_FOLDER, exist_ok=True)
 os.makedirs(GAMELISTS_FOLDER, exist_ok=True)
+os.makedirs('var/db', exist_ok=True)
+os.makedirs('var/db/launchbox', exist_ok=True)
+os.makedirs('var/db/igdb', exist_ok=True)
+os.makedirs('var/sessions', exist_ok=True)
 
 def get_gamelist_path(system_name):
     """Get the gamelist path for a system, ensuring the directory exists"""
@@ -655,7 +659,13 @@ def save_gamelist_to_roms(system_name):
         return {'success': False, 'error': f'Error saving gamelist: {str(e)}'}
 
 # Launchbox scraping configuration
-LAUNCHBOX_METADATA_PATH = 'var/db/launchbox/Metadata.xml'
+def get_launchbox_metadata_path():
+    """Get the absolute path to the LaunchBox metadata file"""
+    cwd = os.getcwd()
+    path = os.path.join(cwd, 'var', 'db', 'launchbox', 'Metadata.xml')
+    return path
+
+LAUNCHBOX_METADATA_PATH = 'var/db/launchbox/Metadata.xml'  # Keep for backward compatibility
 
 # Global variables for scraping
 scraping_in_progress = False
@@ -782,7 +792,9 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         'progress_percentage': 0,
         'stats': stats,
     })
-    if not os.path.exists(LAUNCHBOX_METADATA_PATH):
+    metadata_path = get_launchbox_metadata_path()
+    os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+    if not os.path.exists(metadata_path):
         return {'success': False, 'error': 'Metadata.xml not found'}
     
     # Load only platform-specific metadata cache (games + alternate names, no images)
@@ -2463,8 +2475,12 @@ def load_metadata_cache():
         print("DEBUG: Loading comprehensive metadata cache from Metadata.xml...")
         start_time = time.time()
         
-        if not os.path.exists(LAUNCHBOX_METADATA_PATH):
-            print(f"DEBUG: Metadata.xml not found at {LAUNCHBOX_METADATA_PATH}")
+        # Ensure the directory exists before checking for the file
+        metadata_path = get_launchbox_metadata_path()
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        
+        if not os.path.exists(metadata_path):
+            print(f"DEBUG: Metadata.xml not found at {metadata_path}")
             global_metadata_cache = {}
             global_metadata_cache_loaded = True
             return {
@@ -2474,7 +2490,7 @@ def load_metadata_cache():
             }
         
         # Parse the Metadata.xml
-        tree = ET.parse(LAUNCHBOX_METADATA_PATH)
+        tree = ET.parse(metadata_path)
         root = tree.getroot()
         
         # Initialize temporary consolidated cache
@@ -2624,15 +2640,18 @@ def load_platform_metadata_cache(platform, use_global_cache=False, mapping_confi
         # Default behavior: parse XML file directly (for worker processes)
         print(f"DEBUG: Parsing XML file for platform {platform}...")
         
-        if not os.path.exists(LAUNCHBOX_METADATA_PATH):
-            print(f"DEBUG: Metadata.xml not found at {LAUNCHBOX_METADATA_PATH}")
+        metadata_path = get_launchbox_metadata_path()
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        
+        if not os.path.exists(metadata_path):
+            print(f"DEBUG: Metadata.xml not found at {metadata_path}")
             return {
                 'games_cache': {},
                 'alternate_names_cache': {}
             }
         
         # Parse the Metadata.xml
-        tree = ET.parse(LAUNCHBOX_METADATA_PATH)
+        tree = ET.parse(metadata_path)
         root = tree.getroot()
         
         # Initialize platform-specific cache
@@ -3888,7 +3907,10 @@ def find_best_matches_endpoint():
         mapping_config, system_platform_mapping = load_launchbox_config()
         current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
         
-        if not os.path.exists(LAUNCHBOX_METADATA_PATH):
+        metadata_path = get_launchbox_metadata_path()
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        
+        if not os.path.exists(metadata_path):
             return jsonify({'error': 'Metadata.xml not found'}), 404
         
         # Load global metadata cache and filter by platform
@@ -4211,10 +4233,13 @@ def get_top_matches_endpoint():
         target_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
         
         # Load Launchbox metadata
-        if not os.path.exists(LAUNCHBOX_METADATA_PATH):
+        metadata_path = get_launchbox_metadata_path()
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        
+        if not os.path.exists(metadata_path):
             return jsonify({'error': 'Metadata.xml not found'}), 404
         
-        metadata_games = parse_launchbox_metadata(LAUNCHBOX_METADATA_PATH, target_platform)
+        metadata_games = parse_launchbox_metadata(metadata_path, target_platform)
         if not metadata_games:
             return jsonify({'error': 'No metadata found for current platform'}), 404
         
@@ -5124,7 +5149,10 @@ def reload_cache_endpoint():
 def metadata_info_endpoint():
     """Get metadata.xml file information"""
     try:
-        metadata_path = LAUNCHBOX_METADATA_PATH
+        metadata_path = get_launchbox_metadata_path()
+        
+        # Ensure the directory exists before checking for the file
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
         
         if not os.path.exists(metadata_path):
             return jsonify({
@@ -5186,6 +5214,12 @@ def update_metadata_endpoint():
         import zipfile
         import tempfile
         
+        # Get absolute path and ensure directory exists
+        metadata_path = get_launchbox_metadata_path()
+        metadata_dir = os.path.dirname(metadata_path)
+        
+        os.makedirs(metadata_dir, exist_ok=True)
+        
         # Download the latest metadata
         metadata_url = 'http://gamesdb.launchbox-app.com/Metadata.zip'
         
@@ -5221,15 +5255,12 @@ def update_metadata_endpoint():
                 print(f"DEBUG: Found Metadata.xml file")
             
             # Backup existing metadata if it exists
-            if os.path.exists(LAUNCHBOX_METADATA_PATH):
-                backup_path = f"{LAUNCHBOX_METADATA_PATH}.backup.{int(time.time())}"
-                shutil.copy2(LAUNCHBOX_METADATA_PATH, backup_path)
-            
+            if os.path.exists(metadata_path):
+                backup_path = f"{metadata_path}.backup.{int(time.time())}"
+                shutil.copy2(metadata_path, backup_path)
+
             # Copy the new metadata file
-            print(f"DEBUG: Copying {extracted_metadata} to {LAUNCHBOX_METADATA_PATH}")
-            print(f"DEBUG: Source file size: {os.path.getsize(extracted_metadata)} bytes")
-            shutil.copy2(extracted_metadata, LAUNCHBOX_METADATA_PATH)
-            print(f"DEBUG: Destination file size: {os.path.getsize(LAUNCHBOX_METADATA_PATH)} bytes")
+            shutil.copy2(extracted_metadata, metadata_path)
             
             # Clear the cache to force reload
             global global_metadata_cache_loaded, global_metadata_cache
@@ -9868,6 +9899,7 @@ def save_igdb_platform_cache(platforms):
     """Save IGDB platform cache to file"""
     cache_path = get_igdb_platform_cache_path()
     try:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         data = {
             'timestamp': time.time(),
             'platforms': platforms
@@ -10001,6 +10033,7 @@ def save_igdb_company_cache(companies):
     """Save IGDB company cache to file"""
     cache_path = get_igdb_company_cache_path()
     try:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         data = {
             'timestamp': time.time(),
             'companies': companies
