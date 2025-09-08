@@ -7614,7 +7614,10 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         task.update_progress(f"  ❌ Failed: {failed_downloads}")
         
         if successful_downloads > 0:
+            # Mark that grid refresh is needed since we updated the gamelist
+            task.grid_refresh_needed = True
             task.complete(True, f'Batch download completed: {successful_downloads} successful, {failed_downloads} failed')
+            task.update_progress("Grid refresh signal sent")
         else:
             task.complete(False, f'Batch download failed: {failed_downloads} failed downloads')
         
@@ -7769,6 +7772,7 @@ def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
         root = tree.getroot()
         
         # Find the game element
+        game_updated = False
         for game in root.findall('game'):
             path_elem = game.find('path')
             if path_elem is not None and path_elem.text == rom_path:
@@ -7777,10 +7781,17 @@ def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
                 if video_elem is None:
                     video_elem = ET.SubElement(game, 'video')
                 video_elem.text = f"./media/videos/{video_filename}"
+                game_updated = True
                 break
         
-        # Save the updated gamelist
-        tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+        if game_updated:
+            # Save the updated gamelist
+            tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+            
+            # Send notifications for gamelist update
+            system_name = os.path.basename(os.path.dirname(gamelist_path))
+            notify_gamelist_updated(system_name, len(root.findall('game')))
+            notify_game_updated(system_name, rom_path, ['video'])
         
     except Exception as e:
         print(f"Error updating gamelist video field: {e}")
