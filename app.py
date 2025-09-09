@@ -1551,6 +1551,25 @@ class Task:
             if len(self.progress) > 1000:
                 self.progress = self.progress[-1000:]
     
+    def log_message(self, message):
+        """Log a message to the task log without updating progress"""
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        log_entry = f"[{timestamp}] {message}"
+        
+        self.progress.append(log_entry)
+        
+        # Write to log file
+        try:
+            with open(self.log_file, 'a', encoding='utf-8') as f:
+                f.write(log_entry + '\n')
+                    
+        except Exception as e:
+            print(f"Error writing to log file {self.log_file}: {e}")
+
+        # Keep only last 1000 messages in memory
+        if len(self.progress) > 1000:
+            self.progress = self.progress[-1000:]
+    
     def update_stats(self, stats):
         """Update task statistics"""
         self.stats.update(stats)
@@ -11360,7 +11379,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             def detailed_progress_callback(message):
                 t = get_task(task_id)
                 if t:
-                    t.update_progress(None, message)
+                    t.log_message(message)
             
             # Process games in batches
             results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields, detailed_progress_callback)
