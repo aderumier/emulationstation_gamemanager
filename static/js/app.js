@@ -6850,10 +6850,12 @@ class GameCollectionManager {
                 // Refresh edit modal if it's open
                 const editModal = document.getElementById('editGameModal');
                 if (editModal && editModal.classList.contains('show')) {
-                    // Find the currently edited game and refresh its media display
-                    const currentGame = this.games.find(g => g.id === this.editingGameIndex);
-                    if (currentGame) {
-                        this.showEditGameMedia(currentGame);
+                    // Get the currently edited game using the stored index
+                    if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
+                        const currentGame = this.games[this.editingGameIndex];
+                        if (currentGame) {
+                            this.showEditGameMedia(currentGame);
+                        }
                     }
                 }
             }
