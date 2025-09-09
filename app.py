@@ -5348,11 +5348,6 @@ def upload_game_media(system_name):
         if not media_field:
             return jsonify({'error': 'Media field not specified'}), 400
         
-        # Validate media field
-        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1']
-        if media_field not in valid_media_fields:
-            return jsonify({'error': 'Invalid media field'}), 400
-        
         # Get the ROM filename without extension for use as media filename
         rom_path = game.get('path', '')
         rom_filename = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else game.get('name', 'unknown')
