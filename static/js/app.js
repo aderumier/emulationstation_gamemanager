@@ -6841,8 +6841,15 @@ class GameCollectionManager {
                 // Refresh the grid and media preview
                 this.gridApi.refreshCells();
                 if (this.selectedMedia.length > 0) {
-                    // Show preview for the first selected game
-                    this.showMediaPreview(this.selectedMedia[0].game);
+                    // Show preview for the first selected game using updated game object
+                    const firstGame = this.selectedMedia[0].game;
+                    const updatedGame = this.games.find(g => g.path === firstGame.path);
+                    if (updatedGame) {
+                        // Add a small delay to ensure gamelist is fully updated
+                        setTimeout(() => {
+                            this.showMediaPreview(updatedGame);
+                        }, 100);
+                    }
                 }
                 
                 // Refresh edit modal if it's open
@@ -6852,7 +6859,10 @@ class GameCollectionManager {
                     if (this.editingGamePath) {
                         const currentGame = this.games.find(g => g.path === this.editingGamePath);
                         if (currentGame) {
-                            this.showEditGameMedia(currentGame);
+                            // Add a small delay to ensure gamelist is fully updated
+                            setTimeout(() => {
+                                this.showEditGameMedia(currentGame);
+                            }, 100);
                         }
                     }
                 }
