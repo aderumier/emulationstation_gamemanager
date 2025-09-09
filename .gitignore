@@ -134,6 +134,10 @@ roms/
 # Debian packages
 *.deb
 
+# Debian build directories (generated during build process)
+debian/opt/
+debian/usr/
+
 # Configuration files with sensitive data (optional)
 # config.json
 # secrets.json

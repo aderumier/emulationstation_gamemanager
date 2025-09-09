@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=GameManager
-Comment=Game Collection Management System
-Exec=python3 /opt/gamemanager/app.py
-Icon=applications-games
-Terminal=true
-Type=Application
-Categories=Game;Utility;
