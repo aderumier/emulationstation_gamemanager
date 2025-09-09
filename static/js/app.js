@@ -6293,9 +6293,8 @@ class GameCollectionManager {
                 const data = await response.json();
                 alert('IGDB credentials saved successfully!');
                 
-                // Clear the form fields
-                document.getElementById('igdbClientId').value = '';
-                document.getElementById('igdbClientSecret').value = '';
+                // Reload the credential values to show the saved values
+                await this.loadIgdbCredentialsValues();
                 
                 // Update status
                 await this.loadIgdbCredentialsStatus();
@@ -6424,9 +6423,8 @@ class GameCollectionManager {
             if (response.ok) {
                 alert('ScreenScraper credentials saved successfully!');
                 
-                // Clear the form
-                document.getElementById('screenscraperSsId').value = '';
-                document.getElementById('screenscraperSsPassword').value = '';
+                // Reload the credential values to show the saved values
+                await this.loadScreenscraperCredentialsValues();
                 
                 // Update status
                 await this.loadScreenscraperCredentialsStatus();
