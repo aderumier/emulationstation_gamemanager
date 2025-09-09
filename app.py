@@ -5313,8 +5313,8 @@ def upload_game_media(system_name, game_id):
         if not os.path.exists(system_path):
             return jsonify({'error': 'System not found'}), 404
         
-        # Check if game exists in gamelist
-        gamelist_path = os.path.join(system_path, 'gamelist.xml')
+        # Check if game exists in gamelist (use var/gamelists, not roms)
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             return jsonify({'error': 'Gamelist not found'}), 404
         
@@ -5585,8 +5585,8 @@ def delete_game_media(system_name, game_id):
         if not os.path.exists(system_path):
             return jsonify({'error': 'System not found'}), 404
         
-        # Check if game exists in gamelist
-        gamelist_path = os.path.join(system_path, 'gamelist.xml')
+        # Check if game exists in gamelist (use var/gamelists, not roms)
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             return jsonify({'error': 'Gamelist not found'}), 404
         
