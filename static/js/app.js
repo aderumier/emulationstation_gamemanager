@@ -2888,12 +2888,12 @@ class GameCollectionManager {
                 img.alt = `${field} for ${game.name}`;
                 img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion`;
                 img.style.cssText = 'width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px;';
-                img.ondblclick = () => this.uploadMedia(field, game.id);
+                img.ondblclick = () => this.uploadMediaForGame(game, field);
                 img.onclick = () => this.selectEditModalMediaItem(mediaItem, field, game, game[field]);
                 img.onerror = () => {
                     // If image fails to load, show placeholder
                     mediaItem.innerHTML = `
-                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMedia('${field}', '${game.id}')" title="Double-click to upload media">
+                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}')" title="Double-click to upload media">
                             <div style="text-align: center; color: #6c757d;">
                                 <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                                 Double-click<br>to upload
@@ -2927,7 +2927,7 @@ class GameCollectionManager {
             } else {
                 // Display placeholder for missing media
                 mediaItem.innerHTML = `
-                    <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMedia('${field}', '${game.id}')" title="Double-click to upload media">
+                    <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}')" title="Double-click to upload media">
                         <div style="text-align: center; color: #6c757d;">
                             <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                             Double-click<br>to upload
@@ -3193,31 +3193,15 @@ class GameCollectionManager {
     }
     
     uploadMedia(mediaField, gameId) {
-        // Create a file input element
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*,video/*';
-        fileInput.style.display = 'none';
+        // Find the game by ID to get its ROM path
+        const game = this.games.find(g => g.id === gameId);
+        if (!game) {
+            this.showAlert('Game not found', 'error');
+            return;
+        }
         
-        // Add change event listener
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                try {
-                    await this.handleMediaUpload(file, mediaField, gameId);
-                } catch (error) {
-                    console.error('Error uploading media:', error);
-                    this.showAlert('Error uploading media file', 'error');
-                }
-            }
-            
-            // Clean up
-            document.body.removeChild(fileInput);
-        });
-        
-        // Trigger file selection
-        document.body.appendChild(fileInput);
-        fileInput.click();
+        // Use the existing uploadMediaForGame function with ROM path
+        this.uploadMediaForGame(game, mediaField);
     }
     
     uploadMediaForGame(game, mediaField) {
