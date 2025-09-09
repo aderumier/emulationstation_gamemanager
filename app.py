@@ -5613,7 +5613,7 @@ def delete_game_media(system_name):
             return jsonify({'error': 'Media field not specified'}), 400
         
         # Validate media field
-        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1']
+        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1', 'titleshot']
         if media_field not in valid_media_fields:
             return jsonify({'error': 'Invalid media field'}), 400
         
@@ -5696,7 +5696,7 @@ def delete_game_media_batch(system_name):
             return jsonify({'error': 'No media fields specified'}), 400
         
         # Validate media fields
-        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1']
+        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1', 'titleshot']
         for field in media_fields:
             if field not in valid_media_fields:
                 return jsonify({'error': f'Invalid media field: {field}'}), 400
