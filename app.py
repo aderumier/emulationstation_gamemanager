@@ -11293,9 +11293,9 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
         t = get_task(task_id)
         if t:
             progress = int((completed / total) * 100) if total > 0 else 0
-            # Log progress with meaningful message for task log
-            message = f"Processed {completed}/{total} games"
-            t.update_progress(progress, message, current_step=completed, total_steps=total)
+            # Only update progress percentage and steps, don't log every single game
+            # The UI will show the counter from current_step/total_steps
+            t.update_progress(progress, None, current_step=completed, total_steps=total)
             print(f"🔄 ScreenScraper Progress: {completed}/{total} ({progress}%)")
     
     async def async_screenscraper():
