@@ -11419,10 +11419,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             # Check for cancellation before processing games
             if is_cancelled():
                 print(f"ScreenScraper task {task_id} was cancelled before processing games")
-                t = get_task(task_id)
-                if t:
-                    t.complete(False, "Task cancelled before processing games")
-                return
+                # Don't return here - continue to save partial results (even if no games processed)
             
             # Process games in batches
             results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields, detailed_progress_callback, is_cancelled)
@@ -11430,10 +11427,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             # Check for cancellation after processing games
             if is_cancelled():
                 print(f"ScreenScraper task {task_id} was cancelled after processing games")
-                t = get_task(task_id)
-                if t:
-                    t.complete(False, "Task cancelled after processing games")
-                return
+                # Don't return here - continue to save partial results
             
             # Update all games with ScreenScraper IDs and downloaded media
             print(f"📝 Updating gamelist with ScreenScraper data...")
@@ -11458,10 +11452,13 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                         print(f"📝 Updated {media_field} for {game['name']}: {media_path}")
             
             # Save updated gamelist (all games, not just processed ones)
+            # Always save gamelist, even if no games were updated (to ensure consistency)
+            print(f"💾 Saving updated gamelist...")
+            write_gamelist_xml(all_games, gamelist_path)
             if updated_count > 0:
-                print(f"💾 Saving updated gamelist...")
-                write_gamelist_xml(all_games, gamelist_path)
                 print(f"✅ Updated {updated_count} games with ScreenScraper IDs")
+            else:
+                print(f"💾 Gamelist saved (no games updated)")
             
             # Complete task
             t = get_task(task_id)
@@ -11471,7 +11468,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     message = f"ScreenScraper task stopped. Updated {updated_count} games with ScreenScraper IDs"
                     if media_updated_count > 0:
                         message += f" and downloaded {media_updated_count} media files"
-                    t.complete(False, message)
+                    # Mark as completed (not error) when stopped, as partial results are saved
+                    t.complete(True, message)
                 else:
                     message = f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs"
                     if media_updated_count > 0:
