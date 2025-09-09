@@ -6794,8 +6794,8 @@ class GameCollectionManager {
                     });
                     
                     if (deleteResponse.ok) {
-                        // Remove the media field from the game object
-                        delete game[field];
+                        // Set the media field to empty string instead of deleting it
+                        game[field] = '';
                         
                         // Mark the game as modified
                         this.markGameAsModified(game);
