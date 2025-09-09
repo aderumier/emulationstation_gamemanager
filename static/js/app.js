@@ -6604,7 +6604,8 @@ class GameCollectionManager {
         
         // Get ScreenScraper field mappings from config
         // ScreenScraper has image_type_mappings that map API field names to gamelist field names
-        const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
+        // We need to use the VALUES (gamelist field names) not the KEYS (API field names)
+        const mediaFields = Object.values(config.screenscraper?.image_type_mappings || {});
         
         // For text fields, we need to use the hardcoded field names that match the HTML checkboxes
         // since ScreenScraper doesn't have a text field mapping in the config
