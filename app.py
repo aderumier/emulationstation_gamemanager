@@ -7130,8 +7130,9 @@ def scan_rom_files_confirm(system_name):
 def update_gamelist_and_complete(task, system_path, output_filename, output_path, file_size, start_time, end_time, rom_file):
     """Helper function to update gamelist.xml and complete the task"""
     try:
-        # Update gamelist.xml to include the new video
-        gamelist_path = os.path.join(system_path, 'gamelist.xml')
+        # Update gamelist.xml to include the new video (use var/gamelists, not roms)
+        system_name = os.path.basename(system_path)
+        gamelist_path = get_gamelist_path(system_name)
         if os.path.exists(gamelist_path):
             try:
                 # Parse existing gamelist
@@ -7163,7 +7164,6 @@ def update_gamelist_and_complete(task, system_path, output_filename, output_path
                     task.update_progress("✅ Gamelist.xml updated successfully")
                     
                     # Notify all connected clients about the gamelist update
-                    system_name = os.path.basename(system_path)
                     notify_gamelist_updated(system_name, len(games))
                     notify_game_updated(system_name, rom_file, ['video'])
                     
