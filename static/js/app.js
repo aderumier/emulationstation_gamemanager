@@ -6594,44 +6594,32 @@ class GameCollectionManager {
     }
 
     async getSelectedScreenscraperFields() {
-        try {
-            // Fetch config to get dynamic field mappings
-            const response = await fetch('/api/config');
-            const config = await response.json();
-            
-            // Get ScreenScraper field mappings from config
-            const textFields = Object.keys(config.screenscraper?.mapping || {});
-            const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
-            const allFields = [...textFields, ...mediaFields];
-            
-            const selectedFields = [];
-            allFields.forEach(field => {
-                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
-                if (checkbox && checkbox.checked) {
-                    selectedFields.push(field);
-                }
-            });
-            
-            return selectedFields;
-        } catch (error) {
-            console.error('Error getting selected ScreenScraper fields:', error);
-            // Fallback to hardcoded fields if config fetch fails
-            const fallbackFields = [
-                'name', 'description', 'developer', 'publisher', 'genre', 
-                'rating', 'players', 'release_date', 'screenshot', 'titleshot', 
-                'marquee', 'boxart', 'boxback', 'cartridge', 'fanart', 'video', 'manual', 'extra1'
-            ];
-            
-            const selectedFields = [];
-            fallbackFields.forEach(field => {
-                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
-                if (checkbox && checkbox.checked) {
-                    selectedFields.push(field);
-                }
-            });
-            
-            return selectedFields;
-        }
+        // Fetch config to get dynamic field mappings
+        const response = await fetch('/api/config');
+        const config = await response.json();
+        
+        // Get ScreenScraper field mappings from config
+        const textFields = Object.keys(config.screenscraper?.mapping || {});
+        const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
+        const allFields = [...textFields, ...mediaFields];
+        
+        const selectedFields = [];
+        console.log('ScreenScraper fields from config:', allFields);
+        
+        allFields.forEach(field => {
+            // Convert field name to checkbox ID format: field_name -> FieldName
+            const fieldId = field.split('_').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join('');
+            const checkbox = document.getElementById(`screenscraperField${fieldId}`);
+            console.log(`Field: ${field} -> ID: screenscraperField${fieldId} -> Checked: ${checkbox?.checked}`);
+            if (checkbox && checkbox.checked) {
+                selectedFields.push(field);
+            }
+        });
+        
+        console.log('Selected ScreenScraper fields:', selectedFields);
+        return selectedFields;
     }
 
     async loadLaunchboxFieldSettings() {
