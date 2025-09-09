@@ -951,33 +951,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- IGDB Credentials -->
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-key-fill"></i> IGDB API Credentials</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label for="igdbClientId" class="form-label">Client ID</label>
-                                <input type="text" class="form-control" id="igdbClientId" placeholder="Enter your IGDB Client ID">
-                                <div class="form-text">Get your Client ID from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="igdbClientSecret" class="form-label">Client Secret</label>
-                                <input type="password" class="form-control" id="igdbClientSecret" placeholder="Enter your IGDB Client Secret">
-                                <div class="form-text">Get your Client Secret from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div id="igdbCredentialsStatus" class="text-muted">
-                                    <i class="bi bi-info-circle me-1"></i>No credentials configured
-                                </div>
-                                <button type="button" class="btn btn-primary btn-sm" id="saveIgdbCredentialsBtn">
-                                    <i class="bi bi-save me-1"></i>Save Credentials
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <!-- Scraping Options -->
                     <div class="card mb-3">
                         <div class="card-header">
@@ -1345,6 +1318,41 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <i class="bi bi-info-circle me-1"></i>No credentials configured
                                             </div>
                                             <button type="button" class="btn btn-primary btn-sm" id="saveScreenscraperCredentialsBtn">
+                                                <i class="bi bi-save me-1"></i>Save Credentials
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- IGDB API Credentials -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6><i class="bi bi-globe me-2"></i>IGDB API Credentials</h6>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="igdbClientId" class="form-label">Client ID</label>
+                                                    <input type="text" class="form-control" id="igdbClientId" placeholder="Enter your IGDB Client ID">
+                                                    <div class="form-text">Get your Client ID from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="igdbClientSecret" class="form-label">Client Secret</label>
+                                                    <input type="password" class="form-control" id="igdbClientSecret" placeholder="Enter your IGDB Client Secret">
+                                                    <div class="form-text">Get your Client Secret from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div id="igdbCredentialsStatus" class="text-muted">
+                                                <i class="bi bi-info-circle me-1"></i>No credentials configured
+                                            </div>
+                                            <button type="button" class="btn btn-primary btn-sm" id="saveIgdbCredentialsBtn">
                                                 <i class="bi bi-save me-1"></i>Save Credentials
                                             </button>
                                         </div>

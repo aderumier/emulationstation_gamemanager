@@ -6239,9 +6239,6 @@ class GameCollectionManager {
             overwriteMediaCheckbox.checked = savedOverwriteMediaFields === 'true';
         }
         
-        // Load IGDB credentials status
-        this.loadIgdbCredentialsStatus();
-        
         // Load field selection settings
         this.loadIgdbFieldSettings();
         
@@ -6372,6 +6369,26 @@ class GameCollectionManager {
             }
         } catch (error) {
             console.error('Error loading ScreenScraper credentials values:', error);
+        }
+    }
+    
+    async loadIgdbCredentialsValues() {
+        try {
+            const response = await fetch('/api/igdb-credentials-values');
+            if (response.ok) {
+                const data = await response.json();
+                // Populate the form fields with current values
+                if (data.client_id) {
+                    document.getElementById('igdbClientId').value = data.client_id;
+                }
+                if (data.client_secret) {
+                    document.getElementById('igdbClientSecret').value = data.client_secret;
+                }
+            } else {
+                console.error('Failed to load IGDB credentials values');
+            }
+        } catch (error) {
+            console.error('Error loading IGDB credentials values:', error);
         }
     }
     
@@ -7116,6 +7133,10 @@ class GameCollectionManager {
                 // Load ScreenScraper credentials
                 await this.loadScreenscraperCredentialsStatus();
                 await this.loadScreenscraperCredentialsValues();
+                
+                // Load IGDB credentials
+                await this.loadIgdbCredentialsStatus();
+                await this.loadIgdbCredentialsValues();
                 
                 console.log('Configuration loaded:', config);
             } else {

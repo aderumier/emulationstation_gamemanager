@@ -2950,6 +2950,28 @@ def get_screenscraper_credentials_values():
         print(f"Error getting ScreenScraper credential values: {e}")
         return jsonify({'error': f'Failed to get ScreenScraper credential values: {str(e)}'}), 500
 
+@app.route('/api/igdb-credentials-values', methods=['GET'])
+@login_required
+def get_igdb_credentials_values():
+    """Get IGDB credential values for form population"""
+    try:
+        # Load credentials from credentials.json
+        credentials_path = 'var/config/credentials.json'
+        if os.path.exists(credentials_path):
+            with open(credentials_path, 'r', encoding='utf-8') as f:
+                credentials = json.load(f)
+                igdb_creds = credentials.get('igdb', {})
+        else:
+            igdb_creds = {}
+        
+        return jsonify({
+            'client_id': igdb_creds.get('client_id', ''),
+            'client_secret': igdb_creds.get('client_secret', '')
+        })
+    except Exception as e:
+        print(f"Error getting IGDB credential values: {e}")
+        return jsonify({'error': f'Failed to get IGDB credential values: {str(e)}'}), 500
+
 @app.route('/api/screenscraper-credentials', methods=['GET', 'POST'])
 @login_required
 def manage_screenscraper_credentials():
