@@ -5307,9 +5307,9 @@ def delete_file():
 
 
 
-@app.route('/api/rom-system/<system_name>/game/<game_id>/upload-media', methods=['POST'])
+@app.route('/api/rom-system/<system_name>/game/upload-media', methods=['POST'])
 @login_required
-def upload_game_media(system_name, game_id):
+def upload_game_media(system_name):
     """Upload a media file for a specific game"""
     try:
         # Check if system exists
@@ -5324,15 +5324,16 @@ def upload_game_media(system_name, game_id):
         
         # Parse gamelist to find the game
         games = parse_gamelist_xml(gamelist_path)
-        # Convert game_id to int for comparison since URL parameters are strings
-        try:
-            game_id_int = int(game_id)
-        except ValueError:
-            return jsonify({'error': 'Invalid game ID format'}), 400
         
-        game = next((g for g in games if g.get('id') == game_id_int), None)
+        # Get ROM path from form data
+        rom_path = request.form.get('rom_path')
+        if not rom_path:
+            return jsonify({'error': 'ROM path not provided'}), 400
+        
+        # Find game by ROM path
+        game = next((g for g in games if g.get('path') == rom_path), None)
         if not game:
-            return jsonify({'error': f'Game not found with ID {game_id_int}'}), 404
+            return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
         
         # Check if file was uploaded
         if 'media_file' not in request.files:
@@ -5348,7 +5349,7 @@ def upload_game_media(system_name, game_id):
             return jsonify({'error': 'Media field not specified'}), 400
         
         # Validate media field
-        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d']
+        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1']
         if media_field not in valid_media_fields:
             return jsonify({'error': 'Invalid media field'}), 400
         
@@ -5390,7 +5391,7 @@ def upload_game_media(system_name, game_id):
         notify_game_updated(system_name, game.get('name', 'Unknown'), [media_field])
         
         # Log the upload
-        app.logger.info(f'Uploaded media file: {file_path} for game {game_id} field {media_field}')
+        app.logger.info(f'Uploaded media file: {file_path} for game {rom_path} field {media_field}')
         
         return jsonify({
             'success': True,

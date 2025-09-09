@@ -3232,10 +3232,10 @@ class GameCollectionManager {
             const file = event.target.files[0];
             if (file) {
                 try {
-                    await this.handleMediaUpload(file, mediaField, game.id);
+                    await this.handleMediaUpload(file, mediaField, game.path);
                     
                     // Get the updated game object from the main games array
-                    const updatedGame = this.games.find(g => g.id === game.id);
+                    const updatedGame = this.games.find(g => g.path === game.path);
                     if (updatedGame) {
                         // Refresh the media preview with the updated game object
                         this.showMediaPreview(updatedGame);
@@ -3312,19 +3312,19 @@ class GameCollectionManager {
         }
     }
     
-    async handleMediaUpload(file, mediaField, gameId) {
+    async handleMediaUpload(file, mediaField, romPath) {
         try {
             // Create FormData for file upload
             const formData = new FormData();
             formData.append('media_file', file);
             formData.append('media_field', mediaField);
-            formData.append('game_id', gameId);
+            formData.append('rom_path', romPath);
             
             // Show loading state
             this.showAlert(`Uploading ${mediaField}...`, 'info');
             
             // Upload the file
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/${gameId}/upload-media`, {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/upload-media`, {
                 method: 'POST',
                 body: formData
             });
@@ -3333,13 +3333,11 @@ class GameCollectionManager {
                 const result = await response.json();
                 if (result.success) {
                     console.log('Upload successful:', result);
-                    console.log('Looking for game with ID:', gameId, 'converted to int:', parseInt(gameId, 10));
-                    console.log('Available games IDs:', this.games.slice(0, 5).map(g => g.id));
+                    console.log('Looking for game with ROM path:', romPath);
+                    console.log('Available games paths:', this.games.slice(0, 5).map(g => g.path));
                     
                     // Update the game object with new media path
-                    // Convert gameId to int for comparison since it comes as a string from the URL
-                    const gameIdInt = parseInt(gameId, 10);
-                    const game = this.games.find(g => g.id === gameIdInt);
+                    const game = this.games.find(g => g.path === romPath);
                     if (game) {
                         console.log('Before update - game[mediaField]:', game[mediaField]);
                         game[mediaField] = result.media_path;
