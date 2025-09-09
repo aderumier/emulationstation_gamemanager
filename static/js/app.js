@@ -3268,13 +3268,14 @@ class GameCollectionManager {
             this.showAlert(`Deleting ${mediaField} video...`, 'info');
             
             // Make API call to delete the video
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/${game.id}/delete-media`, {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/delete-media`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    media_field: mediaField
+                    media_field: mediaField,
+                    rom_path: game.path
                 })
             });
             
@@ -6783,14 +6784,14 @@ class GameCollectionManager {
             for (const { field, game, mediaPath } of this.selectedMedia) {
                 try {
                     // Use the specific media deletion API endpoint
-                    const deleteResponse = await fetch(`/api/rom-system/${this.currentSystem}/game/${game.id}/delete-media`, {
+                    const deleteResponse = await fetch(`/api/rom-system/${this.currentSystem}/game/delete-media`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
                             media_field: field,
-                            rom_path: game.path  // Fallback for game identification
+                            rom_path: game.path  // Primary identifier
                         })
                     });
                     

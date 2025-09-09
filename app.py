@@ -5579,9 +5579,9 @@ def apply_manual_crop():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/rom-system/<system_name>/game/<game_id>/delete-media', methods=['POST'])
+@app.route('/api/rom-system/<system_name>/game/delete-media', methods=['POST'])
 @login_required
-def delete_game_media(system_name, game_id):
+def delete_game_media(system_name):
     """Delete a media file for a specific game"""
     try:
         # Check if system exists
@@ -5601,24 +5601,16 @@ def delete_game_media(system_name, game_id):
         
         # Parse gamelist to find the game
         games = parse_gamelist_xml(gamelist_path)
-        # Convert game_id to int for comparison since URL parameters are strings
-        try:
-            game_id_int = int(game_id)
-        except ValueError:
-            return jsonify({'error': 'Invalid game ID format'}), 400
         
-        # Try to find game by ID first
-        game = next((g for g in games if g.get('id') == game_id_int), None)
+        # Use ROM path as primary identifier (more reliable than ID)
+        rom_path = data.get('rom_path')
+        if not rom_path:
+            return jsonify({'error': 'ROM path not provided'}), 400
         
-        # If not found by ID, try to find by ROM path (fallback for main interface)
-        if not game and 'rom_path' in data:
-            rom_path = data.get('rom_path')
-            game = next((g for g in games if g.get('path') == rom_path), None)
-            if game:
-                app.logger.info(f'Found game by ROM path: {rom_path}')
-        
+        # Find game by ROM path
+        game = next((g for g in games if g.get('path') == rom_path), None)
         if not game:
-            return jsonify({'error': f'Game not found with ID {game_id_int}'}), 404
+            return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
         
         media_field = data.get('media_field')
         if not media_field:
@@ -5658,7 +5650,7 @@ def delete_game_media(system_name, game_id):
         notify_game_updated(system_name, game.get('name', 'Unknown'), [media_field])
         
         # Log the deletion
-        app.logger.info(f'Deleted media field {media_field} for game {game_id}')
+        app.logger.info(f'Deleted media field {media_field} for game {rom_path}')
         
         return jsonify({
             'success': True,
