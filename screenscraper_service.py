@@ -251,43 +251,48 @@ class ScreenScraperService:
         
         async def process_single_game(game):
             async with semaphore:
-                print(f"Processing game: {game}")
-                print(f"Game type: {type(game)}")
+                game_name = game.get('name', 'Unknown')
+                game_path = game.get('path', 'Unknown path')
+                print(f"🎮 Processing game: {game_name} ({game_path})")
                 
                 if not isinstance(game, dict):
-                    print(f"Error: game is not a dictionary, it's {type(game)}: {game}")
+                    print(f"❌ Error: game is not a dictionary, it's {type(game)}: {game}")
                     return None
                 
-                rom_filename = os.path.basename(game.get('path', ''))
-                print(f"ROM filename: {rom_filename}")
+                rom_filename = os.path.basename(game_path)
+                print(f"📁 ROM filename: {rom_filename}")
                 if not rom_filename:
-                    print("No ROM filename found")
+                    print("❌ No ROM filename found")
                     return None
                 
                 # Search for game and get full data
+                print(f"🔍 Searching ScreenScraper for: {game_name}")
                 search_result = await self.search_game(rom_filename, system_name)
                 if search_result:
                     jeu_id = search_result['jeu_id']
                     game_data = search_result['game_data']
+                    print(f"✅ Found ScreenScraper ID {jeu_id} for {game_name}")
                     
                     # Add path to game data for media processing
-                    game_data['path'] = game['path']
+                    game_data['path'] = game_path
                     
                     # Create client for media downloads
                     async with httpx.AsyncClient(timeout=30.0) as media_client:
                         # Process media downloads
+                        print(f"📥 Starting media downloads for {game_name}...")
                         downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields)
                     
                     # Store both jeu_id and downloaded media
-                    results[game['path']] = {
+                    results[game_path] = {
                         'jeu_id': jeu_id,
                         'downloaded_media': downloaded_media
                     }
-                    print(f"Found ScreenScraper ID {jeu_id} for {rom_filename}")
-                    print(f"Downloaded media: {downloaded_media}")
+                    print(f"✅ Successfully processed {game_name} -> ScreenScraper ID: {jeu_id}")
+                    print(f"📁 Downloaded media: {list(downloaded_media.keys())}")
                 else:
+                    print(f"❌ No ScreenScraper ID found for {game_name}")
                     # Store just the jeu_id if no media processing
-                    results[game['path']] = {
+                    results[game_path] = {
                         'jeu_id': None,
                         'downloaded_media': {}
                     }
@@ -535,12 +540,12 @@ class ScreenScraperService:
             # Get the local media field name
             local_field = self.get_media_type_mapping(media_type)
             if not local_field:
-                print(f"No mapping found for media type: {media_type}")
+                print(f"⚠️ No mapping found for media type: {media_type}")
                 continue
             
             # Check if this field is selected
             if selected_fields and local_field not in selected_fields:
-                print(f"Skipping {media_type} -> {local_field} (not selected)")
+                print(f"⏸️ Skipping {media_type} -> {local_field} (not selected)")
                 continue
             
             # Check if we should skip this media field based on overwrite setting
@@ -548,23 +553,23 @@ class ScreenScraperService:
                 # Get the current game data to check if the field already has a value
                 current_value = self.get_current_media_field_value(game_data.get('path', ''), local_field, system_name)
                 if current_value and current_value.strip():
-                    print(f"Skipping {media_type} -> {local_field} (field already has value: {current_value})")
+                    print(f"⏸️ Skipping {media_type} -> {local_field} (field already has value: {current_value})")
                     continue
             
             # Get the media directory
             media_dir = self.get_media_directory(local_field, system_name)
             if not media_dir:
-                print(f"No media directory found for field: {local_field}")
+                print(f"❌ No media directory found for field: {local_field}")
                 continue
             
-            print(f"Media directory for {local_field}: {media_dir}")
-            print(f"Directory exists: {os.path.exists(media_dir)}")
+            print(f"📁 Media directory for {local_field}: {media_dir}")
+            print(f"📁 Directory exists: {os.path.exists(media_dir)}")
             
             # Use the first media of this type
             media = media_list[0]
             media_url = media.get('url')
             if not media_url:
-                print(f"No URL found for media type: {media_type}")
+                print(f"❌ No URL found for media type: {media_type}")
                 continue
             
             # Generate filename (without extension - will be determined from content-type)
@@ -572,8 +577,9 @@ class ScreenScraperService:
             filename_base = rom_name
             file_path_base = os.path.join(media_dir, filename_base)
             
-            print(f"Base file path: {file_path_base}")
-            print(f"Media URL: {media_url}")
+            print(f"🖼️ Downloading {media_type} -> {local_field}...")
+            print(f"📁 Base file path: {file_path_base}")
+            print(f"🌐 Media URL: {media_url}")
             
             # Download the media (extension will be added based on content-type)
             if await self.download_media(media_url, file_path_base, client, media_type):
@@ -586,9 +592,11 @@ class ScreenScraperService:
                     # media_dir is like "roms/vectrex/media/screenshot", so we need to get the relative path from the system root
                     relative_path = os.path.join('.', 'media', os.path.basename(media_dir), actual_filename)
                     downloaded_media[local_field] = relative_path
-                    print(f"Mapped {media_type} -> {local_field}: {relative_path}")
+                    print(f"✅ Downloaded {media_type} -> {local_field}: {relative_path}")
                 else:
-                    print(f"Could not find downloaded file for {media_type}")
+                    print(f"❌ Could not find downloaded file for {media_type}")
+            else:
+                print(f"❌ Failed to download {media_type} -> {local_field}")
         
         return downloaded_media
     

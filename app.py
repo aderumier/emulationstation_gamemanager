@@ -11273,7 +11273,9 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
         t = get_task(task_id)
         if t:
             progress = int((completed / total) * 100) if total > 0 else 0
-            t.update_progress(progress, f"Processed {completed}/{total} games")
+            message = f"Processed {completed}/{total} games"
+            print(f"🔄 ScreenScraper Progress: {message} ({progress}%)")
+            t.update_progress(progress, message, current_step=completed, total_steps=total)
     
     async def async_screenscraper():
         try:
@@ -11344,13 +11346,23 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     t.complete(False, "No games selected for processing")
                 return
             
-            print(f"Processing {len(games_to_process)} games with ScreenScraper")
-            print(f"First game sample: {games_to_process[0] if games_to_process else 'No games'}")
+            print(f"🎮 Processing {len(games_to_process)} games with ScreenScraper")
+            print(f"📋 First game sample: {games_to_process[0] if games_to_process else 'No games'}")
+            
+            # Update initial progress
+            t = get_task(task_id)
+            if t:
+                t.update_progress(0, f"Starting ScreenScraper processing for {len(games_to_process)} games")
             
             # Process games in batches
             results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields)
             
             # Update all games with ScreenScraper IDs and downloaded media
+            print(f"📝 Updating gamelist with ScreenScraper data...")
+            t = get_task(task_id)
+            if t:
+                t.update_progress(90, "Updating gamelist with ScreenScraper data")
+            
             updated_count = 0
             media_updated_count = 0
             for game in all_games:
@@ -11364,12 +11376,13 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     for media_field, media_path in downloaded_media.items():
                         game[media_field] = media_path
                         media_updated_count += 1
-                        print(f"Updated {media_field} for {game['name']}: {media_path}")
+                        print(f"📝 Updated {media_field} for {game['name']}: {media_path}")
             
             # Save updated gamelist (all games, not just processed ones)
             if updated_count > 0:
+                print(f"💾 Saving updated gamelist...")
                 write_gamelist_xml(all_games, gamelist_path)
-                print(f"Updated {updated_count} games with ScreenScraper IDs")
+                print(f"✅ Updated {updated_count} games with ScreenScraper IDs")
             
             # Complete task
             t = get_task(task_id)
