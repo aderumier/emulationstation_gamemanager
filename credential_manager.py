@@ -40,8 +40,23 @@ class CredentialManager:
             return {}
     
     def get_screenscraper_credentials(self) -> Dict[str, str]:
-        """Get ScreenScraper credentials from encoded file or fallback to regular file"""
-        # First try to load from encoded file
+        """Get ScreenScraper credentials - dev credentials from encoded file, user credentials from regular file"""
+        # Get developer credentials from encoded file
+        dev_creds = self._get_developer_credentials()
+        
+        # Get user credentials from regular credentials file
+        user_creds = self._get_user_credentials()
+        
+        # Combine both
+        return {
+            'devid': dev_creds.get('devid', ''),
+            'devpassword': dev_creds.get('devpassword', ''),
+            'ssid': user_creds.get('ssid', ''),
+            'sspassword': user_creds.get('sspassword', '')
+        }
+    
+    def _get_developer_credentials(self) -> Dict[str, str]:
+        """Get developer credentials from encoded file"""
         if os.path.exists(self.encoded_credentials_file):
             try:
                 with open(self.encoded_credentials_file, 'r') as f:
@@ -52,7 +67,14 @@ class CredentialManager:
             except Exception as e:
                 print(f"Error loading encoded credentials: {e}")
         
-        # Fallback to regular credentials file
+        # Return default developer credentials
+        return {
+            'devid': 'djspirit',
+            'devpassword': 'cUIYyyJaImL'
+        }
+    
+    def _get_user_credentials(self) -> Dict[str, str]:
+        """Get user credentials from regular credentials file"""
         if os.path.exists(self.credentials_file):
             try:
                 with open(self.credentials_file, 'r') as f:
@@ -62,22 +84,18 @@ class CredentialManager:
             except Exception as e:
                 print(f"Error loading regular credentials: {e}")
         
-        # Return default/empty credentials
+        # Return empty user credentials
         return {
-            'devid': '',
-            'devpassword': '',
             'ssid': '',
             'sspassword': ''
         }
     
-    def save_screenscraper_credentials(self, devid: str, devpassword: str, ssid: str, sspassword: str):
-        """Save ScreenScraper credentials in encoded format"""
+    def save_developer_credentials(self, devid: str, devpassword: str):
+        """Save only developer credentials in encoded format"""
         credentials = {
             'screenscraper': {
                 'devid': devid,
-                'devpassword': devpassword,
-                'ssid': ssid,
-                'sspassword': sspassword
+                'devpassword': devpassword
             }
         }
         
@@ -90,42 +108,41 @@ class CredentialManager:
         with open(self.encoded_credentials_file, 'w') as f:
             f.write(encoded_data)
         
-        print("ScreenScraper credentials saved securely")
+        print("ScreenScraper developer credentials saved securely")
     
     def update_screenscraper_user_credentials(self, ssid: str, sspassword: str):
-        """Update only the user credentials (ssid/sspassword) while keeping static dev credentials"""
+        """Update only the user credentials (ssid/sspassword) in regular credentials file"""
         # Load existing credentials
-        current_creds = self.get_screenscraper_credentials()
+        credentials = {}
+        if os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    credentials = json.load(f)
+            except Exception as e:
+                print(f"Error loading existing credentials: {e}")
         
         # Update only the user credentials
-        credentials = {
-            'screenscraper': {
-                'devid': current_creds.get('devid', 'djspirit'),  # Keep existing or use default
-                'devpassword': current_creds.get('devpassword', 'cUIYyyJaImL'),  # Keep existing or use default
-                'ssid': ssid,
-                'sspassword': sspassword
-            }
-        }
+        if 'screenscraper' not in credentials:
+            credentials['screenscraper'] = {}
         
-        # Encode and save
-        encoded_data = self._encode_credentials(credentials)
+        credentials['screenscraper']['ssid'] = ssid
+        credentials['screenscraper']['sspassword'] = sspassword
         
         # Ensure directory exists
-        os.makedirs(os.path.dirname(self.encoded_credentials_file), exist_ok=True)
+        os.makedirs(os.path.dirname(self.credentials_file), exist_ok=True)
         
-        with open(self.encoded_credentials_file, 'w') as f:
-            f.write(encoded_data)
+        # Save to regular credentials file
+        with open(self.credentials_file, 'w') as f:
+            json.dump(credentials, f, indent=2)
         
-        print("ScreenScraper user credentials updated securely")
+        print("ScreenScraper user credentials updated in regular file")
     
     def create_encoded_credentials_file(self):
-        """Create the encoded credentials file with the provided credentials"""
+        """Create the encoded credentials file with only developer credentials"""
         credentials = {
             'screenscraper': {
                 'devid': 'djspirit',
-                'devpassword': 'cUIYyyJaImL',
-                'ssid': '',  # Add your ssid if you have one
-                'sspassword': ''  # Add your sspassword if you have one
+                'devpassword': 'cUIYyyJaImL'
             }
         }
         
@@ -138,7 +155,7 @@ class CredentialManager:
         with open(self.encoded_credentials_file, 'w') as f:
             f.write(encoded_data)
         
-        print("Encoded credentials file created successfully")
+        print("Encoded developer credentials file created successfully")
         print(f"File saved to: {self.encoded_credentials_file}")
         
         # Show the encoded content (for verification)
