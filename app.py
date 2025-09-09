@@ -5661,6 +5661,101 @@ def delete_game_media(system_name):
         app.logger.error(f'Error deleting media: {str(e)}')
         return jsonify({'error': f'Failed to delete media: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/game/delete-media-batch', methods=['POST'])
+@login_required
+def delete_game_media_batch(system_name):
+    """Delete multiple media files for a specific game in one operation"""
+    try:
+        # Check if system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Check if game exists in gamelist (use var/gamelists, not roms)
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        # Parse gamelist to find the game
+        games = parse_gamelist_xml(gamelist_path)
+        
+        # Use ROM path as primary identifier
+        rom_path = data.get('rom_path')
+        if not rom_path:
+            return jsonify({'error': 'ROM path not provided'}), 400
+        
+        # Find game by ROM path
+        game = next((g for g in games if g.get('path') == rom_path), None)
+        if not game:
+            return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
+        
+        # Get media fields to delete
+        media_fields = data.get('media_fields', [])
+        if not media_fields:
+            return jsonify({'error': 'No media fields specified'}), 400
+        
+        # Validate media fields
+        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1']
+        for field in media_fields:
+            if field not in valid_media_fields:
+                return jsonify({'error': f'Invalid media field: {field}'}), 400
+        
+        # Process each media field
+        deleted_fields = []
+        failed_fields = []
+        
+        for media_field in media_fields:
+            # Check if the media field exists for this game
+            if media_field not in game or not game[media_field]:
+                failed_fields.append(f'{media_field}: No media found')
+                continue
+            
+            # Get the current media path
+            media_path = game[media_field]
+            
+            # Construct full path to the media file
+            full_media_path = os.path.join(system_path, media_path)
+            
+            # Delete the physical file if it exists
+            if os.path.exists(full_media_path):
+                try:
+                    os.remove(full_media_path)
+                    app.logger.info(f'Deleted media file: {full_media_path}')
+                except Exception as e:
+                    app.logger.warning(f'Could not delete physical file {full_media_path}: {str(e)}')
+                    failed_fields.append(f'{media_field}: Could not delete file')
+                    continue
+            
+            # Clear the media field in the game object
+            game[media_field] = ''
+            deleted_fields.append(media_field)
+        
+        # Update the gamelist.xml file only once after all deletions
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Notify all connected clients about the gamelist update
+        notify_gamelist_updated(system_name, len(games))
+        notify_game_updated(system_name, game.get('name', 'Unknown'), deleted_fields)
+        
+        # Log the deletion
+        app.logger.info(f'Deleted media fields {deleted_fields} for game {rom_path}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Media deleted successfully for {len(deleted_fields)} fields',
+            'deleted_fields': deleted_fields,
+            'failed_fields': failed_fields
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error deleting media batch: {str(e)}')
+        return jsonify({'error': f'Failed to delete media batch: {str(e)}'}), 500
+
 @app.route('/api/task/status')
 @login_required
 def get_task_status():

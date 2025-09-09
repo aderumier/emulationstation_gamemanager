@@ -6780,18 +6780,28 @@ class GameCollectionManager {
             let successCount = 0;
             let errorCount = 0;
             
-            // Process each selected media item
+            // Group media deletions by game to avoid race conditions
+            const deletionsByGame = new Map();
             for (const { field, game, mediaPath } of this.selectedMedia) {
+                const gameKey = game.path; // Use ROM path as unique key
+                if (!deletionsByGame.has(gameKey)) {
+                    deletionsByGame.set(gameKey, { game, fields: [] });
+                }
+                deletionsByGame.get(gameKey).fields.push(field);
+            }
+            
+            // Process each game's media deletions using batch endpoint
+            for (const [gameKey, { game, fields }] of deletionsByGame) {
                 try {
-                    // Use the specific media deletion API endpoint
-                    const deleteResponse = await fetch(`/api/rom-system/${this.currentSystem}/game/delete-media`, {
+                    // Use batch deletion endpoint for all fields of this game
+                    const deleteResponse = await fetch(`/api/rom-system/${this.currentSystem}/game/delete-media-batch`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            media_field: field,
-                            rom_path: game.path  // Primary identifier
+                            media_fields: fields,
+                            rom_path: game.path
                         })
                     });
                     
@@ -6799,23 +6809,32 @@ class GameCollectionManager {
                         const result = await deleteResponse.json();
                         if (result.success) {
                             // Update the game object in the main games array
-                            const gameIndex = this.games.findIndex(g => g.id === game.id);
+                            const gameIndex = this.games.findIndex(g => g.path === game.path);
                             if (gameIndex !== -1) {
-                                this.games[gameIndex][field] = '';
+                                // Clear all deleted fields
+                                for (const field of result.deleted_fields) {
+                                    this.games[gameIndex][field] = '';
+                                }
                             }
-                            successCount++;
+                            successCount += result.deleted_fields.length;
+                            errorCount += result.failed_fields.length;
+                            
+                            // Log any failed fields
+                            if (result.failed_fields.length > 0) {
+                                console.warn(`Some fields failed to delete for ${game.name}:`, result.failed_fields);
+                            }
                         } else {
-                            console.error(`Failed to delete ${field} for ${game.name}:`, result.error);
-                            errorCount++;
+                            console.error(`Failed to delete media for ${game.name}:`, result.error);
+                            errorCount += fields.length;
                         }
                     } else {
                         const error = await deleteResponse.json();
-                        console.error(`Failed to delete ${field} for ${game.name}:`, error.error);
-                        errorCount++;
+                        console.error(`Failed to delete media for ${game.name}:`, error.error);
+                        errorCount += fields.length;
                     }
                 } catch (error) {
-                    console.error(`Error deleting ${field} for ${game.name}:`, error);
-                    errorCount++;
+                    console.error(`Error deleting media for ${game.name}:`, error);
+                    errorCount += fields.length;
                 }
             }
             
