@@ -25,6 +25,8 @@ class GameCollectionManager {
         this.modifiedGames = new Set();
         this.mediaPreviewEnabled = false;
         this.showingMediaPreview = false; // Flag to prevent multiple simultaneous media preview calls
+        this.currentMediaPreviewGame = null; // Track current game shown in media preview
+        this.uploadInProgress = false; // Track if upload is in progress
         this.selectedGames = [];
         this.selectedMedia = []; // Track selected media for deletion (array for multiple selection)
         this.pendingBestMatchResults = null;
@@ -2888,12 +2890,18 @@ class GameCollectionManager {
                 img.alt = `${field} for ${game.name}`;
                 img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion`;
                 img.style.cssText = 'width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px;';
-                img.ondblclick = () => this.uploadMediaForGame(game, field);
+                img.ondblclick = () => {
+                    if (!this.uploadInProgress) {
+                        this.uploadMediaForGame(game, field);
+                    } else {
+                        this.showAlert('Upload in progress. Please wait...', 'warning');
+                    }
+                };
                 img.onclick = () => this.selectEditModalMediaItem(mediaItem, field, game, game[field]);
                 img.onerror = () => {
                     // If image fails to load, show placeholder
                     mediaItem.innerHTML = `
-                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}')" title="Double-click to upload media">
+                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
                             <div style="text-align: center; color: #6c757d;">
                                 <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                                 Double-click<br>to upload
@@ -2927,7 +2935,7 @@ class GameCollectionManager {
             } else {
                 // Display placeholder for missing media
                 mediaItem.innerHTML = `
-                    <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}')" title="Double-click to upload media">
+                    <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
                         <div style="text-align: center; color: #6c757d;">
                             <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                             Double-click<br>to upload
@@ -3106,6 +3114,9 @@ class GameCollectionManager {
         const videoContent = document.getElementById('editGameVideoContent');
         if (!videoContent) return;
         
+        console.log('showEditGameVideo called for game:', game.name);
+        console.log('Game video field:', game.video);
+        
         // Clear existing content
         videoContent.innerHTML = '';
         
@@ -3113,7 +3124,9 @@ class GameCollectionManager {
         const videoFields = ['video', 'video_mp4', 'video_avi', 'video_mov', 'video_mkv'];
         
         videoFields.forEach(field => {
+            console.log(`Checking field ${field}:`, game[field]);
             if (game[field] && game[field].trim()) {
+                console.log(`Creating video player for field ${field} with path: ${game[field]}`);
                 const videoItem = document.createElement('div');
                 videoItem.className = 'video-preview-item';
                 videoItem.style.cssText = 'width: 1200px; margin-bottom: 1rem; position: relative;';
@@ -3216,6 +3229,12 @@ class GameCollectionManager {
     }
     
     uploadMediaForGame(game, mediaField) {
+        // Check if upload is already in progress
+        if (this.uploadInProgress) {
+            this.showAlert('Upload already in progress. Please wait...', 'warning');
+            return;
+        }
+        
         // Create a file input element
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -3226,6 +3245,12 @@ class GameCollectionManager {
         fileInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (file) {
+                // Set upload in progress
+                this.uploadInProgress = true;
+                
+                // Show modal loading state
+                this.showModalUploadProgress(mediaField, file);
+                
                 try {
                     await this.handleMediaUpload(file, mediaField, game.path);
                     
@@ -3241,6 +3266,10 @@ class GameCollectionManager {
                 } catch (error) {
                     console.error('Error uploading media:', error);
                     this.showAlert('Error uploading media file', 'error');
+                } finally {
+                    // Clear upload state
+                    this.uploadInProgress = false;
+                    this.hideModalUploadProgress();
                 }
             }
             
@@ -3253,6 +3282,58 @@ class GameCollectionManager {
         fileInput.click();
     }
     
+    showModalUploadProgress(mediaField, file) {
+        // Find the edit modal
+        const editModal = document.getElementById('editGameModal');
+        if (!editModal) return;
+        
+        // Create or update upload progress overlay
+        let progressOverlay = document.getElementById('uploadProgressOverlay');
+        if (!progressOverlay) {
+            progressOverlay = document.createElement('div');
+            progressOverlay.id = 'uploadProgressOverlay';
+            progressOverlay.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                border-radius: 8px;
+            `;
+            editModal.querySelector('.modal-content').style.position = 'relative';
+            editModal.querySelector('.modal-content').appendChild(progressOverlay);
+        }
+        
+        const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+        const isVideo = mediaField === 'video';
+        const message = isVideo 
+            ? `Uploading video (${fileSize} MB)...<br>This may take a moment for large files...` 
+            : `Uploading ${mediaField} (${fileSize} MB)...<br>Please wait...`;
+            
+        progressOverlay.innerHTML = `
+            <div style="text-align: center; color: white; padding: 20px;">
+                <div class="spinner-border text-light mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>${message}</h5>
+                <p class="mb-0">Please do not close this modal or navigate away...</p>
+            </div>
+        `;
+        progressOverlay.style.display = 'flex';
+    }
+    
+    hideModalUploadProgress() {
+        const progressOverlay = document.getElementById('uploadProgressOverlay');
+        if (progressOverlay) {
+            progressOverlay.style.display = 'none';
+        }
+    }
+
     async deleteVideoForGame(game, mediaField) {
         if (!confirm(`Are you sure you want to delete the ${mediaField} video for "${game.name}"?`)) {
             return;
@@ -3315,8 +3396,13 @@ class GameCollectionManager {
             formData.append('media_field', mediaField);
             formData.append('rom_path', romPath);
             
-            // Show loading state
-            this.showAlert(`Uploading ${mediaField}...`, 'info');
+            // Show detailed loading state with file info
+            const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+            const isVideo = mediaField === 'video';
+            const waitingMessage = isVideo 
+                ? `Uploading video (${fileSize} MB)... This may take a moment for large files...` 
+                : `Uploading ${mediaField} (${fileSize} MB)... Please wait...`;
+            this.showAlert(waitingMessage, 'info');
             
             // Upload the file
             const response = await fetch(`/api/rom-system/${this.currentSystem}/game/upload-media`, {
@@ -3349,9 +3435,30 @@ class GameCollectionManager {
                         if (editModal && editModal.classList.contains('show')) {
                             console.log('Refreshing edit modal media display');
                             this.showEditGameMedia(game);
+                            
+                            // If it's a video upload, also refresh the video preview tab
+                            if (mediaField === 'video') {
+                                console.log('Refreshing video preview tab after video upload');
+                                this.showEditGameVideo(game);
+                            }
                         }
                         
-                        this.showAlert(`${mediaField} uploaded successfully!`, 'success');
+                        // If media preview is showing for this game, refresh it
+                        if (this.mediaPreviewEnabled && this.currentMediaPreviewGame && 
+                            this.currentMediaPreviewGame.path === game.path) {
+                            console.log('Refreshing media preview after upload');
+                            // Add a longer delay to ensure gamelist is fully updated and processed
+                            setTimeout(() => {
+                                console.log('Actually refreshing media preview now...');
+                                this.showMediaPreview(game);
+                            }, 1000);
+                        }
+                        
+                        // Show success message with file info
+                        const successMessage = isVideo 
+                            ? `Video uploaded successfully! (${fileSize} MB)` 
+                            : `${mediaField} uploaded successfully! (${fileSize} MB)`;
+                        this.showAlert(successMessage, 'success');
                     } else {
                         console.error('Game not found for ID:', gameId);
                     }
@@ -4758,6 +4865,9 @@ class GameCollectionManager {
             return;
         }
         this.showingMediaPreview = true;
+        
+        // Track the current game being shown in media preview
+        this.currentMediaPreviewGame = game;
 
         // Clear any existing media selection when showing a new game's media
         this.clearMediaSelection();
@@ -4965,6 +5075,9 @@ class GameCollectionManager {
         if (mediaPreviewContent) {
             mediaPreviewContent.innerHTML = '';
         }
+        
+        // Clear the current media preview game
+        this.currentMediaPreviewGame = null;
     }
     
     selectMediaItem(mediaItem, field, game, mediaPath) {

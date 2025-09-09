@@ -519,7 +519,7 @@ GAMELISTS_FOLDER = 'var/gamelists'
 
 app.config['ROMS_FOLDER'] = ROMS_FOLDER
 app.config['GAMELISTS_FOLDER'] = GAMELISTS_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size for video uploads
 
 # Create directories if they don't exist
 os.makedirs(ROMS_FOLDER, exist_ok=True)
