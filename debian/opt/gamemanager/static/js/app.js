@@ -2896,7 +2896,7 @@ class GameCollectionManager {
                         <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMedia('${field}', '${game.id}')" title="Double-click to upload media">
                             <div style="text-align: center; color: #6c757d;">
                                 <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
-                                Image<br>Unavailable
+                                Double-click<br>to upload
                             </div>
                         </div>
                         <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
@@ -2930,7 +2930,7 @@ class GameCollectionManager {
                     <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="gameManager.uploadMedia('${field}', '${game.id}')" title="Double-click to upload media">
                         <div style="text-align: center; color: #6c757d;">
                             <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
-                            Image<br>Unavailable
+                            Double-click<br>to upload
                         </div>
                     </div>
                     <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
