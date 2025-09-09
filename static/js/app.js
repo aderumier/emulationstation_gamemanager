@@ -2967,7 +2967,26 @@ class GameCollectionManager {
         contentDiv.innerHTML = '';
         
         // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('launchboxMediaModal'));
+        const modalElement = document.getElementById('launchboxMediaModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // Add event listener for modal close to refresh media preview
+        const handleModalClose = () => {
+            console.log('LaunchBox modal closed, refreshing media preview if needed');
+            if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
+                console.log('Refreshing media preview after LaunchBox modal close');
+                // Update the currentMediaPreviewGame with the fresh data from the grid
+                const freshGame = this.games.find(g => g.path === game.path);
+                if (freshGame) {
+                    this.currentMediaPreviewGame = freshGame;
+                    this.showMediaPreview(this.currentMediaPreviewGame);
+                }
+            }
+            // Remove the event listener to prevent duplicates
+            modalElement.removeEventListener('hidden.bs.modal', handleModalClose);
+        };
+        
+        modalElement.addEventListener('hidden.bs.modal', handleModalClose);
         modal.show();
         
         try {
@@ -3098,6 +3117,17 @@ class GameCollectionManager {
                     
                     // Refresh the edit game media display
                     this.showEditGameMedia(game);
+                    
+                    // Also refresh the main interface media preview if it's currently showing this game
+                    if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
+                        console.log('Refreshing media preview after LaunchBox download');
+                        // Update the currentMediaPreviewGame with the fresh data from the grid
+                        const freshGame = this.games.find(g => g.path === game.path);
+                        if (freshGame) {
+                            this.currentMediaPreviewGame = freshGame;
+                            this.showMediaPreview(this.currentMediaPreviewGame);
+                        }
+                    }
                 }, 1500);
             } else {
                 throw new Error(result.error || 'Unknown error occurred');
@@ -4911,7 +4941,12 @@ class GameCollectionManager {
                                 <i class="bi bi-trash"></i>
                             </div>
                         </div>
-                        <small class="d-block text-center mt-2">${field}</small>
+                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                            <small class="text-center flex-grow-1">${field}</small>
+                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </div>
                     `;
                     
                     // Add error handler for video
@@ -4927,7 +4962,12 @@ class GameCollectionManager {
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
                         </div>
-                        <small class="d-block text-center mt-2">${field}</small>
+                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                            <small class="text-center flex-grow-1">${field}</small>
+                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </div>
                     `;
                     
                     // Add error handler for image
@@ -4997,7 +5037,12 @@ class GameCollectionManager {
                             ${uploadText}
                         </div>
                     </div>
-                    <small class="d-block text-center mt-2">${field}</small>
+                    <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                        <small class="text-center flex-grow-1">${field}</small>
+                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <i class="bi bi-download"></i>
+                        </button>
+                    </div>
                 `;
                 
                 // Add double-click functionality for uploading
@@ -5042,7 +5087,12 @@ class GameCollectionManager {
                     <div style="font-size: 0.7rem; opacity: 0.8;">${mediaPath}</div>
                 </div>
             </div>
-            <small class="d-block text-center mt-2" style="color: #dc3545; font-weight: bold;">${field} (Missing)</small>
+            <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                <small class="text-center flex-grow-1" style="color: #dc3545; font-weight: bold;">${field} (Missing)</small>
+                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                    <i class="bi bi-download"></i>
+                </button>
+            </div>
         `;
         
         // Add double-click functionality for uploading replacement
