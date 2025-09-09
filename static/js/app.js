@@ -6349,11 +6349,32 @@ class GameCollectionManager {
             if (response.ok) {
                 const data = await response.json();
                 this.updateScreenscraperCredentialsStatus(data);
+                this.loadScreenscraperCredentialsValues();
             } else {
                 console.error('Failed to load ScreenScraper credentials status');
             }
         } catch (error) {
             console.error('Error loading ScreenScraper credentials status:', error);
+        }
+    }
+    
+    async loadScreenscraperCredentialsValues() {
+        try {
+            const response = await fetch('/api/screenscraper-credentials-values');
+            if (response.ok) {
+                const data = await response.json();
+                // Populate the form fields with current values
+                if (data.ssid) {
+                    document.getElementById('screenscraperSsId').value = data.ssid;
+                }
+                if (data.sspassword) {
+                    document.getElementById('screenscraperSsPassword').value = data.sspassword;
+                }
+            } else {
+                console.error('Failed to load ScreenScraper credentials values');
+            }
+        } catch (error) {
+            console.error('Error loading ScreenScraper credentials values:', error);
         }
     }
     

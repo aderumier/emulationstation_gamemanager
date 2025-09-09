@@ -2933,6 +2933,23 @@ def manage_igdb_credentials():
         print(f"Error managing IGDB credentials: {e}")
         return jsonify({'error': f'Failed to manage IGDB credentials: {str(e)}'}), 500
 
+@app.route('/api/screenscraper-credentials-values', methods=['GET'])
+@login_required
+def get_screenscraper_credentials_values():
+    """Get ScreenScraper credential values for form population"""
+    try:
+        # Load credentials using secure credential manager
+        from credential_manager import credential_manager
+        screenscraper_creds = credential_manager.get_screenscraper_credentials()
+        
+        return jsonify({
+            'ssid': screenscraper_creds.get('ssid', ''),
+            'sspassword': screenscraper_creds.get('sspassword', '')
+        })
+    except Exception as e:
+        print(f"Error getting ScreenScraper credential values: {e}")
+        return jsonify({'error': f'Failed to get ScreenScraper credential values: {str(e)}'}), 500
+
 @app.route('/api/screenscraper-credentials', methods=['GET', 'POST'])
 @login_required
 def manage_screenscraper_credentials():
