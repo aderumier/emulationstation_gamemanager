@@ -3067,6 +3067,17 @@ class GameCollectionManager {
             const result = await response.json();
             
             if (result.success) {
+                // Update the local game object with the new media path
+                if (result.media_path) {
+                    game[mediaType] = result.media_path;
+                    this.markGameAsModified(game);
+                    
+                    // Refresh the main grid to show updated media
+                    if (this.gridApi) {
+                        this.gridApi.refreshCells();
+                    }
+                }
+                
                 // Show success message
                 progressDiv.textContent = 'Media downloaded and replaced successfully!';
                 progressDiv.className = 'text-success mt-1';

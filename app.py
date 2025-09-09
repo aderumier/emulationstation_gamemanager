@@ -9031,11 +9031,17 @@ def download_launchbox_media():
         # Save the updated gamelist
         tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
         
+        # Notify all connected clients about the gamelist update
+        games = parse_gamelist_xml(gamelist_path)
+        notify_gamelist_updated(system_name, len(games))
+        notify_game_updated(system_name, game_element.find('name').text if game_element.find('name') is not None else 'Unknown', [media_type])
+        
         return jsonify({
             'success': True,
             'message': f'Media downloaded and replaced successfully',
             'local_path': local_path,
-            'gamelist_field': media_type
+            'gamelist_field': media_type,
+            'media_path': f"./media/{media_directory}/{local_filename}"
         })
         
     except Exception as e:
