@@ -5348,12 +5348,26 @@ def upload_game_media(system_name):
         if not media_field:
             return jsonify({'error': 'Media field not specified'}), 400
         
+        # Load media config to get media mappings
+        media_config = load_media_config()
+        media_mappings = media_config.get('mappings', {})
+        
+        # Find the media directory for this field
+        media_directory = None
+        for directory, field in media_mappings.items():
+            if field == media_field:
+                media_directory = directory
+                break
+        
+        if not media_directory:
+            return jsonify({'error': f'No media mapping found for field: {media_field}. Available mappings: {media_mappings}'}), 400
+        
         # Get the ROM filename without extension for use as media filename
         rom_path = game.get('path', '')
         rom_filename = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else game.get('name', 'unknown')
         
-        # Create category-specific media directory
-        category_dir = os.path.join(system_path, 'media', media_field)
+        # Create category-specific media directory using the mapped directory name
+        category_dir = os.path.join(system_path, 'media', media_directory)
         if not os.path.exists(category_dir):
             os.makedirs(category_dir)
         
