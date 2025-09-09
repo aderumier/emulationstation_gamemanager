@@ -335,8 +335,8 @@ class GameCollectionManager {
             // Extract total games from task data for progress calculation
             let totalGames = 0;
             if (task.data && task.data.system_name) {
-                // For image download and scraping tasks, get total games from total_steps
-                if (task.type === 'image_download' || task.type === 'scraping') {
+                // For image download, scraping, and YouTube download tasks, get total games from total_steps
+                if (task.type === 'image_download' || task.type === 'scraping' || task.type === 'youtube_download_batch') {
                     // This will be updated when the task actually runs
                     totalGames = task.total_steps || 0;
                 }

@@ -7639,7 +7639,8 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         failed_downloads = 0
         total_games = len(games_to_process)
         
-        # Initialize progress tracking
+        # Initialize progress tracking and set total_steps on task object
+        task.total_steps = total_games
         task.update_progress(f"🚀 Starting batch download of {total_games} games...", progress_percentage=0, current_step=0, total_steps=total_games)
         
         for i, game in enumerate(games_to_process):
