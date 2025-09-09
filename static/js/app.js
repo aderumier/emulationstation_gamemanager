@@ -1320,11 +1320,6 @@ class GameCollectionManager {
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
         document.getElementById('startYoutubeDownloadBtn').addEventListener('click', () => this.startYoutubeDownload());
         
-        // IGDB credentials save button
-        document.getElementById('saveIgdbCredentialsBtn').addEventListener('click', () => this.saveIgdbCredentials());
-
-        // ScreenScraper credentials save button
-        document.getElementById('saveScreenscraperCredentialsBtn').addEventListener('click', () => this.saveScreenscraperCredentials());
 
         
         // Task log modal download button
@@ -7102,6 +7097,22 @@ class GameCollectionManager {
         if (saveAppConfigBtn) {
             saveAppConfigBtn.addEventListener('click', () => {
                 this.saveAppConfiguration();
+            });
+        }
+        
+        // Add event listener for IGDB credentials save button
+        const saveIgdbCredentialsBtn = document.getElementById('saveIgdbCredentialsBtn');
+        if (saveIgdbCredentialsBtn) {
+            saveIgdbCredentialsBtn.addEventListener('click', () => {
+                this.saveIgdbCredentials();
+            });
+        }
+        
+        // Add event listener for ScreenScraper credentials save button
+        const saveScreenscraperCredentialsBtn = document.getElementById('saveScreenscraperCredentialsBtn');
+        if (saveScreenscraperCredentialsBtn) {
+            saveScreenscraperCredentialsBtn.addEventListener('click', () => {
+                this.saveScreenscraperCredentials();
             });
         }
     }
