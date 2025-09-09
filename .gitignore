@@ -150,6 +150,7 @@ var/
 !var/config/
 !var/config/config.json
 !var/config/user.cfg
-# Exclude credentials file for security
+# Exclude credentials files for security
 var/config/credentials.json
+var/config/credentials.enc
 *.backup.*
