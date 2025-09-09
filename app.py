@@ -2943,24 +2943,16 @@ def manage_screenscraper_credentials():
             config = load_config()
             screenscraper_config = config.get('screenscraper', {})
             
-            # Load credentials from credentials.json
-            credentials = {}
-            try:
-                credentials_path = 'var/config/credentials.json'
-                if os.path.exists(credentials_path):
-                    with open(credentials_path, 'r', encoding='utf-8') as f:
-                        credentials = json.load(f)
-            except Exception as e:
-                print(f"Warning: Could not load credentials.json: {e}")
-            
-            screenscraper_creds = credentials.get('screenscraper', {})
+            # Load credentials using secure credential manager
+            from credential_manager import credential_manager
+            screenscraper_creds = credential_manager.get_screenscraper_credentials()
             
             return jsonify({
-                'has_dev_id': bool(screenscraper_creds.get('dev_id')),
-                'has_dev_password': bool(screenscraper_creds.get('dev_password')),
-                'has_ss_id': bool(screenscraper_creds.get('ss_id')),
-                'has_ss_password': bool(screenscraper_creds.get('ss_password')),
-                'configured': bool(screenscraper_creds.get('dev_id') and screenscraper_creds.get('dev_password') and screenscraper_creds.get('ss_id') and screenscraper_creds.get('ss_password')),
+                'has_dev_id': bool(screenscraper_creds.get('devid')),
+                'has_dev_password': bool(screenscraper_creds.get('devpassword')),
+                'has_ss_id': bool(screenscraper_creds.get('ssid')),
+                'has_ss_password': bool(screenscraper_creds.get('sspassword')),
+                'configured': bool(screenscraper_creds.get('devid') and screenscraper_creds.get('devpassword') and screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')),
                 'enabled': screenscraper_config.get('enabled', False)
             })
         
@@ -2978,13 +2970,13 @@ def manage_screenscraper_credentials():
             if not dev_id or not dev_password or not ss_id or not ss_password:
                 return jsonify({'error': 'All ScreenScraper credentials are required'}), 400
             
-            # Save credentials to credentials.json
-            success = save_screenscraper_credentials(dev_id, dev_password, ss_id, ss_password)
-            
-            if success:
-                return jsonify({'success': True, 'message': 'ScreenScraper credentials saved successfully'})
-            else:
-                return jsonify({'error': 'Failed to save ScreenScraper credentials'}), 500
+            # Save credentials using secure credential manager
+            from credential_manager import credential_manager
+            try:
+                credential_manager.save_screenscraper_credentials(dev_id, dev_password, ss_id, ss_password)
+                return jsonify({'success': True, 'message': 'ScreenScraper credentials saved securely'})
+            except Exception as e:
+                return jsonify({'error': f'Failed to save ScreenScraper credentials: {str(e)}'}), 500
                 
     except Exception as e:
         print(f"Error managing ScreenScraper credentials: {e}")
@@ -11344,16 +11336,9 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     t.complete(False, "ScreenScraper integration is disabled")
                 return
             
-            # Load credentials
-            credentials_path = 'var/config/credentials.json'
-            if not os.path.exists(credentials_path):
-                t = get_task(task_id)
-                if t:
-                    t.complete(False, "Credentials file not found")
-                return
-            
-            credentials = load_json_with_comments(credentials_path)
-            screenscraper_creds = credentials.get('screenscraper', {})
+            # Load credentials using secure credential manager
+            from credential_manager import credential_manager
+            screenscraper_creds = credential_manager.get_screenscraper_credentials()
             
             if not all(screenscraper_creds.get(key) for key in ['devid', 'devpassword', 'ssid', 'sspassword']):
                 t = get_task(task_id)
