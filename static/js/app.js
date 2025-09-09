@@ -6369,12 +6369,10 @@ class GameCollectionManager {
     }
     
     async saveScreenscraperCredentials() {
-        const devId = document.getElementById('screenscraperDevId').value.trim();
-        const devPassword = document.getElementById('screenscraperDevPassword').value.trim();
         const ssId = document.getElementById('screenscraperSsId').value.trim();
         const ssPassword = document.getElementById('screenscraperSsPassword').value.trim();
         
-        if (!devId || !devPassword || !ssId || !ssPassword) {
+        if (!ssId || !ssPassword) {
             alert('Please enter all ScreenScraper credentials');
             return;
         }
@@ -6386,8 +6384,8 @@ class GameCollectionManager {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    dev_id: devId,
-                    dev_password: devPassword,
+                    dev_id: 'djspirit',  // Use static developer credentials
+                    dev_password: 'cUIYyyJaImL',  // Use static developer credentials
                     ss_id: ssId,
                     ss_password: ssPassword
                 })
@@ -6397,8 +6395,6 @@ class GameCollectionManager {
                 alert('ScreenScraper credentials saved successfully!');
                 
                 // Clear the form
-                document.getElementById('screenscraperDevId').value = '';
-                document.getElementById('screenscraperDevPassword').value = '';
                 document.getElementById('screenscraperSsId').value = '';
                 document.getElementById('screenscraperSsPassword').value = '';
                 

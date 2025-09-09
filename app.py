@@ -2967,14 +2967,15 @@ def manage_screenscraper_credentials():
             ss_id = data.get('ss_id', '').strip()
             ss_password = data.get('ss_password', '').strip()
             
-            if not dev_id or not dev_password or not ss_id or not ss_password:
-                return jsonify({'error': 'All ScreenScraper credentials are required'}), 400
+            if not ss_id or not ss_password:
+                return jsonify({'error': 'ScreenScraper ID and Password are required'}), 400
             
             # Save credentials using secure credential manager
             from credential_manager import credential_manager
             try:
-                credential_manager.save_screenscraper_credentials(dev_id, dev_password, ss_id, ss_password)
-                return jsonify({'success': True, 'message': 'ScreenScraper credentials saved securely'})
+                # Use the new method that only updates user credentials
+                credential_manager.update_screenscraper_user_credentials(ss_id, ss_password)
+                return jsonify({'success': True, 'message': 'ScreenScraper user credentials saved securely'})
             except Exception as e:
                 return jsonify({'error': f'Failed to save ScreenScraper credentials: {str(e)}'}), 500
                 

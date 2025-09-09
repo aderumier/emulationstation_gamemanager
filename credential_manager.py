@@ -92,6 +92,32 @@ class CredentialManager:
         
         print("ScreenScraper credentials saved securely")
     
+    def update_screenscraper_user_credentials(self, ssid: str, sspassword: str):
+        """Update only the user credentials (ssid/sspassword) while keeping static dev credentials"""
+        # Load existing credentials
+        current_creds = self.get_screenscraper_credentials()
+        
+        # Update only the user credentials
+        credentials = {
+            'screenscraper': {
+                'devid': current_creds.get('devid', 'djspirit'),  # Keep existing or use default
+                'devpassword': current_creds.get('devpassword', 'cUIYyyJaImL'),  # Keep existing or use default
+                'ssid': ssid,
+                'sspassword': sspassword
+            }
+        }
+        
+        # Encode and save
+        encoded_data = self._encode_credentials(credentials)
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(self.encoded_credentials_file), exist_ok=True)
+        
+        with open(self.encoded_credentials_file, 'w') as f:
+            f.write(encoded_data)
+        
+        print("ScreenScraper user credentials updated securely")
+    
     def create_encoded_credentials_file(self):
         """Create the encoded credentials file with the provided credentials"""
         credentials = {
