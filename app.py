@@ -1524,11 +1524,6 @@ class Task:
     
     def update_progress(self, message, progress_percentage=None, current_step=None, total_steps=None):
         """Update task progress and write to log file"""
-        timestamp = datetime.now().strftime('%H:%M:%S')
-        log_entry = f"[{timestamp}] {message}"
-        
-        self.progress.append(log_entry)
-        
         # Update progress tracking
         if progress_percentage is not None:
             self.progress_percentage = progress_percentage
@@ -1537,18 +1532,24 @@ class Task:
         if total_steps is not None:
             self.total_steps = total_steps
         
-        # Write to log file
-        try:
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(log_entry + '\n')
-                    
-        except Exception as e:
-            print(f"Error writing to log file {self.log_file}: {e}")
+        # Only log if message is provided
+        if message is not None:
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            log_entry = f"[{timestamp}] {message}"
+            
+            self.progress.append(log_entry)
+            
+            # Write to log file
+            try:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
+                    f.write(log_entry + '\n')
+                        
+            except Exception as e:
+                print(f"Error writing to log file {self.log_file}: {e}")
 
-        
-        # Keep only last 1000 messages in memory
-        if len(self.progress) > 1000:
-            self.progress = self.progress[-1000:]
+            # Keep only last 1000 messages in memory
+            if len(self.progress) > 1000:
+                self.progress = self.progress[-1000:]
     
     def update_stats(self, stats):
         """Update task statistics"""
@@ -11273,9 +11274,10 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
         t = get_task(task_id)
         if t:
             progress = int((completed / total) * 100) if total > 0 else 0
-            message = f"Processed {completed}/{total} games"
-            print(f"🔄 ScreenScraper Progress: {message} ({progress}%)")
-            t.update_progress(progress, message, current_step=completed, total_steps=total)
+            # Only update progress percentage and steps, don't log every single game
+            # The UI will show the counter from current_step/total_steps
+            t.update_progress(progress, None, current_step=completed, total_steps=total)
+            print(f"🔄 ScreenScraper Progress: {completed}/{total} ({progress}%)")
     
     async def async_screenscraper():
         try:
