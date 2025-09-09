@@ -915,7 +915,9 @@ class GameCollectionManager {
         const names = {
             'image_download': 'Image Download',
             'media_scan': 'Media Scan',
-            'scraping': 'LaunchBox Scraping'
+            'scraping': 'LaunchBox Scraping',
+            'igdb_scraping': 'IGDB Scraping',
+            'screenscraper_scraping': 'ScreenScraper Scraping'
         };
         return names[taskType] || taskType;
     }
@@ -1300,6 +1302,19 @@ class GameCollectionManager {
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
         document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
+        const screenscraperBtn = document.getElementById('scrapScreenscraperBtn');
+        console.log('Looking for ScreenScraper button during initialization...');
+        console.log('Button found:', screenscraperBtn);
+        if (screenscraperBtn) {
+            screenscraperBtn.addEventListener('click', () => {
+                console.log('ScreenScraper button clicked');
+                this.scrapScreenscraper();
+            });
+            console.log('ScreenScraper button event listener added');
+            
+        } else {
+            console.error('ScreenScraper button not found during event listener setup!');
+        }
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
@@ -1966,6 +1981,7 @@ class GameCollectionManager {
                 }
                 
                 this.updateGamesCount();
+                console.log('About to call enableButtons for system:', systemName);
                 this.enableButtons();
                 
                 // Set the row data directly for client-side row model
@@ -2071,6 +2087,21 @@ class GameCollectionManager {
                     headerTooltip: 'IGDB Database ID for exact matching. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#e8f4fd',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em'
+                    }
+                },
+                { 
+                    field: 'screenscraperid', 
+                    headerName: 'ScreenScraper ID', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    flex: 1,
+                    headerTooltip: 'ScreenScraper Database ID for exact matching. Auto-populated when scraping.',
+                    cellStyle: { 
+                        backgroundColor: '#fff3cd',
                         fontFamily: 'monospace',
                         fontSize: '0.9em'
                     }
@@ -2615,6 +2646,7 @@ class GameCollectionManager {
         document.getElementById('editPlayers').value = '';
         document.getElementById('editLaunchboxId').value = '';
         document.getElementById('editIgdbId').value = '';
+        document.getElementById('editScreenscraperId').value = '';
         document.getElementById('editYoutubeurl').value = '';
         
         // Now populate with game data
@@ -2628,6 +2660,7 @@ class GameCollectionManager {
         document.getElementById('editPlayers').value = game.players || '';
         document.getElementById('editLaunchboxId').value = game.launchboxid || '';
         document.getElementById('editIgdbId').value = game.igdbid || '';
+        document.getElementById('editScreenscraperId').value = game.screenscraperid || '';
         document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
         // Populate the media tab with the same media display as the preview panel
@@ -3528,6 +3561,7 @@ class GameCollectionManager {
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
         game.igdbid = document.getElementById('editIgdbId').value;
+        game.screenscraperid = document.getElementById('editScreenscraperId').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
 
         console.log('Updated game object:', game);
@@ -5899,6 +5933,49 @@ class GameCollectionManager {
                 this.showAlert(data.message || 'IGDB scraping failed', 'error');
             }
         }
+        
+        // Check if this is a ScreenScraper scraping task completion
+        if (data.task_type === 'screenscraper_scraping') {
+            console.log('ScreenScraper scraping task completed:', data);
+            console.log('Current system:', this.currentSystem);
+            console.log('Task system name:', data.system_name);
+            console.log('Task success:', data.success);
+            console.log('Task stopped:', data.stopped);
+            
+            // Refresh the task grid to show updated task status
+            this.refreshTaskGrid();
+            
+            // Refresh the gamelist grid if we're viewing the same system that was scraped
+            // This applies to both successful completion and stopped tasks (since gamelist is saved in both cases)
+            if (data.system_name && data.system_name === this.currentSystem) {
+                console.log('✅ System names match - refreshing gamelist grid for system:', data.system_name);
+                console.log('🔄 About to call loadRomSystem...');
+                
+                // Add a delay to ensure gamelist.xml file write has completed
+                setTimeout(() => {
+                    this.loadRomSystem(this.currentSystem).then(() => {
+                        console.log('✅ Gamelist grid refreshed after ScreenScraper task completion');
+                    }).catch((error) => {
+                        console.error('❌ Error refreshing gamelist grid:', error);
+                    });
+                }, 1000); // 1000ms delay to ensure file write is complete
+            } else {
+                console.log('❌ System names do not match - skipping gamelist refresh');
+                console.log('  - Current system:', this.currentSystem);
+                console.log('  - Task system:', data.system_name);
+            }
+            
+            // Show appropriate message based on success/stopped status
+            if (data.success) {
+                if (data.stopped) {
+                    this.showAlert(data.message || 'ScreenScraper scraping stopped by user (data saved)', 'success');
+                } else {
+                    this.showAlert(data.message || 'ScreenScraper scraping completed successfully', 'success');
+                }
+            } else {
+                this.showAlert(data.message || 'ScreenScraper scraping failed', 'error');
+            }
+        }
     }
     
     async refreshTaskGrid() {
@@ -7498,11 +7575,20 @@ class GameCollectionManager {
     }
 
     enableButtons() {
+        console.log('enableButtons called');
         document.getElementById('unifiedScanBtn').disabled = false;
         document.getElementById('saveGamelistBtn').disabled = false;
 
         document.getElementById('scrapLaunchboxBtn').disabled = false; // Allow full collection scraping
         document.getElementById('scrapIgdbBtn').disabled = false; // Allow IGDB scraping
+        
+        const screenscraperBtn = document.getElementById('scrapScreenscraperBtn');
+        if (screenscraperBtn) {
+            screenscraperBtn.disabled = false; // Allow ScreenScraper scraping
+            console.log('ScreenScraper button enabled');
+        } else {
+            console.error('ScreenScraper button not found!');
+        }
         
 
         
@@ -7594,6 +7680,63 @@ class GameCollectionManager {
             // Restore button state
             const button = document.getElementById('scrapIgdbBtn');
             button.innerHTML = '<i class="bi bi-globe"></i> IGDB Scrap';
+            button.disabled = false;
+        }
+    }
+
+    async scrapScreenscraper() {
+        console.log('scrapScreenscraper method called');
+        console.log('Current system:', this.currentSystem);
+        
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapScreenscraperBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Determine scraping mode
+            const isFullCollection = this.selectedGames.length === 0;
+            const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
+            
+            this.showAlert('Starting ScreenScraper task...', 'info');
+            
+            const response = await fetch(`/api/scrap-screenscraper/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: gamesToScrape.map(game => game.path)
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showAlert(`✅ ${result.message}`, 'success');
+                console.log('ScreenScraper task started:', result);
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
+                console.error('ScreenScraper task failed:', result);
+            }
+            
+        } catch (error) {
+            console.error('Error starting ScreenScraper task:', error);
+            this.showAlert(`❌ Error starting ScreenScraper task: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapScreenscraperBtn');
+            button.innerHTML = '<i class="bi bi-search"></i> ScreenScraper';
             button.disabled = false;
         }
     }

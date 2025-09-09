@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+</head>
+<body>
+    <button id="scrapScreenscraperBtn" class="btn btn-warning btn-sm ms-2" disabled>
+        <i class="bi bi-search"></i> ScreenScraper
+    </button>
+    
+    <script>
+        console.log('Testing button...');
+        const button = document.getElementById('scrapScreenscraperBtn');
+        console.log('Button found:', button);
+        console.log('Button disabled:', button.disabled);
+        
+        button.disabled = false;
+        console.log('Button enabled, disabled:', button.disabled);
+        
+        button.addEventListener('click', () => {
+            console.log('Button clicked!');
+        });
+        
+        console.log('Event listener added');
+    </script>
+</body>
+</html>

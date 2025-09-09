@@ -126,7 +126,8 @@
                 ".7Z"
             ],
             "launchbox": "Arcade",
-            "igdb": "Arcade"
+            "igdb": "Arcade",
+            "screenscraper": "Mame"
         },
         "nes": {
             "extensions": [
@@ -134,7 +135,8 @@
                 ".NES"
             ],
             "launchbox": "Nintendo Entertainment System",
-            "igdb": "Nintendo Entertainment System"
+            "igdb": "Nintendo Entertainment System",
+            "screenscraper": "NES"
         },
         "snes": {
             "extensions": [
@@ -144,7 +146,8 @@
                 ".SMC"
             ],
             "launchbox": "Super Nintendo Entertainment System",
-            "igdb": "Super Nintendo Entertainment System"
+            "igdb": "Super Nintendo Entertainment System",
+            "screenscraper": "Super Nintendo"
         },
         "windows": {
             "extensions": [
@@ -159,7 +162,8 @@
                 ".GBA2"
             ],
             "launchbox": "Nintendo Game Boy Advance",
-            "igdb": "Game Boy Advance"
+            "igdb": "Game Boy Advance",
+            "screenscraper": "Game Boy Advance"
         },
         "gbc": {
             "extensions": [
@@ -167,7 +171,8 @@
                 ".GBC"
             ],
             "launchbox": "Nintendo Game Boy Color",
-            "igdb": "Game Boy Color"
+            "igdb": "Game Boy Color",
+            "screenscraper": "Game Boy Color"
         },
         "gb": {
             "extensions": [
@@ -175,7 +180,8 @@
                 ".GB"
             ],
             "launchbox": "Nintendo Game Boy",
-            "igdb": "Game Boy"
+            "igdb": "Game Boy",
+            "screenscraper": "Game Boy"
         },
         "n64": {
             "extensions": [
@@ -187,7 +193,8 @@
                 ".Z64"
             ],
             "launchbox": "Nintendo 64",
-            "igdb": "Nintendo 64"
+            "igdb": "Nintendo 64",
+            "screenscraper": "Nintendo 64"
         },
         "psx": {
             "extensions": [
@@ -205,7 +212,8 @@
                 ".MDS"
             ],
             "launchbox": "Sony Playstation",
-            "igdb": "PlayStation"
+            "igdb": "PlayStation",
+            "screenscraper": "Playstation"
         },
         "ps2": {
             "extensions": [
@@ -223,7 +231,8 @@
                 ".MDS"
             ],
             "launchbox": "Sony Playstation 2",
-            "igdb": "PlayStation 2"
+            "igdb": "PlayStation 2",
+            "screenscraper": "Playstation 2"
         },
         "ps3": {
             "extensions": [
@@ -367,7 +376,8 @@
                 ".SMD"
             ],
             "launchbox": "Sega Mega Drive",
-            "igdb": "Sega Mega Drive"
+            "igdb": "Sega Mega Drive",
+            "screenscraper": "Megadrive"
         },
         "saturn": {
             "extensions": [
@@ -379,7 +389,8 @@
                 ".ISO"
             ],
             "launchbox": "Sega Saturn",
-            "igdb": "Sega Saturn"
+            "igdb": "Sega Saturn",
+            "screenscraper": "Saturn"
         },
         "dreamcast": {
             "extensions": [
@@ -391,7 +402,8 @@
                 ".ISO"
             ],
             "launchbox": "Sega Dreamcast",
-            "igdb": "Dreamcast"
+            "igdb": "Dreamcast",
+            "screenscraper": "Dreamcast"
         },
         "gamegear": {
             "extensions": [
@@ -483,7 +495,8 @@
                 ".VEC"
             ],
             "launchbox": "GCE Vectrex",
-            "igdb": "Vectrex"
+            "igdb": "Vectrex",
+            "screenscraper": "Vectrex"
         },
         "intellivision": {
             "extensions": [
@@ -760,5 +773,253 @@
             "Europe",
             "Japan"
         ]
+    },
+    "screenscraper": {
+        "enabled": true,
+        "api_url": "https://api.screenscraper.fr/api2/jeuInfos.php",
+        "max_connections": 2,
+        "timeout": 30,
+        "retry_attempts": 3,
+        "systems": {
+            "3DO": "29",
+            "Aamber Pegasus": "83",
+            "Acclaim": "166",
+            "Action Max": "81",
+            "Adam": "89",
+            "Adventure Vision": "78",
+            "Alpha Denshi Co.": "182",
+            "Amcoe": "178",
+            "American Laser Games": "170",
+            "Amiga": "64",
+            "Amiga (AGA)": "111",
+            "Amiga CD": "134",
+            "Amiga CD32": "130",
+            "Amiga CD32 (hack)": "139",
+            "Amiga CDTV": "129",
+            "Android": "63",
+            "Apple II": "86",
+            "Apple IIGS": "217",
+            "Arcadia 2001": "94",
+            "Archimedes": "84",
+            "Arduboy": "263",
+            "Astrocade": "44",
+            "Atari 2600": "26",
+            "Atari 2600 Supercharger": "39",
+            "Atari 5200": "40",
+            "Atari 7800": "41",
+            "Atari 8bit": "43",
+            "Atari Classics": "160",
+            "Atari ST": "42",
+            "Atlus": "185",
+            "Atom": "36",
+            "Atomiswave": "53",
+            "Banpresto": "186",
+            "BBC Micro": "37",
+            "BK": "93",
+            "Camputers Lynx": "88",
+            "Capcom Classics": "151",
+            "Capcom Play System": "6",
+            "Capcom Play System 2": "7",
+            "Capcom Play System 3": "8",
+            "Cave": "47",
+            "CD-i": "133",
+            "Century Electronics": "179",
+            "Channel F": "80",
+            "Cinematronics": "192",
+            "Coleco": "183",
+            "Colecovision": "48",
+            "Comad": "177",
+            "Commodore 64": "66",
+            "CoreGrafX": "50",
+            "CPC": "65",
+            "CreatiVision": "241",
+            "Daphne": "49",
+            "Data East Classics": "162",
+            "Dragon 32/64": "91",
+            "Dreamcast": "23",
+            "Dynax": "173",
+            "EasyRPG": "231",
+            "EG2000 Colour Genie": "92",
+            "Eighting / Raizing": "152",
+            "Electron": "85",
+            "Exidy": "165",
+            "EXL 100": "96",
+            "Family Computer Disk System": "106",
+            "Flipper": "197",
+            "FM Towns": "253",
+            "FM-7": "97",
+            "Future Pinball": "199",
+            "Gaelco": "194",
+            "Gamate": "266",
+            "Game & Watch": "52",
+            "Game Boy": "9",
+            "Game Boy Advance": "12",
+            "Game Boy Color": "10",
+            "Game Gear": "21",
+            "Game Master": "103",
+            "Game Pocket Computer": "95",
+            "Game.com": "121",
+            "Gamecube": "13",
+            "GBA e-Reader": "119",
+            "Gottlieb": "209",
+            "GP32": "101",
+            "GX4000": "87",
+            "Hikaru": "258",
+            "IGS": "176",
+            "Incredible Technologies": "193",
+            "Intellivision": "115",
+            "Irem Classics": "148",
+            "Jaguar": "27",
+            "Jaguar CD": "171",
+            "Jaleco": "159",
+            "Jupiter Ace": "126",
+            "Kaneko": "174",
+            "Konami Classics": "158",
+            "Linux": "145",
+            "Loopy": "98",
+            "LowRes NX": "244",
+            "Lutro": "206",
+            "Lynx": "28",
+            "Mac OS": "146",
+            "Mame": "75",
+            "Master System": "2",
+            "Mega Duck": "90",
+            "Mega-CD": "20",
+            "Mega-Play": "196",
+            "Mega-Tech": "195",
+            "Megadrive": "1",
+            "Megadrive - Sonic The Hedgehog 2 Hacks": "203",
+            "Megadrive 32X": "19",
+            "MGT SAM Coupé": "213",
+            "Midway Classics": "150",
+            "Mikrosha": "124",
+            "Mitchell": "189",
+            "Model 2": "54",
+            "Model 3": "55",
+            "MSX": "113",
+            "MSX Turbo R": "118",
+            "MSX2": "116",
+            "MSX2+": "117",
+            "N-Gage": "30",
+            "Namco Classics": "155",
+            "Namco System 22": "156",
+            "Naomi": "56",
+            "Naomi 2": "230",
+            "Naomi GD-ROM": "227",
+            "NEC PC-8801": "221",
+            "NEC PC-9801": "208",
+            "Neo-Geo": "142",
+            "Neo-Geo CD": "70",
+            "Neo-Geo MVS": "68",
+            "Neo-Geo Pocket": "25",
+            "Neo-Geo Pocket Color": "82",
+            "NES": "3",
+            "Nes - Super Mario Bros. Hacks": "278",
+            "Nichibutsu": "180",
+            "Nintendo 3DS": "17",
+            "Nintendo 64": "14",
+            "Nintendo 64DD": "122",
+            "Nintendo Classics": "161",
+            "Nintendo DS": "15",
+            "Nintendo Power": "110",
+            "NMK": "163",
+            "non Jeu": "168",
+            "OpenBOR": "214",
+            "Oric 1 / Atmos": "131",
+            "P2000T": "287",
+            "Palm OS": "219",
+            "PC Dos": "135",
+            "PC Engine": "31",
+            "PC Engine CD-Rom": "114",
+            "PC Engine SuperGrafx": "105",
+            "PC Win3.xx": "136",
+            "PC Win9X": "137",
+            "PC Windows": "138",
+            "PC-FX": "72",
+            "Pecom 64": "125",
+            "PET": "240",
+            "Philips VG 5000": "261",
+            "Pico-8": "234",
+            "Pinball FX2": "143",
+            "Pinball FX3": "201",
+            "PlayChoice": "184",
+            "Playstation": "57",
+            "Playstation 2": "58",
+            "Playstation 3": "59",
+            "Playstation 4": "60",
+            "Playstation 5": "284",
+            "Playstation minis": "172",
+            "Plus/4": "99",
+            "Pocket Challenge V2": "237",
+            "Pokémon mini": "211",
+            "PrBoom": "290",
+            "PS Vita": "62",
+            "Psikyo": "167",
+            "PSP": "61",
+            "PV-1000": "74",
+            "Sammy Classics": "164",
+            "Satellaview": "107",
+            "Saturn": "22",
+            "ScummVM": "123",
+            "Sega Classics": "147",
+            "Sega Pico": "250",
+            "Sega ST-V": "69",
+            "Seibu Kaihatsu": "190",
+            "SemiCom": "187",
+            "Seta": "149",
+            "SG-1000": "109",
+            "Sharp X1": "220",
+            "Sharp X68000": "79",
+            "Snes - Super Mario World Hacks": "202",
+            "SNK Classics": "154",
+            "Solarus": "223",
+            "Spectravideo": "218",
+            "Sufami Turbo": "108",
+            "Super A'can": "100",
+            "Super Cassette Vision": "67",
+            "Super Game Boy": "127",
+            "Super Game Boy 2": "128",
+            "Super Nintendo": "4",
+            "Super Nintendo MSU-1": "210",
+            "Switch": "225",
+            "Switch 2": "296",
+            "Taito Classics": "157",
+            "Tamagotchi": "293",
+            "Technos": "169",
+            "Tecmo": "153",
+            "TeknoParrot": "269",
+            "the Pinball Arcade": "200",
+            "Thomson MO/TO": "141",
+            "TI-99/4A": "205",
+            "TIC-80": "222",
+            "Toaplan": "191",
+            "TRS-80 Color Computer": "144",
+            "Type X": "112",
+            "Universal": "188",
+            "Uzebox": "216",
+            "V.Smile": "120",
+            "VC 4000": "281",
+            "Vectrex": "102",
+            "Vic-20": "73",
+            "Video System Co.": "175",
+            "Videopac G7000": "104",
+            "Vircon32": "272",
+            "Virtual Boy": "11",
+            "Visco": "181",
+            "Visual Pinball": "198",
+            "Voxatron": "275",
+            "WASM-4": "262",
+            "Watara Supervision": "207",
+            "Wii": "16",
+            "Wii U": "18",
+            "WonderSwan": "45",
+            "WonderSwan Color": "46",
+            "Xbox": "32",
+            "Xbox 360": "33",
+            "Xbox One": "34",
+            "Z-Machine": "215",
+            "ZX Spectrum": "76",
+            "ZX81": "77"
+        }
     }
 }

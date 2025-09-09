@@ -2768,6 +2768,8 @@ def parse_gamelist_xml(file_path):
                     game_data['launchboxid'] = text
                 elif tag == 'igdbid':
                     game_data['igdbid'] = text
+                elif tag == 'screenscraperid':
+                    game_data['screenscraperid'] = text
                 elif tag == 'youtubeurl':
                     game_data['youtubeurl'] = text
             
@@ -3654,7 +3656,7 @@ def write_gamelist_xml(games, file_path):
             # Add all game fields
             for field, value in game.items():
                 # Always include media-related fields, even if empty
-                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl']:
+                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl', 'screenscraperid']:
                     field_elem = ET.SubElement(game_elem, field)
                     field_elem.text = str(value) if value else ''
                 elif value is not None and value != '':
@@ -3707,8 +3709,6 @@ def scrap_launchbox():
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields,
         }
         _worker_task_queue.put(payload)
         
@@ -3823,8 +3823,6 @@ def scrap_launchbox_simple(system_name):
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields,
         }
         _worker_task_queue.put(payload)
         
@@ -11127,6 +11125,115 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
     
     print(f"DEBUG: IGDB result listener ended for process {process.pid}")
 
+def run_screenscraper_task(system_name, task_id, selected_games=None):
+    """Run ScreenScraper task for a specific system"""
+    import asyncio
+    import threading
+    from screenscraper_service import ScreenScraperService
+    
+    def progress_callback(completed, total):
+        """Update task progress"""
+        t = get_task(task_id)
+        if t:
+            progress = int((completed / total) * 100) if total > 0 else 0
+            t.update_progress(progress, f"Processed {completed}/{total} games")
+    
+    async def async_screenscraper():
+        try:
+            print(f"Starting ScreenScraper task for system: {system_name}")
+            
+            # Get ScreenScraper configuration
+            screenscraper_config = config.get('screenscraper', {})
+            if not screenscraper_config.get('enabled', False):
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "ScreenScraper integration is disabled")
+                return
+            
+            # Load credentials
+            credentials_path = 'var/config/credentials.json'
+            if not os.path.exists(credentials_path):
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "Credentials file not found")
+                return
+            
+            credentials = load_json_with_comments(credentials_path)
+            screenscraper_creds = credentials.get('screenscraper', {})
+            
+            if not all(screenscraper_creds.get(key) for key in ['devid', 'devpassword', 'ssid', 'sspassword']):
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "ScreenScraper credentials not configured")
+                return
+            
+            # Initialize ScreenScraper service
+            service = ScreenScraperService(config, screenscraper_creds)
+            
+            # Load games for the system
+            gamelist_path = get_gamelist_path(system_name)
+            if not os.path.exists(gamelist_path):
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"Gamelist not found for system: {system_name}")
+                return
+            
+            all_games = parse_gamelist_xml(gamelist_path)
+            if not all_games:
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"No games found for system: {system_name}")
+                return
+            
+            # Filter games if selection is provided
+            if selected_games:
+                selected_paths = set(selected_games)  # selected_games is already a list of paths
+                games_to_process = [game for game in all_games if game['path'] in selected_paths]
+            else:
+                games_to_process = all_games
+            
+            if not games_to_process:
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "No games selected for processing")
+                return
+            
+            print(f"Processing {len(games_to_process)} games with ScreenScraper")
+            print(f"First game sample: {games_to_process[0] if games_to_process else 'No games'}")
+            
+            # Process games in batches
+            results = await service.process_games_batch(games_to_process, system_name, progress_callback)
+            
+            # Update all games with ScreenScraper IDs
+            updated_count = 0
+            for game in all_games:
+                if game['path'] in results:
+                    game['screenscraperid'] = results[game['path']]
+                    updated_count += 1
+            
+            # Save updated gamelist (all games, not just processed ones)
+            if updated_count > 0:
+                write_gamelist_xml(all_games, gamelist_path)
+                print(f"Updated {updated_count} games with ScreenScraper IDs")
+            
+            # Complete task
+            t = get_task(task_id)
+            if t:
+                t.complete(True, f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs")
+            
+        except Exception as e:
+            print(f"Error in ScreenScraper task: {e}")
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"ScreenScraper task failed: {str(e)}")
+    
+    # Run the async function in a new thread
+    def run_async():
+        asyncio.run(async_screenscraper())
+    
+    thread = threading.Thread(target=run_async, daemon=True)
+    thread.start()
+
 # =============================================================================
 # IGDB Scraper API Routes
 # =============================================================================
@@ -11171,8 +11278,6 @@ def scrap_igdb_system(system_name):
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields,
             'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
@@ -11345,6 +11450,67 @@ def search_igdb_games_api():
     except Exception as e:
         print(f"Error searching IGDB games: {e}")
         return jsonify({'error': f'Failed to search IGDB games: {str(e)}'}), 500
+
+# =============================================================================
+# ScreenScraper API Routes
+# =============================================================================
+
+@app.route('/api/scrap-screenscraper/<system_name>', methods=['POST'])
+@login_required
+def scrap_screenscraper_system(system_name):
+    """Start ScreenScraper task for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Check if ScreenScraper is enabled
+        screenscraper_config = config.get('screenscraper', {})
+        if not screenscraper_config.get('enabled', False):
+            return jsonify({'error': 'ScreenScraper integration is disabled'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        task = Task('screenscraper_scraping', task_data, username)
+        
+        # Set global current task ID for progress updates
+        global current_task_id
+        current_task_id = task.id
+        
+        # Add to tasks list
+        tasks[task.id] = task
+        
+        # Start the task
+        task.start()
+        
+        # Start the scraper task in a separate thread
+        import threading
+        scraper_thread = threading.Thread(
+            target=run_screenscraper_task,
+            args=(system_name, task.id, selected_games),
+            daemon=True
+        )
+        scraper_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'ScreenScraper task started for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting ScreenScraper task: {e}")
+        return jsonify({'error': f'Failed to start ScreenScraper task: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Initialize default admin user

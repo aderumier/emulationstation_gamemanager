@@ -1,0 +1,725 @@
+The screenscraper systemid<-> screenscraper systemname should be something like:
+
+<select class="rechercheselect" name="rechercheplateforme" id="rechercheplateforme">
+<option selected="" value="">Tous les systèmes</option>
+
+<option value="29">3DO</option>
+
+
+<option value="83">Aamber Pegasus</option>
+
+
+<option value="166">Acclaim</option>
+
+
+<option value="81">Action Max</option>
+
+
+<option value="89">Adam</option>
+
+
+<option value="78">Adventure Vision</option>
+
+
+<option value="182">Alpha Denshi Co.</option>
+
+
+<option value="178">Amcoe</option>
+
+
+<option value="170">American Laser Games</option>
+
+
+<option value="64">Amiga</option>
+
+
+<option value="111">Amiga (AGA)</option>
+
+
+<option value="134">Amiga CD</option>
+
+
+<option value="130">Amiga CD32</option>
+
+
+<option value="139">Amiga CD32 (hack)</option>
+
+
+<option value="129">Amiga CDTV</option>
+
+
+<option value="63">Android</option>
+
+
+<option value="86">Apple II</option>
+
+
+<option value="217">Apple IIGS</option>
+
+
+<option value="94">Arcadia 2001</option>
+
+
+<option value="84">Archimedes</option>
+
+
+<option value="263">Arduboy</option>
+
+
+<option value="44">Astrocade</option>
+
+
+<option value="26">Atari 2600</option>
+
+
+<option value="39">Atari 2600 Supercharger</option>
+
+
+<option value="40">Atari 5200</option>
+
+
+<option value="41">Atari 7800</option>
+
+
+<option value="43">Atari 8bit</option>
+
+
+<option value="160">Atari Classics</option>
+
+
+<option value="42">Atari ST</option>
+
+
+<option value="185">Atlus</option>
+
+
+<option value="36">Atom</option>
+
+
+<option value="53">Atomiswave</option>
+
+
+<option value="186">Banpresto</option>
+
+
+<option value="37">BBC Micro</option>
+
+
+<option value="93">BK</option>
+
+
+<option value="88">Camputers Lynx</option>
+
+
+<option value="151">Capcom Classics</option>
+
+
+<option value="6">Capcom Play System</option>
+
+
+<option value="7">Capcom Play System 2</option>
+
+
+<option value="8">Capcom Play System 3</option>
+
+
+<option value="47">Cave</option>
+
+
+<option value="133">CD-i</option>
+
+
+<option value="179">Century Electronics</option>
+
+
+<option value="80">Channel F</option>
+
+
+<option value="192">Cinematronics</option>
+
+
+<option value="183">Coleco</option>
+
+
+<option value="48">Colecovision</option>
+
+
+<option value="177">Comad</option>
+
+
+<option value="66">Commodore 64</option>
+
+
+<option value="50">CoreGrafX</option>
+
+
+<option value="65">CPC</option>
+
+
+<option value="241">CreatiVision</option>
+
+
+<option value="49">Daphne</option>
+
+
+<option value="162">Data East Classics</option>
+
+
+<option value="91">Dragon 32/64</option>
+
+
+<option value="23">Dreamcast</option>
+
+
+<option value="173">Dynax</option>
+
+
+<option value="231">EasyRPG</option>
+
+
+<option value="92">EG2000 Colour Genie</option>
+
+
+<option value="152">Eighting / Raizing</option>
+
+
+<option value="85">Electron</option>
+
+
+<option value="165">Exidy</option>
+
+
+<option value="96">EXL 100</option>
+
+
+<option value="106">Family Computer Disk System</option>
+
+
+<option value="197">Flipper</option>
+
+
+<option value="253">FM Towns</option>
+
+
+<option value="97">FM-7</option>
+
+
+<option value="199">Future Pinball</option>
+
+
+<option value="194">Gaelco</option>
+
+
+<option value="266">Gamate</option>
+
+
+<option value="52">Game &amp; Watch</option>
+
+
+<option value="9">Game Boy</option>
+
+
+<option value="12">Game Boy Advance</option>
+
+
+<option value="10">Game Boy Color</option>
+
+
+<option value="21">Game Gear</option>
+
+
+<option value="103">Game Master</option>
+
+
+<option value="95">Game Pocket Computer</option>
+
+
+<option value="121">Game.com</option>
+
+
+<option value="13">Gamecube</option>
+
+
+<option value="119">GBA e-Reader</option>
+
+
+<option value="209">Gottlieb</option>
+
+
+<option value="101">GP32</option>
+
+
+<option value="87">GX4000</option>
+
+
+<option value="258">Hikaru</option>
+
+
+<option value="176">IGS</option>
+
+
+<option value="193">Incredible Technologies</option>
+
+
+<option value="115">Intellivision</option>
+
+
+<option value="148">Irem Classics</option>
+
+
+<option value="27">Jaguar</option>
+
+
+<option value="171">Jaguar CD</option>
+
+
+<option value="159">Jaleco</option>
+
+
+<option value="126">Jupiter Ace</option>
+
+
+<option value="174">Kaneko</option>
+
+
+<option value="158">Konami Classics</option>
+
+
+<option value="145">Linux</option>
+
+
+<option value="98">Loopy</option>
+
+
+<option value="244">LowRes NX</option>
+
+
+<option value="206">Lutro</option>
+
+
+<option value="28">Lynx</option>
+
+
+<option value="146">Mac OS</option>
+
+
+<option value="75">Mame</option>
+
+
+<option value="2">Master System</option>
+
+
+<option value="90">Mega Duck</option>
+
+
+<option value="20">Mega-CD</option>
+
+
+<option value="196">Mega-Play</option>
+
+
+<option value="195">Mega-Tech</option>
+
+
+<option value="1">Megadrive</option>
+
+
+<option value="203">Megadrive - Sonic The Hedgehog 2 Hacks</option>
+
+
+<option value="19">Megadrive 32X</option>
+
+
+<option value="213">MGT SAM Coupé</option>
+
+
+<option value="150">Midway Classics</option>
+
+
+<option value="124">Mikrosha</option>
+
+
+<option value="189">Mitchell</option>
+
+
+<option value="54">Model 2</option>
+
+
+<option value="55">Model 3</option>
+
+
+<option value="113">MSX</option>
+
+
+<option value="118">MSX Turbo R</option>
+
+
+<option value="116">MSX2</option>
+
+
+<option value="117">MSX2+</option>
+
+
+<option value="30">N-Gage</option>
+
+
+<option value="155">Namco Classics</option>
+
+
+<option value="156">Namco System 22</option>
+
+
+<option value="56">Naomi</option>
+
+
+<option value="230">Naomi 2</option>
+
+
+<option value="227">Naomi GD-ROM</option>
+
+
+<option value="221">NEC PC-8801</option>
+
+
+<option value="208">NEC PC-9801</option>
+
+
+<option value="142">Neo-Geo</option>
+
+
+<option value="70">Neo-Geo CD</option>
+
+
+<option value="68">Neo-Geo MVS</option>
+
+
+<option value="25">Neo-Geo Pocket</option>
+
+
+<option value="82">Neo-Geo Pocket Color</option>
+
+
+<option value="3">NES</option>
+
+
+<option value="278">Nes - Super Mario Bros. Hacks</option>
+
+
+<option value="180">Nichibutsu</option>
+
+
+<option value="17">Nintendo 3DS</option>
+
+
+<option value="14">Nintendo 64</option>
+
+
+<option value="122">Nintendo 64DD</option>
+
+
+<option value="161">Nintendo Classics</option>
+
+
+<option value="15">Nintendo DS</option>
+
+
+<option value="110">Nintendo Power</option>
+
+
+<option value="163">NMK</option>
+
+
+<option value="168">non Jeu</option>
+
+
+<option value="214">OpenBOR</option>
+
+
+<option value="131">Oric 1 / Atmos</option>
+
+
+<option value="287">P2000T</option>
+
+
+<option value="219">Palm OS</option>
+
+
+<option value="135">PC Dos</option>
+
+
+<option value="31">PC Engine</option>
+
+
+<option value="114">PC Engine CD-Rom</option>
+
+
+<option value="105">PC Engine SuperGrafx</option>
+
+
+<option value="136">PC Win3.xx</option>
+
+
+<option value="137">PC Win9X</option>
+
+
+<option value="138">PC Windows</option>
+
+
+<option value="72">PC-FX</option>
+
+
+<option value="125">Pecom 64</option>
+
+
+<option value="240">PET</option>
+
+
+<option value="261">Philips VG 5000</option>
+
+
+<option value="234">Pico-8</option>
+
+
+<option value="143">Pinball FX2</option>
+
+
+<option value="201">Pinball FX3</option>
+
+
+<option value="184">PlayChoice</option>
+
+
+<option value="57">Playstation</option>
+
+
+<option value="58">Playstation 2</option>
+
+
+<option value="59">Playstation 3</option>
+
+
+<option value="60">Playstation 4</option>
+
+
+<option value="284">Playstation 5</option>
+
+
+<option value="172">Playstation minis</option>
+
+
+<option value="99">Plus/4</option>
+
+
+<option value="237">Pocket Challenge V2</option>
+
+
+<option value="211">Pokémon mini</option>
+
+
+<option value="290">PrBoom</option>
+
+
+<option value="62">PS Vita</option>
+
+
+<option value="167">Psikyo</option>
+
+
+<option value="61">PSP</option>
+
+
+<option value="74">PV-1000</option>
+
+
+<option value="164">Sammy Classics</option>
+
+
+<option value="107">Satellaview</option>
+
+
+<option value="22">Saturn</option>
+
+
+<option value="123">ScummVM</option>
+
+
+<option value="147">Sega Classics</option>
+
+
+<option value="250">Sega Pico</option>
+
+
+<option value="69">Sega ST-V</option>
+
+
+<option value="190">Seibu Kaihatsu</option>
+
+
+<option value="187">SemiCom</option>
+
+
+<option value="149">Seta</option>
+
+
+<option value="109">SG-1000</option>
+
+
+<option value="220">Sharp X1</option>
+
+
+<option value="79">Sharp X68000</option>
+
+
+<option value="202">Snes - Super Mario World Hacks</option>
+
+
+<option value="154">SNK Classics</option>
+
+
+<option value="223">Solarus</option>
+
+
+<option value="218">Spectravideo</option>
+
+
+<option value="108">Sufami Turbo</option>
+
+
+<option value="100">Super A'can</option>
+
+
+<option value="67">Super Cassette Vision</option>
+
+
+<option value="127">Super Game Boy</option>
+
+
+<option value="128">Super Game Boy 2</option>
+
+
+<option value="4">Super Nintendo</option>
+
+
+<option value="210">Super Nintendo MSU-1</option>
+
+
+<option value="225">Switch</option>
+
+
+<option value="296">Switch 2</option>
+
+
+<option value="157">Taito Classics</option>
+
+
+<option value="293">Tamagotchi</option>
+
+
+<option value="169">Technos</option>
+
+
+<option value="153">Tecmo</option>
+
+
+<option value="269">TeknoParrot</option>
+
+
+<option value="200">the Pinball Arcade</option>
+
+
+<option value="141">Thomson MO/TO</option>
+
+
+<option value="205">TI-99/4A</option>
+
+
+<option value="222">TIC-80</option>
+
+
+<option value="191">Toaplan</option>
+
+
+<option value="144">TRS-80 Color Computer</option>
+
+
+<option value="112">Type X</option>
+
+
+<option value="188">Universal</option>
+
+
+<option value="216">Uzebox</option>
+
+
+<option value="120">V.Smile</option>
+
+
+<option value="281">VC 4000</option>
+
+
+<option value="102">Vectrex</option>
+
+
+<option value="73">Vic-20</option>
+
+
+<option value="175">Video System Co.</option>
+
+
+<option value="104">Videopac G7000</option>
+
+
+<option value="272">Vircon32</option>
+
+
+<option value="11">Virtual Boy</option>
+
+
+<option value="181">Visco</option>
+
+
+<option value="198">Visual Pinball</option>
+
+
+<option value="275">Voxatron</option>
+
+
+<option value="262">WASM-4</option>
+
+
+<option value="207">Watara Supervision</option>
+
+
+<option value="16">Wii</option>
+
+
+<option value="18">Wii U</option>
+
+
+<option value="45">WonderSwan</option>
+
+
+<option value="46">WonderSwan Color</option>
+
+
+<option value="32">Xbox</option>
+
+
+<option value="33">Xbox 360</option>
+
+
+<option value="34">Xbox One</option>
+
+
+<option value="215">Z-Machine</option>
+
+
+<option value="76">ZX Spectrum</option>
+
+
+<option value="77">ZX81</option>
+
+
+
+
+</select>
