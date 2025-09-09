@@ -6782,25 +6782,30 @@ class GameCollectionManager {
             // Process each selected media item
             for (const { field, game, mediaPath } of this.selectedMedia) {
                 try {
-                    // Delete the file first
-                    const deleteResponse = await fetch('/api/delete-file', {
+                    // Use the specific media deletion API endpoint
+                    const deleteResponse = await fetch(`/api/rom-system/${this.currentSystem}/game/${game.id}/delete-media`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            file_path: `roms/${this.currentSystem}/${mediaPath}`
+                            media_field: field
                         })
                     });
                     
                     if (deleteResponse.ok) {
-                        // Set the media field to empty string instead of deleting it
-                        game[field] = '';
-                        
-                        // Mark the game as modified
-                        this.markGameAsModified(game);
-                        
-                        successCount++;
+                        const result = await deleteResponse.json();
+                        if (result.success) {
+                            // Update the game object in the main games array
+                            const gameIndex = this.games.findIndex(g => g.id === game.id);
+                            if (gameIndex !== -1) {
+                                this.games[gameIndex][field] = '';
+                            }
+                            successCount++;
+                        } else {
+                            console.error(`Failed to delete ${field} for ${game.name}:`, result.error);
+                            errorCount++;
+                        }
                     } else {
                         const error = await deleteResponse.json();
                         console.error(`Failed to delete ${field} for ${game.name}:`, error.error);
@@ -6812,14 +6817,8 @@ class GameCollectionManager {
                 }
             }
             
-            // Update the gamelist.xml after all deletions
+            // Refresh the grid and media preview after all deletions
             if (successCount > 0) {
-                // Get unique games that were modified
-                const modifiedGames = [...new Set(this.selectedMedia.map(item => item.game))];
-                for (const game of modifiedGames) {
-                    await this.updateGamelistAfterMediaDeletion(game);
-                }
-                
                 // Refresh the grid and media preview
                 this.gridApi.refreshCells();
                 if (this.selectedMedia.length > 0) {
