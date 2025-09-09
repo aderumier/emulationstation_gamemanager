@@ -34,6 +34,10 @@ cp -r templates/* debian/opt/gamemanager/templates/
 cp var/config/config.json debian/opt/gamemanager/var/config/config.json
 cp var/config/user.cfg debian/opt/gamemanager/var/config/user.cfg
 
+# Fix paths in config.json for production environment
+echo "🔧 Updating paths for production environment..."
+sed -i 's|"roms_root_directory": "/home/aderumier/cursorscraper/roms"|"roms_root_directory": "/opt/gamemanager/roms"|g' debian/opt/gamemanager/var/config/config.json
+
 # Documentation files
 cp README.md debian/opt/gamemanager/README.md
 cp AUTHENTICATION_SETUP.md debian/opt/gamemanager/AUTHENTICATION_SETUP.md
