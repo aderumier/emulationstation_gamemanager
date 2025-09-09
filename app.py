@@ -652,6 +652,9 @@ scraping_stats = {
 # Global stop event for tasks
 task_stop_event = threading.Event()
 
+# Global cancel maps for different task types
+_screenscraper_cancel_maps = {}
+
 # Client tracking for system-specific notifications
 client_systems = {}  # {client_sid: system_name}
 system_clients = {}  # {system_name: set(client_sids)}
@@ -6155,6 +6158,20 @@ def stop_task_endpoint(task_id):
             except Exception as e:
                 print(f"Warning: could not set IGDB cancel flag: {e}")
         
+        # For ScreenScraper scraping tasks, we need to handle cancellation
+        # since they use async operations and httpx connections
+        if task.type == 'screenscraper_scraping':
+            task.update_progress("🛑 ScreenScraper task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for ScreenScraper tasks
+            try:
+                global _screenscraper_cancel_maps
+                if '_screenscraper_cancel_maps' not in globals():
+                    _screenscraper_cancel_maps = {}
+                _screenscraper_cancel_maps[task_id] = True
+                print(f"DEBUG: Set ScreenScraper cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set ScreenScraper cancel flag: {e}")
+        
         # Stop the task (except for YouTube batch download which handles its own completion)
         if task.type != 'youtube_download_batch':
             task.stop()
@@ -11288,6 +11305,15 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
     import threading
     from screenscraper_service import ScreenScraperService
     
+    # Add task to cancel map
+    global _screenscraper_cancel_maps
+    _screenscraper_cancel_maps[task_id] = False
+    
+    def is_cancelled():
+        """Check if the ScreenScraper task should be cancelled"""
+        global _screenscraper_cancel_maps
+        return _screenscraper_cancel_maps.get(task_id, False)
+    
     def progress_callback(completed, total):
         """Update task progress"""
         t = get_task(task_id)
@@ -11301,6 +11327,14 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
     async def async_screenscraper():
         try:
             print(f"Starting ScreenScraper task for system: {system_name}")
+            
+            # Check if task was cancelled before starting
+            if is_cancelled():
+                print(f"ScreenScraper task {task_id} was cancelled before starting")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "Task cancelled before starting")
+                return
             
             # Get ScreenScraper configuration
             screenscraper_config = config.get('screenscraper', {})
@@ -11382,8 +11416,24 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                 if t:
                     t.log_message(message)
             
+            # Check for cancellation before processing games
+            if is_cancelled():
+                print(f"ScreenScraper task {task_id} was cancelled before processing games")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "Task cancelled before processing games")
+                return
+            
             # Process games in batches
-            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields, detailed_progress_callback)
+            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields, detailed_progress_callback, is_cancelled)
+            
+            # Check for cancellation after processing games
+            if is_cancelled():
+                print(f"ScreenScraper task {task_id} was cancelled after processing games")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "Task cancelled after processing games")
+                return
             
             # Update all games with ScreenScraper IDs and downloaded media
             print(f"📝 Updating gamelist with ScreenScraper data...")
@@ -11416,16 +11466,37 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             # Complete task
             t = get_task(task_id)
             if t:
-                message = f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs"
-                if media_updated_count > 0:
-                    message += f" and downloaded {media_updated_count} media files"
-                t.complete(True, message)
+                # Check if task was cancelled
+                if is_cancelled():
+                    message = f"ScreenScraper task stopped. Updated {updated_count} games with ScreenScraper IDs"
+                    if media_updated_count > 0:
+                        message += f" and downloaded {media_updated_count} media files"
+                    t.complete(False, message)
+                else:
+                    message = f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs"
+                    if media_updated_count > 0:
+                        message += f" and downloaded {media_updated_count} media files"
+                    t.complete(True, message)
             
         except Exception as e:
             print(f"Error in ScreenScraper task: {e}")
             t = get_task(task_id)
             if t:
                 t.complete(False, f"ScreenScraper task failed: {str(e)}")
+        finally:
+            # Clean up: close httpx connections and remove from cancel map
+            try:
+                from screenscraper_service import close_screenscraper_async_client
+                await close_screenscraper_async_client()
+                print(f"ScreenScraper connections closed for task {task_id}")
+            except Exception as e:
+                print(f"Error closing ScreenScraper connections: {e}")
+            
+            # Remove from cancel map
+            global _screenscraper_cancel_maps
+            if task_id in _screenscraper_cancel_maps:
+                del _screenscraper_cancel_maps[task_id]
+                print(f"Removed task {task_id} from cancel map")
     
     # Run the async function in a new thread
     def run_async():

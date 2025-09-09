@@ -225,7 +225,7 @@ class ScreenScraperService:
         
         return None
     
-    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None) -> Dict[str, str]:
+    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None, is_cancelled_callback=None) -> Dict[str, str]:
         """
         Process a batch of games to find their ScreenScraper IDs.
         
@@ -251,6 +251,11 @@ class ScreenScraperService:
         
         async def process_single_game(game):
             async with semaphore:
+                # Check for cancellation before processing each game
+                if is_cancelled_callback and is_cancelled_callback():
+                    print(f"ScreenScraper task was cancelled during game processing")
+                    return None
+                
                 game_name = game.get('name', 'Unknown')
                 game_path = game.get('path', 'Unknown path')
                 print(f"🎮 Processing game: {game_name} ({game_path})")
