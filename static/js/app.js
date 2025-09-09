@@ -6594,31 +6594,56 @@ class GameCollectionManager {
     }
 
     async getSelectedScreenscraperFields() {
+        console.log('🔍 Starting ScreenScraper field selection...');
+        
         // Fetch config to get dynamic field mappings
         const response = await fetch('/api/config');
         const config = await response.json();
+        console.log('📋 Full config received:', config);
+        console.log('📋 ScreenScraper config:', config.screenscraper);
         
         // Get ScreenScraper field mappings from config
         const textFields = Object.keys(config.screenscraper?.mapping || {});
         const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
         const allFields = [...textFields, ...mediaFields];
         
+        console.log('📝 Text fields from config:', textFields);
+        console.log('🖼️ Media fields from config:', mediaFields);
+        console.log('📋 All fields combined:', allFields);
+        
         const selectedFields = [];
-        console.log('ScreenScraper fields from config:', allFields);
         
         allFields.forEach(field => {
             // Convert field name to checkbox ID format: field_name -> FieldName
             const fieldId = field.split('_').map(word => 
                 word.charAt(0).toUpperCase() + word.slice(1)
             ).join('');
-            const checkbox = document.getElementById(`screenscraperField${fieldId}`);
-            console.log(`Field: ${field} -> ID: screenscraperField${fieldId} -> Checked: ${checkbox?.checked}`);
+            const checkboxId = `screenscraperField${fieldId}`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            console.log(`🔍 Field: "${field}" -> Checkbox ID: "${checkboxId}" -> Element found: ${!!checkbox} -> Checked: ${checkbox?.checked}`);
+            
             if (checkbox && checkbox.checked) {
                 selectedFields.push(field);
+                console.log(`✅ Added field: "${field}"`);
+            } else if (!checkbox) {
+                console.log(`❌ Checkbox not found for field: "${field}" (ID: "${checkboxId}")`);
+            } else {
+                console.log(`⏸️ Field "${field}" not checked`);
             }
         });
         
-        console.log('Selected ScreenScraper fields:', selectedFields);
+        console.log('🎯 Final selected fields:', selectedFields);
+        console.log('🎯 Selected fields count:', selectedFields.length);
+        
+        // Debug: Check all ScreenScraper checkboxes in the DOM
+        console.log('🔍 Debug: Checking all ScreenScraper checkboxes in DOM...');
+        const allCheckboxes = document.querySelectorAll('input[class*="screenscraper-field-checkbox"]');
+        console.log('🔍 Found checkboxes:', allCheckboxes.length);
+        allCheckboxes.forEach(checkbox => {
+            console.log(`🔍 Checkbox ID: "${checkbox.id}" -> Checked: ${checkbox.checked}`);
+        });
+        
         return selectedFields;
     }
 
@@ -7945,18 +7970,24 @@ class GameCollectionManager {
             this.showAlert('Starting ScreenScraper task...', 'info');
             
             // Get selected fields
+            console.log('🔍 Getting selected ScreenScraper fields...');
             const selectedFields = await this.getSelectedScreenscraperFields();
-            console.log('Selected ScreenScraper fields:', selectedFields);
+            console.log('📤 Selected ScreenScraper fields to send:', selectedFields);
+            console.log('📤 Selected fields type:', typeof selectedFields);
+            console.log('📤 Selected fields length:', selectedFields?.length);
+            
+            const requestBody = {
+                selected_games: gamesToScrape.map(game => game.path),
+                selected_fields: selectedFields
+            };
+            console.log('📤 Full request body:', requestBody);
             
             const response = await fetch(`/api/scrap-screenscraper/${this.currentSystem}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    selected_games: gamesToScrape.map(game => game.path),
-                    selected_fields: selectedFields
-                })
+                body: JSON.stringify(requestBody)
             });
             
             const result = await response.json();
