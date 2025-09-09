@@ -11274,9 +11274,9 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
         t = get_task(task_id)
         if t:
             progress = int((completed / total) * 100) if total > 0 else 0
-            # Only update progress percentage and steps, don't log every single game
-            # The UI will show the counter from current_step/total_steps
-            t.update_progress(progress, None, current_step=completed, total_steps=total)
+            # Log progress with meaningful message for task log
+            message = f"Processed {completed}/{total} games"
+            t.update_progress(progress, message, current_step=completed, total_steps=total)
             print(f"🔄 ScreenScraper Progress: {completed}/{total} ({progress}%)")
     
     async def async_screenscraper():
@@ -11356,8 +11356,14 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             if t:
                 t.update_progress(0, f"Starting ScreenScraper processing for {len(games_to_process)} games")
             
+            # Create detailed progress callback for task log
+            def detailed_progress_callback(message):
+                t = get_task(task_id)
+                if t:
+                    t.update_progress(None, message)
+            
             # Process games in batches
-            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields)
+            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields, detailed_progress_callback)
             
             # Update all games with ScreenScraper IDs and downloaded media
             print(f"📝 Updating gamelist with ScreenScraper data...")

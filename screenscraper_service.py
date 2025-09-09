@@ -225,7 +225,7 @@ class ScreenScraperService:
         
         return None
     
-    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False) -> Dict[str, str]:
+    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None) -> Dict[str, str]:
         """
         Process a batch of games to find their ScreenScraper IDs.
         
@@ -255,23 +255,36 @@ class ScreenScraperService:
                 game_path = game.get('path', 'Unknown path')
                 print(f"🎮 Processing game: {game_name} ({game_path})")
                 
+                # Send detailed progress to task log
+                if detailed_progress_callback:
+                    detailed_progress_callback(f"Processing game: {game_name}")
+                
                 if not isinstance(game, dict):
                     print(f"❌ Error: game is not a dictionary, it's {type(game)}: {game}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Error: Invalid game data for {game_name}")
                     return None
                 
                 rom_filename = os.path.basename(game_path)
                 print(f"📁 ROM filename: {rom_filename}")
                 if not rom_filename:
                     print("❌ No ROM filename found")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Error: No ROM filename for {game_name}")
                     return None
                 
                 # Search for game and get full data
                 print(f"🔍 Searching ScreenScraper for: {game_name}")
+                if detailed_progress_callback:
+                    detailed_progress_callback(f"Searching ScreenScraper for: {game_name}")
+                
                 search_result = await self.search_game(rom_filename, system_name)
                 if search_result:
                     jeu_id = search_result['jeu_id']
                     game_data = search_result['game_data']
                     print(f"✅ Found ScreenScraper ID {jeu_id} for {game_name}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Found ScreenScraper ID {jeu_id} for {game_name}")
                     
                     # Add path to game data for media processing
                     game_data['path'] = game_path
@@ -280,7 +293,10 @@ class ScreenScraperService:
                     async with httpx.AsyncClient(timeout=30.0) as media_client:
                         # Process media downloads
                         print(f"📥 Starting media downloads for {game_name}...")
-                        downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields)
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Starting media downloads for {game_name}")
+                        
+                        downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields, detailed_progress_callback)
                     
                     # Store both jeu_id and downloaded media
                     results[game_path] = {
@@ -289,8 +305,16 @@ class ScreenScraperService:
                     }
                     print(f"✅ Successfully processed {game_name} -> ScreenScraper ID: {jeu_id}")
                     print(f"📁 Downloaded media: {list(downloaded_media.keys())}")
+                    if detailed_progress_callback:
+                        media_list = list(downloaded_media.keys())
+                        if media_list:
+                            detailed_progress_callback(f"Downloaded media for {game_name}: {', '.join(media_list)}")
+                        else:
+                            detailed_progress_callback(f"No media downloaded for {game_name}")
                 else:
                     print(f"❌ No ScreenScraper ID found for {game_name}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"No ScreenScraper ID found for {game_name}")
                     # Store just the jeu_id if no media processing
                     results[game_path] = {
                         'jeu_id': None,
@@ -496,7 +520,7 @@ class ScreenScraperService:
             print(f"Error reading current media field value: {e}")
             return None
     
-    async def process_media_downloads(self, game_data: Dict, system_name: str, client: httpx.AsyncClient, selected_fields: List[str] = None, overwrite_media_fields: bool = False) -> Dict[str, str]:
+    async def process_media_downloads(self, game_data: Dict, system_name: str, client: httpx.AsyncClient, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None) -> Dict[str, str]:
         """
         Process media downloads for a game.
         
@@ -581,6 +605,10 @@ class ScreenScraperService:
             print(f"📁 Base file path: {file_path_base}")
             print(f"🌐 Media URL: {media_url}")
             
+            # Send detailed progress to task log
+            if detailed_progress_callback:
+                detailed_progress_callback(f"Downloading {media_type} -> {local_field}")
+            
             # Download the media (extension will be added based on content-type)
             if await self.download_media(media_url, file_path_base, client, media_type):
                 # Find the actual downloaded file (with correct extension)
@@ -593,10 +621,16 @@ class ScreenScraperService:
                     relative_path = os.path.join('.', 'media', os.path.basename(media_dir), actual_filename)
                     downloaded_media[local_field] = relative_path
                     print(f"✅ Downloaded {media_type} -> {local_field}: {relative_path}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Downloaded {media_type} -> {local_field}: {relative_path}")
                 else:
                     print(f"❌ Could not find downloaded file for {media_type}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Could not find downloaded file for {media_type}")
             else:
                 print(f"❌ Failed to download {media_type} -> {local_field}")
+                if detailed_progress_callback:
+                    detailed_progress_callback(f"Failed to download {media_type} -> {local_field}")
         
         return downloaded_media
     
