@@ -1118,33 +1118,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- ScreenScraper Credentials -->
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-key-fill"></i> ScreenScraper API Credentials</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label for="screenscraperSsId" class="form-label">ScreenScraper ID</label>
-                                <input type="text" class="form-control" id="screenscraperSsId" placeholder="Enter your ScreenScraper ID">
-                                <div class="form-text">Your ScreenScraper user ID</div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="screenscraperSsPassword" class="form-label">ScreenScraper Password</label>
-                                <input type="password" class="form-control" id="screenscraperSsPassword" placeholder="Enter your ScreenScraper Password">
-                                <div class="form-text">Your ScreenScraper user account password</div>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div id="screenscraperCredentialsStatus" class="text-muted">
-                                    <i class="bi bi-info-circle me-1"></i>No credentials configured
-                                </div>
-                                <button type="button" class="btn btn-primary btn-sm" id="saveScreenscraperCredentialsBtn">
-                                    <i class="bi bi-save me-1"></i>Save Credentials
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <!-- Scraping Options -->
                     <div class="card mb-3">
                         <div class="card-header">
@@ -1341,6 +1314,41 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <label for="maxTasksToKeep" class="form-label">Max Tasks to Keep</label>
                                     <input type="number" class="form-control" id="maxTasksToKeep" placeholder="30">
                                     <div class="form-text">Number of recent tasks to keep in memory</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ScreenScraper API Credentials -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6><i class="bi bi-key-fill me-2"></i>ScreenScraper API Credentials</h6>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="screenscraperSsId" class="form-label">ScreenScraper ID</label>
+                                                    <input type="text" class="form-control" id="screenscraperSsId" placeholder="Enter your ScreenScraper ID">
+                                                    <div class="form-text">Your ScreenScraper user ID</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="screenscraperSsPassword" class="form-label">ScreenScraper Password</label>
+                                                    <input type="password" class="form-control" id="screenscraperSsPassword" placeholder="Enter your ScreenScraper Password">
+                                                    <div class="form-text">Your ScreenScraper user account password</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div id="screenscraperCredentialsStatus" class="text-muted">
+                                                <i class="bi bi-info-circle me-1"></i>No credentials configured
+                                            </div>
+                                            <button type="button" class="btn btn-primary btn-sm" id="saveScreenscraperCredentialsBtn">
+                                                <i class="bi bi-save me-1"></i>Save Credentials
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -6336,9 +6336,6 @@ class GameCollectionManager {
         document.getElementById('overwriteTextFieldsScreenscraperModal').checked = overwriteTextFields;
         document.getElementById('overwriteMediaFieldsScreenscraperModal').checked = overwriteMediaFields;
         
-        // Load ScreenScraper credentials status
-        this.loadScreenscraperCredentialsStatus();
-        
         // Load field selection settings
         this.loadScreenscraperFieldSettings();
     }
@@ -7113,7 +7110,12 @@ class GameCollectionManager {
                 document.getElementById('serverHost').value = config.server?.host || '0.0.0.0';
                 document.getElementById('serverPort').value = config.server?.port || 5000;
                 document.getElementById('serverDebug').checked = config.server?.debug || false;
+                
                 document.getElementById('maxTasksToKeep').value = config.max_tasks_to_keep || 30;
+                
+                // Load ScreenScraper credentials
+                await this.loadScreenscraperCredentialsStatus();
+                await this.loadScreenscraperCredentialsValues();
                 
                 console.log('Configuration loaded:', config);
             } else {
