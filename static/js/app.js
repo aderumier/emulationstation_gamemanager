@@ -3375,11 +3375,16 @@ class GameCollectionManager {
     }
     
     async saveGameChangesFromModal() {
-        if (this.editingGameIndex === -1) return;
+        if (!this.editingGamePath) return;
 
-        const game = this.games[this.editingGameIndex];
+        const game = this.games.find(g => g.path === this.editingGamePath);
+        if (!game) {
+            console.error('Game not found for path:', this.editingGamePath);
+            this.showAlert('Error: Game not found. Please close and reopen the edit modal.', 'error');
+            return;
+        }
         console.log('Saving changes for game:', game);
-        console.log('Game index:', this.editingGameIndex);
+        console.log('Game path:', this.editingGamePath);
         
         // Store original values to detect changes
         const originalGame = { ...game };
