@@ -3653,7 +3653,11 @@ def write_gamelist_xml(games, file_path):
             
             # Add all game fields
             for field, value in game.items():
-                if value is not None and value != '':
+                # Always include media-related fields, even if empty
+                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl']:
+                    field_elem = ET.SubElement(game_elem, field)
+                    field_elem.text = str(value) if value else ''
+                elif value is not None and value != '':
                     field_elem = ET.SubElement(game_elem, field)
                     # Write raw text as-is; XML writer will handle escaping (& -> &amp;)
                     field_elem.text = str(value)
