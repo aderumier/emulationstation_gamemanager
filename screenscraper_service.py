@@ -8,6 +8,38 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import urlparse
 
+# Global httpx client for ScreenScraper API
+_screenscraper_async_client = None
+
+async def get_screenscraper_async_client(max_connections: int = 2):
+    """Get or create global httpx async client for ScreenScraper API with connection pooling"""
+    global _screenscraper_async_client
+    if _screenscraper_async_client is None:
+        # Create async client with HTTP/2 and connection pooling
+        _screenscraper_async_client = httpx.AsyncClient(
+            http2=True,  # Enable HTTP/2 for better performance
+            limits=httpx.Limits(
+                max_connections=max_connections,           # Maximum connections from config
+                max_keepalive_connections=max_connections, # Keep connections alive
+                keepalive_expiry=30.0                      # Keep connections alive for 30 seconds
+            ),
+            timeout=httpx.Timeout(
+                connect=10.0,  # 10 seconds to establish connection
+                read=30.0,     # 30 seconds to read response
+                write=10.0,    # 10 seconds to write request
+                pool=5.0       # 5 seconds to get connection from pool
+            )
+        )
+    
+    return _screenscraper_async_client
+
+async def close_screenscraper_async_client():
+    """Close the global httpx async client"""
+    global _screenscraper_async_client
+    if _screenscraper_async_client is not None:
+        await _screenscraper_async_client.aclose()
+        _screenscraper_async_client = None
+
 class ScreenScraperService:
     def __init__(self, config: Dict, credentials: Dict):
         self.config = config
@@ -120,39 +152,41 @@ class ScreenScraperService:
             'output': 'json'
         }
         
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            for attempt in range(self.retry_attempts):
-                try:
-                    print(f"Searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
-                    print(f"API URL: {self.api_url}")
-                    print(f"Params: {params}")
-                    response = await client.get(self.api_url, params=params)
+        # Get the global connection pool client
+        client = await get_screenscraper_async_client(self.max_connections)
+        
+        for attempt in range(self.retry_attempts):
+            try:
+                print(f"Searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
+                print(f"API URL: {self.api_url}")
+                print(f"Params: {params}")
+                response = await client.get(self.api_url, params=params)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"API response: {data}")
                     
-                    if response.status_code == 200:
-                        data = response.json()
-                        print(f"API response: {data}")
+                    if 'response' in data and 'jeu' in data['response']:
+                        jeu = data['response']['jeu']
+                        print(f"Jeu data type: {type(jeu)}")
+                        print(f"Jeu data: {jeu}")
                         
-                        if 'response' in data and 'jeu' in data['response']:
-                            jeu = data['response']['jeu']
-                            print(f"Jeu data type: {type(jeu)}")
-                            print(f"Jeu data: {jeu}")
-                            
-                            if isinstance(jeu, list) and len(jeu) > 0:
-                                # Take the first result
-                                jeu_data = jeu[0]
-                                jeu_id = jeu_data.get('id')
-                                print(f"List jeu[0]: {jeu_data}")
-                                print(f"Extracted jeu_id: {jeu_id}")
-                                if jeu_id:
-                                    print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
-                                    return {'jeu_id': str(jeu_id), 'game_data': jeu_data}
-                            elif isinstance(jeu, dict) and 'id' in jeu:
-                                jeu_id = jeu['id']
-                                print(f"Dict jeu: {jeu}")
-                                print(f"Extracted jeu_id: {jeu_id}")
-                                if jeu_id:
-                                    print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
-                                    return {'jeu_id': str(jeu_id), 'game_data': jeu}
+                        if isinstance(jeu, list) and len(jeu) > 0:
+                            # Take the first result
+                            jeu_data = jeu[0]
+                            jeu_id = jeu_data.get('id')
+                            print(f"List jeu[0]: {jeu_data}")
+                            print(f"Extracted jeu_id: {jeu_id}")
+                            if jeu_id:
+                                print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
+                                return {'jeu_id': str(jeu_id), 'game_data': jeu_data}
+                        elif isinstance(jeu, dict) and 'id' in jeu:
+                            jeu_id = jeu['id']
+                            print(f"Dict jeu: {jeu}")
+                            print(f"Extracted jeu_id: {jeu_id}")
+                            if jeu_id:
+                                print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
+                                return {'jeu_id': str(jeu_id), 'game_data': jeu}
                         
                         print(f"No ScreenScraper ID found for '{rom_name}'")
                         print(f"Response structure: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
@@ -172,22 +206,22 @@ class ScreenScraperService:
                         print(f"Response text: {response.text}")
                         return None
                 
-                except httpx.TimeoutException:
-                    print(f"Timeout searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
-                    if attempt < self.retry_attempts - 1:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    return None
-                
-                except Exception as e:
-                    print(f"Error searching ScreenScraper for '{rom_name}': {e}")
-                    print(f"Exception type: {type(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    if attempt < self.retry_attempts - 1:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    return None
+            except httpx.TimeoutException:
+                print(f"Timeout searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
+                if attempt < self.retry_attempts - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return None
+            
+            except Exception as e:
+                print(f"Error searching ScreenScraper for '{rom_name}': {e}")
+                print(f"Exception type: {type(e)}")
+                import traceback
+                traceback.print_exc()
+                if attempt < self.retry_attempts - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return None
         
         return None
     
@@ -272,6 +306,9 @@ class ScreenScraperService:
             if isinstance(result, Exception):
                 print(f"Error processing game {i}: {result}")
                 print(f"Game was: {games[i] if i < len(games) else 'Unknown'}")
+        
+        # Close the connection pool when done
+        await close_screenscraper_async_client()
         
         return results
     
