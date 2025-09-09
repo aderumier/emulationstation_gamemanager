@@ -51,10 +51,13 @@
             "marquee": "marquee",
             "boxart": "boxart",
             "screenshots": "screenshot",
+            "screenshot": "screenshot",
             "cartridges": "cartridge",
             "fanarts": "fanart",
             "titles": "titleshot",
+            "titleshot": "titleshot",
             "manuals": "manual",
+            "manual": "manual",
             "boxback": "boxback",
             "box2d": "extra1"
         },
@@ -1020,6 +1023,18 @@
             "Z-Machine": "215",
             "ZX Spectrum": "76",
             "ZX81": "77"
+        },
+        "image_type_mappings": {
+            "wheel": "marquee",
+            "box-2D": "extra1",
+            "box-3D": "boxart",
+            "box-2D-back": "boxback",
+            "ss": "screenshot",
+            "sstitle": "titleshot",
+            "manuel": "manual",
+            "video": "video",
+            "steamgrid": "fanart",
+            "support-2D": "cartridge"
         }
     }
 }

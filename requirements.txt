@@ -9,7 +9,7 @@ Flask-Login>=0.6.0
 # HTTP requests and networking
 requests>=2.31.0
 httpx[http2]>=0.25.0
-aiometer>=1.0.0
+pyrate-limiter>=3.0.0
 aiofiles>=23.2.0
 
 # HTML parsing and processing

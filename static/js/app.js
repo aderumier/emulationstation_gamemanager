@@ -1323,6 +1323,9 @@ class GameCollectionManager {
         // IGDB credentials save button
         document.getElementById('saveIgdbCredentialsBtn').addEventListener('click', () => this.saveIgdbCredentials());
 
+        // ScreenScraper credentials save button
+        document.getElementById('saveScreenscraperCredentialsBtn').addEventListener('click', () => this.saveScreenscraperCredentials());
+
         
         // Task log modal download button
         document.addEventListener('click', (e) => {
@@ -1365,6 +1368,16 @@ class GameCollectionManager {
             this.setCookie('overwriteMediaFields', e.target.checked);
         });
 
+        // ScreenScraper overwrite text fields toggle (in ScreenScraper Configuration modal)
+        document.getElementById('overwriteTextFieldsScreenscraperModal').addEventListener('change', (e) => {
+            this.setCookie('overwriteTextFieldsScreenscraper', e.target.checked);
+        });
+
+        // ScreenScraper overwrite media fields toggle (in ScreenScraper Configuration modal)
+        document.getElementById('overwriteMediaFieldsScreenscraperModal').addEventListener('change', (e) => {
+            this.setCookie('overwriteMediaFieldsScreenscraper', e.target.checked);
+        });
+
         // IGDB field selection checkboxes
         document.querySelectorAll('.igdb-field-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', async () => {
@@ -1385,6 +1398,28 @@ class GameCollectionManager {
                 checkbox.checked = false;
             });
             await this.saveIgdbFieldSettings();
+        });
+
+        // ScreenScraper field selection checkboxes
+        document.querySelectorAll('.screenscraper-field-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', async () => {
+                await this.saveScreenscraperFieldSettings();
+            });
+        });
+
+        // ScreenScraper field selection quick actions
+        document.getElementById('selectAllScreenscraperFields').addEventListener('click', async () => {
+            document.querySelectorAll('.screenscraper-field-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            await this.saveScreenscraperFieldSettings();
+        });
+
+        document.getElementById('deselectAllScreenscraperFields').addEventListener('click', async () => {
+            document.querySelectorAll('.screenscraper-field-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            await this.saveScreenscraperFieldSettings();
         });
 
         // LaunchBox field selection checkboxes
@@ -6088,6 +6123,19 @@ class GameCollectionManager {
             console.warn('openIgdbModal element not found');
         }
 
+        // Add event listener for opening ScreenScraper modal
+        const openScreenscraperModal = document.getElementById('openScreenscraperModal');
+        if (openScreenscraperModal) {
+            console.log('Found openScreenscraperModal element, adding click listener');
+            openScreenscraperModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('ScreenScraper modal link clicked');
+                this.openScreenscraperConfigurationModal();
+            });
+        } else {
+            console.warn('openScreenscraperModal element not found');
+        }
+
         // Add event listener for opening Systems modal
         const openSystemsModal = document.getElementById('openSystemsModal');
         if (openSystemsModal) {
@@ -6268,6 +6316,103 @@ class GameCollectionManager {
             alert('Error saving credentials. Please try again.');
         }
     }
+
+    // ScreenScraper Configuration Functions
+    openScreenscraperConfigurationModal() {
+        // Load current settings before opening modal
+        this.loadScreenscraperSettings();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('screenscraperConfigurationModal'));
+        modal.show();
+    }
+    
+    loadScreenscraperSettings() {
+        // Load saved settings from cookies
+        const overwriteTextFields = this.getCookie('overwriteTextFieldsScreenscraper') === 'true';
+        const overwriteMediaFields = this.getCookie('overwriteMediaFieldsScreenscraper') === 'true';
+        
+        // Set checkbox states
+        document.getElementById('overwriteTextFieldsScreenscraperModal').checked = overwriteTextFields;
+        document.getElementById('overwriteMediaFieldsScreenscraperModal').checked = overwriteMediaFields;
+        
+        // Load ScreenScraper credentials status
+        this.loadScreenscraperCredentialsStatus();
+        
+        // Load field selection settings
+        this.loadScreenscraperFieldSettings();
+    }
+    
+    async loadScreenscraperCredentialsStatus() {
+        try {
+            const response = await fetch('/api/screenscraper-credentials');
+            if (response.ok) {
+                const data = await response.json();
+                this.updateScreenscraperCredentialsStatus(data);
+            } else {
+                console.error('Failed to load ScreenScraper credentials status');
+            }
+        } catch (error) {
+            console.error('Error loading ScreenScraper credentials status:', error);
+        }
+    }
+    
+    updateScreenscraperCredentialsStatus(data) {
+        const statusElement = document.getElementById('screenscraperCredentialsStatus');
+        if (data.configured) {
+            statusElement.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>Credentials configured';
+            statusElement.className = 'text-success';
+        } else {
+            statusElement.innerHTML = '<i class="bi bi-info-circle me-1"></i>No credentials configured';
+            statusElement.className = 'text-muted';
+        }
+    }
+    
+    async saveScreenscraperCredentials() {
+        const devId = document.getElementById('screenscraperDevId').value.trim();
+        const devPassword = document.getElementById('screenscraperDevPassword').value.trim();
+        const ssId = document.getElementById('screenscraperSsId').value.trim();
+        const ssPassword = document.getElementById('screenscraperSsPassword').value.trim();
+        
+        if (!devId || !devPassword || !ssId || !ssPassword) {
+            alert('Please enter all ScreenScraper credentials');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/screenscraper-credentials', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dev_id: devId,
+                    dev_password: devPassword,
+                    ss_id: ssId,
+                    ss_password: ssPassword
+                })
+            });
+            
+            if (response.ok) {
+                alert('ScreenScraper credentials saved successfully!');
+                
+                // Clear the form
+                document.getElementById('screenscraperDevId').value = '';
+                document.getElementById('screenscraperDevPassword').value = '';
+                document.getElementById('screenscraperSsId').value = '';
+                document.getElementById('screenscraperSsPassword').value = '';
+                
+                // Update status
+                await this.loadScreenscraperCredentialsStatus();
+            } else {
+                const error = await response.json();
+                alert(`Failed to save credentials: ${error.error}`);
+            }
+        } catch (error) {
+            console.error('Error saving ScreenScraper credentials:', error);
+            alert('Error saving credentials. Please try again.');
+        }
+    }
     
     async loadIgdbFieldSettings() {
         try {
@@ -6343,6 +6488,70 @@ class GameCollectionManager {
             });
         }
     }
+
+    async loadScreenscraperFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get ScreenScraper field mappings from config
+            const textFields = Object.keys(config.screenscraper?.mapping || {});
+            const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Load saved field selections from cookies
+            allFields.forEach(field => {
+                const savedValue = this.getCookie(`screenscraperField_${field}`);
+                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                
+                if (checkbox) {
+                    // Default to checked if no saved value (first time)
+                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                }
+            });
+        } catch (error) {
+            console.error('Error loading ScreenScraper field settings:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'name', 'description', 'developer', 'publisher', 'genre', 
+                'rating', 'players', 'release_date', 'screenshot', 'titleshot', 
+                'marquee', 'boxart', 'boxback', 'cartridge', 'fanart', 'video', 'manual', 'extra1'
+            ];
+            
+            fallbackFields.forEach(field => {
+                const savedValue = this.getCookie(`screenscraperField_${field}`);
+                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                
+                if (checkbox) {
+                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                }
+            });
+        }
+    }
+    
+    async saveScreenscraperFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+
+            // Get ScreenScraper field mappings from config
+            const textFields = Object.keys(config.screenscraper?.mapping || {});
+            const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Save field selections to cookies
+            allFields.forEach(field => {
+                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                if (checkbox) {
+                    this.setCookie(`screenscraperField_${field}`, checkbox.checked);
+                }
+            });
+        } catch (error) {
+            console.error('Error saving ScreenScraper field settings:', error);
+        }
+    }
     
     async getSelectedIgdbFields() {
         try {
@@ -6383,7 +6592,47 @@ class GameCollectionManager {
             return selectedFields;
         }
     }
-    
+
+    async getSelectedScreenscraperFields() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get ScreenScraper field mappings from config
+            const textFields = Object.keys(config.screenscraper?.mapping || {});
+            const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            const selectedFields = [];
+            allFields.forEach(field => {
+                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                if (checkbox && checkbox.checked) {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
+        } catch (error) {
+            console.error('Error getting selected ScreenScraper fields:', error);
+            // Fallback to hardcoded fields if config fetch fails
+            const fallbackFields = [
+                'name', 'description', 'developer', 'publisher', 'genre', 
+                'rating', 'players', 'release_date', 'screenshot', 'titleshot', 
+                'marquee', 'boxart', 'boxback', 'cartridge', 'fanart', 'video', 'manual', 'extra1'
+            ];
+            
+            const selectedFields = [];
+            fallbackFields.forEach(field => {
+                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                if (checkbox && checkbox.checked) {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
+        }
+    }
 
     async loadLaunchboxFieldSettings() {
         try {
@@ -7707,13 +7956,18 @@ class GameCollectionManager {
             
             this.showAlert('Starting ScreenScraper task...', 'info');
             
+            // Get selected fields
+            const selectedFields = await this.getSelectedScreenscraperFields();
+            console.log('Selected ScreenScraper fields:', selectedFields);
+            
             const response = await fetch(`/api/scrap-screenscraper/${this.currentSystem}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    selected_games: gamesToScrape.map(game => game.path)
+                    selected_games: gamesToScrape.map(game => game.path),
+                    selected_fields: selectedFields
                 })
             });
             

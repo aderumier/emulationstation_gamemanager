@@ -107,6 +107,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openIgdbModal">
                             <i class="bi bi-globe me-2"></i>IGDB Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openScreenscraperModal">
+                            <i class="bi bi-image me-2"></i>ScreenScraper Configuration
+                        </a></li>
                         <li><a class="dropdown-item" href="#" id="openSystemsModal">
                             <i class="bi bi-controller me-2"></i>Systems Configuration
                         </a></li>
@@ -1095,6 +1098,203 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Note:</strong> These settings control how the IGDB scraping process behaves. When disabled, only empty fields will be populated. Changes are applied immediately and will affect all future IGDB scraping operations.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ScreenScraper Configuration Modal -->
+    <div class="modal fade" id="screenscraperConfigurationModal" tabindex="-1" aria-labelledby="screenscraperConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="screenscraperConfigurationModalLabel">
+                        <i class="bi bi-image me-2"></i>ScreenScraper Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- ScreenScraper Credentials -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-key-fill"></i> ScreenScraper API Credentials</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="screenscraperDevId" class="form-label">Developer ID</label>
+                                <input type="text" class="form-control" id="screenscraperDevId" placeholder="Enter your ScreenScraper Developer ID">
+                                <div class="form-text">Get your Developer ID from <a href="https://www.screenscraper.fr/" target="_blank">ScreenScraper.fr</a></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="screenscraperDevPassword" class="form-label">Developer Password</label>
+                                <input type="password" class="form-control" id="screenscraperDevPassword" placeholder="Enter your ScreenScraper Developer Password">
+                                <div class="form-text">Your ScreenScraper developer account password</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="screenscraperSsId" class="form-label">ScreenScraper ID</label>
+                                <input type="text" class="form-control" id="screenscraperSsId" placeholder="Enter your ScreenScraper ID">
+                                <div class="form-text">Your ScreenScraper user ID</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="screenscraperSsPassword" class="form-label">ScreenScraper Password</label>
+                                <input type="password" class="form-control" id="screenscraperSsPassword" placeholder="Enter your ScreenScraper Password">
+                                <div class="form-text">Your ScreenScraper user account password</div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div id="screenscraperCredentialsStatus" class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>No credentials configured
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm" id="saveScreenscraperCredentialsBtn">
+                                    <i class="bi bi-save me-1"></i>Save Credentials
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Scraping Options -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-database-fill"></i> Scraping Options</h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Overwrite Text Fields Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="overwriteTextFieldsScreenscraperModal">
+                                <label class="form-check-label" for="overwriteTextFieldsScreenscraperModal">
+                                    <i class="bi bi-file-text me-2"></i>Overwrite Text Fields
+                                </label>
+                                <div class="form-text">Always overwrite text fields (name, description, developer, etc.) during ScreenScraper scraping, even if they already have values</div>
+                            </div>
+                            
+                            <!-- Overwrite Media Fields Option -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="overwriteMediaFieldsScreenscraperModal">
+                                <label class="form-check-label" for="overwriteMediaFieldsScreenscraperModal">
+                                    <i class="bi bi-image me-2"></i>Overwrite Media Fields
+                                </label>
+                                <div class="form-text">Always overwrite media fields (screenshots, marquee, boxart, etc.) during ScreenScraper scraping, even if they already have values</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Field Selection -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-list-check"></i> Field Selection</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Text Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-file-text me-2"></i>Text Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldName" data-field="name" checked>
+                                        <label class="form-check-label" for="screenscraperFieldName">Name</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldDescription" data-field="description" checked>
+                                        <label class="form-check-label" for="screenscraperFieldDescription">Description</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldDeveloper" data-field="developer" checked>
+                                        <label class="form-check-label" for="screenscraperFieldDeveloper">Developer</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldPublisher" data-field="publisher" checked>
+                                        <label class="form-check-label" for="screenscraperFieldPublisher">Publisher</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldGenre" data-field="genre" checked>
+                                        <label class="form-check-label" for="screenscraperFieldGenre">Genre</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldRating" data-field="rating" checked>
+                                        <label class="form-check-label" for="screenscraperFieldRating">Rating</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldPlayers" data-field="players" checked>
+                                        <label class="form-check-label" for="screenscraperFieldPlayers">Players</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldReleaseDate" data-field="release_date" checked>
+                                        <label class="form-check-label" for="screenscraperFieldReleaseDate">Release Date</label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Media Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-image me-2"></i>Media Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldScreenshot" data-field="screenshot" checked>
+                                        <label class="form-check-label" for="screenscraperFieldScreenshot">Screenshot</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldTitleshot" data-field="titleshot" checked>
+                                        <label class="form-check-label" for="screenscraperFieldTitleshot">Title Shot</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldMarquee" data-field="marquee" checked>
+                                        <label class="form-check-label" for="screenscraperFieldMarquee">Marquee</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldBoxart" data-field="boxart" checked>
+                                        <label class="form-check-label" for="screenscraperFieldBoxart">Box Art</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldBoxback" data-field="boxback" checked>
+                                        <label class="form-check-label" for="screenscraperFieldBoxback">Box Back</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldCartridge" data-field="cartridge" checked>
+                                        <label class="form-check-label" for="screenscraperFieldCartridge">Cartridge</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldFanart" data-field="fanart" checked>
+                                        <label class="form-check-label" for="screenscraperFieldFanart">Fan Art</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldVideo" data-field="video" checked>
+                                        <label class="form-check-label" for="screenscraperFieldVideo">Video</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldManual" data-field="manual" checked>
+                                        <label class="form-check-label" for="screenscraperFieldManual">Manual</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="screenscraperFieldExtra1" data-field="extra1" checked>
+                                        <label class="form-check-label" for="screenscraperFieldExtra1">Extra 1</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary" id="selectAllScreenscraperFields">
+                                        <i class="bi bi-check-all me-1"></i>Select All
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="deselectAllScreenscraperFields">
+                                        <i class="bi bi-x-square me-1"></i>Deselect All
+                                    </button>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        <strong>Note:</strong> ScreenScraper ID is always scraped regardless of field selection.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Information -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> These settings control how the ScreenScraper scraping process behaves. When disabled, only empty fields will be populated. Changes are applied immediately and will affect all future ScreenScraper scraping operations.
                     </div>
                 </div>
                 <div class="modal-footer">

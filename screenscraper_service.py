@@ -3,8 +3,10 @@ import httpx
 import json
 import os
 import logging
+import aiofiles
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
+from urllib.parse import urlparse
 
 class ScreenScraperService:
     def __init__(self, config: Dict, credentials: Dict):
@@ -82,16 +84,16 @@ class ScreenScraperService:
         print(f"No ScreenScraper system ID found for {system_name} -> {screenscraper_system_name}")
         return None
     
-    async def search_game(self, rom_filename: str, system_name: str) -> Optional[str]:
+    async def search_game(self, rom_filename: str, system_name: str) -> Optional[Dict]:
         """
-        Search for a game using ScreenScraper API and return the jeuId if found.
+        Search for a game using ScreenScraper API and return game data if found.
         
         Args:
             rom_filename: The ROM filename (without path)
             system_name: The system name
             
         Returns:
-            The jeuId if found, None otherwise
+            Dictionary with 'jeu_id' and 'game_data' if found, None otherwise
         """
         print(f"Searching ScreenScraper for ROM: {rom_filename}, System: {system_name}")
         
@@ -137,19 +139,20 @@ class ScreenScraperService:
                             
                             if isinstance(jeu, list) and len(jeu) > 0:
                                 # Take the first result
-                                jeu_id = jeu[0].get('id')
-                                print(f"List jeu[0]: {jeu[0]}")
+                                jeu_data = jeu[0]
+                                jeu_id = jeu_data.get('id')
+                                print(f"List jeu[0]: {jeu_data}")
                                 print(f"Extracted jeu_id: {jeu_id}")
                                 if jeu_id:
                                     print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
-                                    return str(jeu_id)
+                                    return {'jeu_id': str(jeu_id), 'game_data': jeu_data}
                             elif isinstance(jeu, dict) and 'id' in jeu:
                                 jeu_id = jeu['id']
                                 print(f"Dict jeu: {jeu}")
                                 print(f"Extracted jeu_id: {jeu_id}")
                                 if jeu_id:
                                     print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
-                                    return str(jeu_id)
+                                    return {'jeu_id': str(jeu_id), 'game_data': jeu}
                         
                         print(f"No ScreenScraper ID found for '{rom_name}'")
                         print(f"Response structure: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
@@ -188,7 +191,7 @@ class ScreenScraperService:
         
         return None
     
-    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None) -> Dict[str, str]:
+    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None) -> Dict[str, str]:
         """
         Process a batch of games to find their ScreenScraper IDs.
         
@@ -225,15 +228,38 @@ class ScreenScraperService:
                     print("No ROM filename found")
                     return None
                 
-                jeu_id = await self.search_game(rom_filename, system_name)
-                if jeu_id:
-                    results[game['path']] = jeu_id
+                # Search for game and get full data
+                search_result = await self.search_game(rom_filename, system_name)
+                if search_result:
+                    jeu_id = search_result['jeu_id']
+                    game_data = search_result['game_data']
+                    
+                    # Add path to game data for media processing
+                    game_data['path'] = game['path']
+                    
+                    # Create client for media downloads
+                    async with httpx.AsyncClient(timeout=30.0) as media_client:
+                        # Process media downloads
+                        downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields)
+                    
+                    # Store both jeu_id and downloaded media
+                    results[game['path']] = {
+                        'jeu_id': jeu_id,
+                        'downloaded_media': downloaded_media
+                    }
                     print(f"Found ScreenScraper ID {jeu_id} for {rom_filename}")
+                    print(f"Downloaded media: {downloaded_media}")
+                else:
+                    # Store just the jeu_id if no media processing
+                    results[game['path']] = {
+                        'jeu_id': None,
+                        'downloaded_media': {}
+                    }
                 
                 if progress_callback:
                     progress_callback(len(results), total_games)
                 
-                return jeu_id
+                return search_result
         
         # Process all games concurrently
         tasks = [process_single_game(game) for game in games]
@@ -246,3 +272,256 @@ class ScreenScraperService:
                 print(f"Game was: {games[i] if i < len(games) else 'Unknown'}")
         
         return results
+    
+    async def download_media(self, media_url: str, file_path: str, client: httpx.AsyncClient, media_type: str = None) -> bool:
+        """
+        Download a media file from URL to local path.
+        
+        Args:
+            media_url: URL to download from
+            file_path: Local path to save the file (without extension)
+            client: httpx client for downloading
+            media_type: ScreenScraper media type (e.g., 'manuel', 'ss', 'wheel')
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            print(f"Downloading media from: {media_url}")
+            
+            # Download file and get content type first
+            async with client.stream('GET', media_url) as response:
+                if response.status_code == 200:
+                    # Get content type from headers
+                    content_type = response.headers.get('content-type', '').lower()
+                    print(f"Content-Type: {content_type}")
+                    
+                    # Determine file extension from content type
+                    extension = self.get_extension_from_content_type(content_type)
+                    if not extension:
+                        # Special case: manual files are always PDF
+                        if media_type == 'manuel':
+                            extension = '.pdf'
+                            print(f"Using PDF extension for manual file")
+                        else:
+                            # Fallback to URL extension if content type is not recognized
+                            extension = os.path.splitext(urlparse(media_url).path)[1] or '.bin'
+                            print(f"Using fallback extension from URL: {extension}")
+                    
+                    # Add extension to file path
+                    final_file_path = f"{file_path}{extension}"
+                    print(f"Saving to: {final_file_path}")
+                    
+                    # Ensure directory exists (now that we know the final path)
+                    os.makedirs(os.path.dirname(final_file_path), exist_ok=True)
+                    print(f"Created directory: {os.path.dirname(final_file_path)}")
+                    
+                    # Download file
+                    async with aiofiles.open(final_file_path, 'wb') as f:
+                        async for chunk in response.aiter_bytes():
+                            await f.write(chunk)
+                    print(f"Successfully downloaded: {final_file_path}")
+                    return True
+                else:
+                    print(f"Failed to download media: HTTP {response.status_code}")
+                    return False
+                    
+        except Exception as e:
+            print(f"Error downloading media: {e}")
+            return False
+    
+    def get_extension_from_content_type(self, content_type: str) -> str:
+        """
+        Get file extension from Content-Type header.
+        
+        Args:
+            content_type: Content-Type header value
+            
+        Returns:
+            File extension (e.g., '.png', '.jpg', '.mp4') or empty string if not recognized
+        """
+        # Common content type mappings
+        content_type_mappings = {
+            'image/png': '.png',
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/gif': '.gif',
+            'image/bmp': '.bmp',
+            'image/tiff': '.tiff',
+            'image/webp': '.webp',
+            'image/svg+xml': '.svg',
+            'video/mp4': '.mp4',
+            'video/avi': '.avi',
+            'video/mov': '.mov',
+            'video/wmv': '.wmv',
+            'video/flv': '.flv',
+            'video/webm': '.webm',
+            'application/pdf': '.pdf',
+            'application/zip': '.zip',
+            'application/x-rar': '.rar',
+            'text/plain': '.txt',
+            'application/json': '.json',
+            'application/xml': '.xml',
+            'text/xml': '.xml',
+            'application/octet-stream': '.bin'
+        }
+        
+        # Extract main content type (before semicolon)
+        main_type = content_type.split(';')[0].strip()
+        return content_type_mappings.get(main_type, '')
+    
+    def get_media_type_mapping(self, media_type: str) -> Optional[str]:
+        """
+        Get the local media field name for a ScreenScraper media type.
+        
+        Args:
+            media_type: ScreenScraper media type (e.g., 'wheel', 'box-2D')
+            
+        Returns:
+            Local media field name (e.g., 'marquee', 'extra1') or None if not mapped
+        """
+        screenscraper_config = self.config.get('screenscraper', {})
+        image_mappings = screenscraper_config.get('image_type_mappings', {})
+        return image_mappings.get(media_type)
+    
+    def get_media_directory(self, media_field: str, system_name: str) -> Optional[str]:
+        """
+        Get the media directory for a given media field and system.
+        
+        Args:
+            media_field: Media field name (e.g., 'marquee', 'boxart')
+            system_name: System name (e.g., 'vectrex')
+            
+        Returns:
+            Media directory path or None if not found
+        """
+        # Get media configuration from main config
+        media_config = self.config.get('media', {})
+        media_mappings = media_config.get('mappings', {})
+        
+        # Find the media directory for this field
+        if media_field in media_mappings:
+            media_dir_name = media_mappings[media_field]
+            # Get ROMs root directory from config
+            roms_root = self.config.get('roms_root_directory', 'roms')
+            # Create full path: roms/{system_name}/media/{media_dir_name}
+            full_path = os.path.join(roms_root, system_name, 'media', media_dir_name)
+            print(f"Media directory for {media_field}: {full_path}")
+            return full_path
+        
+        print(f"No media directory found for field: {media_field}")
+        return None
+    
+    async def process_media_downloads(self, game_data: Dict, system_name: str, client: httpx.AsyncClient, selected_fields: List[str] = None) -> Dict[str, str]:
+        """
+        Process media downloads for a game.
+        
+        Args:
+            game_data: Game data from ScreenScraper API
+            system_name: System name
+            client: httpx client for downloading
+            selected_fields: List of selected fields to process
+            
+        Returns:
+            Dictionary mapping media fields to local file paths
+        """
+        downloaded_media = {}
+        
+        if 'medias' not in game_data:
+            print("No medias found in game data")
+            return downloaded_media
+        
+        medias = game_data['medias']
+        if not isinstance(medias, list):
+            print("Medias is not a list")
+            return downloaded_media
+        
+        print(f"Processing {len(medias)} media items")
+        print(f"Selected fields: {selected_fields}")
+        
+        # Group medias by type to handle duplicates
+        media_by_type = {}
+        for media in medias:
+            media_type = media.get('type')
+            if not media_type:
+                continue
+                
+            if media_type not in media_by_type:
+                media_by_type[media_type] = []
+            media_by_type[media_type].append(media)
+        
+        # Process each media type
+        for media_type, media_list in media_by_type.items():
+            # Get the local media field name
+            local_field = self.get_media_type_mapping(media_type)
+            if not local_field:
+                print(f"No mapping found for media type: {media_type}")
+                continue
+            
+            # Check if this field is selected
+            if selected_fields and local_field not in selected_fields:
+                print(f"Skipping {media_type} -> {local_field} (not selected)")
+                continue
+            
+            # Get the media directory
+            media_dir = self.get_media_directory(local_field, system_name)
+            if not media_dir:
+                print(f"No media directory found for field: {local_field}")
+                continue
+            
+            print(f"Media directory for {local_field}: {media_dir}")
+            print(f"Directory exists: {os.path.exists(media_dir)}")
+            
+            # Use the first media of this type
+            media = media_list[0]
+            media_url = media.get('url')
+            if not media_url:
+                print(f"No URL found for media type: {media_type}")
+                continue
+            
+            # Generate filename (without extension - will be determined from content-type)
+            rom_name = os.path.splitext(os.path.basename(game_data.get('path', 'unknown')))[0]
+            filename_base = rom_name
+            file_path_base = os.path.join(media_dir, filename_base)
+            
+            print(f"Base file path: {file_path_base}")
+            print(f"Media URL: {media_url}")
+            
+            # Download the media (extension will be added based on content-type)
+            if await self.download_media(media_url, file_path_base, client, media_type):
+                # Find the actual downloaded file (with correct extension)
+                # We need to check what file was actually created
+                actual_file_path = self.find_downloaded_file(file_path_base)
+                if actual_file_path:
+                    actual_filename = os.path.basename(actual_file_path)
+                    # Convert to relative path for gamelist.xml
+                    # media_dir is like "roms/vectrex/media/screenshot", so we need to get the relative path from the system root
+                    relative_path = os.path.join('.', 'media', os.path.basename(media_dir), actual_filename)
+                    downloaded_media[local_field] = relative_path
+                    print(f"Mapped {media_type} -> {local_field}: {relative_path}")
+                else:
+                    print(f"Could not find downloaded file for {media_type}")
+        
+        return downloaded_media
+    
+    def find_downloaded_file(self, base_path: str) -> Optional[str]:
+        """
+        Find the actual downloaded file by looking for files with the base name.
+        
+        Args:
+            base_path: Base file path without extension
+            
+        Returns:
+            Full path to the downloaded file or None if not found
+        """
+        import glob
+        
+        # Look for files with the base name and any extension
+        pattern = f"{base_path}.*"
+        matching_files = glob.glob(pattern)
+        
+        if matching_files:
+            # Return the first match (should be only one)
+            return matching_files[0]
+        
+        return None

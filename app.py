@@ -2910,6 +2910,63 @@ def manage_igdb_credentials():
         print(f"Error managing IGDB credentials: {e}")
         return jsonify({'error': f'Failed to manage IGDB credentials: {str(e)}'}), 500
 
+@app.route('/api/screenscraper-credentials', methods=['GET', 'POST'])
+@login_required
+def manage_screenscraper_credentials():
+    """Manage ScreenScraper credentials"""
+    try:
+        if request.method == 'GET':
+            # Return current ScreenScraper credentials (without exposing the actual values)
+            config = load_config()
+            screenscraper_config = config.get('screenscraper', {})
+            
+            # Load credentials from credentials.json
+            credentials = {}
+            try:
+                credentials_path = 'var/config/credentials.json'
+                if os.path.exists(credentials_path):
+                    with open(credentials_path, 'r', encoding='utf-8') as f:
+                        credentials = json.load(f)
+            except Exception as e:
+                print(f"Warning: Could not load credentials.json: {e}")
+            
+            screenscraper_creds = credentials.get('screenscraper', {})
+            
+            return jsonify({
+                'has_dev_id': bool(screenscraper_creds.get('dev_id')),
+                'has_dev_password': bool(screenscraper_creds.get('dev_password')),
+                'has_ss_id': bool(screenscraper_creds.get('ss_id')),
+                'has_ss_password': bool(screenscraper_creds.get('ss_password')),
+                'configured': bool(screenscraper_creds.get('dev_id') and screenscraper_creds.get('dev_password') and screenscraper_creds.get('ss_id') and screenscraper_creds.get('ss_password')),
+                'enabled': screenscraper_config.get('enabled', False)
+            })
+        
+        elif request.method == 'POST':
+            # Save ScreenScraper credentials
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            dev_id = data.get('dev_id', '').strip()
+            dev_password = data.get('dev_password', '').strip()
+            ss_id = data.get('ss_id', '').strip()
+            ss_password = data.get('ss_password', '').strip()
+            
+            if not dev_id or not dev_password or not ss_id or not ss_password:
+                return jsonify({'error': 'All ScreenScraper credentials are required'}), 400
+            
+            # Save credentials to credentials.json
+            success = save_screenscraper_credentials(dev_id, dev_password, ss_id, ss_password)
+            
+            if success:
+                return jsonify({'success': True, 'message': 'ScreenScraper credentials saved successfully'})
+            else:
+                return jsonify({'error': 'Failed to save ScreenScraper credentials'}), 500
+                
+    except Exception as e:
+        print(f"Error managing ScreenScraper credentials: {e}")
+        return jsonify({'error': f'Failed to manage ScreenScraper credentials: {str(e)}'}), 500
+
 @app.route('/api/systems', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def manage_systems():
@@ -9120,6 +9177,44 @@ def save_igdb_credentials(client_id, client_secret):
         print(f"Error saving IGDB credentials: {e}")
         return False
 
+def save_screenscraper_credentials(dev_id, dev_password, ss_id, ss_password):
+    """Save ScreenScraper credentials to credentials.json file"""
+    try:
+        credentials_path = 'var/config/credentials.json'
+        
+        # Ensure the config directory exists
+        os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
+        
+        # Load existing credentials or create new structure
+        credentials = {}
+        if os.path.exists(credentials_path):
+            try:
+                with open(credentials_path, 'r', encoding='utf-8') as f:
+                    credentials = json.load(f)
+            except Exception as e:
+                print(f"Warning: Could not load existing credentials.json: {e}")
+                credentials = {}
+        
+        # Update ScreenScraper credentials
+        if 'screenscraper' not in credentials:
+            credentials['screenscraper'] = {}
+        
+        credentials['screenscraper']['dev_id'] = dev_id
+        credentials['screenscraper']['dev_password'] = dev_password
+        credentials['screenscraper']['ss_id'] = ss_id
+        credentials['screenscraper']['ss_password'] = ss_password
+        
+        # Save to file
+        with open(credentials_path, 'w', encoding='utf-8') as f:
+            json.dump(credentials, f, indent=4, ensure_ascii=False)
+        
+        print(f"ScreenScraper credentials saved to {credentials_path}")
+        return True
+        
+    except Exception as e:
+        print(f"Error saving ScreenScraper credentials: {e}")
+        return False
+
 def ensure_igdb_directory():
     """Ensure IGDB database directory exists"""
     try:
@@ -10932,27 +11027,33 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 
                 batch = games[i:i + batch_size]
                 
-                # Create tasks for concurrent processing using functools.partial
-                import functools
-                import aiometer
+                # Create tasks for concurrent processing using asyncio.gather with PyrateLimiter
+                import asyncio
+                from pyrate_limiter import Limiter, Rate
                 
-                tasks = []
-                for game in batch:
-                    # Use functools.partial to create callable functions
-                    task_func = functools.partial(
-                        process_game_async,
-                        game, 
-                        igdb_platform_id, 
-                        access_token, 
-                        igdb_config['client_id'],
-                        async_client,
-                        igdb_config,
-                        company_cache
-                    )
-                    tasks.append(task_func)
+                # Create rate limiter: 4 requests per second
+                rate_limiter = Limiter(Rate(4, 1.0))  # 4 requests per 1 second
                 
-                # Process batch with rate limiting using aiometer
-                results = await aiometer.run_all(tasks, max_at_once=8, max_per_second=4)
+                # Create semaphore for concurrency control (max 8 concurrent)
+                semaphore = asyncio.Semaphore(8)
+                
+                async def process_game_with_rate_limit(game):
+                    async with semaphore:
+                        # Acquire rate limit for this request
+                        await rate_limiter.try_acquire_async(f'igdb_game_{game.get("name", "unknown")}')
+                        return await process_game_async(
+                            game, 
+                            igdb_platform_id, 
+                            access_token, 
+                            igdb_config['client_id'],
+                            async_client,
+                            igdb_config,
+                            company_cache
+                        )
+                
+                # Process batch with rate limiting using asyncio.gather
+                tasks = [process_game_with_rate_limit(game) for game in batch]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
                 
                 # Process results and collect company IDs for caching
                 batch_company_ids = set()
@@ -11125,7 +11226,7 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
     
     print(f"DEBUG: IGDB result listener ended for process {process.pid}")
 
-def run_screenscraper_task(system_name, task_id, selected_games=None):
+def run_screenscraper_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
     """Run ScreenScraper task for a specific system"""
     import asyncio
     import threading
@@ -11170,6 +11271,15 @@ def run_screenscraper_task(system_name, task_id, selected_games=None):
             # Initialize ScreenScraper service
             service = ScreenScraperService(config, screenscraper_creds)
             
+            # Add field selection settings to config
+            screenscraper_config['selected_fields'] = selected_fields or []
+            screenscraper_config['overwrite_text_fields'] = overwrite_text_fields
+            screenscraper_config['overwrite_media_fields'] = overwrite_media_fields
+            
+            print(f"🔧 DEBUG: ScreenScraper task - selected_fields: {selected_fields}")
+            print(f"🔧 DEBUG: ScreenScraper task - overwrite_text_fields: {overwrite_text_fields}")
+            print(f"🔧 DEBUG: ScreenScraper task - overwrite_media_fields: {overwrite_media_fields}")
+            
             # Load games for the system
             gamelist_path = get_gamelist_path(system_name)
             if not os.path.exists(gamelist_path):
@@ -11202,14 +11312,23 @@ def run_screenscraper_task(system_name, task_id, selected_games=None):
             print(f"First game sample: {games_to_process[0] if games_to_process else 'No games'}")
             
             # Process games in batches
-            results = await service.process_games_batch(games_to_process, system_name, progress_callback)
+            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields)
             
-            # Update all games with ScreenScraper IDs
+            # Update all games with ScreenScraper IDs and downloaded media
             updated_count = 0
+            media_updated_count = 0
             for game in all_games:
                 if game['path'] in results:
-                    game['screenscraperid'] = results[game['path']]
+                    result = results[game['path']]
+                    game['screenscraperid'] = result['jeu_id']
                     updated_count += 1
+                    
+                    # Update media fields with downloaded files
+                    downloaded_media = result.get('downloaded_media', {})
+                    for media_field, media_path in downloaded_media.items():
+                        game[media_field] = media_path
+                        media_updated_count += 1
+                        print(f"Updated {media_field} for {game['name']}: {media_path}")
             
             # Save updated gamelist (all games, not just processed ones)
             if updated_count > 0:
@@ -11219,7 +11338,10 @@ def run_screenscraper_task(system_name, task_id, selected_games=None):
             # Complete task
             t = get_task(task_id)
             if t:
-                t.complete(True, f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs")
+                message = f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs"
+                if media_updated_count > 0:
+                    message += f" and downloaded {media_updated_count} media files"
+                t.complete(True, message)
             
         except Exception as e:
             print(f"Error in ScreenScraper task: {e}")
@@ -11473,11 +11595,23 @@ def scrap_screenscraper_system(system_name):
         # Get request data
         data = request.get_json() or {}
         selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        
+        # Get overwrite settings from cookies
+        overwrite_text_fields = request.cookies.get('overwriteTextFieldsScreenscraper', 'false').lower() == 'true'
+        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsScreenscraper', 'false').lower() == 'true'
+        
+        print(f"🍪 DEBUG: ScreenScraper Cookie values - overwriteTextFieldsScreenscraper: '{request.cookies.get('overwriteTextFieldsScreenscraper', 'NOT_SET')}', overwriteMediaFieldsScreenscraper: '{request.cookies.get('overwriteMediaFieldsScreenscraper', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: ScreenScraper Parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        print(f"🍪 DEBUG: ScreenScraper Selected fields: {selected_fields}")
         
         # Create task object
         task_data = {
             'system_name': system_name, 
-            'selected_games': selected_games
+            'selected_games': selected_games,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
@@ -11497,7 +11631,7 @@ def scrap_screenscraper_system(system_name):
         import threading
         scraper_thread = threading.Thread(
             target=run_screenscraper_task,
-            args=(system_name, task.id, selected_games),
+            args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, overwrite_media_fields),
             daemon=True
         )
         scraper_thread.start()
