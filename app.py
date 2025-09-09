@@ -11373,7 +11373,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             # Update initial progress
             t = get_task(task_id)
             if t:
-                t.update_progress(0, f"Starting ScreenScraper processing for {len(games_to_process)} games")
+                t.update_progress(0, None)  # Only update progress percentage
+                t.log_message(f"Starting ScreenScraper processing for {len(games_to_process)} games")
             
             # Create detailed progress callback for task log
             def detailed_progress_callback(message):
@@ -11388,7 +11389,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             print(f"📝 Updating gamelist with ScreenScraper data...")
             t = get_task(task_id)
             if t:
-                t.update_progress(90, "Updating gamelist with ScreenScraper data")
+                t.update_progress(90, None)  # Only update progress percentage
+                t.log_message("Updating gamelist with ScreenScraper data")
             
             updated_count = 0
             media_updated_count = 0
