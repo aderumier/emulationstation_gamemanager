@@ -21,7 +21,7 @@ class GameCollectionManager {
         this.games = [];
         this.currentSystem = null;
         this.gridApi = null;
-        this.editingGameIndex = -1;
+        this.editingGamePath = null; // Store ROM path instead of index
         this.modifiedGames = new Set();
         this.mediaPreviewEnabled = false;
         this.showingMediaPreview = false; // Flag to prevent multiple simultaneous media preview calls
@@ -2581,7 +2581,7 @@ class GameCollectionManager {
     }
 
     async editGame(game) {
-        this.editingGameIndex = this.games.findIndex(g => g.id === game.id);
+        this.editingGamePath = game.path; // Store ROM path as identifier
         await this.populateEditModal(game);
         
         const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
@@ -2589,7 +2589,7 @@ class GameCollectionManager {
     }
 
     async editGameWithPreviewTab(game) {
-        this.editingGameIndex = this.games.findIndex(g => g.id === game.id);
+        this.editingGamePath = game.path; // Store ROM path as identifier
         await this.populateEditModal(game);
         
         const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
@@ -6850,9 +6850,9 @@ class GameCollectionManager {
                 // Refresh edit modal if it's open
                 const editModal = document.getElementById('editGameModal');
                 if (editModal && editModal.classList.contains('show')) {
-                    // Get the currently edited game using the stored index
-                    if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
-                        const currentGame = this.games[this.editingGameIndex];
+                    // Get the currently edited game using the stored ROM path
+                    if (this.editingGamePath) {
+                        const currentGame = this.games.find(g => g.path === this.editingGamePath);
                         if (currentGame) {
                             this.showEditGameMedia(currentGame);
                         }
