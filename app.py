@@ -535,34 +535,6 @@ def get_gamelist_path(system_name):
     os.makedirs(gamelist_dir, exist_ok=True)
     return os.path.join(gamelist_dir, 'gamelist.xml')
 
-def ensure_gamelist_exists(system_name):
-    """Ensure gamelist exists in var/gamelists (does not auto-copy from roms/)"""
-    gamelist_path = get_gamelist_path(system_name)
-    
-    # Just return the path - don't auto-copy from roms/
-    return gamelist_path
-
-def ensure_gamelist_exists_for_scan(system_name):
-    """Ensure gamelist exists in var/gamelists for ROM scan, copying from roms/ if needed"""
-    gamelist_path = get_gamelist_path(system_name)
-    
-    # If gamelist already exists in var/gamelists, return it
-    if os.path.exists(gamelist_path):
-        return gamelist_path
-    
-    # Check if gamelist exists in roms/ and copy it (only during scan)
-    roms_gamelist_path = os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
-    if os.path.exists(roms_gamelist_path):
-        try:
-            shutil.copy2(roms_gamelist_path, gamelist_path)
-            print(f"Copied gamelist from {roms_gamelist_path} to {gamelist_path} for ROM scan")
-            return gamelist_path
-        except Exception as e:
-            print(f"Error copying gamelist: {e}")
-            return gamelist_path
-    
-    # If no gamelist exists anywhere, return the path for creating a new one
-    return gamelist_path
 
 def compare_gamelist_files(system_name):
     """Compare gamelist files between var/gamelists and roms directories"""
@@ -593,7 +565,7 @@ def compare_gamelist_files(system_name):
         removed_games_list = [roms_games_dict[path] for path in removed_games]
         
         # Count media changes
-        media_fields = ['image', 'thumbnail', 'video', 'marquee', 'manual', 'boxfront', 'boxback', 'boxside', 'cartridge', 'logo', 'bezel', 'fanart', 'banner', 'screenshot', 'titlescreen']
+        media_fields = ['image', 'thumbnail', 'video', 'marquee', 'manual', 'boxart', 'boxback', 'boxside', 'cartridge', 'wheel', 'bezel', 'fanart', 'extra1', 'screenshot', 'titlescreen']
         
         media_added = 0
         media_removed = 0
@@ -756,8 +728,8 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     mapping_config, system_platform_mapping = load_launchbox_config()
     current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
     
-    # Ensure gamelist exists in var/gamelists, copying from roms/ if needed
-    gamelist_path = ensure_gamelist_exists(system_name)
+    # Get gamelist path from var/gamelists
+    gamelist_path = get_gamelist_path(system_name)
     if not os.path.exists(gamelist_path):
         return {'success': False, 'error': f'Gamelist not found at {gamelist_path}'}
     # early cancellation
@@ -2037,7 +2009,7 @@ def run_image_download_task(system_name, data):
         selected_fields = data.get('selected_fields', None) if data else None
         
         # Load gamelist
-        gamelist_path = ensure_gamelist_exists(system_name)
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             task.complete(False, 'Gamelist not found')
             return
@@ -3069,8 +3041,8 @@ def rom_system_gamelist(system_name):
         if not os.path.exists(system_path):
             return jsonify({'error': 'System not found'}), 404
         
-        # Ensure gamelist exists in var/gamelists, copying from roms/ if needed
-        gamelist_path = ensure_gamelist_exists(system_name)
+        # Get gamelist path from var/gamelists
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             # Return empty games array instead of 404 for systems without gamelist
             return jsonify({
@@ -3969,7 +3941,7 @@ def find_best_matches_endpoint():
         }
         
         # Load gamelist to get game details
-        gamelist_path = ensure_gamelist_exists(system_name)
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             return jsonify({'error': 'Gamelist not found'}), 404
         
@@ -4789,8 +4761,8 @@ def scan_media_files(system_name):
             task.update_progress(f"System path does not exist: {system_path}")
             return {'error': 'System not found'}
         
-        # Ensure gamelist exists in var/gamelists, copying from roms/ if needed
-        gamelist_path = ensure_gamelist_exists(system_name)
+        # Get gamelist path from var/gamelists
+        gamelist_path = get_gamelist_path(system_name)
         task.update_progress(f"Gamelist path: {gamelist_path}")
         if not os.path.exists(gamelist_path):
             task.update_progress(f"Gamelist does not exist: {gamelist_path}")
@@ -6849,8 +6821,8 @@ def run_rom_scan_task(system_name):
             task.update_progress(f"System path does not exist: {system_path}")
             return
         
-        # Ensure gamelist exists in var/gamelists, copying from roms/ if needed (only during scan)
-        gamelist_path = ensure_gamelist_exists_for_scan(system_name)
+        # Get gamelist path from var/gamelists (only during scan)
+        gamelist_path = get_gamelist_path(system_name)
         task.update_progress(f"Gamelist path: {gamelist_path}")
         
         # Get supported ROM extensions for this system
@@ -7619,7 +7591,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
             return
         
         # Parse gamelist to get game data
-        gamelist_path = ensure_gamelist_exists(system_name)
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             task.complete(False, f'Gamelist not found: {gamelist_path}')
             return
@@ -8120,8 +8092,8 @@ def run_2d_box_generation_task(system_name, selected_games):
             task.complete(False, f'System not found: {system_path}')
             return
         
-        # Load gamelist to get game data
-        gamelist_path = os.path.join(system_path, 'gamelist.xml')
+        # Load gamelist to get game data (use var/gamelists, not roms)
+        gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             task.complete(False, f'Gamelist not found: {gamelist_path}')
             return
