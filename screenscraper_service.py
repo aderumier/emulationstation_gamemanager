@@ -191,7 +191,7 @@ class ScreenScraperService:
         
         return None
     
-    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None) -> Dict[str, str]:
+    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False) -> Dict[str, str]:
         """
         Process a batch of games to find their ScreenScraper IDs.
         
@@ -199,6 +199,8 @@ class ScreenScraperService:
             games: List of game dictionaries
             system_name: The system name for ScreenScraper system ID resolution
             progress_callback: Optional callback for progress updates
+            selected_fields: List of selected fields to process
+            overwrite_media_fields: Whether to overwrite existing media fields
             
         Returns:
             Dictionary mapping game paths to ScreenScraper IDs
@@ -240,7 +242,7 @@ class ScreenScraperService:
                     # Create client for media downloads
                     async with httpx.AsyncClient(timeout=30.0) as media_client:
                         # Process media downloads
-                        downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields)
+                        downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields)
                     
                     # Store both jeu_id and downloaded media
                     results[game['path']] = {
@@ -412,7 +414,47 @@ class ScreenScraperService:
         print(f"No media directory found for field: {media_field}")
         return None
     
-    async def process_media_downloads(self, game_data: Dict, system_name: str, client: httpx.AsyncClient, selected_fields: List[str] = None) -> Dict[str, str]:
+    def get_current_media_field_value(self, game_path: str, field_name: str, system_name: str) -> Optional[str]:
+        """
+        Get the current value of a media field from gamelist.xml for a specific game.
+        
+        Args:
+            game_path: Path to the game file
+            field_name: Name of the media field (e.g., 'screenshot', 'boxart')
+            system_name: System name
+            
+        Returns:
+            Current value of the field, or None if not found
+        """
+        try:
+            import xml.etree.ElementTree as ET
+            
+            # Construct path to gamelist.xml
+            gamelist_path = os.path.join('roms', system_name, 'gamelist.xml')
+            if not os.path.exists(gamelist_path):
+                return None
+            
+            # Parse the XML
+            tree = ET.parse(gamelist_path)
+            root = tree.getroot()
+            
+            # Find the game entry
+            for game in root.findall('game'):
+                path_elem = game.find('path')
+                if path_elem is not None and path_elem.text == game_path:
+                    # Found the game, get the media field value
+                    field_elem = game.find(field_name)
+                    if field_elem is not None and field_elem.text:
+                        return field_elem.text.strip()
+                    break
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error reading current media field value: {e}")
+            return None
+    
+    async def process_media_downloads(self, game_data: Dict, system_name: str, client: httpx.AsyncClient, selected_fields: List[str] = None, overwrite_media_fields: bool = False) -> Dict[str, str]:
         """
         Process media downloads for a game.
         
@@ -421,6 +463,7 @@ class ScreenScraperService:
             system_name: System name
             client: httpx client for downloading
             selected_fields: List of selected fields to process
+            overwrite_media_fields: Whether to overwrite existing media fields
             
         Returns:
             Dictionary mapping media fields to local file paths
@@ -462,6 +505,14 @@ class ScreenScraperService:
             if selected_fields and local_field not in selected_fields:
                 print(f"Skipping {media_type} -> {local_field} (not selected)")
                 continue
+            
+            # Check if we should skip this media field based on overwrite setting
+            if not overwrite_media_fields:
+                # Get the current game data to check if the field already has a value
+                current_value = self.get_current_media_field_value(game_data.get('path', ''), local_field, system_name)
+                if current_value and current_value.strip():
+                    print(f"Skipping {media_type} -> {local_field} (field already has value: {current_value})")
+                    continue
             
             # Get the media directory
             media_dir = self.get_media_directory(local_field, system_name)

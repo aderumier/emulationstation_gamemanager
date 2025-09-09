@@ -11348,7 +11348,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             print(f"First game sample: {games_to_process[0] if games_to_process else 'No games'}")
             
             # Process games in batches
-            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields)
+            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields)
             
             # Update all games with ScreenScraper IDs and downloaded media
             updated_count = 0
