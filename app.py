@@ -5594,6 +5594,11 @@ def delete_game_media(system_name, game_id):
         if not os.path.exists(gamelist_path):
             return jsonify({'error': 'Gamelist not found'}), 404
         
+        # Get request data first
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
         # Parse gamelist to find the game
         games = parse_gamelist_xml(gamelist_path)
         # Convert game_id to int for comparison since URL parameters are strings
@@ -5602,21 +5607,25 @@ def delete_game_media(system_name, game_id):
         except ValueError:
             return jsonify({'error': 'Invalid game ID format'}), 400
         
+        # Try to find game by ID first
         game = next((g for g in games if g.get('id') == game_id_int), None)
+        
+        # If not found by ID, try to find by ROM path (fallback for main interface)
+        if not game and 'rom_path' in data:
+            rom_path = data.get('rom_path')
+            game = next((g for g in games if g.get('path') == rom_path), None)
+            if game:
+                app.logger.info(f'Found game by ROM path: {rom_path}')
+        
         if not game:
             return jsonify({'error': f'Game not found with ID {game_id_int}'}), 404
-        
-        # Get media field from request data
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
         
         media_field = data.get('media_field')
         if not media_field:
             return jsonify({'error': 'Media field not specified'}), 400
         
         # Validate media field
-        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d']
+        valid_media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d', 'extra1']
         if media_field not in valid_media_fields:
             return jsonify({'error': 'Invalid media field'}), 400
         

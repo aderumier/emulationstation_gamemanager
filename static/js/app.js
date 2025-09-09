@@ -6789,7 +6789,8 @@ class GameCollectionManager {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            media_field: field
+                            media_field: field,
+                            rom_path: game.path  // Fallback for game identification
                         })
                     });
                     
