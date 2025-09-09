@@ -9270,7 +9270,7 @@ async def make_igdb_request_with_retry(async_client, url, headers, data, max_ret
     
     for attempt in range(max_retries):
         try:
-            response = await async_client.post(url, headers=headers, content=data)
+            response = await igdb_rate_limited_post(async_client, url, headers=headers, content=data)
             
             if response.status_code == 200:
                 return response
@@ -10033,22 +10033,42 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
 
 # Global httpx async client and rate limiter for IGDB API
 _igdb_async_client = None
+_igdb_rate_limiter = None
+
+def get_igdb_rate_limiter():
+    """Get or create global rate limiter for IGDB API"""
+    global _igdb_rate_limiter
+    if _igdb_rate_limiter is None:
+        from pyrate_limiter import Limiter, Rate
+        # Create rate limiter: 4 requests per second
+        _igdb_rate_limiter = Limiter(Rate(4, 1.0))
+    return _igdb_rate_limiter
 
 async def get_igdb_async_client():
-    """Get or create global httpx async client for IGDB API"""
+    """Get or create global httpx async client for IGDB API with rate limiting"""
     global _igdb_async_client
     if _igdb_async_client is None:
         import httpx
+        from pyrate_limiter import Limiter, Rate
         
-        # Create async client with connection pooling
+        # Create rate limiter: 4 requests per second
+        rate_limiter = get_igdb_rate_limiter()
+        
+        # Create async client with HTTP/2 and connection pooling
+        # Max 8 parallel connections, 4 requests per second rate limit
         _igdb_async_client = httpx.AsyncClient(
-            http2=True,
+            http2=True,  # Enable HTTP/2 for better performance
             limits=httpx.Limits(
-                max_connections=8,
-                max_keepalive_connections=8,
-                keepalive_expiry=30.0
+                max_connections=8,           # Maximum 8 parallel connections
+                max_keepalive_connections=8, # Keep 8 connections alive
+                keepalive_expiry=30.0        # Keep connections alive for 30 seconds
             ),
-            timeout=httpx.Timeout(30.0, connect=10.0)
+            timeout=httpx.Timeout(
+                connect=10.0,  # 10 seconds to establish connection
+                read=30.0,     # 30 seconds to read response
+                write=10.0,    # 10 seconds to write request
+                pool=5.0       # 5 seconds to get connection from pool
+            )
         )
     
     return _igdb_async_client
@@ -10059,6 +10079,22 @@ async def close_igdb_async_client():
     if _igdb_async_client is not None:
         await _igdb_async_client.aclose()
         _igdb_async_client = None
+
+async def igdb_rate_limited_post(async_client, url, headers=None, content=None, **kwargs):
+    """Make a rate-limited POST request to IGDB API
+    
+    Rate limiting: 4 requests per second
+    Connection pooling: Max 8 parallel connections with HTTP/2
+    """
+    rate_limiter = get_igdb_rate_limiter()
+    
+    # Acquire rate limit before making the request (4 req/sec)
+    # Use a consistent identifier for rate limiting
+    await rate_limiter.try_acquire_async('igdb_api_requests')
+    
+    # Make the actual request using the connection pool
+    # The httpx client will handle connection pooling (max 8 parallel)
+    return await async_client.post(url, headers=headers, content=content, **kwargs)
 
 # =============================================================================
 # IGDB Platform Cache Functions
@@ -10114,7 +10150,7 @@ async def fetch_igdb_platforms(async_client, access_token, client_id):
             'Content-Type': 'text/plain'
         }
         
-        response = await async_client.post(search_url, headers=headers, content=search_data)
+        response = await igdb_rate_limited_post(async_client, search_url, headers=headers, content=search_data)
         
         if response.status_code == 200:
             platforms = response.json()
@@ -10254,7 +10290,7 @@ async def fetch_igdb_companies(async_client, access_token, client_id, company_id
             'Content-Type': 'text/plain'
         }
         
-        response = await async_client.post(search_url, headers=headers, content=search_data)
+        response = await igdb_rate_limited_post(async_client, search_url, headers=headers, content=search_data)
         
         if response.status_code == 200:
             companies = response.json()
@@ -11027,20 +11063,17 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 
                 batch = games[i:i + batch_size]
                 
-                # Create tasks for concurrent processing using asyncio.gather with PyrateLimiter
+                # Create tasks for concurrent processing using asyncio.gather
                 import asyncio
-                from pyrate_limiter import Limiter, Rate
-                
-                # Create rate limiter: 4 requests per second
-                rate_limiter = Limiter(Rate(4, 1.0))  # 4 requests per 1 second
                 
                 # Create semaphore for concurrency control (max 8 concurrent)
+                # This matches the httpx connection pool size
                 semaphore = asyncio.Semaphore(8)
                 
-                async def process_game_with_rate_limit(game):
+                async def process_game_with_concurrency_limit(game):
                     async with semaphore:
-                        # Acquire rate limit for this request
-                        await rate_limiter.try_acquire_async(f'igdb_game_{game.get("name", "unknown")}')
+                        # Each game will make rate-limited requests (4 req/sec)
+                        # The httpx client handles connection pooling (max 8 parallel)
                         return await process_game_async(
                             game, 
                             igdb_platform_id, 
@@ -11051,8 +11084,11 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                             company_cache
                         )
                 
-                # Process batch with rate limiting using asyncio.gather
-                tasks = [process_game_with_rate_limit(game) for game in batch]
+                # Process batch with concurrency control using asyncio.gather
+                # - Rate limiting: 4 requests per second (handled by PyrateLimiter)
+                # - Connection pooling: Max 8 parallel connections (handled by httpx)
+                # - Concurrency control: Max 8 concurrent tasks (handled by asyncio.Semaphore)
+                tasks = [process_game_with_concurrency_limit(game) for game in batch]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 
                 # Process results and collect company IDs for caching
