@@ -2903,10 +2903,13 @@ def manage_igdb_credentials():
         if request.method == 'GET':
             # Return current IGDB credentials (without exposing the actual values)
             igdb_config = get_igdb_config()
+            # Check if IGDB is enabled based on credentials
+            is_enabled = bool(igdb_config.get('client_id') and igdb_config.get('client_secret'))
+            
             return jsonify({
                 'has_client_id': bool(igdb_config.get('client_id')),
                 'has_client_secret': bool(igdb_config.get('client_secret')),
-                'enabled': igdb_config.get('enabled', False)
+                'enabled': is_enabled
             })
         
         elif request.method == 'POST':
@@ -9302,7 +9305,7 @@ def get_igdb_access_token():
     """Get IGDB access token"""
     try:
         igdb_config = get_igdb_config()
-        if not igdb_config.get('enabled', False):
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
             return None
             
         client_id = igdb_config.get('client_id')
@@ -10368,8 +10371,8 @@ async def ensure_igdb_platform_cache():
         
         # Get IGDB configuration
         igdb_config = get_igdb_config()
-        if not igdb_config.get('enabled', False):
-            print("IGDB integration is disabled")
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            print("IGDB credentials not configured")
             return cache
         
         # Get access token
@@ -10492,8 +10495,8 @@ async def ensure_igdb_company_cache(company_ids):
         
         # Get IGDB configuration
         igdb_config = get_igdb_config()
-        if not igdb_config.get('enabled', False):
-            print("IGDB integration is disabled")
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            print("IGDB credentials not configured")
             return cache
         
         # Get access token
@@ -11015,6 +11018,14 @@ def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_t
     import multiprocessing
     import queue
     
+    # Check if IGDB credentials are configured
+    igdb_config = get_igdb_config()
+    if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+        t = get_task(task_id)
+        if t:
+            t.complete(False, "IGDB credentials not configured")
+        return
+    
     # Create result queue for progress updates
     result_q = multiprocessing.Queue()
     
@@ -11050,7 +11061,7 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             
             # Get IGDB configuration
             igdb_config = get_igdb_config()
-            if not igdb_config.get('enabled', False):
+            if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
                 result_q.put({
                     'type': 'progress',
                     'task_id': task_id,
@@ -11647,8 +11658,8 @@ def scrap_igdb_system(system_name):
         
         # Check if IGDB is enabled
         igdb_config = get_igdb_config()
-        if not igdb_config.get('enabled', False):
-            return jsonify({'error': 'IGDB integration is disabled'}), 400
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            return jsonify({'error': 'IGDB credentials not configured'}), 400
         
         # Check if system has IGDB platform ID configured
         config = load_config()
@@ -11728,8 +11739,8 @@ def search_igdb_games_api():
         
         # Get IGDB configuration
         igdb_config = get_igdb_config()
-        if not igdb_config.get('enabled', False):
-            return jsonify({'error': 'IGDB integration is disabled'}), 400
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            return jsonify({'error': 'IGDB credentials not configured'}), 400
         
         # Get access token
         access_token = get_igdb_access_token()

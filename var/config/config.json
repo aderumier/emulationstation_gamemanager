@@ -749,7 +749,6 @@
     },
     "igdb": {
         "database_directory": "var/db/igdb",
-        "enabled": true,
         "mapping": {
             "name": "name",
             "summary": "desc",
