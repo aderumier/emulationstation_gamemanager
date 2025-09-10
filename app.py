@@ -10113,6 +10113,91 @@ def get_igdb_rate_limiter():
         _igdb_rate_limiter = Limiter(Rate(4, 1.0))
     return _igdb_rate_limiter
 
+def get_screenscraper_user_info(ssid, sspassword, force_refresh=False):
+    """
+    Get ScreenScraper user info with 24h caching
+    Returns the maxthreads value for connection pool configuration
+    """
+    import os
+    import json
+    import time
+    from datetime import datetime, timedelta
+    
+    # Create cache directory
+    cache_dir = "var/db/screenscraper"
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    cache_file = os.path.join(cache_dir, "user_info.json")
+    
+    # Check if cache exists and is valid (24 hours)
+    if not force_refresh and os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+            
+            # Check if cache is still valid (24 hours)
+            cache_time = datetime.fromisoformat(cache_data.get('timestamp', ''))
+            if datetime.now() - cache_time < timedelta(hours=24):
+                print(f"📋 Using cached ScreenScraper user info (maxthreads: {cache_data.get('maxthreads', 2)})")
+                return cache_data.get('maxthreads', 2)
+        except Exception as e:
+            print(f"⚠️ Error reading ScreenScraper user info cache: {e}")
+    
+    # Fetch fresh data from API
+    try:
+        import requests
+        api_url = f"https://api.screenscraper.fr/api2/ssuserInfos.php?ssid={ssid}&sspassword={sspassword}"
+        
+        print(f"🌐 Fetching ScreenScraper user info from API...")
+        response = requests.get(api_url, timeout=30)
+        response.raise_for_status()
+        
+        # Parse the response (it's likely XML or JSON)
+        try:
+            # Try JSON first
+            data = response.json()
+        except:
+            # If not JSON, try to parse as XML and extract maxthreads
+            import xml.etree.ElementTree as ET
+            try:
+                root = ET.fromstring(response.text)
+                data = {}
+                for child in root:
+                    if child.tag == 'maxthreads':
+                        data['maxthreads'] = int(child.text)
+                    elif child.tag == 'ssuser':
+                        for user_child in child:
+                            if user_child.tag == 'maxthreads':
+                                data['maxthreads'] = int(user_child.text)
+            except ET.ParseError:
+                # If XML parsing fails, check for error messages
+                if "Erreur de login" in response.text or "Vérifier les identifiants" in response.text:
+                    print(f"⚠️ ScreenScraper login error: {response.text.strip()}")
+                    return 2  # Return default value
+                else:
+                    print(f"⚠️ Unexpected ScreenScraper response: {response.text[:200]}...")
+                    return 2  # Return default value
+        
+        maxthreads = data.get('maxthreads', 2)  # Default to 2 if not found
+        
+        # Cache the result
+        cache_data = {
+            'maxthreads': maxthreads,
+            'timestamp': datetime.now().isoformat(),
+            'raw_response': response.text
+        }
+        
+        with open(cache_file, 'w') as f:
+            json.dump(cache_data, f, indent=2)
+        
+        print(f"✅ ScreenScraper user info cached (maxthreads: {maxthreads})")
+        return maxthreads
+        
+    except Exception as e:
+        print(f"❌ Error fetching ScreenScraper user info: {e}")
+        # Return default value if API fails
+        return 2
+
 async def get_igdb_async_client():
     """Get or create global httpx async client for IGDB API with rate limiting"""
     global _igdb_async_client
@@ -11384,8 +11469,16 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     t.complete(False, "ScreenScraper credentials not configured")
                 return
             
-            # Initialize ScreenScraper service
-            service = ScreenScraperService(config, screenscraper_creds)
+            # Get ScreenScraper user info to determine max_connections
+            print("🔍 Fetching ScreenScraper user info...")
+            max_connections = get_screenscraper_user_info(
+                screenscraper_creds.get('ssid', ''),
+                screenscraper_creds.get('sspassword', '')
+            )
+            print(f"🔧 ScreenScraper max_connections set to: {max_connections}")
+            
+            # Initialize ScreenScraper service with dynamic max_connections
+            service = ScreenScraperService(config, screenscraper_creds, max_connections)
             
             # Add field selection settings to config
             screenscraper_config = config.get('screenscraper', {})

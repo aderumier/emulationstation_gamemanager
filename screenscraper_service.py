@@ -41,13 +41,13 @@ async def close_screenscraper_async_client():
         _screenscraper_async_client = None
 
 class ScreenScraperService:
-    def __init__(self, config: Dict, credentials: Dict):
+    def __init__(self, config: Dict, credentials: Dict, max_connections: int = 2):
         self.config = config
         self.credentials = credentials
         self.logger = logging.getLogger(__name__)
         # Static ScreenScraper configuration
         self.api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
-        self.max_connections = 2
+        self.max_connections = max_connections  # Dynamic max_connections from user info
         self.timeout = 30
         self.retry_attempts = 3
         
