@@ -876,6 +876,7 @@ class ScreenScraperService:
         
         print(f"Processing {len(medias)} media items")
         print(f"Selected fields: {selected_fields}")
+        print(f"🔧 DEBUG: process_media_downloads - overwrite_media_fields: {overwrite_media_fields}")
         
         # Group medias by type to handle duplicates
         media_by_type = {}
@@ -905,6 +906,7 @@ class ScreenScraperService:
             if not overwrite_media_fields:
                 # Get the current game data to check if the field already has a value
                 current_value = self.get_current_media_field_value(game_data.get('path', ''), local_field, system_name)
+                print(f"🔧 DEBUG: Media field check - {local_field}: current_value='{current_value}', overwrite_media_fields={overwrite_media_fields}")
                 
                 # Also check if the actual media file exists on disk
                 file_exists = False
@@ -912,15 +914,23 @@ class ScreenScraperService:
                     # Check if the file actually exists
                     if os.path.exists(current_value):
                         file_exists = True
+                        print(f"🔧 DEBUG: File exists at absolute path: {current_value}")
                     else:
                         # Try relative path from roms directory
                         relative_path = os.path.join('roms', system_name, current_value)
                         if os.path.exists(relative_path):
                             file_exists = True
+                            print(f"🔧 DEBUG: File exists at relative path: {relative_path}")
+                        else:
+                            print(f"🔧 DEBUG: File does not exist at either path: {current_value} or {relative_path}")
+                else:
+                    print(f"🔧 DEBUG: No current value found for {local_field}")
                 
                 if file_exists:
                     print(f"⏸️ Skipping {media_type} -> {local_field} (file already exists: {current_value})")
                     continue
+                else:
+                    print(f"🔧 DEBUG: Proceeding with download for {media_type} -> {local_field}")
             
             # Get the media directory
             media_dir = self.get_media_directory(local_field, system_name)
