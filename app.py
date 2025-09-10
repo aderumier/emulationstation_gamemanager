@@ -11712,14 +11712,24 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                             # Map field name to gamelist field
                             gamelist_field = field_mapping.get(text_field, text_field)
                             
-                            # HTML entity encode the text value for XML
-                            import html
-                            encoded_value = html.escape(text_value)
+                            # Check if we should update this field based on overwrite_text_fields setting
+                            should_update = True
+                            if not overwrite_text_fields:
+                                # If overwrite is disabled, only update if field is empty
+                                current_value = game.get(gamelist_field, '').strip()
+                                should_update = not current_value
+                                if not should_update:
+                                    print(f"⏸️ Skipping {gamelist_field} for {game['name']} (field already has value: {current_value[:50]}...)")
                             
-                            game[gamelist_field] = encoded_value
-                            game_text_updated_count += 1
-                            text_updated_count += 1
-                            print(f"📝 Updated {gamelist_field} for {game['name']}: {encoded_value[:100]}...")
+                            if should_update:
+                                # HTML entity encode the text value for XML
+                                import html
+                                encoded_value = html.escape(text_value)
+                                
+                                game[gamelist_field] = encoded_value
+                                game_text_updated_count += 1
+                                text_updated_count += 1
+                                print(f"📝 Updated {gamelist_field} for {game['name']}: {encoded_value[:100]}...")
                     
                     if game_text_updated_count > 0:
                         print(f"📝 Updated {game_text_updated_count} text fields for {game['name']}")

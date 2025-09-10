@@ -905,8 +905,21 @@ class ScreenScraperService:
             if not overwrite_media_fields:
                 # Get the current game data to check if the field already has a value
                 current_value = self.get_current_media_field_value(game_data.get('path', ''), local_field, system_name)
+                
+                # Also check if the actual media file exists on disk
+                file_exists = False
                 if current_value and current_value.strip():
-                    print(f"⏸️ Skipping {media_type} -> {local_field} (field already has value: {current_value})")
+                    # Check if the file actually exists
+                    if os.path.exists(current_value):
+                        file_exists = True
+                    else:
+                        # Try relative path from roms directory
+                        relative_path = os.path.join('roms', system_name, current_value)
+                        if os.path.exists(relative_path):
+                            file_exists = True
+                
+                if file_exists:
+                    print(f"⏸️ Skipping {media_type} -> {local_field} (file already exists: {current_value})")
                     continue
             
             # Get the media directory
