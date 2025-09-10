@@ -9390,6 +9390,7 @@ def get_igdb_access_token():
     try:
         igdb_config = get_igdb_config()
         if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            print("IGDB credentials not configured")
             return None
             
         client_id = igdb_config.get('client_id')
@@ -9397,6 +9398,11 @@ def get_igdb_access_token():
         
         if not client_id or not client_secret:
             print("IGDB credentials not configured")
+            return None
+        
+        # Check if credentials are test values
+        if client_id == 'test_client_id' or client_secret == 'test_client_secret':
+            print("IGDB credentials are set to test values. Please configure real IGDB credentials.")
             return None
         
         # Get access token from IGDB
@@ -9417,6 +9423,12 @@ def get_igdb_access_token():
                 return token_info.get('access_token')
             else:
                 print(f"Failed to get IGDB access token: {response.status_code}")
+                if response.status_code == 400:
+                    print("Invalid IGDB credentials. Please check your Client ID and Client Secret.")
+                elif response.status_code == 401:
+                    print("Unauthorized. Please verify your IGDB credentials are correct.")
+                else:
+                    print(f"Response: {response.text}")
             return None
             
     except Exception as e:
@@ -11206,8 +11218,14 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 result_q.put({
                     'type': 'progress',
                     'task_id': task_id,
-                    'message': "Failed to get IGDB access token",
+                    'message': "IGDB scraping disabled: Invalid or missing credentials",
                     'progress_percentage': 100
+                })
+                result_q.put({
+                    'type': 'complete',
+                    'task_id': task_id,
+                    'success': False,
+                    'message': "IGDB scraping disabled: Invalid or missing credentials. Please configure valid IGDB credentials in User Preferences > IGDB Configuration."
                 })
                 return
             
