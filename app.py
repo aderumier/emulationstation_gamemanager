@@ -4449,6 +4449,27 @@ def load_region_config():
     """Load region priority configuration from consolidated config.json"""
     return config.get('launchbox', {}).get('region', {})
 
+def convert_image_to_png(input_path: str, output_path: str) -> bool:
+    """
+    Convert an image file to PNG format using ImageMagick.
+    
+    Args:
+        input_path: Path to the input image file
+        output_path: Path for the output PNG file
+        
+    Returns:
+        True if conversion successful, False otherwise
+    """
+    try:
+        import subprocess
+        # Use ImageMagick convert command to convert to PNG
+        cmd = ['convert', input_path, output_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        return result.returncode == 0
+    except Exception as e:
+        print(f"Error converting image to PNG: {e}")
+        return False
+
 async def download_launchbox_image_httpx(image_url, local_path, media_type=None, timeout=30, retry_attempts=10, client=None, game_name=None):
     """Download a single image from LaunchBox using HTTPX with HTTP/2 support"""
     import time
@@ -4526,6 +4547,17 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                 file_size = os.path.getsize(local_path)
                 print(f"DEBUG: {log_prefix} File verification: exists={True}, size={file_size} bytes")
                 if file_size > 0:
+                    # Convert to PNG if this is extra1 or boxart field
+                    if media_type in ['extra1', 'boxart']:
+                        png_path = os.path.splitext(local_path)[0] + '.png'
+                        if convert_image_to_png(local_path, png_path):
+                            # Remove original file and rename PNG file
+                            os.remove(local_path)
+                            os.rename(png_path, local_path)
+                            print(f"DEBUG: {log_prefix} ✅ Converted to PNG: {filename}")
+                        else:
+                            print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to PNG, keeping original: {filename}")
+                    
                     print(f"DEBUG: {log_prefix} ✅ Download successful: {filename} ({file_size} bytes)")
                     return True, f"Downloaded {filename} ({file_size} bytes)"
                 else:
@@ -9235,6 +9267,17 @@ def download_launchbox_media():
         # Save the file
         with open(local_path, 'wb') as f:
             f.write(response.content)
+        
+        # Convert to PNG if this is extra1 or boxart field
+        if media_type in ['extra1', 'boxart']:
+            png_path = os.path.splitext(local_path)[0] + '.png'
+            if convert_image_to_png(local_path, png_path):
+                # Remove original file and rename PNG file
+                os.remove(local_path)
+                os.rename(png_path, local_path)
+                print(f"✅ Converted to PNG: {local_filename}")
+            else:
+                print(f"⚠️ Failed to convert to PNG, keeping original: {local_filename}")
         
         # Update gamelist.xml
         media_field = game_element.find(media_type)
