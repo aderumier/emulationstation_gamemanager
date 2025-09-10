@@ -4836,7 +4836,7 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
                 'gamelist_field': gamelist_field,
                 'download_url': download_url,
                 'local_path': local_path,
-                'media_type': image_type_text,
+                'media_type': gamelist_field,  # Use target field name for PNG conversion
                 'region': best_image['region'],
                 'filename': best_image['filename'],
                 'media_directory': media_directory,
