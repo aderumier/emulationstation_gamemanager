@@ -11368,12 +11368,11 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     t.complete(False, "Task cancelled before starting")
                 return
             
-            # ScreenScraper is always enabled (static configuration)
-            if False:  # ScreenScraper is always enabled
-                t = get_task(task_id)
-                if t:
-                    t.complete(False, "ScreenScraper integration is disabled")
-                return
+            
+            t = get_task(task_id)
+            if t:
+                t.complete(False, "ScreenScraper integration is disabled")
+            return
             
             # Load credentials using secure credential manager
             from credential_manager import credential_manager
@@ -11758,10 +11757,7 @@ def scrap_screenscraper_system(system_name):
     try:
         if not system_name:
             return jsonify({'error': 'System name is required'}), 400
-        
-        # ScreenScraper is always enabled (static configuration)
-        if False:  # ScreenScraper is always enabled
-            return jsonify({'error': 'ScreenScraper integration is disabled'}), 400
+
         
         # Get request data
         data = request.get_json() or {}
