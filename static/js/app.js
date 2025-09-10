@@ -7049,12 +7049,18 @@ class GameCollectionManager {
             let updateData = {
                 system_name: systemName,
                 launchbox_platform: currentSystem.launchbox || '',
+                screenscraper_platform: currentSystem.screenscraper || '',
+                igdb_platform: currentSystem.igdb || '',
                 extensions: Array.isArray(currentSystem.extensions) ? currentSystem.extensions : []
             };
             
             // Update the specific field
             if (field === 'launchbox') {
                 updateData.launchbox_platform = value.trim();
+            } else if (field === 'screenscraper') {
+                updateData.screenscraper_platform = value.trim();
+            } else if (field === 'igdb') {
+                updateData.igdb_platform = value.trim();
             } else if (field === 'extensions') {
                 // Parse extensions from comma-separated string
                 updateData.extensions = value.trim() ? 
