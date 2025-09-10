@@ -1987,5 +1987,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    <!-- Auto-show cache configuration modal if metadata.xml is missing -->
+    {% if show_cache_modal %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show cache configuration modal after a short delay to ensure page is fully loaded
+            setTimeout(function() {
+                const cacheModal = new bootstrap.Modal(document.getElementById('cacheConfigurationModal'));
+                cacheModal.show();
+            }, 500);
+        });
+    </script>
+    {% endif %}
 </body>
 </html>

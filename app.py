@@ -2829,7 +2829,11 @@ def test_session():
 @login_required
 def index():
     """Serve the main application page"""
-    return render_template('index.html')
+    # Check if Launchbox metadata.xml exists
+    metadata_path = os.path.join('var', 'launchbox', 'metadata.xml')
+    show_cache_modal = not os.path.exists(metadata_path)
+    
+    return render_template('index.html', show_cache_modal=show_cache_modal)
 
 @app.route('/roms/<path:filename>')
 def serve_rom_file(filename):
