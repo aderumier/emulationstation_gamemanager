@@ -10215,10 +10215,31 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
             
-            # Use original format without conversion
-            print(f"{emoji} DEBUG: Using original format, no conversion needed...")
-            # Just rename the temp file to the final file
-            os.rename(temp_file_path, file_path)
+            # Convert to PNG if this is extra1 field (cover) or marquee field (logo) and not already PNG
+            if image_type in ["cover", "logo"]:  # Cover maps to extra1 field, logo maps to marquee field
+                # Check if file is already PNG format
+                file_extension = os.path.splitext(file_path)[1].lower()
+                if file_extension != '.png':
+                    # Convert to PNG using ImageMagick
+                    png_path = os.path.splitext(file_path)[0] + '.png'
+                    if convert_image_to_png(temp_file_path, png_path):
+                        # Remove temp file and rename PNG file
+                        os.remove(temp_file_path)
+                        os.rename(png_path, file_path)
+                        print(f"{emoji} DEBUG: ✅ Converted to PNG: {filename}")
+                    else:
+                        # Conversion failed, just rename temp file
+                        os.rename(temp_file_path, file_path)
+                        print(f"{emoji} DEBUG: ⚠️ Failed to convert to PNG, keeping original: {filename}")
+                else:
+                    # Already PNG, just rename temp file
+                    os.rename(temp_file_path, file_path)
+                    print(f"{emoji} DEBUG: ✅ Already PNG format: {filename}")
+            else:
+                # Not a cover field, use original format without conversion
+                print(f"{emoji} DEBUG: Using original format, no conversion needed...")
+                # Just rename the temp file to the final file
+                os.rename(temp_file_path, file_path)
             
             # Check if file was written successfully
             if os.path.exists(file_path):
