@@ -2990,6 +2990,48 @@ def get_screenscraper_systems():
     except Exception as e:
         return jsonify({'error': f'Failed to get ScreenScraper systems: {str(e)}'}), 500
 
+@app.route('/api/igdb-platforms', methods=['GET'])
+@login_required
+def get_igdb_platforms():
+    """Get IGDB platforms mapping for GUI"""
+    try:
+        import json
+        import os
+        from datetime import datetime, timedelta
+        
+        platforms_file = "var/db/igdb/platforms.json"
+        
+        # Check if platforms file exists
+        if not os.path.exists(platforms_file):
+            return jsonify({'error': 'IGDB platforms cache not found'}), 404
+        
+        # Load platforms from cache
+        with open(platforms_file, 'r') as f:
+            data = json.load(f)
+        
+        # Check if cache is expired (24 hours)
+        cache_timestamp = data.get('timestamp', 0)
+        if datetime.now().timestamp() - cache_timestamp > 86400:  # 24 hours
+            return jsonify({'error': 'IGDB platforms cache expired'}), 410
+        
+        # Convert to format expected by GUI (id -> name)
+        platforms_list = []
+        for platform_id, platform_name in data['platforms'].items():
+            platforms_list.append({
+                'id': platform_id,
+                'name': platform_name
+            })
+        
+        # Sort by name for better UX
+        platforms_list.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'platforms': platforms_list,
+            'count': len(platforms_list)
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to get IGDB platforms: {str(e)}'}), 500
+
 @app.route('/api/igdb-credentials-values', methods=['GET'])
 @login_required
 def get_igdb_credentials_values():

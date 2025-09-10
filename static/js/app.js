@@ -6858,10 +6858,11 @@ class GameCollectionManager {
         
         tbody.innerHTML = '';
         
-        // Load LaunchBox platforms and ScreenScraper systems for comboboxes
-        const [platforms, screenscraperSystems] = await Promise.all([
+        // Load LaunchBox platforms, ScreenScraper systems, and IGDB platforms for comboboxes
+        const [platforms, screenscraperSystems, igdbPlatforms] = await Promise.all([
             this.loadLaunchBoxPlatforms(),
-            this.loadScreenScraperSystems()
+            this.loadScreenScraperSystems(),
+            this.loadIgdbPlatforms()
         ]);
         
         Object.entries(systems).forEach(([systemName, systemData]) => {
@@ -6875,6 +6876,11 @@ class GameCollectionManager {
             // Create ScreenScraper systems combobox options
             const screenscraperOptions = screenscraperSystems.map(system => 
                 `<option value="${system.id}" ${system.id == systemData.screenscraper ? 'selected' : ''}>${system.name}</option>`
+            ).join('');
+            
+            // Create IGDB platforms combobox options
+            const igdbOptions = igdbPlatforms.map(platform => 
+                `<option value="${platform.id}" ${platform.id == systemData.igdb ? 'selected' : ''}>${platform.name}</option>`
             ).join('');
             
             row.innerHTML = `
@@ -6898,8 +6904,16 @@ class GameCollectionManager {
                     <select class="form-select form-select-sm screenscraper-select" 
                             data-system="${systemName}"
                             data-field="screenscraper">
-                        <option value="">Select ScreenScraper System...</option>
+                        <option value="">Select Platform...</option>
                         ${screenscraperOptions}
+                    </select>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm igdb-select" 
+                            data-system="${systemName}"
+                            data-field="igdb">
+                        <option value="">Select Platform...</option>
+                        ${igdbOptions}
                     </select>
                 </td>
                 <td>
@@ -6945,6 +6959,22 @@ class GameCollectionManager {
             }
         } catch (error) {
             console.error('Error loading ScreenScraper systems:', error);
+            return [];
+        }
+    }
+    
+    async loadIgdbPlatforms() {
+        try {
+            const response = await fetch('/api/igdb-platforms');
+            const data = await response.json();
+            if (data.platforms) {
+                return data.platforms || [];
+            } else {
+                console.error('Failed to load IGDB platforms:', data.error);
+                return [];
+            }
+        } catch (error) {
+            console.error('Error loading IGDB platforms:', error);
             return [];
         }
     }
@@ -7054,7 +7084,7 @@ class GameCollectionManager {
         // Event delegation for dynamically created elements
         const systemsTable = document.getElementById('systemsTable');
         if (systemsTable) {
-            // Handle platform and ScreenScraper select changes
+            // Handle platform, ScreenScraper, and IGDB select changes
             systemsTable.addEventListener('change', (e) => {
                 if (e.target.classList.contains('platform-select')) {
                     const systemName = e.target.dataset.system;
@@ -7064,6 +7094,10 @@ class GameCollectionManager {
                     const systemName = e.target.dataset.system;
                     const value = e.target.value;
                     this.saveInlineField(systemName, 'screenscraper', value);
+                } else if (e.target.classList.contains('igdb-select')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'igdb', value);
                 }
             });
             
