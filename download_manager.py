@@ -229,6 +229,7 @@ class DownloadManager:
                         download_url = task['download_url']
                         local_path = task['local_path']
                         media_type = task['media_type']
+                        target_field = task.get('target_field')
                         region = task['region']
                         filename = task['filename']
                         game_name = task.get('game_name', 'Unknown')
@@ -253,7 +254,7 @@ class DownloadManager:
                         # Download the image using HTTPX client
                         success, message = await download_launchbox_image_httpx(
                             download_url, local_path, media_type=media_type, 
-                            client=client, game_name=game_name
+                            target_field=target_field, client=client, game_name=game_name
                         )
                         
                         # Calculate total time for this image

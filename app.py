@@ -4470,7 +4470,7 @@ def convert_image_to_png(input_path: str, output_path: str) -> bool:
         print(f"Error converting image to PNG: {e}")
         return False
 
-async def download_launchbox_image_httpx(image_url, local_path, media_type=None, timeout=30, retry_attempts=10, client=None, game_name=None):
+async def download_launchbox_image_httpx(image_url, local_path, media_type=None, target_field=None, timeout=30, retry_attempts=10, client=None, game_name=None):
     """Download a single image from LaunchBox using HTTPX with HTTP/2 support"""
     import time
     import aiofiles
@@ -4548,8 +4548,9 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                 print(f"DEBUG: {log_prefix} File verification: exists={True}, size={file_size} bytes")
                 if file_size > 0:
                     # Convert to PNG if this is extra1 or boxart field
-                    # Check the target field name, not the source field name
-                    if media_type in ['extra1', 'boxart']:
+                    # Use target_field parameter if available, otherwise fall back to media_type
+                    field_to_check = target_field if target_field else media_type
+                    if field_to_check in ['extra1', 'boxart']:
                         png_path = os.path.splitext(local_path)[0] + '.png'
                         if convert_image_to_png(local_path, png_path):
                             # Remove original file and rename PNG file
@@ -4836,7 +4837,8 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
                 'gamelist_field': gamelist_field,
                 'download_url': download_url,
                 'local_path': local_path,
-                'media_type': gamelist_field,  # Use target field name for PNG conversion
+                'media_type': image_type_text,
+                'target_field': gamelist_field,  # Add target field for PNG conversion
                 'region': best_image['region'],
                 'filename': best_image['filename'],
                 'media_directory': media_directory,
