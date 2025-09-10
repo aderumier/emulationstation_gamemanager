@@ -7210,19 +7210,61 @@ def run_rom_scan_task(system_name):
         
         task.update_progress(f"Supported ROM extensions: {', '.join(rom_extensions)}")
         
+        # Get scan configuration
+        scan_config = config.get('rom_scan', {})
+        max_depth = scan_config.get('max_depth', 10)  # Default max depth of 10 levels
+        skip_hidden_dirs = scan_config.get('skip_hidden_dirs', True)
+        
+        task.update_progress(f"Scan configuration: max_depth={max_depth}, skip_hidden_dirs={skip_hidden_dirs}")
+        
         # Scan for ROM files (including subdirectories, excluding media folder)
         rom_files = []
+        
+        # Pre-compile extension patterns for faster matching
+        import fnmatch
+        extension_patterns = [f"*{ext}" for ext in rom_extensions]
+        
+        # Use os.walk with optimizations and progress reporting
+        scanned_dirs = 0
+        scanned_files = 0
+        
         for root, dirs, files in os.walk(system_path):
-            # Skip the media directory
+            scanned_dirs += 1
+            scanned_files += len(files)
+            
+            # Calculate current depth
+            current_depth = root[len(system_path):].count(os.sep)
+            
+            # Report progress every 100 directories or 1000 files
+            if scanned_dirs % 100 == 0 or scanned_files % 1000 == 0:
+                task.update_progress(f"Scanning directories... ({scanned_dirs} dirs, {scanned_files} files scanned, depth: {current_depth})")
+            
+            # Skip if we've reached max depth
+            if current_depth >= max_depth:
+                dirs.clear()  # Don't recurse deeper
+                continue
+            
+            # Skip the media directory and other non-ROM directories
             if 'media' in dirs:
                 dirs.remove('media')
             
+            # Skip common non-ROM directories to improve performance
+            dirs_to_skip = {'media', 'images', 'covers', 'screenshots', 'videos', 'manuals', 'saves', 'states', 'temp', 'tmp', 'cache'}
+            
+            # Skip hidden directories if configured
+            if skip_hidden_dirs:
+                dirs_to_skip.update({d for d in dirs if d.startswith('.')})
+            
+            dirs[:] = [d for d in dirs if d.lower() not in dirs_to_skip]
+            
+            # Use fnmatch for faster pattern matching
             for filename in files:
-                if any(filename.lower().endswith(ext.lower()) for ext in rom_extensions):
+                if any(fnmatch.fnmatch(filename.lower(), pattern.lower()) for pattern in extension_patterns):
                     # Get relative path from system directory
                     rel_path = os.path.relpath(os.path.join(root, filename), system_path)
                     rom_files.append(rel_path)
         
+        task.update_progress(f"Scan complete: {scanned_dirs} directories, {scanned_files} files scanned")
         task.update_progress(f"Found {len(rom_files)} ROM files in system directory (including subdirectories)")
         
         # Load existing gamelist if it exists
