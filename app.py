@@ -11712,6 +11712,11 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                             # Map field name to gamelist field
                             gamelist_field = field_mapping.get(text_field, text_field)
                             
+                            # Check if this field is selected
+                            if selected_fields and gamelist_field not in selected_fields:
+                                print(f"⏸️ Skipping {gamelist_field} for {game['name']} (not selected)")
+                                continue
+                            
                             # Check if we should update this field based on overwrite_text_fields setting
                             should_update = True
                             if not overwrite_text_fields:
