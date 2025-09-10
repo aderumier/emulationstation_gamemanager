@@ -7206,7 +7206,7 @@ def run_rom_scan_task(system_name):
         rom_extensions = system_config.get('extensions', [])
         if not rom_extensions:
             # Default extensions if system not found in config
-            rom_extensions = ['.zip', '.ZIP', '.7z', '.7Z', '.nes', '.NES', '.sfc', '.smc', '.SFC', '.SMC', '.gba', '.GBA']
+            rom_extensions = ['.zip', '.ZIP', '.7z', '.7Z']
         
         task.update_progress(f"Supported ROM extensions: {', '.join(rom_extensions)}")
         
@@ -7244,22 +7244,17 @@ def run_rom_scan_task(system_name):
                 dirs.clear()  # Don't recurse deeper
                 continue
             
-            # Skip the media directory and other non-ROM directories
+            # Skip only the media directory (contains downloaded media, not ROMs)
             if 'media' in dirs:
                 dirs.remove('media')
             
-            # Skip common non-ROM directories to improve performance
-            dirs_to_skip = {'media', 'images', 'covers', 'screenshots', 'videos', 'manuals', 'saves', 'states', 'temp', 'tmp', 'cache'}
-            
             # Skip hidden directories if configured
             if skip_hidden_dirs:
-                dirs_to_skip.update({d for d in dirs if d.startswith('.')})
-            
-            dirs[:] = [d for d in dirs if d.lower() not in dirs_to_skip]
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
             
             # Use fnmatch for faster pattern matching
             for filename in files:
-                if any(fnmatch.fnmatch(filename.lower(), pattern.lower()) for pattern in extension_patterns):
+                if any(fnmatch.fnmatch(filename, pattern) for pattern in extension_patterns):
                     # Get relative path from system directory
                     rel_path = os.path.relpath(os.path.join(root, filename), system_path)
                     rom_files.append(rel_path)
