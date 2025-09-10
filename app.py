@@ -10113,10 +10113,17 @@ def get_igdb_rate_limiter():
         _igdb_rate_limiter = Limiter(Rate(4, 1.0))
     return _igdb_rate_limiter
 
-def get_screenscraper_user_info(ssid, sspassword, force_refresh=False):
+def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refresh=False):
     """
     Get ScreenScraper user info with 24h caching
     Returns the maxthreads value for connection pool configuration
+    
+    Args:
+        ssid: ScreenScraper user ID
+        sspassword: ScreenScraper user password
+        devid: ScreenScraper developer ID
+        devpassword: ScreenScraper developer password
+        force_refresh: Force refresh cache even if valid
     """
     import os
     import json
@@ -10146,7 +10153,7 @@ def get_screenscraper_user_info(ssid, sspassword, force_refresh=False):
     # Fetch fresh data from API
     try:
         import requests
-        api_url = f"https://api.screenscraper.fr/api2/ssuserInfos.php?ssid={ssid}&sspassword={sspassword}"
+        api_url = f"https://api.screenscraper.fr/api2/ssuserInfos.php?ssid={ssid}&sspassword={sspassword}&devid={devid}&devpassword={devpassword}"
         
         print(f"🌐 Fetching ScreenScraper user info from API...")
         response = requests.get(api_url, timeout=30)
@@ -10178,7 +10185,7 @@ def get_screenscraper_user_info(ssid, sspassword, force_refresh=False):
                     print(f"⚠️ Unexpected ScreenScraper response: {response.text[:200]}...")
                     return 2  # Return default value
         
-        maxthreads = data.get('maxthreads', 2)  # Default to 2 if not found
+        maxthreads = data.get('maxthreads', 1)  # Default to 1 if not found
         
         # Cache the result
         cache_data = {
@@ -11473,7 +11480,9 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             print("🔍 Fetching ScreenScraper user info...")
             max_connections = get_screenscraper_user_info(
                 screenscraper_creds.get('ssid', ''),
-                screenscraper_creds.get('sspassword', '')
+                screenscraper_creds.get('sspassword', ''),
+                screenscraper_creds.get('devid', ''),
+                screenscraper_creds.get('devpassword', '')
             )
             print(f"🔧 ScreenScraper max_connections set to: {max_connections}")
             
