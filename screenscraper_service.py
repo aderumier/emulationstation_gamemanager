@@ -199,10 +199,10 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
         if 'text' in game_data['developpeur']:
             text_info['developer'] = game_data['developpeur']['text']
     
-    # Extract description from synopsis[text] with region='wor'
+    # Extract description from synopsis[text] with langue='en'
     if 'synopsis' in game_data and isinstance(game_data['synopsis'], list):
         for synopsis in game_data['synopsis']:
-            if isinstance(synopsis, dict) and synopsis.get('region') == 'wor' and 'text' in synopsis:
+            if isinstance(synopsis, dict) and synopsis.get('langue') == 'en' and 'text' in synopsis:
                 text_info['description'] = synopsis['text']
                 break
     
@@ -217,6 +217,27 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
                         break
         if genre_names:
             text_info['genre'] = '/'.join(genre_names)
+    
+    # Extract players from joueurs.text, handle range values like '1-2'
+    if 'joueurs' in game_data and isinstance(game_data['joueurs'], dict):
+        if 'text' in game_data['joueurs']:
+            players_text = game_data['joueurs']['text']
+            # Handle range values like '1-2' by taking the biggest number
+            if '-' in players_text:
+                try:
+                    # Split by '-' and take the maximum value
+                    range_parts = players_text.split('-')
+                    if len(range_parts) == 2:
+                        min_players = int(range_parts[0].strip())
+                        max_players = int(range_parts[1].strip())
+                        text_info['players'] = str(max_players)
+                    else:
+                        text_info['players'] = players_text
+                except (ValueError, IndexError):
+                    # If parsing fails, use the original text
+                    text_info['players'] = players_text
+            else:
+                text_info['players'] = players_text
     
     return text_info
 
