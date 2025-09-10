@@ -119,21 +119,11 @@ if [ ! -f /opt/gamemanager/var/config/user.cfg ]; then
     cp /opt/gamemanager/user.cfg.default /opt/gamemanager/var/config/user.cfg
 fi
 
-# Copy platform cache files if they don't exist in var/db
-if [ ! -f /opt/gamemanager/var/db/screenscraper/platforms.json ]; then
-    echo "Copying default screenscraper platforms.json to var/db/screenscraper/"
-    cp /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/var/db/screenscraper/platforms.json
-fi
-
-if [ ! -f /opt/gamemanager/var/db/igdb/platforms.json ]; then
-    echo "Copying default IGDB platforms.json to var/db/igdb/"
-    cp /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/var/db/igdb/platforms.json
-fi
-
-if [ ! -f /opt/gamemanager/var/config/credentials.enc ]; then
-    echo "Copying default credentials.enc to var/config/"
-    cp /opt/gamemanager/credentials.enc.default /opt/gamemanager/var/config/credentials.enc
-fi
+# Copy platform cache files to var/db (always copy to ensure they're in the volume)
+echo "Copying platform cache files to var/db..."
+cp /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/var/db/screenscraper/platforms.json
+cp /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/var/db/igdb/platforms.json
+cp /opt/gamemanager/credentials.enc.default /opt/gamemanager/var/config/credentials.enc
 
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
