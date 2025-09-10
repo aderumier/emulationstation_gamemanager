@@ -780,6 +780,2027 @@
             "launchbox": "Arcade",
             "igdb": 52,
             "screenscraper": 75
+        },
+        "c16": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "d64",
+                "prg",
+                "tap",
+                "m3u",
+                "zip",
+                "7z"
+            ]
+        },
+        "hikaru": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "captpower": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "daphne",
+                "squashfs"
+            ]
+        },
+        "rx78": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "rom",
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "typex": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "apogee": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "flac",
+                "rka",
+                "7z",
+                "zip"
+            ]
+        },
+        "vic10": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "80",
+                "e0",
+                "zip",
+                "7z"
+            ]
+        },
+        "namco10": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "studio2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "st2",
+                "rom",
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "vii": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "gemrb": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "auto",
+                "bg1",
+                "bg2",
+                "how",
+                "iwd",
+                "iwd2",
+                "pst"
+            ]
+        },
+        "bk001001": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "zip",
+                "7z"
+            ]
+        },
+        "igtslots": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "gamewave": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "segaai": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "pinballfx3": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bat"
+            ]
+        },
+        "namco23": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "segasystem32": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "win311": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "dos",
+                "zip",
+                "squashfs",
+                "dosz",
+                "m3u",
+                "iso",
+                "cue"
+            ]
+        },
+        "n501": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cd",
+                "chd",
+                "iso",
+                "dvd",
+                "zip",
+                "7z"
+            ]
+        },
+        "saturnjp": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cue",
+                "ccd",
+                "m3u",
+                "chd",
+                "iso",
+                "zip",
+                "mds"
+            ]
+        },
+        "smc777": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mfi",
+                "dfi",
+                "hfe",
+                "mfm",
+                "td0",
+                "imd",
+                "d77",
+                "d88",
+                "1dd",
+                "cqm",
+                "cqi",
+                "dsk",
+                "7z",
+                "zip"
+            ]
+        },
+        "makecode": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "elf",
+                "ELF"
+            ]
+        },
+        "cpc464p": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mfi",
+                "dfi",
+                "hfe",
+                "mfm",
+                "td0",
+                "imd",
+                "d77",
+                "d88",
+                "ldd",
+                "cqm",
+                "cqi",
+                "dsk",
+                "ipf",
+                "7z",
+                "zip"
+            ]
+        },
+        "actionmax": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "daphne",
+                "squashfs"
+            ]
+        },
+        "wahlap": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "pockstat": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gme",
+                "zip",
+                "7z",
+                "GME",
+                "ZIP",
+                "7Z"
+            ]
+        },
+        "alice32": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "k7",
+                "cas",
+                "c10",
+                "7z",
+                "zip"
+            ]
+        },
+        "wiiueshop": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wua",
+                "wup",
+                "wud",
+                "wux",
+                "rpx",
+                "squashfs",
+                "wuhb"
+            ]
+        },
+        "abc80": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mfi",
+                "dfi",
+                "hfe",
+                "mfm",
+                "td0",
+                "imd",
+                "d77",
+                "d88",
+                "1dd",
+                "cqm",
+                "cqi",
+                "dsk",
+                "img",
+                "7z",
+                "zip"
+            ]
+        },
+        "dendy": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "nes",
+                "unf",
+                "unif",
+                "zip",
+                "7z"
+            ]
+        },
+        "nesicax2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "3dsen": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip"
+            ]
+        },
+        "pcvr": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "batoparrot": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs"
+            ]
+        },
+        "segaer": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "hyprscan": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "chd",
+                "cue",
+                "toc",
+                "nrg",
+                "gdi",
+                "iso",
+                "cdr",
+                "zip",
+                "7z"
+            ]
+        },
+        "laseractive": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "daphne",
+                "squashfs"
+            ]
+        },
+        "casloopy": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "ic1",
+                "zip",
+                "7z"
+            ]
+        },
+        "gbh": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gb",
+                "zip",
+                "7z"
+            ]
+        },
+        "nesh": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "nes",
+                "unif",
+                "unf",
+                "zip",
+                "7z"
+            ]
+        },
+        "jupace": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "ace",
+                "zip",
+                "7z"
+            ]
+        },
+        "nesaladdin": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "nes",
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "namcoes3": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "neshd": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "nes",
+                "unif",
+                "unf",
+                "zip",
+                "7z"
+            ]
+        },
+        "amiga3000": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "adf",
+                "uae",
+                "ipf",
+                "dms",
+                "dmz",
+                "adz",
+                "lha",
+                "hdf",
+                "exe",
+                "m3u",
+                "zip"
+            ]
+        },
+        "genh": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "gen",
+                "md",
+                "sg",
+                "smd",
+                "zip",
+                "7z"
+            ]
+        },
+        "microvsn": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "triforce": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gcm",
+                "iso",
+                "gcz",
+                "ciso",
+                "wbfs",
+                "elf",
+                "dol",
+                "m3u"
+            ]
+        },
+        "cave3rd": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "7z",
+                "zip"
+            ]
+        },
+        "vidbrain": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "gamekin3": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "datach": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "nes",
+                "unif",
+                "unf",
+                "zip",
+                "7z"
+            ]
+        },
+        "snescd": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "smc",
+                "fig",
+                "sfc",
+                "gd3",
+                "gd7",
+                "dx2",
+                "bsx",
+                "swc",
+                "zip",
+                "7z"
+            ]
+        },
+        "ngage": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "c64gs": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "crt"
+            ]
+        },
+        "konamilcd": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "myvision": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "dreamcastjp": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cdi",
+                "cue",
+                "gdi",
+                "chd",
+                "m3u"
+            ]
+        },
+        "wiiusky": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "bat",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "snotec": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "cps3": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "gaelco": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "7z",
+                "zip"
+            ]
+        },
+        "chihiro": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "iso",
+                "squashfs",
+                "xiso"
+            ]
+        },
+        "nomad": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "gen",
+                "md",
+                "sg",
+                "smd",
+                "zip",
+                "7z"
+            ]
+        },
+        "videodriver": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "daphne",
+                "squashfs"
+            ]
+        },
+        "exl100": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "rom",
+                "zip",
+                "7z"
+            ]
+        },
+        "cbm2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "a0",
+                "b0",
+                "crt",
+                "d64",
+                "d81",
+                "prg",
+                "tap",
+                "t64",
+                "m3u",
+                "zip",
+                "7z"
+            ]
+        },
+        "unis": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "clonehero": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "game"
+            ]
+        },
+        "pspminis": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "iso",
+                "cso",
+                "pbp"
+            ]
+        },
+        "vic1001": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "80",
+                "e0",
+                "zip",
+                "7z"
+            ]
+        },
+        "model1": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "avgn": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mp4",
+                "MP4"
+            ]
+        },
+        "pinballfx2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bat"
+            ]
+        },
+        "pinballm": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bat"
+            ]
+        },
+        "tgcd": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pce",
+                "cue",
+                "ccd",
+                "iso",
+                "img",
+                "chd"
+            ]
+        },
+        "palm": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "arcadepc": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wine",
+                "wsquashfs",
+                "pc"
+            ]
+        },
+        "megacd32x": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cue",
+                "iso",
+                "chd",
+                "m3u"
+            ]
+        },
+        "konamipc": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "neogeo64": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "7z",
+                "zip"
+            ]
+        },
+        "tg16": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pce",
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "win11": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "gbah": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gba",
+                "zip",
+                "7z"
+            ]
+        },
+        "segastv": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "sega32xcd": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cue",
+                "iso",
+                "chd",
+                "m3u"
+            ]
+        },
+        "gbch": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gbc",
+                "zip",
+                "7z"
+            ]
+        },
+        "pocketchallengev2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "ws",
+                "zip",
+                "7z"
+            ]
+        },
+        "mbee": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mwb",
+                "com",
+                "bee",
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "android": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "aleck64": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "z64",
+                "n64",
+                "v64",
+                "zip",
+                "7z"
+            ]
+        },
+        "sys80": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "cas",
+                "zip",
+                "7z"
+            ]
+        },
+        "vgm": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "avi",
+                "AVI",
+                "mkv",
+                "MKV",
+                "mp4",
+                "MP4"
+            ]
+        },
+        "rawthrills": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "msxlaserdisk": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "dsk",
+                "mx1",
+                "rom",
+                "zip",
+                "7z",
+                "cas",
+                "m3u",
+                "ogv",
+                "openmsx"
+            ]
+        },
+        "namco11": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "mononcol": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "j2me": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "sorcerer": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "7z",
+                "zip"
+            ]
+        },
+        "digiblst": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "famicom": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "nes",
+                "unif",
+                "unf",
+                "zip",
+                "7z"
+            ]
+        },
+        "hec2hr": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "k7",
+                "cin",
+                "for",
+                "7z",
+                "zip"
+            ]
+        },
+        "ibmpcjr": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mfi",
+                "dfi",
+                "hfe",
+                "mfm",
+                "td0",
+                "imd",
+                "d77",
+                "d88",
+                "ldd",
+                "cqm",
+                "cqi",
+                "dsk",
+                "ima",
+                "img",
+                "ufi",
+                "360",
+                "ipf",
+                "xdf",
+                "zip",
+                "7z"
+            ]
+        },
+        "win95": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "dos",
+                "zip",
+                "squashfs",
+                "dosz",
+                "m3u",
+                "iso",
+                "cue"
+            ]
+        },
+        "ggh": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "gg",
+                "zip",
+                "7z"
+            ]
+        },
+        "pegasus": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "cps1": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "sfc": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "smc",
+                "fig",
+                "sfc",
+                "gd3",
+                "gd7",
+                "dx2",
+                "bsx",
+                "swc",
+                "zip",
+                "7z"
+            ]
+        },
+        "sv8000": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "namco12": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "megacd": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cue",
+                "iso",
+                "chd",
+                "m3u"
+            ]
+        },
+        "oric1": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "dsk",
+                "tap",
+                "zip",
+                "7z"
+            ]
+        },
+        "igspgm": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "m24": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mfi",
+                "dfi",
+                "hfe",
+                "mfm",
+                "td0",
+                "imd",
+                "d77",
+                "d88",
+                "1dd",
+                "cqm",
+                "cqi",
+                "dsk",
+                "ima",
+                "img",
+                "ufi",
+                "360",
+                "ipf",
+                "zip",
+                "7z"
+            ]
+        },
+        "wiiware": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gcm",
+                "iso",
+                "gcz",
+                "ciso",
+                "wbfs",
+                "wad",
+                "rvz",
+                "elf",
+                "dol",
+                "m3u",
+                "json"
+            ]
+        },
+        "n64h": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "z64",
+                "n64",
+                "v64",
+                "zip",
+                "7z"
+            ]
+        },
+        "tiger": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "svmu": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "vms",
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "gog": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "p2000t": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cas",
+                "wav",
+                "zip",
+                "7z"
+            ]
+        },
+        "zaccariapinball": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bat"
+            ]
+        },
+        "fightcade2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "sh",
+                "squashfs"
+            ]
+        },
+        "m5": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "rom",
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "gamecubejp": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gcm",
+                "iso",
+                "gcz",
+                "ciso",
+                "wbfs",
+                "rvz",
+                "elf",
+                "dol",
+                "m3u",
+                "json"
+            ]
+        },
+        "tvc64": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "cas",
+                "7z",
+                "zip"
+            ]
+        },
+        "mark3": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "sms",
+                "zip",
+                "7z"
+            ]
+        },
+        "popcap": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "neogeomvs": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "neo",
+                "zip",
+                "7z"
+            ]
+        },
+        "appleios": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "sc3000": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "sg",
+                "zip",
+                "7z"
+            ]
+        },
+        "cgenie": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "cas",
+                "zip",
+                "7z"
+            ]
+        },
+        "segaalls": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "pinballfx": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bat"
+            ]
+        },
+        "orao103": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "flac",
+                "tap",
+                "7z",
+                "zip"
+            ]
+        },
+        "galaxy": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gtp",
+                "wav",
+                "zip",
+                "7z"
+            ]
+        },
+        "nesmsu": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "smc",
+                "sfc",
+                "zip",
+                "7z"
+            ]
+        },
+        "tduo": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pce",
+                "cue",
+                "ccd",
+                "iso",
+                "cso",
+                "img",
+                "bin",
+                "chd",
+                "zip",
+                "7z"
+            ]
+        },
+        "nesicax": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "mz2500": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "mpu1000": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "rom",
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "exaarcadia": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "videopac": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "win98": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "dos",
+                "zip",
+                "squashfs",
+                "dosz",
+                "m3u",
+                "iso",
+                "cue"
+            ]
+        },
+        "segarw": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "amiga600": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "adf",
+                "uae",
+                "ipf",
+                "dms",
+                "dmz",
+                "adz",
+                "lha",
+                "hdf",
+                "exe",
+                "m3u",
+                "zip"
+            ]
+        },
+        "elektronika": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "amiga4000": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "adf",
+                "uae",
+                "ipf",
+                "dms",
+                "dmz",
+                "adz",
+                "lha",
+                "hdf",
+                "exe",
+                "m3u",
+                "zip"
+            ]
+        },
+        "typex2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "vg5k": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "k7",
+                "7z",
+                "zip"
+            ]
+        },
+        "zinc": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "ZIP",
+                "7z",
+                "7Z"
+            ]
+        },
+        "aquarius": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "7z",
+                "zip",
+                "rom",
+                "bin",
+                "caq",
+                "wav"
+            ]
+        },
+        "beena": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "bin",
+                "7z",
+                "zip"
+            ]
+        },
+        "pippin": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "chd",
+                "cue",
+                "toc",
+                "nrg",
+                "gdi",
+                "iso",
+                "cdr",
+                "zip",
+                "7z"
+            ]
+        },
+        "exboard": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "ondrat": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "flac",
+                "7z",
+                "zip"
+            ]
+        },
+        "adrenaline": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "locomalito": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "pecom64": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "zip",
+                "7z"
+            ]
+        },
+        "dinothawr": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "game"
+            ]
+        },
+        "segare": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "wsquashfs",
+                "wine"
+            ]
+        },
+        "snesh": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "smc",
+                "fig",
+                "sfc",
+                "gd3",
+                "gd7",
+                "dx2",
+                "bsx",
+                "swc",
+                "zip",
+                "7z"
+            ]
+        },
+        "cps2": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "namco22": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "zip",
+                "7z"
+            ]
+        },
+        "gamecubeh": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "gcm",
+                "iso",
+                "gcz",
+                "ciso",
+                "wbfs",
+                "rvz",
+                "elf",
+                "dol",
+                "m3u",
+                "json"
+            ]
+        },
+        "supercharger": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "a26",
+                "bin",
+                "zip",
+                "7z"
+            ]
+        },
+        "n64jp": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "z64",
+                "n64",
+                "v64",
+                "zip",
+                "7z"
+            ]
+        },
+        "bigfish": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "iqueplayer": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "z64",
+                "n64",
+                "v64",
+                "zip",
+                "7z"
+            ]
+        },
+        "dragon32": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "mfi",
+                "dfi",
+                "hfe",
+                "mfm",
+                "td0",
+                "imd",
+                "d77",
+                "d88",
+                "ldd",
+                "cqm",
+                "cqi",
+                "dsk",
+                "dmk",
+                "jvc",
+                "vdk",
+                "sdf",
+                "os9",
+                "ccc",
+                "rom",
+                "cas",
+                "wav",
+                "zip",
+                "7z"
+            ]
+        },
+        "bml3": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "wav",
+                "7z",
+                "zip"
+            ]
+        },
+        "gamehouse": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "pc",
+                "exe",
+                "wine",
+                "wsquashfs",
+                "wtgz"
+            ]
+        },
+        "pv2000": {
+            "launchbox": "",
+            "screenscraper": null,
+            "igdb": null,
+            "extensions": [
+                "col",
+                "rom",
+                "bin",
+                "7z",
+                "zip"
+            ]
         }
     },
     "download": {
