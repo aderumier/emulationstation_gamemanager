@@ -6339,9 +6339,12 @@ class GameCollectionManager {
     }
 
     // ScreenScraper Configuration Functions
-    openScreenscraperConfigurationModal() {
+    async openScreenscraperConfigurationModal() {
         // Load current settings before opening modal
         this.loadScreenscraperSettings();
+        
+        // Initialize dynamic field checkboxes from config
+        await this.initializeScreenscraperFieldCheckboxes();
         
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('screenscraperConfigurationModal'));
@@ -6645,6 +6648,74 @@ class GameCollectionManager {
             
             return selectedFields;
         }
+    }
+
+    async initializeScreenscraperFieldCheckboxes() {
+        console.log('🔧 Initializing ScreenScraper field checkboxes from config...');
+        
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get ScreenScraper field mappings from config
+            const imageTypeMappings = config.screenscraper?.image_type_mappings || {};
+            
+            // Get the media fields container
+            const mediaFieldsContainer = document.getElementById('screenscraperMediaFieldsContainer');
+            
+            // Clear existing media field checkboxes (keep the header)
+            const existingMediaFields = mediaFieldsContainer.querySelectorAll('.form-check');
+            existingMediaFields.forEach(checkbox => checkbox.remove());
+            
+            // Add media field checkboxes dynamically
+            Object.entries(imageTypeMappings).forEach(([apiField, gamelistField]) => {
+                const fieldId = gamelistField.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `screenscraperField${fieldId}`;
+                
+                // Create checkbox element
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'form-check mb-2';
+                checkboxDiv.innerHTML = `
+                    <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${gamelistField}" checked>
+                    <label class="form-check-label" for="${checkboxId}">${this.formatFieldName(gamelistField)}</label>
+                `;
+                
+                mediaFieldsContainer.appendChild(checkboxDiv);
+            });
+            
+            // Add event listeners to new checkboxes
+            mediaFieldsContainer.querySelectorAll('.screenscraper-field-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', async () => {
+                    await this.saveScreenscraperFieldSettings();
+                });
+            });
+            
+            console.log('✅ ScreenScraper field checkboxes initialized from config');
+            
+        } catch (error) {
+            console.error('❌ Error initializing ScreenScraper field checkboxes:', error);
+        }
+    }
+
+    formatFieldName(fieldName) {
+        // Convert field names to human-readable format
+        const nameMap = {
+            'marquee': 'Marquee',
+            'thumbnail': 'Thumbnail',
+            'boxart': 'Box Art',
+            'boxback': 'Box Back',
+            'image': 'Screenshot',
+            'titleshot': 'Title Shot',
+            'manual': 'Manual',
+            'video': 'Video',
+            'fanart': 'Fan Art',
+            'cartridge': 'Cartridge'
+        };
+        
+        return nameMap[fieldName] || fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
     }
 
     async getSelectedScreenscraperFields() {
