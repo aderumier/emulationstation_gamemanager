@@ -6879,6 +6879,11 @@ class GameCollectionManager {
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms()
             ]);
+            console.log('Platform data loaded:', {
+                platforms: platforms.length,
+                screenscraperSystems: screenscraperSystems.length,
+                igdbPlatforms: igdbPlatforms.length
+            });
         } catch (error) {
             console.error('Error loading platform data:', error);
             // Show error message
@@ -7001,7 +7006,19 @@ class GameCollectionManager {
         try {
             console.log('Loading IGDB platforms...');
             const response = await fetch('/api/igdb-platforms');
+            console.log('IGDB platforms response status:', response.status);
+            console.log('IGDB platforms response headers:', response.headers);
+            
+            if (!response.ok) {
+                console.error('IGDB platforms API error:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('IGDB platforms error response:', errorText);
+                return [];
+            }
+            
             const data = await response.json();
+            console.log('IGDB platforms response data:', data);
+            
             if (data.platforms) {
                 console.log(`Loaded ${data.platforms.length} IGDB platforms`);
                 return data.platforms || [];
