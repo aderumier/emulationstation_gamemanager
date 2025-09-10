@@ -420,23 +420,31 @@ def ensure_yt_dlp_binary():
     
     # Check if yt-dlp binary exists
     if not os.path.exists(yt_dlp_path):
-        print("Downloading latest yt-dlp binary...")
-        try:
-            # Download the latest yt-dlp binary
-            response = requests.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', timeout=30)
-            response.raise_for_status()
-            
-            # Save the binary
-            with open(yt_dlp_path, 'wb') as f:
-                f.write(response.content)
-            
-            # Make it executable
-            os.chmod(yt_dlp_path, 0o755)
-            print(f"Downloaded yt-dlp to {yt_dlp_path}")
-            
-        except Exception as e:
-            print(f"Failed to download yt-dlp: {e}")
-            return None
+        print("yt-dlp binary not found, downloading in background...")
+        
+        def download_yt_dlp():
+            try:
+                print("Downloading latest yt-dlp binary...")
+                # Download the latest yt-dlp binary
+                response = requests.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', timeout=30)
+                response.raise_for_status()
+                
+                # Save the binary
+                with open(yt_dlp_path, 'wb') as f:
+                    f.write(response.content)
+                
+                # Make it executable
+                os.chmod(yt_dlp_path, 0o755)
+                print(f"✅ Downloaded yt-dlp to {yt_dlp_path}")
+                
+            except Exception as e:
+                print(f"❌ Failed to download yt-dlp: {e}")
+        
+        # Start download in background thread
+        threading.Thread(target=download_yt_dlp, daemon=True).start()
+        
+        # Return the expected path even if download is in progress
+        return yt_dlp_path
     else:
         # Binary exists, update it in background
         def update_yt_dlp():
@@ -444,11 +452,11 @@ def ensure_yt_dlp_binary():
                 print("Updating yt-dlp in background...")
                 result = subprocess.run([yt_dlp_path, '-U'], capture_output=True, text=True, timeout=60)
                 if result.returncode == 0:
-                    print("yt-dlp updated successfully")
+                    print("✅ yt-dlp updated successfully")
                 else:
-                    print(f"yt-dlp update failed: {result.stderr}")
+                    print(f"⚠️ yt-dlp update failed: {result.stderr}")
             except Exception as e:
-                print(f"Failed to update yt-dlp: {e}")
+                print(f"❌ Failed to update yt-dlp: {e}")
         
         # Start update in background thread
         threading.Thread(target=update_yt_dlp, daemon=True).start()
