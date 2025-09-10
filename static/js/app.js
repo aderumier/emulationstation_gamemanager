@@ -2942,38 +2942,49 @@ class GameCollectionManager {
             
             if (game[field] && game[field].trim()) {
                 // Display actual media file
-                const img = document.createElement('img');
-                // Fix image URL by adding roms/<system>/ prefix if missing
-                // Use the current system that was set when loading the games
                 let imagePath = game[field];
                 if (imagePath && !imagePath.startsWith('roms/')) {
                     imagePath = `roms/${this.currentSystem}/${imagePath}`;
                 }
-                img.src = imagePath;
-                img.alt = `${field} for ${game.name}`;
-                img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion`;
-                img.style.cssText = 'width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px;';
-                img.ondblclick = () => {
-                    if (!this.uploadInProgress) {
-                        this.uploadMediaForGame(game, field);
-                    } else {
-                        this.showAlert('Upload in progress. Please wait...', 'warning');
-                    }
-                };
-                img.onclick = () => this.selectEditModalMediaItem(mediaItem, field, game, game[field]);
-                img.onerror = () => {
-                    // If image fails to load, show placeholder
+                
+                if (imagePath.toLowerCase().endsWith('.pdf')) {
+                    // PDF file - show PDF logo
                     mediaItem.innerHTML = `
-                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
-                            <div style="text-align: center; color: #6c757d;">
-                                <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
-                                Double-click<br>to upload
-                            </div>
+                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" onclick="gameManager.selectEditModalMediaItem(this, '${field}', gameManager.games.find(g => g.id === ${game.id}), '${game[field]}')" title="PDF Document: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion">
+                            <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #dc3545; margin-bottom: 0.5rem;"></i>
+                            <small style="color: #6c757d; text-align: center;">PDF Document</small>
                         </div>
                         <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
                     `;
-                };
-                mediaItem.appendChild(img);
+                } else {
+                    // Regular image file
+                    const img = document.createElement('img');
+                    img.src = imagePath;
+                    img.alt = `${field} for ${game.name}`;
+                    img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion`;
+                    img.style.cssText = 'width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px;';
+                    img.ondblclick = () => {
+                        if (!this.uploadInProgress) {
+                            this.uploadMediaForGame(game, field);
+                        } else {
+                            this.showAlert('Upload in progress. Please wait...', 'warning');
+                        }
+                    };
+                    img.onclick = () => this.selectEditModalMediaItem(mediaItem, field, game, game[field]);
+                    img.onerror = () => {
+                        // If image fails to load, show placeholder
+                        mediaItem.innerHTML = `
+                            <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
+                                <div style="text-align: center; color: #6c757d;">
+                                    <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                                    Double-click<br>to upload
+                                </div>
+                            </div>
+                            <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
+                        `;
+                    };
+                    mediaItem.appendChild(img);
+                }
                 
                 // Filename display removed - no longer showing ROM path text under game image
                 
@@ -5018,6 +5029,23 @@ class GameCollectionManager {
                     video.addEventListener('error', () => {
                         this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                     });
+                } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
+                    // PDF file - show PDF logo
+                    mediaItem.innerHTML = `
+                        <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px;">
+                            <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
+                            <small style="color: #6c757d; text-align: center;">PDF Document</small>
+                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                            <small class="text-center flex-grow-1">${field}</small>
+                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </div>
+                    `;
                 } else {
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
