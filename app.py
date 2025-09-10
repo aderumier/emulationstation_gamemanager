@@ -4559,6 +4559,8 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                                 # Remove original file and rename PNG file
                                 os.remove(local_path)
                                 os.rename(png_path, local_path)
+                                # Update filename to reflect PNG extension
+                                filename = os.path.basename(local_path)
                                 print(f"DEBUG: {log_prefix} ✅ Converted to PNG: {filename}")
                             else:
                                 print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to PNG, keeping original: {filename}")
@@ -9287,6 +9289,8 @@ def download_launchbox_media():
                     # Remove original file and rename PNG file
                     os.remove(local_path)
                     os.rename(png_path, local_path)
+                    # Update local_filename to reflect PNG extension
+                    local_filename = os.path.basename(local_path)
                     print(f"✅ Converted to PNG: {local_filename}")
                 else:
                     print(f"⚠️ Failed to convert to PNG, keeping original: {local_filename}")
