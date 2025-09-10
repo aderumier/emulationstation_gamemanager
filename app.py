@@ -2953,6 +2953,43 @@ def get_screenscraper_credentials_values():
         print(f"Error getting ScreenScraper credential values: {e}")
         return jsonify({'error': f'Failed to get ScreenScraper credential values: {str(e)}'}), 500
 
+@app.route('/api/screenscraper-systems', methods=['GET'])
+@login_required
+def get_screenscraper_systems():
+    """Get ScreenScraper systems mapping for GUI"""
+    try:
+        from credential_manager import credential_manager
+        from screenscraper_service import get_screenscraper_systems
+        
+        # Get ScreenScraper credentials
+        screenscraper_creds = credential_manager.get_screenscraper_credentials()
+        if not (screenscraper_creds.get('devid') and screenscraper_creds.get('devpassword')):
+            return jsonify({'error': 'ScreenScraper developer credentials not configured'}), 400
+        
+        # Get systems mapping
+        systems = get_screenscraper_systems(
+            screenscraper_creds.get('devid', ''),
+            screenscraper_creds.get('devpassword', '')
+        )
+        
+        # Convert to format expected by GUI (id -> name)
+        systems_list = []
+        for system_id, system_name in systems.items():
+            systems_list.append({
+                'id': system_id,
+                'name': system_name
+            })
+        
+        # Sort by name for better UX
+        systems_list.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'systems': systems_list,
+            'count': len(systems_list)
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to get ScreenScraper systems: {str(e)}'}), 500
+
 @app.route('/api/igdb-credentials-values', methods=['GET'])
 @login_required
 def get_igdb_credentials_values():

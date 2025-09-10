@@ -6858,8 +6858,11 @@ class GameCollectionManager {
         
         tbody.innerHTML = '';
         
-        // Load LaunchBox platforms for combobox
-        const platforms = await this.loadLaunchBoxPlatforms();
+        // Load LaunchBox platforms and ScreenScraper systems for comboboxes
+        const [platforms, screenscraperSystems] = await Promise.all([
+            this.loadLaunchBoxPlatforms(),
+            this.loadScreenScraperSystems()
+        ]);
         
         Object.entries(systems).forEach(([systemName, systemData]) => {
             const row = document.createElement('tr');
@@ -6867,6 +6870,11 @@ class GameCollectionManager {
             // Create platform combobox options
             const platformOptions = platforms.map(platform => 
                 `<option value="${platform}" ${platform === systemData.launchbox ? 'selected' : ''}>${platform}</option>`
+            ).join('');
+            
+            // Create ScreenScraper systems combobox options
+            const screenscraperOptions = screenscraperSystems.map(system => 
+                `<option value="${system.id}" ${system.id == systemData.screenscraper ? 'selected' : ''}>${system.name}</option>`
             ).join('');
             
             row.innerHTML = `
@@ -6884,6 +6892,14 @@ class GameCollectionManager {
                             data-field="launchbox">
                         <option value="">Select Platform...</option>
                         ${platformOptions}
+                    </select>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm screenscraper-select" 
+                            data-system="${systemName}"
+                            data-field="screenscraper">
+                        <option value="">Select ScreenScraper System...</option>
+                        ${screenscraperOptions}
                     </select>
                 </td>
                 <td>
@@ -6913,6 +6929,22 @@ class GameCollectionManager {
             }
         } catch (error) {
             console.error('Error loading LaunchBox platforms:', error);
+            return [];
+        }
+    }
+    
+    async loadScreenScraperSystems() {
+        try {
+            const response = await fetch('/api/screenscraper-systems');
+            const data = await response.json();
+            if (data.systems) {
+                return data.systems || [];
+            } else {
+                console.error('Failed to load ScreenScraper systems:', data.error);
+                return [];
+            }
+        } catch (error) {
+            console.error('Error loading ScreenScraper systems:', error);
             return [];
         }
     }
@@ -7022,12 +7054,16 @@ class GameCollectionManager {
         // Event delegation for dynamically created elements
         const systemsTable = document.getElementById('systemsTable');
         if (systemsTable) {
-            // Handle platform select changes
+            // Handle platform and ScreenScraper select changes
             systemsTable.addEventListener('change', (e) => {
                 if (e.target.classList.contains('platform-select')) {
                     const systemName = e.target.dataset.system;
                     const value = e.target.value;
                     this.saveInlineField(systemName, 'launchbox', value);
+                } else if (e.target.classList.contains('screenscraper-select')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'screenscraper', value);
                 }
             });
             

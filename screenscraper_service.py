@@ -5,9 +5,11 @@ import os
 import logging
 import re
 import aiofiles
+import time
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import urlparse
+from datetime import datetime, timedelta
 
 # Global httpx client for ScreenScraper API
 _screenscraper_async_client = None
@@ -151,6 +153,77 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
     # If no region match found, return the first media
     return media_list[0]
 
+def get_screenscraper_systems(devid: str, devpassword: str, force_refresh: bool = False) -> Dict[int, str]:
+    """
+    Get ScreenScraper systems mapping (id -> nom_eu) with caching
+    
+    Args:
+        devid: ScreenScraper developer ID
+        devpassword: ScreenScraper developer password
+        force_refresh: Force refresh cache even if valid
+        
+    Returns:
+        Dictionary mapping ScreenScraper system ID to European name
+    """
+    import requests
+    
+    cache_dir = "var/db/screenscraper"
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, "platforms.json")
+    
+    # Check if cache is valid (24 hours)
+    if not force_refresh and os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+            cache_time = datetime.fromisoformat(cache_data.get('timestamp', ''))
+            if datetime.now() - cache_time < timedelta(hours=24):
+                print(f"📋 Using cached ScreenScraper systems (count: {len(cache_data.get('systems', {}))})")
+                return cache_data.get('systems', {})
+        except Exception as e:
+            print(f"⚠️ Error reading ScreenScraper systems cache: {e}")
+    
+    try:
+        api_url = f"https://api.screenscraper.fr/api2/systemesListe.php?devid={devid}&devpassword={devpassword}&softname=cursorscraper&output=json&ssid=test&sspassword=test"
+        print(f"🌐 Fetching ScreenScraper systems from API...")
+        response = requests.get(api_url, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        systems = {}
+        
+        if 'response' in data and 'systemes' in data['response']:
+            for system in data['response']['systemes']:
+                system_id = system.get('id')
+                nom_eu = system.get('noms', {}).get('nom_eu', '')
+                if system_id and nom_eu:
+                    systems[system_id] = nom_eu
+        
+        # Cache the results
+        cache_data = {
+            'systems': systems,
+            'timestamp': datetime.now().isoformat(),
+            'raw_response': response.text
+        }
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ ScreenScraper systems cached (count: {len(systems)})")
+        return systems
+        
+    except Exception as e:
+        print(f"❌ Error fetching ScreenScraper systems: {e}")
+        # Try to return cached data even if expired
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                print(f"⚠️ Using expired cache due to API error")
+                return cache_data.get('systems', {})
+            except:
+                pass
+        return {}
+
 async def get_screenscraper_async_client(max_connections: int = 1):
     """Get or create global httpx async client for ScreenScraper API with connection pooling"""
     global _screenscraper_async_client
@@ -210,52 +283,23 @@ class ScreenScraperService:
         Returns:
             The ScreenScraper system ID if found, None otherwise
         """
-        print(f"Looking up system ID for: '{system_name}' (type: {type(system_name)})")
-        print(f"System name repr: {repr(system_name)}")
+        print(f"Looking up system ID for: '{system_name}'")
         
-        # Debug: Check what's in the config
-        print(f"Config keys: {list(self.config.keys())}")
-        print(f"Config has 'systems': {'systems' in self.config}")
-        
-        # Get the ScreenScraper system name from the main systems config
+        # Get the ScreenScraper system ID from the main systems config
         main_systems_config = self.config.get('systems', {})
-        print(f"Main systems available: {list(main_systems_config.keys())}")
-        print(f"Looking for exact match: '{system_name}' in {list(main_systems_config.keys())}")
-        print(f"Exact match found: {system_name in main_systems_config}")
-        
-        # Check if we're getting the right section
-        if 'vectrex' in main_systems_config:
-            print("Found vectrex in main systems config")
-        else:
-            print("vectrex NOT found in main systems config")
-            # Try to find it in the config structure
-            for key, value in self.config.items():
-                if isinstance(value, dict) and 'vectrex' in value:
-                    print(f"Found vectrex in config section: {key}")
-                    print(f"Vectrex config: {value.get('vectrex', {})}")
-        
         system_config = main_systems_config.get(system_name, {})
-        print(f"System config for '{system_name}': {system_config}")
+        screenscraper_system_id = system_config.get('screenscraper')
         
-        screenscraper_system_name = system_config.get('screenscraper')
-        print(f"ScreenScraper system name: '{screenscraper_system_name}'")
-        
-        if not screenscraper_system_name:
-            print(f"No ScreenScraper system name configured for {system_name}")
+        if not screenscraper_system_id:
+            print(f"No ScreenScraper system ID configured for {system_name}")
             return None
         
-        # Get the ScreenScraper system ID from static mapping
-        screenscraper_config = self.config.get('screenscraper', {})
-        screenscraper_systems_mapping = screenscraper_config.get('systems', {})
-        print(f"ScreenScraper systems mapping keys: {list(screenscraper_systems_mapping.keys())}")
-        system_id = screenscraper_systems_mapping.get(screenscraper_system_name)
+        # Convert to string if it's an integer
+        if isinstance(screenscraper_system_id, int):
+            screenscraper_system_id = str(screenscraper_system_id)
         
-        if system_id:
-            print(f"Found ScreenScraper system ID {system_id} for {system_name} -> {screenscraper_system_name}")
-            return system_id
-        
-        print(f"No ScreenScraper system ID found for {system_name} -> {screenscraper_system_name}")
-        return None
+        print(f"Found ScreenScraper system ID {screenscraper_system_id} for {system_name}")
+        return screenscraper_system_id
     
     async def search_game(self, rom_filename: str, system_name: str) -> Optional[Dict]:
         """
