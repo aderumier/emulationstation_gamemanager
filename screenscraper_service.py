@@ -13,118 +13,52 @@ from urllib.parse import urlparse
 _screenscraper_async_client = None
 
 # Region mapping for ScreenScraper - based on official API regionsListe.php
+# Maps ScreenScraper region codes (nomcourt) to English names (nom_en)
 REGION_MAPPING = {
-    # World regions
-    'wor': 'World',
-    'world': 'World',
-    
-    # USA regions
-    'usa': 'USA',
-    'us': 'USA',
-    'america': 'USA',
-    
-    # Europe regions
-    'eu': 'Europe',
-    'europe': 'Europe',
-    'fr': 'France',
-    'france': 'France',
-    'de': 'Germany',
-    'germany': 'Germany',
-    'uk': 'United Kingdom',
-    'gb': 'United Kingdom',
-    'united kingdom': 'United Kingdom',
-    'it': 'Italy',
-    'italy': 'Italy',
-    'es': 'Spain',
-    'spain': 'Spain',
-    'sp': 'Spain',
-    'nl': 'Netherlands',
-    'netherlands': 'Netherlands',
-    'dk': 'Denmark',
-    'denmark': 'Denmark',
-    'fi': 'Finland',
-    'finland': 'Finland',
-    'se': 'Sweden',
-    'sweden': 'Sweden',
-    'no': 'Norway',
-    'norway': 'Norway',
-    'pl': 'Poland',
-    'poland': 'Poland',
-    'pt': 'Portugal',
-    'portugal': 'Portugal',
-    'cz': 'Czech Republic',
-    'czech republic': 'Czech Republic',
-    'czech': 'Czech Republic',
-    'hu': 'Hungary',
-    'hungary': 'Hungary',
-    'gr': 'Greece',
-    'greece': 'Greece',
-    'bg': 'Bulgaria',
-    'bulgaria': 'Bulgaria',
-    'sk': 'Slovakia',
-    'slovakia': 'Slovakia',
-    
-    # Asia regions
-    'jp': 'Japan',
-    'japan': 'Japan',
-    'cn': 'China',
-    'china': 'China',
-    'kr': 'Korea',
-    'korea': 'Korea',
-    'tw': 'Taiwan',
-    'taiwan': 'Taiwan',
-    'asi': 'Asia',
-    'asia': 'Asia',
-    
-    # Americas regions
-    'ca': 'Canada',
-    'canada': 'Canada',
-    'br': 'Brazil',
-    'brazil': 'Brazil',
-    'mex': 'Mexico',
-    'mexico': 'Mexico',
-    'cl': 'Chile',
-    'chile': 'Chile',
-    'pe': 'Peru',
-    'peru': 'Peru',
-    'ame': 'American Continent',
-    'american continent': 'American Continent',
-    
-    # Oceania regions
-    'au': 'Australia',
-    'australia': 'Australia',
-    'nz': 'New Zealand',
-    'new zealand': 'New Zealand',
-    'oce': 'Oceania',
-    'oceania': 'Oceania',
-    
-    # Middle East regions
-    'il': 'Israel',
-    'israel': 'Israel',
-    'ae': 'United Arab Emirates',
-    'united arab emirates': 'United Arab Emirates',
-    'kw': 'Kuwait',
-    'kuwait': 'Kuwait',
-    'tr': 'Turkey',
-    'turkey': 'Turkey',
-    'mor': 'Middle East',
-    'middle east': 'Middle East',
-    
-    # Africa regions
     'za': 'South Africa',
-    'south africa': 'South Africa',
-    'afr': 'African Continent',
-    'african continent': 'African Continent',
-    
-    # Russia and Eastern Europe
-    'ru': 'Russia',
-    'russia': 'Russia',
-    
-    # Custom regions
+    'de': 'Germany',
+    'asi': 'Asia',
+    'au': 'Australia',
+    'br': 'Brazil',
+    'bg': 'Bulgaria',
+    'ca': 'Canada',
+    'cl': 'Chile',
+    'cn': 'China',
+    'kr': 'Korea',
     'cus': 'Custom',
-    'custom': 'Custom',
+    'dk': 'Denmark',
+    'ae': 'United Arab Emirates',
+    'sp': 'Spain',
+    'eu': 'Europe',
+    'fi': 'Finland',
+    'fr': 'France',
+    'gr': 'Greece',
+    'hu': 'Hungary',
+    'il': 'Israel',
+    'it': 'Italy',
+    'jp': 'Japan',
+    'kw': 'Kuwait',
+    'mex': 'Mexico',
+    'wor': 'World',
+    'mor': 'Middle East',
+    'no': 'Norway',
+    'nz': 'New Zealand',
+    'nl': 'Netherlands',
+    'pe': 'Peru',
+    'pl': 'Poland',
+    'pt': 'Portugal',
+    'cz': 'Czech republic',
+    'uk': 'United Kingdom',
+    'ru': 'Russia',
     'ss': 'ScreenScraper',
-    'screenscraper': 'ScreenScraper'
+    'sk': 'Slovakia',
+    'se': 'Sweden',
+    'tw': 'Taiwan',
+    'tr': 'Turkey',
+    'us': 'USA',
+    'ame': 'American Continent',
+    'oce': 'Oceania',
+    'afr': 'African Continent'
 }
 
 def extract_country_from_filename(filename: str) -> Optional[str]:
@@ -135,6 +69,7 @@ def extract_country_from_filename(filename: str) -> Optional[str]:
     match = re.search(pattern, filename)
     if match:
         country_code = match.group(1).lower().strip()
+        # Map ScreenScraper region code to English name
         return REGION_MAPPING.get(country_code, country_code.title())
     
     return None
@@ -162,19 +97,17 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
     for region in region_priority:
         for media in media_list:
             media_region = media.get('region', '').lower()
-            # Map region names to ScreenScraper region codes
+            # Map English region names to ScreenScraper region codes
             region_mapping = {
                 'world': 'wor',
-                'usa': 'usa',
-                'us': 'usa',
-                'america': 'usa',
+                'usa': 'us',
                 'europe': 'eu',
                 'japan': 'jp',
                 'france': 'fr',
                 'germany': 'de',
                 'united kingdom': 'uk',
                 'italy': 'it',
-                'spain': 'es',
+                'spain': 'sp',
                 'netherlands': 'nl',
                 'denmark': 'dk',
                 'finland': 'fi',
@@ -183,7 +116,6 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
                 'poland': 'pl',
                 'portugal': 'pt',
                 'czech republic': 'cz',
-                'czech': 'cz',
                 'hungary': 'hu',
                 'greece': 'gr',
                 'bulgaria': 'bg',
