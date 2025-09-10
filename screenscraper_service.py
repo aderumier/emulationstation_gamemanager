@@ -154,12 +154,13 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
     return media_list[0]
 
 
-def extract_text_info_from_game_data(game_data: Dict) -> Dict[str, str]:
+def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) -> Dict[str, str]:
     """
     Extract text information from ScreenScraper game data.
     
     Args:
         game_data: Game data dictionary from ScreenScraper API
+        rom_filename: Original ROM filename to preserve parentheses text
         
     Returns:
         Dictionary with extracted text information
@@ -170,7 +171,22 @@ def extract_text_info_from_game_data(game_data: Dict) -> Dict[str, str]:
     if 'noms' in game_data and isinstance(game_data['noms'], list):
         for nom in game_data['noms']:
             if isinstance(nom, dict) and nom.get('region') == 'wor' and 'text' in nom:
-                text_info['name'] = nom['text']
+                screenscraper_name = nom['text']
+                
+                # Preserve parentheses text from ROM filename if present
+                if rom_filename:
+                    import re
+                    # Extract all text in parentheses from ROM filename
+                    parentheses_matches = re.findall(r'\(([^)]+)\)', rom_filename)
+                    if parentheses_matches:
+                        # Join all parentheses text with spaces
+                        parentheses_text = ' '.join(f"({match})" for match in parentheses_matches)
+                        # Append parentheses text to ScreenScraper name
+                        text_info['name'] = f"{screenscraper_name} {parentheses_text}"
+                    else:
+                        text_info['name'] = screenscraper_name
+                else:
+                    text_info['name'] = screenscraper_name
                 break
     
     # Extract publisher from editeur.text
@@ -549,7 +565,7 @@ class ScreenScraperService:
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Extracting text information for {game_name}")
                     
-                    text_info = extract_text_info_from_game_data(game_data)
+                    text_info = extract_text_info_from_game_data(game_data, rom_filename)
                     if text_info:
                         print(f"📝 Extracted text info: {text_info}")
                         if detailed_progress_callback:
