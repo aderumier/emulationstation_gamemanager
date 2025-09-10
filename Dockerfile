@@ -52,11 +52,11 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-COPY gamemanager_1.8.5-1_all.deb .
+COPY gamemanager_1.8.6-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_1.8.5-1_all.deb / && \
-    rm gamemanager_1.8.5-1_all.deb
+RUN dpkg-deb -x gamemanager_1.8.6-1_all.deb / && \
+    rm gamemanager_1.8.6-1_all.deb
 
 # Create necessary directories with proper structure first
 RUN mkdir -p \
@@ -67,6 +67,7 @@ RUN mkdir -p \
     /opt/gamemanager/var/db \
     /opt/gamemanager/var/db/launchbox \
     /opt/gamemanager/var/db/igdb \
+    /opt/gamemanager/var/db/screenscraper \
     /opt/gamemanager/var/sessions \
     /opt/gamemanager/var/gamelists \
     /opt/gamemanager/var/config
@@ -76,6 +77,13 @@ RUN cp /opt/gamemanager/var/config/config.json /opt/gamemanager/config.json.defa
     cp /opt/gamemanager/var/config/user.cfg /opt/gamemanager/user.cfg.default && \
     chmod 644 /opt/gamemanager/config.json.default /opt/gamemanager/user.cfg.default && \
     chown appuser:appuser /opt/gamemanager/config.json.default /opt/gamemanager/user.cfg.default
+
+# Copy platform cache files to default location outside var (for volume mount scenarios)
+RUN cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/screenscraper_platforms.json.default && \
+    cp /opt/gamemanager/var/db/igdb/platforms.json /opt/gamemanager/igdb_platforms.json.default && \
+    cp /opt/gamemanager/var/config/credentials.enc /opt/gamemanager/credentials.enc.default && \
+    chmod 644 /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default && \
+    chown appuser:appuser /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default
 
 # Ensure config files exist and are readable in var
 RUN ls -la /opt/gamemanager/var/config/ && \
@@ -95,6 +103,7 @@ mkdir -p /opt/gamemanager/var/config
 mkdir -p /opt/gamemanager/var/db
 mkdir -p /opt/gamemanager/var/db/launchbox
 mkdir -p /opt/gamemanager/var/db/igdb
+mkdir -p /opt/gamemanager/var/db/screenscraper
 mkdir -p /opt/gamemanager/var/sessions
 mkdir -p /opt/gamemanager/var/task_logs
 mkdir -p /opt/gamemanager/var/gamelists
@@ -110,8 +119,26 @@ if [ ! -f /opt/gamemanager/var/config/user.cfg ]; then
     cp /opt/gamemanager/user.cfg.default /opt/gamemanager/var/config/user.cfg
 fi
 
+# Copy platform cache files if they don't exist in var/db
+if [ ! -f /opt/gamemanager/var/db/screenscraper/platforms.json ]; then
+    echo "Copying default screenscraper platforms.json to var/db/screenscraper/"
+    cp /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/var/db/screenscraper/platforms.json
+fi
+
+if [ ! -f /opt/gamemanager/var/db/igdb/platforms.json ]; then
+    echo "Copying default IGDB platforms.json to var/db/igdb/"
+    cp /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/var/db/igdb/platforms.json
+fi
+
+if [ ! -f /opt/gamemanager/var/config/credentials.enc ]; then
+    echo "Copying default credentials.enc to var/config/"
+    cp /opt/gamemanager/credentials.enc.default /opt/gamemanager/var/config/credentials.enc
+fi
+
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/screenscraper/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/igdb/* 2>/dev/null || true
 
 echo "✅ All directories and configuration files ready"
 echo "Starting GameManager..."
@@ -142,6 +169,6 @@ CMD ["/opt/gamemanager/start.sh"]
 # Labels for metadata
 LABEL maintainer="GameManager Team <admin@gamemanager.local>"
 LABEL description="Game Collection Management System with LaunchBox integration"
-LABEL version="1.8.5-1"
+LABEL version="1.8.6-1"
 LABEL org.opencontainers.image.source="https://github.com/yourusername/gamemanager"
 LABEL org.opencontainers.image.description="Flask-based web application for managing game collections with metadata and media from LaunchBox database"
