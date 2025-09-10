@@ -722,21 +722,18 @@ class ScreenScraperService:
                     # Check the target field name by looking up the mapping
                     local_field = self.get_media_type_mapping(media_type)
                     if local_field in ['extra1', 'thumbnail', 'boxart']:
-                        # Check if file is already PNG format
-                        file_extension = os.path.splitext(final_file_path)[1].lower()
-                        if file_extension != '.png':
-                            png_path = os.path.splitext(final_file_path)[0] + '.png'
-                            if self.convert_image_to_png(final_file_path, png_path):
-                                # Remove original file and rename PNG file
-                                os.remove(final_file_path)
-                                os.rename(png_path, final_file_path)
-                                # Update final_file_path to reflect PNG extension
-                                final_file_path = png_path
-                                print(f"✅ Converted to PNG: {os.path.basename(final_file_path)}")
-                            else:
-                                print(f"⚠️ Failed to convert to PNG, keeping original: {os.path.basename(final_file_path)}")
-                        else:
+                        from game_utils import convert_image_to_png_replace
+                        new_path, status = convert_image_to_png_replace(final_file_path)
+                        if status == "converted":
+                            # Conversion successful, update path
+                            final_file_path = new_path
+                            print(f"✅ Converted to PNG: {os.path.basename(final_file_path)}")
+                        elif status == "already_png":
+                            # File was already PNG, no conversion needed
                             print(f"✅ Already PNG format: {os.path.basename(final_file_path)}")
+                        else:
+                            # Conversion failed
+                            print(f"⚠️ Failed to convert to PNG, keeping original: {os.path.basename(final_file_path)}")
                     
                     print(f"Successfully downloaded: {final_file_path}")
                     return True
@@ -788,26 +785,7 @@ class ScreenScraperService:
         main_type = content_type.split(';')[0].strip()
         return content_type_mappings.get(main_type, '')
     
-    def convert_image_to_png(self, input_path: str, output_path: str) -> bool:
-        """
-        Convert an image file to PNG format using ImageMagick.
-        
-        Args:
-            input_path: Path to the input image file
-            output_path: Path for the output PNG file
-            
-        Returns:
-            True if conversion successful, False otherwise
-        """
-        try:
-            import subprocess
-            # Use ImageMagick convert command to convert to PNG
-            cmd = ['convert', input_path, output_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            return result.returncode == 0
-        except Exception as e:
-            print(f"Error converting image to PNG: {e}")
-            return False
+    # convert_image_to_png function moved to game_utils.py
     
     def get_media_type_mapping(self, media_type: str) -> Optional[str]:
         """
@@ -835,19 +813,18 @@ class ScreenScraperService:
             Media directory path or None if not found
         """
         # Get media configuration from main config
-        media_config = self.config.get('media', {})
-        media_mappings = media_config.get('mappings', {})
+        media_fields = self.config.get('media_fields', {})
         
-        # Find the media directory for this field
-        # The mappings are directory_name -> gamelist_field, so we need to reverse lookup
-        for directory_name, gamelist_field in media_mappings.items():
-            if gamelist_field == media_field:
-                # Get ROMs root directory from config
-                roms_root = self.config.get('roms_root_directory', 'roms')
-                # Create full path: roms/{system_name}/media/{directory_name}
-                full_path = os.path.join(roms_root, system_name, 'media', directory_name)
-                print(f"Media directory for {media_field}: {full_path}")
-                return full_path
+        # Find the media directory for this field using new structure
+        field_data = media_fields.get(media_field)
+        if field_data:
+            directory_name = field_data['directory']
+            # Get ROMs root directory from config
+            roms_root = self.config.get('roms_root_directory', 'roms')
+            # Create full path: roms/{system_name}/media/{directory_name}
+            full_path = os.path.join(roms_root, system_name, 'media', directory_name)
+            print(f"Media directory for {media_field}: {full_path}")
+            return full_path
         
         print(f"No media directory found for field: {media_field}")
         return None

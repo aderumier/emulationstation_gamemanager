@@ -6201,9 +6201,12 @@ class GameCollectionManager {
         modal.show();
     }
     
-    openLaunchboxConfigurationModal() {
+    async openLaunchboxConfigurationModal() {
         // Load current settings before opening modal
         this.loadLaunchboxSettings();
+        
+        // Initialize dynamic field checkboxes from config
+        await this.initializeLaunchboxFieldCheckboxes();
         
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('launchboxConfigurationModal'));
@@ -6697,6 +6700,54 @@ class GameCollectionManager {
             
         } catch (error) {
             console.error('❌ Error initializing ScreenScraper field checkboxes:', error);
+        }
+    }
+
+    async initializeLaunchboxFieldCheckboxes() {
+        console.log('🔧 Initializing LaunchBox field checkboxes from config...');
+        
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get LaunchBox field mappings from config
+            const imageTypeMappings = config.launchbox?.image_type_mappings || {};
+            
+            // Get the media fields container
+            const mediaFieldsContainer = document.getElementById('launchboxMediaFieldsContainer');
+            
+            // Clear existing media field checkboxes (keep the header)
+            const existingMediaFields = mediaFieldsContainer.querySelectorAll('.form-check');
+            existingMediaFields.forEach(checkbox => checkbox.remove());
+            
+            // Add media field checkboxes dynamically
+            Object.keys(imageTypeMappings).forEach(launchboxField => {
+                const fieldId = launchboxField.replace(/[^a-zA-Z0-9]/g, '');
+                const checkboxId = `launchboxField${fieldId}`;
+                
+                // Create checkbox element
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'form-check mb-2';
+                checkboxDiv.innerHTML = `
+                    <input class="form-check-input launchbox-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${launchboxField}" checked>
+                    <label class="form-check-label" for="${checkboxId}">${launchboxField}</label>
+                `;
+                
+                mediaFieldsContainer.appendChild(checkboxDiv);
+            });
+            
+            // Add event listeners to new checkboxes
+            mediaFieldsContainer.querySelectorAll('.launchbox-field-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', async () => {
+                    await this.saveLaunchboxFieldSettings();
+                });
+            });
+            
+            console.log('✅ LaunchBox field checkboxes initialized from config');
+            
+        } catch (error) {
+            console.error('❌ Error initializing LaunchBox field checkboxes:', error);
         }
     }
 

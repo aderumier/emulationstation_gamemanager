@@ -46,66 +46,6 @@
         }
     },
     "media": {
-        "mappings": {
-            "videos": "video",
-            "logos": "marquee",
-            "boxarts": "boxart",
-            "screenshots": "image",
-            "cartridges": "cartridge",
-            "fanarts": "fanart",
-            "titleshots": "titleshot",
-            "manuals": "manual",
-            "boxback": "boxback",
-            "box2d": "thumbnail"
-        },
-        "extensions": {
-            "videos": [
-                ".mp4"
-            ],
-            "logos": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "boxart": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "screenshots": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "cartridges": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "fanarts": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "titleshots": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "manuals": [
-                ".pdf"
-            ],
-            "boxback": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "box2d": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
         "scan_settings": {
             "recursive_search": true,
             "case_sensitive": false,
@@ -2849,6 +2789,84 @@
             "video": "video",
             "fanart": "fanart",
             "support-2D": "cartridge"
+        }
+    },
+    "media_fields": {
+        "video": {
+            "directory": "videos",
+            "extensions": [
+                ".mp4"
+            ]
+        },
+        "marquee": {
+            "directory": "logos",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "boxart": {
+            "directory": "boxarts",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "image": {
+            "directory": "screenshots",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "cartridge": {
+            "directory": "cartridges",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "fanart": {
+            "directory": "fanarts",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "titleshot": {
+            "directory": "titleshots",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "manual": {
+            "directory": "manuals",
+            "extensions": [
+                ".pdf"
+            ]
+        },
+        "boxback": {
+            "directory": "boxback",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "thumbnail": {
+            "directory": "box2d",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
         }
     }
 }

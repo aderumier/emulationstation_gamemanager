@@ -1144,32 +1144,28 @@ def process_single_game_worker(args):
                     
                     # Special handling for name field: use alternate name directly when matching via alternate name
                     if launchbox_field == 'Name' and gamelist_field == 'name':
+                        # Extract parentheses text from ROM filename
+                        import re
+                        rom_path = game_data.get('path', '')
+                        rom_filename = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else ''
+                        # Find all parentheses text in the ROM filename
+                        rom_parentheses_matches = re.findall(r'\([^)]*\)', rom_filename)
+                        rom_parentheses_text = ' '.join(rom_parentheses_matches) if rom_parentheses_matches else ''
+                        
                         # Check if this was an alternate name match
                         match_source = best_match.get('_match_type', 'main')
                         if match_source == 'alternate':
                             # Use the exact alternate name that was matched, not the main name
                             alternate_name = best_match.get('_matched_name', old_value)
-                            # Preserve original parentheses text when using alternate name
-                            import re
-                            parentheses_match = re.search(r'\([^)]*\)', old_value)
-                            if parentheses_match:
-                                parentheses_text = parentheses_match.group(0)
-                                # Append parentheses text to alternate name if it's not already there
-                                if parentheses_text not in alternate_name:
-                                    new_value = f"{alternate_name} {parentheses_text}"
-                                else:
-                                    new_value = alternate_name
+                            # Preserve parentheses text from ROM filename when using alternate name
+                            if rom_parentheses_text and rom_parentheses_text not in alternate_name:
+                                new_value = f"{alternate_name} {rom_parentheses_text}"
                             else:
                                 new_value = alternate_name
                         else:
-                            # For main name matches, preserve original parentheses text
-                            import re
-                            parentheses_match = re.search(r'\([^)]*\)', old_value)
-                            if parentheses_match:
-                                parentheses_text = parentheses_match.group(0)
-                                # Append parentheses text to new name if it's not already there
-                                if parentheses_text not in new_value:
-                                    new_value = f"{new_value} {parentheses_text}"
+                            # For main name matches, preserve parentheses text from ROM filename
+                            if rom_parentheses_text and rom_parentheses_text not in new_value:
+                                new_value = f"{new_value} {rom_parentheses_text}"
                     
                     # Check if we should update this field based on overwrite_text_fields setting
                     should_update = False
@@ -1550,14 +1546,14 @@ class Task:
             log_entry = f"[{timestamp}] {message}"
             
             self.progress.append(log_entry)
-            
-            # Write to log file
-            try:
-                with open(self.log_file, 'a', encoding='utf-8') as f:
-                    f.write(log_entry + '\n')
-                        
-            except Exception as e:
-                print(f"Error writing to log file {self.log_file}: {e}")
+        
+        # Write to log file
+        try:
+            with open(self.log_file, 'a', encoding='utf-8') as f:
+                f.write(log_entry + '\n')
+                    
+        except Exception as e:
+            print(f"Error writing to log file {self.log_file}: {e}")
 
             # Keep only last 1000 messages in memory
             if len(self.progress) > 1000:
@@ -1577,7 +1573,7 @@ class Task:
                     
         except Exception as e:
             print(f"Error writing to log file {self.log_file}: {e}")
-
+        
         # Keep only last 1000 messages in memory
         if len(self.progress) > 1000:
             self.progress = self.progress[-1000:]
@@ -2270,6 +2266,12 @@ def run_image_download_task(system_name, data):
             task.update_progress(f"🛑 Task stopped by user before starting downloads")
             return
         
+        # Check if there are any games to process
+        if len(game_tasks) == 0:
+            task.update_progress(f"✅ No games need image downloads - task completed successfully")
+            task.complete(True, f"Image download completed: 0 games processed")
+            return
+        
         # Execute game processing with ThreadPoolExecutor
         max_game_workers = min(20, len(game_tasks))  # Limit concurrent games to avoid overwhelming the system
         task.update_progress(f"🔧 Using {max_game_workers} parallel game processors")
@@ -2346,7 +2348,7 @@ def run_image_download_task(system_name, data):
                 task.update_progress(f"❌ Failed to load media config for scan")
                 return
             
-            media_mappings = media_config.get('mappings', {})
+            media_fields = media_config.get('media_fields', {})
             updated_games = 0
             
             # Scan each game's media files
@@ -2361,8 +2363,9 @@ def run_image_download_task(system_name, data):
                 if not rom_filename:
                     continue
                 
-                # Check each media type
-                for media_type, gamelist_field in media_mappings.items():
+                # Check each media field
+                for gamelist_field, field_data in media_fields.items():
+                    media_type = field_data['directory']
                     if media_type in ['videos', 'manuals']:  # Skip non-image types
                         continue
                         
@@ -2372,7 +2375,7 @@ def run_image_download_task(system_name, data):
                         continue
                     
                     # Look for media files matching the ROM filename
-                    extensions = media_config.get('extensions', {}).get(media_type, ['.png', '.jpg', '.jpeg'])
+                    extensions = field_data.get('extensions', ['.png', '.jpg', '.jpeg'])
                     found_file = None
                     
                     for ext in extensions:
@@ -3814,6 +3817,8 @@ def scrap_launchbox():
         selected_games = data.get('selectedGames', [])
         force_download = data.get('force_download', False)  # Add force download option
         enable_partial_match_modal = data.get('enable_partial_match_modal', False)  # Add partial match modal option
+        selected_fields = data.get('selected_fields', None)
+        overwrite_text_fields = data.get('overwrite_text_fields', False)
         
         if not system_name:
             return jsonify({'error': 'System name required'}), 400
@@ -3837,6 +3842,8 @@ def scrap_launchbox():
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields
         }
         _worker_task_queue.put(payload)
         
@@ -3951,6 +3958,8 @@ def scrap_launchbox_simple(system_name):
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
             'force_download': force_download,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields
         }
         _worker_task_queue.put(payload)
         
@@ -4090,7 +4099,7 @@ def find_best_matches_endpoint():
             game_name = game_data.get('name', 'Unknown')
             existing_launchboxid = game_data.get('launchboxid')
             
-            # Get top matches for the modal
+                # Get top matches for the modal
             top_matches = get_top_matches(game_name, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
             
             if top_matches:  # Only include games with matches
@@ -4356,7 +4365,23 @@ def get_top_matches_endpoint():
 
 def load_media_config():
     """Load media configuration from consolidated config.json"""
-    return config.get('media', {})
+    return {
+        'media_fields': config.get('media_fields', {}),
+        'scan_settings': config.get('media', {}).get('scan_settings', {})
+    }
+
+def get_media_directory_and_extensions(gamelist_field):
+    """Get media directory and extensions for a gamelist field using new structure"""
+    media_fields = config.get('media_fields', {})
+    field_data = media_fields.get(gamelist_field)
+    if field_data:
+        return field_data['directory'], field_data['extensions']
+    return None, []
+
+def get_media_directory(gamelist_field):
+    """Get media directory for a gamelist field using new structure"""
+    directory, _ = get_media_directory_and_extensions(gamelist_field)
+    return directory
 
 def load_image_mappings():
     """Load image type mappings from consolidated config.json"""
@@ -4370,26 +4395,7 @@ def load_region_config():
     """Load region priority configuration from consolidated config.json"""
     return config.get('launchbox', {}).get('region', {})
 
-def convert_image_to_png(input_path: str, output_path: str) -> bool:
-    """
-    Convert an image file to PNG format using ImageMagick.
-    
-    Args:
-        input_path: Path to the input image file
-        output_path: Path for the output PNG file
-        
-    Returns:
-        True if conversion successful, False otherwise
-    """
-    try:
-        import subprocess
-        # Use ImageMagick convert command to convert to PNG
-        cmd = ['convert', input_path, output_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return result.returncode == 0
-    except Exception as e:
-        print(f"Error converting image to PNG: {e}")
-        return False
+# convert_image_to_png function moved to game_utils.py
 
 async def download_launchbox_image_httpx(image_url, local_path, media_type=None, target_field=None, timeout=30, retry_attempts=10, client=None, game_name=None):
     """Download a single image from LaunchBox using HTTPX with HTTP/2 support"""
@@ -4472,22 +4478,19 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                     # Use target_field parameter if available, otherwise fall back to media_type
                     field_to_check = target_field if target_field else media_type
                     if field_to_check in ['extra1', 'boxart', 'thumbnail']:
-                        # Check if file is already PNG format
-                        file_extension = os.path.splitext(local_path)[1].lower()
-                        if file_extension != '.png':
-                            png_path = os.path.splitext(local_path)[0] + '.png'
-                            if convert_image_to_png(local_path, png_path):
-                                # Remove original file and rename PNG file
-                                os.remove(local_path)
-                                os.rename(png_path, local_path)
-                                # Update local_path and filename to reflect PNG extension
-                                local_path = png_path
-                                filename = os.path.basename(local_path)
-                                print(f"DEBUG: {log_prefix} ✅ Converted to PNG: {filename}")
-                            else:
-                                print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to PNG, keeping original: {filename}")
-                        else:
+                        from game_utils import convert_image_to_png_replace
+                        new_path, status = convert_image_to_png_replace(local_path)
+                        if status == "converted":
+                            # Conversion successful, update path and filename
+                            local_path = new_path
+                            filename = os.path.basename(local_path)
+                            print(f"DEBUG: {log_prefix} ✅ Converted to PNG: {filename}")
+                        elif status == "already_png":
+                            # File was already PNG, no conversion needed
                             print(f"DEBUG: {log_prefix} ✅ Already PNG format: {filename}")
+                        else:
+                            # Conversion failed
+                            print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to PNG, keeping original: {filename}")
                     
                     print(f"DEBUG: {log_prefix} ✅ Download successful: {filename} ({file_size} bytes)")
                     return True, f"Downloaded {filename} ({file_size} bytes)"
@@ -4627,7 +4630,7 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
     
     downloaded_images = []
     # Use passed configs (already validated at task start)
-    media_mappings = media_config.get('mappings', {})
+    media_fields = media_config.get('media_fields', {})
 
     
     # Check which fields need images based on current gamelist data
@@ -4740,12 +4743,8 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
             # Select the best image (first in priority order)
             best_image = sorted_images[0][1]
             
-            # Map gamelist field to media directory using media_mappings
-            media_directory = None
-            for directory, field in media_mappings.items():
-                if field == gamelist_field:
-                    media_directory = directory
-                    break
+            # Map gamelist field to media directory using new structure
+            media_directory = get_media_directory(gamelist_field)
             
             if not media_directory:
                 media_directory = gamelist_field  # fallback to field name if no mapping found
@@ -4944,11 +4943,9 @@ def scan_media_files(system_name):
         
         task.update_progress(f"Found {len(games)} games in gamelist")
         
-        # Load media mappings
-        media_mappings = media_config.get('mappings', {})
-        media_extensions = media_config.get('extensions', {})
-        task.update_progress(f"Media mappings: {media_mappings}")
-        task.update_progress(f"Media extensions: {media_extensions}")
+        # Load media fields
+        media_fields = media_config.get('media_fields', {})
+        task.update_progress(f"Media fields: {media_fields}")
         
         # Track changes
         updated_games = 0
@@ -4995,14 +4992,15 @@ def scan_media_files(system_name):
             if none_fields:
                 task.update_progress(f"Converted None to empty string for fields in '{game.get('name', 'Unknown')}': {', '.join(none_fields)}")
             
-            # Check each media type
-            for media_type, gamelist_field in media_mappings.items():
+            # Check each media field
+            for gamelist_field, field_data in media_fields.items():
+                media_type = field_data['directory']
                 media_dir = os.path.join(system_path, 'media', media_type)
                 
                 # Look for media files with matching name
                 found_media = None
                 if os.path.exists(media_dir):
-                    for ext in media_extensions.get(media_type, []):
+                    for ext in field_data.get('extensions', []):
                         media_file = os.path.join(media_dir, rom_filename + ext)
                         if os.path.exists(media_file):
                             found_media = f'./media/{media_type}/{rom_filename}{ext}'
@@ -5025,7 +5023,7 @@ def scan_media_files(system_name):
                     # Always log media removals, regardless of game number
                     task.update_progress(f"Removed {gamelist_field} for '{game.get('name', 'Unknown')}': {current_media}")
             
-            # Also check for orphaned media entries that might not be in the media_mappings
+            # Also check for orphaned media entries that might not be in the media_fields
             # This handles cases where the gamelist has media fields that aren't in the current config
             orphaned_media_fields = ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']
             
@@ -5407,7 +5405,7 @@ def update_metadata_endpoint():
             if os.path.exists(metadata_path):
                 backup_path = f"{metadata_path}.backup.{int(time.time())}"
                 shutil.copy2(metadata_path, backup_path)
-
+            
             # Copy the new metadata file
             shutil.copy2(extracted_metadata, metadata_path)
             
@@ -5523,17 +5521,12 @@ def upload_game_media(system_name):
         
         # Load media config to get media mappings
         media_config = load_media_config()
-        media_mappings = media_config.get('mappings', {})
         
         # Find the media directory for this field
-        media_directory = None
-        for directory, field in media_mappings.items():
-            if field == media_field:
-                media_directory = directory
-                break
+        media_directory = get_media_directory(media_field)
         
         if not media_directory:
-            return jsonify({'error': f'No media mapping found for field: {media_field}. Available mappings: {media_mappings}'}), 400
+            return jsonify({'error': f'No media mapping found for field: {media_field}. Available fields: {list(media_config.get("media_fields", {}).keys())}'}), 400
         
         # Get the ROM filename without extension for use as media filename
         rom_path = game.get('path', '')
@@ -5560,6 +5553,22 @@ def upload_game_media(system_name):
         
         # Save the uploaded file
         file.save(file_path)
+        
+        # Convert to PNG if this is thumbnail or boxart field and not already PNG
+        if media_field in ['thumbnail', 'boxart']:
+            from game_utils import convert_image_to_png_replace
+            new_path, status = convert_image_to_png_replace(file_path)
+            if status == "converted":
+                # Conversion successful, update paths and filename
+                file_path = new_path
+                new_filename = os.path.basename(file_path)
+                print(f"✅ Converted uploaded image to PNG: {new_filename}")
+            elif status == "already_png":
+                # File was already PNG, no conversion needed
+                print(f"✅ Uploaded image already PNG format: {new_filename}")
+            else:
+                # Conversion failed
+                print(f"⚠️ Failed to convert uploaded image to PNG, keeping original: {new_filename}")
         
         # Update the game object in memory with relative path
         relative_path = os.path.relpath(file_path, system_path)
@@ -8477,19 +8486,12 @@ def run_2d_box_generation_task(system_name, selected_games):
         
         # Load media config to get media mappings
         media_config = load_media_config()
-        media_mappings = media_config.get('mappings', {})
-        
         
         # Find the media directory for thumbnail field (box2d)
-        box2d_directory = None
-        for directory, field in media_mappings.items():
-            if field == 'thumbnail':
-                box2d_directory = directory
-                break
-        
+        box2d_directory = get_media_directory('thumbnail')
         
         if not box2d_directory:
-            task.complete(False, f'No media mapping found for thumbnail field. Available mappings: {media_mappings}')
+            task.complete(False, f'No media mapping found for thumbnail field. Available fields: {list(media_config.get("media_fields", {}).keys())}')
             return
         
         # Create media directories
@@ -8812,10 +8814,15 @@ def debug_clients_endpoint():
 def get_media_mappings():
     """Get media mappings from config.json for dynamic UI generation"""
     try:
-        media_mappings = config.get('media', {}).get('mappings', {})
+        media_fields = config.get('media_fields', {})
+        # Convert new structure to old format for backward compatibility
+        mappings = {}
+        for field, data in media_fields.items():
+            mappings[data['directory']] = field
+        
         return jsonify({
             'success': True,
-            'mappings': media_mappings
+            'mappings': mappings
         })
     except Exception as e:
         return jsonify({
@@ -9088,24 +9095,19 @@ def get_launchbox_media(launchbox_id, media_type):
         
         # Load media config to get media mappings
         media_config = load_media_config()
-        media_mappings = media_config.get('mappings', {})
         
         # Debug logging
         print(f"DEBUG: media_type = {media_type}")
-        print(f"DEBUG: media_mappings = {media_mappings}")
+        print(f"DEBUG: media_fields = {media_config.get('media_fields', {})}")
         
         # Load image config for base URL
         image_config = load_image_mappings()
         
         # Find the media type mapping
-        media_directory = None
-        for key, value in media_mappings.items():
-            if value == media_type:
-                media_directory = key
-                break
+        media_directory = get_media_directory(media_type)
         
         if not media_directory:
-            return jsonify({'error': f'Unknown media type: {media_type}. Available mappings: {media_mappings}'}), 400
+            return jsonify({'error': f'Unknown media type: {media_type}. Available fields: {list(media_config.get("media_fields", {}).keys())}'}), 400
         
         # Use the global global_metadata_cache (should already be loaded at startup)
         if not global_metadata_cache:
@@ -9204,20 +9206,15 @@ def download_launchbox_media():
         
         # Load media config to get media mappings
         media_config = load_media_config()
-        media_mappings = media_config.get('mappings', {})
         
         # Load image config for base URL
         image_config = load_image_mappings()
         
         # Find the media directory
-        media_directory = None
-        for key, value in media_mappings.items():
-            if value == media_type:
-                media_directory = key
-                break
+        media_directory = get_media_directory(media_type)
         
         if not media_directory:
-            return jsonify({'error': f'Unknown media type: {media_type}'}), 400
+            return jsonify({'error': f'Unknown media type: {media_type}. Available fields: {list(media_config.get("media_fields", {}).keys())}'}), 400
         
         # Get the game from the current system (use var/gamelists, not roms)
         gamelist_path = os.path.join(GAMELISTS_FOLDER, system_name, 'gamelist.xml')
@@ -9283,22 +9280,19 @@ def download_launchbox_media():
         # Convert to PNG if this is extra1 or thumbnail or boxart field and not already PNG
         # Check the target field name, not the source field name
         if media_type in ['extra1', 'thumbnail','boxart']:
-            # Check if file is already PNG format
-            file_extension = os.path.splitext(local_path)[1].lower()
-            if file_extension != '.png':
-                png_path = os.path.splitext(local_path)[0] + '.png'
-                if convert_image_to_png(local_path, png_path):
-                    # Remove original file and rename PNG file
-                    os.remove(local_path)
-                    os.rename(png_path, local_path)
-                    # Update local_path and local_filename to reflect PNG extension
-                    local_path = png_path
-                    local_filename = os.path.basename(local_path)
-                    print(f"✅ Converted to PNG: {local_filename}")
-                else:
-                    print(f"⚠️ Failed to convert to PNG, keeping original: {local_filename}")
-            else:
+            from game_utils import convert_image_to_png_replace
+            new_path, status = convert_image_to_png_replace(local_path)
+            if status == "converted":
+                # Conversion successful, update paths and filename
+                local_path = new_path
+                local_filename = os.path.basename(local_path)
+                print(f"✅ Converted to PNG: {local_filename}")
+            elif status == "already_png":
+                # File was already PNG, no conversion needed
                 print(f"✅ Already PNG format: {local_filename}")
+            else:
+                # Conversion failed
+                print(f"⚠️ Failed to convert to PNG, keeping original: {local_filename}")
         
         # Update gamelist.xml
         media_field = game_element.find(media_type)
@@ -10172,9 +10166,6 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         config = load_config()
         igdb_config = config.get('igdb', {})
         image_type_mappings = igdb_config.get('image_type_mappings', {})
-        media_config = config.get('media', {})
-        media_mappings = media_config.get('mappings', {})
-        
         # Map IGDB image type to gamelist field using config
         # image_type should now be a config key (artworks, screenshots, logos, cover)
         gamelist_field = image_type_mappings.get(image_type)
@@ -10182,12 +10173,8 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'images')
         else:
-            # Find the media directory for this gamelist field
-            directory_name = None
-            for dir_name, field_name in media_mappings.items():
-                if field_name == gamelist_field:
-                    directory_name = dir_name
-                    break
+            # Find the media directory for this gamelist field using new structure
+            directory_name = get_media_directory(gamelist_field)
             
             if directory_name:
                 media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', directory_name)
@@ -10236,10 +10223,22 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
             
-            # IGDB always downloads PNG files, so no conversion needed
-            # Just rename the temp file to the final file
+            # Check if this field should be converted to PNG
+            # Map IGDB image type to gamelist field to check if conversion is needed
+            gamelist_field = image_type_mappings.get(image_type)
+            if gamelist_field in ['thumbnail', 'boxart']:
+                # Convert to PNG if needed
+                from game_utils import convert_image_to_png_inplace
+                if convert_image_to_png_inplace(temp_file_path):
+                    print(f"{emoji} DEBUG: ✅ Converted to PNG: {filename}")
+                else:
+                    print(f"{emoji} DEBUG: ⚠️ Failed to convert to PNG, keeping original: {filename}")
+            else:
+                print(f"{emoji} DEBUG: ✅ No PNG conversion needed for field: {gamelist_field}")
+            
+            # Rename the temp file to the final file
             os.rename(temp_file_path, file_path)
-            print(f"{emoji} DEBUG: ✅ Downloaded PNG file: {filename}")
+            print(f"{emoji} DEBUG: ✅ Downloaded file: {filename}")
             
             # Check if file was written successfully
             if os.path.exists(file_path):
@@ -10256,12 +10255,8 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                 print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
                 relative_path = f"./media/images/{filename}"
             else:
-                # Find the media directory for this gamelist field
-                directory_name = None
-                for dir_name, field_name in media_mappings.items():
-                    if field_name == gamelist_field:
-                        directory_name = dir_name
-                        break
+                # Find the media directory for this gamelist field using new structure
+                directory_name = get_media_directory(gamelist_field)
                 
                 if directory_name:
                     relative_path = f"./media/{directory_name}/{filename}"
@@ -11208,6 +11203,8 @@ def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_t
     import multiprocessing
     import queue
     
+    print(f"🔧 DEBUG: run_igdb_scraper_task received parameters - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)}), overwrite_media_fields: {overwrite_media_fields} (type: {type(overwrite_media_fields)}), selected_fields: {selected_fields} (type: {type(selected_fields)})")
+    
     # Check if IGDB credentials are configured
     igdb_config = get_igdb_config()
     if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
@@ -11248,6 +11245,7 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
     async def async_scraper():
         try:
             print(f"Starting IGDB scraper task for system: {system_name}")
+            print(f"🔧 DEBUG: Worker function parameters - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)}), overwrite_media_fields: {overwrite_media_fields} (type: {type(overwrite_media_fields)}), selected_fields: {selected_fields} (type: {type(selected_fields)})")
             
             # Get IGDB configuration
             igdb_config = get_igdb_config()
@@ -12119,6 +12117,8 @@ def scrap_igdb_system(system_name):
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
             'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
@@ -12137,6 +12137,7 @@ def scrap_igdb_system(system_name):
         
         # Start the scraper task in a separate thread
         import threading
+        print(f"🔧 DEBUG: Starting IGDB scraper with parameters - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)}), overwrite_media_fields: {overwrite_media_fields} (type: {type(overwrite_media_fields)}), selected_fields: {selected_fields} (type: {type(selected_fields)})")
         scraper_thread = threading.Thread(
             target=run_igdb_scraper_task,
             args=(system_name, task.id, selected_games, overwrite_text_fields, overwrite_media_fields, selected_fields),
