@@ -718,10 +718,10 @@ class ScreenScraperService:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
                     
-                    # Convert to PNG if this is extra1 or boxart field and not already PNG
+                    # Convert to PNG if this is extra1 or thumbnail or boxart field and not already PNG
                     # Check the target field name by looking up the mapping
                     local_field = self.get_media_type_mapping(media_type)
-                    if local_field in ['extra1', 'boxart']:
+                    if local_field in ['extra1', 'thumbnail', 'boxart']:
                         # Check if file is already PNG format
                         file_extension = os.path.splitext(final_file_path)[1].lower()
                         if file_extension != '.png':
@@ -817,7 +817,7 @@ class ScreenScraperService:
             media_type: ScreenScraper media type (e.g., 'wheel', 'box-2D')
             
         Returns:
-            Local media field name (e.g., 'marquee', 'extra1') or None if not mapped
+            Local media field name (e.g., 'marquee', 'thumbnail') or None if not mapped
         """
         screenscraper_config = self.config.get('screenscraper', {})
         image_mappings = screenscraper_config.get('image_type_mappings', {})

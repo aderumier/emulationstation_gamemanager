@@ -1,5 +1,5 @@
 {
-    "roms_root_directory": "/home/aderumier/nfs/roms",
+    "roms_root_directory": "/home/aderumier/cursorscraper/roms",
     "task_logs_directory": "var/task_logs",
     "max_tasks_to_keep": 30,
     "server": {
@@ -26,12 +26,12 @@
         },
         "image_base_url": "https://images.launchbox-app.com/",
         "image_type_mappings": {
-            "Box - Front": "extra1",
+            "Box - Front": "thumbnail",
             "Box - Back": "boxback",
             "Box - 3D": "boxart",
             "Clear Logo": "marquee",
             "Screenshot - Game Title": "titleshot",
-            "Screenshot - Gameplay": "screenshot",
+            "Screenshot - Gameplay": "image",
             "Fanart - Background": "fanart",
             "Cart - Front": "cartridge"
         },
@@ -48,31 +48,26 @@
     "media": {
         "mappings": {
             "videos": "video",
-            "marquee": "marquee",
-            "boxart": "boxart",
-            "screenshot": "screenshot",
-            "cartridge": "cartridge",
-            "fanart": "fanart",
-            "titleshot": "titleshot",
-            "manual": "manual",
+            "logos": "marquee",
+            "boxarts": "boxart",
+            "screenshots": "image",
+            "cartridges": "cartridge",
+            "fanarts": "fanart",
+            "titleshots": "titleshot",
+            "manuals": "manual",
             "boxback": "boxback",
-            "box2d": "extra1"
+            "box2d": "thumbnail"
         },
         "extensions": {
             "videos": [
                 ".mp4"
             ],
-            "marquee": [
+            "logos": [
                 ".png",
                 ".jpg",
                 ".jpeg"
             ],
             "boxart": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ],
-            "thumbnails": [
                 ".png",
                 ".jpg",
                 ".jpeg"
@@ -92,7 +87,7 @@
                 ".jpg",
                 ".jpeg"
             ],
-            "titles": [
+            "titleshots": [
                 ".png",
                 ".jpg",
                 ".jpeg"
@@ -2824,8 +2819,8 @@
             "youtubeurl": "youtubeurl"
         },
         "image_type_mappings": {
-            "cover": "extra1",
-            "screenshots": "screenshot",
+            "cover": "thumbnail",
+            "screenshots": "image",
             "artworks": "fanart",
             "logos": "marquee"
         },
@@ -2845,10 +2840,10 @@
         ],
         "image_type_mappings": {
             "wheel": "marquee",
-            "box-2D": "extra1",
+            "box-2D": "thumbnail",
             "box-3D": "boxart",
             "box-2D-back": "boxback",
-            "ss": "screenshot",
+            "ss": "image",
             "sstitle": "titleshot",
             "manuel": "manual",
             "video": "video",

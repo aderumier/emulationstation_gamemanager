@@ -2247,26 +2247,6 @@ class GameCollectionManager {
                     cellEditorParams: {
                         maxLength: 500
                     }
-                },
-                { 
-                    field: 'image', 
-                    headerName: 'Image', 
-                    editable: false, 
-                    sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1, 
-                    cellRenderer: this.mediaCellRenderer
-                },
-                { 
-                    field: 'video', 
-                    headerName: 'Video', 
-                    editable: false, 
-                    sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1, 
-                    cellRenderer: this.mediaCellRenderer
                 }
             ];
 
@@ -2845,15 +2825,26 @@ class GameCollectionManager {
             return mediaFields.filter(field => field !== 'video');
         }
         
-        // If not cached, use fallback values
-        console.warn('Media mappings not cached yet, using fallback values');
-        return this.getFallbackMediaFields();
+        // If not cached, fetch from API
+        console.warn('Media mappings not cached yet, fetching from API...');
+        try {
+            const response = await fetch('/api/media-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.mediaMappingsCache = data.mappings;
+                const mediaFields = [...new Set(Object.values(this.mediaMappingsCache))];
+                return mediaFields.filter(field => field !== 'video');
+            } else {
+                console.error('Failed to fetch media mappings:', data.error);
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            console.error('Error fetching media mappings:', error);
+            throw error;
+        }
     }
     
-    getFallbackMediaFields() {
-        // Fallback media fields if API is unavailable
-        return [...new Set(["marquee", "boxart", "thumbnail", "screenshot", "cartridge", "fanart", "titleshot", "manual", "boxback", "extra1"])];
-    }
     
     async getMediaMappings() {
         // Use cached mappings if available
@@ -2861,26 +2852,25 @@ class GameCollectionManager {
             return this.mediaMappingsCache;
         }
         
-        // If not cached, use fallback values
-        console.warn('Media mappings not cached yet, using fallback values');
-        return this.getFallbackMediaMappings();
+        // If not cached, fetch from API
+        console.warn('Media mappings not cached yet, fetching from API...');
+        try {
+            const response = await fetch('/api/media-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.mediaMappingsCache = data.mappings;
+                return this.mediaMappingsCache;
+            } else {
+                console.error('Failed to fetch media mappings:', data.error);
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            console.error('Error fetching media mappings:', error);
+            throw error;
+        }
     }
     
-    getFallbackMediaMappings() {
-        // Fallback media mappings if API is unavailable
-        return {
-            "marquee": "marquee",
-            "boxart": "boxart", 
-            "thumbnails": "thumbnail",
-            "screenshots": "screenshot",
-            "cartridges": "cartridge",
-            "fanarts": "fanart",
-            "titles": "titleshot",
-            "manuals": "manual",
-            "boxback": "boxback",
-            "box2d": "extra1"
-        };
-    }
     
     async initializeMediaMappingsCache() {
         // Fetch media mappings once when the application starts
@@ -2894,13 +2884,11 @@ class GameCollectionManager {
                 console.log('Media mappings cache initialized successfully:', this.mediaMappingsCache);
             } else {
                 console.error('Failed to fetch media mappings:', data.error);
-                this.mediaMappingsCache = this.getFallbackMediaMappings();
-                console.log('Using fallback media mappings');
+                throw new Error(data.error);
             }
         } catch (error) {
             console.error('Error fetching media mappings:', error);
-            this.mediaMappingsCache = this.getFallbackMediaMappings();
-            console.log('Using fallback media mappings due to error');
+            throw error;
         }
     }
     
@@ -2917,8 +2905,8 @@ class GameCollectionManager {
                 continue;
             }
             
-            // Create a human-readable header name
-            const headerName = this.formatHeaderName(mediaType);
+            // Use the original media type name as header
+            const headerName = mediaType;
             
             mediaColumns.push({
                 field: fieldName,
@@ -2935,24 +2923,6 @@ class GameCollectionManager {
         return mediaColumns;
     }
     
-    formatHeaderName(mediaType) {
-        // Convert media type to human-readable header name
-        const nameMap = {
-            'marquee': 'Marquee',
-            'boxart': 'Box Art',
-            'thumbnails': 'Thumbnail',
-            'screenshots': 'Screenshot',
-            'cartridges': 'Cartridge',
-            'fanarts': 'Fan Art',
-            'titles': 'Title Shot',
-            'manuals': 'Manual',
-            'boxback': 'Box Back',
-            'box2d': 'Box 2D',
-            'wheels': 'Wheel'
-        };
-        
-        return nameMap[mediaType] || mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
-    }
 
     
     async showEditGameMedia(game) {

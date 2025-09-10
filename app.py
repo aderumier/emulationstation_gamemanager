@@ -1015,7 +1015,8 @@ def _scraping_result_listener(result_q):
                                 'system_name': os.path.basename(os.path.dirname(gl)),
                                 'data': {
                                     'selected_games': rom_paths,
-                                    'force_download': data.get('force_download', False)
+                                    'force_download': data.get('force_download', False),
+                                    'selected_fields': original_task.data.get('selected_fields')
                                 }
                             }, username=username)
                             tasks[task_id].update_progress(f"🖼️  Image download task created for {len(rom_paths)} matched games")
@@ -3783,7 +3784,7 @@ def write_gamelist_xml(games, file_path):
             # Add all game fields
             for field, value in game.items():
                 # Always include media-related fields, even if empty
-                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl', 'screenscraperid']:
+                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']:
                     field_elem = ET.SubElement(game_elem, field)
                     field_elem.text = str(value) if value else ''
                 elif value is not None and value != '':
@@ -4470,7 +4471,7 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                     # Convert to PNG if this is extra1 or boxart field and not already PNG
                     # Use target_field parameter if available, otherwise fall back to media_type
                     field_to_check = target_field if target_field else media_type
-                    if field_to_check in ['extra1', 'boxart']:
+                    if field_to_check in ['extra1', 'boxart', 'thumbnail']:
                         # Check if file is already PNG format
                         file_extension = os.path.splitext(local_path)[1].lower()
                         if file_extension != '.png':
@@ -8479,22 +8480,22 @@ def run_2d_box_generation_task(system_name, selected_games):
         media_mappings = media_config.get('mappings', {})
         
         
-        # Find the media directory for extra1 field
-        extra1_directory = None
+        # Find the media directory for thumbnail field (box2d)
+        box2d_directory = None
         for directory, field in media_mappings.items():
-            if field == 'extra1':
-                extra1_directory = directory
+            if field == 'thumbnail':
+                box2d_directory = directory
                 break
         
         
-        if not extra1_directory:
-            task.complete(False, f'No media mapping found for extra1 field. Available mappings: {media_mappings}')
+        if not box2d_directory:
+            task.complete(False, f'No media mapping found for thumbnail field. Available mappings: {media_mappings}')
             return
         
         # Create media directories
         media_dir = os.path.join(system_path, 'media')
-        extra1_dir = os.path.join(media_dir, extra1_directory)
-        os.makedirs(extra1_dir, exist_ok=True)
+        box2d_dir = os.path.join(media_dir, box2d_directory)
+        os.makedirs(box2d_dir, exist_ok=True)
         
         # Process each selected game
         processed = 0
@@ -8527,16 +8528,14 @@ def run_2d_box_generation_task(system_name, selected_games):
             gameplay_path = None
             logo_path = None
             
-            # Look for titlescreen (screenshot)
-            screenshot = game_data.get('screenshot')
-            if screenshot and screenshot.startswith('./'):
-                titlescreen_path = os.path.join(system_path, screenshot[2:])
+            # Look for titlescreen (titleshot field)
+            titleshot = game_data.get('titleshot')
+            if titleshot and titleshot.startswith('./'):
+                titlescreen_path = os.path.join(system_path, titleshot[2:])
             
-            # Look for gameplay (fanart or screenshot as fallback)
-            fanart = game_data.get('fanart')
-            if fanart and fanart.startswith('./'):
-                gameplay_path = os.path.join(system_path, fanart[2:])
-            elif screenshot and screenshot.startswith('./'):
+            # Look for screenshot (image field
+            screenshot = game_data.get('image')
+            if screenshot and screenshot.startswith('./'):
                 gameplay_path = os.path.join(system_path, screenshot[2:])
             
             # Look for logo (marquee)
@@ -8547,11 +8546,11 @@ def run_2d_box_generation_task(system_name, selected_games):
             # Check if all required files exist
             missing_files = []
             if not titlescreen_path or not os.path.exists(titlescreen_path):
-                missing_files.append('titlescreen (screenshot)')
+                missing_files.append('titleshot')
             if not gameplay_path or not os.path.exists(gameplay_path):
-                missing_files.append('gameplay (fanart/screenshot)')
+                missing_files.append('screenshot')
             if not logo_path or not os.path.exists(logo_path):
-                missing_files.append('logo (marquee)')
+                missing_files.append('logo')
             
             if missing_files:
                 task.update_progress(f"⚠️  Missing required media for {game_name}: {', '.join(missing_files)}")
@@ -8560,7 +8559,7 @@ def run_2d_box_generation_task(system_name, selected_games):
             
             # Generate 2D box
             output_filename = f"{rom_filename}.png"
-            output_path = os.path.join(extra1_dir, output_filename)
+            output_path = os.path.join(box2d_dir, output_filename)
             
             try:
                 generator.generate_2d_box(
@@ -8584,13 +8583,13 @@ def run_2d_box_generation_task(system_name, selected_games):
                             break
                 
                 if game_element is not None:
-                    # Update or add extra1 field
-                    extra1_element = game_element.find('extra1')
-                    if extra1_element is not None:
-                        extra1_element.text = f"./media/{extra1_directory}/{output_filename}"
+                    # Update or add thumbnail field
+                    thumbnail_element = game_element.find('thumbnail')
+                    if thumbnail_element is not None:
+                        thumbnail_element.text = f"./media/{box2d_directory}/{output_filename}"
                     else:
-                        extra1_element = ET.SubElement(game_element, 'extra1')
-                        extra1_element.text = f"./media/{extra1_directory}/{output_filename}"
+                        thumbnail_element = ET.SubElement(game_element, 'thumbnail')
+                        thumbnail_element.text = f"./media/{box2d_directory}/{output_filename}"
                     
                     # Save the updated gamelist.xml
                     tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
@@ -9281,9 +9280,9 @@ def download_launchbox_media():
         with open(local_path, 'wb') as f:
             f.write(response.content)
         
-        # Convert to PNG if this is extra1 or boxart field and not already PNG
+        # Convert to PNG if this is extra1 or thumbnail or boxart field and not already PNG
         # Check the target field name, not the source field name
-        if media_type in ['extra1', 'boxart']:
+        if media_type in ['extra1', 'thumbnail','boxart']:
             # Check if file is already PNG format
             file_extension = os.path.splitext(local_path)[1].lower()
             if file_extension != '.png':
@@ -10169,19 +10168,33 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         
         print(f"{emoji} DEBUG: Final image URL: {image_url}")
         
-        # Create appropriate directory for the system
-        if image_type == "fanart":
-            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'fanarts')
-        elif image_type == "screenshot":
-            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'screenshots')
-        elif image_type == "cover":
-            # Cover maps to extra1 field, which uses box2d directory
-            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'box2d')
-        elif image_type == "logo":
-            # Logo maps to marquee field
-            media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'marquee')
-        else:
+        # Create appropriate directory for the system using config mappings
+        config = load_config()
+        igdb_config = config.get('igdb', {})
+        image_type_mappings = igdb_config.get('image_type_mappings', {})
+        media_config = config.get('media', {})
+        media_mappings = media_config.get('mappings', {})
+        
+        # Map IGDB image type to gamelist field using config
+        # image_type should now be a config key (artworks, screenshots, logos, cover)
+        gamelist_field = image_type_mappings.get(image_type)
+        if not gamelist_field:
+            print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'images')
+        else:
+            # Find the media directory for this gamelist field
+            directory_name = None
+            for dir_name, field_name in media_mappings.items():
+                if field_name == gamelist_field:
+                    directory_name = dir_name
+                    break
+            
+            if directory_name:
+                media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', directory_name)
+                print(f"{emoji} DEBUG: Mapped {image_type} -> {gamelist_field} -> {directory_name}")
+            else:
+                print(f"{emoji} DEBUG: No directory mapping found for gamelist field: {gamelist_field}")
+                media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'images')
         
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
@@ -10223,40 +10236,10 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
             
-            # Convert to PNG if this is extra1 field (cover) or marquee field (logo) and not already PNG
-            if image_type in ["cover", "logo"]:  # Cover maps to extra1 field, logo maps to marquee field
-                # Check if the downloaded file is already PNG format by examining the content type
-                content_type = response.headers.get('content-type', '').lower()
-                is_png_content = 'png' in content_type
-                
-                # Also check if the temp file is already PNG by trying to identify it
-                if not is_png_content:
-                    # Check file signature to determine if it's PNG
-                    with open(temp_file_path, 'rb') as f:
-                        header = f.read(8)
-                        is_png_content = header.startswith(b'\x89PNG\r\n\x1a\n')
-                
-                if not is_png_content:
-                    # Convert to PNG using ImageMagick
-                    png_path = os.path.splitext(file_path)[0] + '.png'
-                    if convert_image_to_png(temp_file_path, png_path):
-                        # Remove temp file and rename PNG file
-                        os.remove(temp_file_path)
-                        os.rename(png_path, file_path)
-                        print(f"{emoji} DEBUG: ✅ Converted to PNG: {filename}")
-                    else:
-                        # Conversion failed, just rename temp file
-                        os.rename(temp_file_path, file_path)
-                        print(f"{emoji} DEBUG: ⚠️ Failed to convert to PNG, keeping original: {filename}")
-                else:
-                    # Already PNG, just rename temp file
-                    os.rename(temp_file_path, file_path)
-                    print(f"{emoji} DEBUG: ✅ Already PNG format: {filename}")
-            else:
-                # Not a cover field, use original format without conversion
-                print(f"{emoji} DEBUG: Using original format, no conversion needed...")
-                # Just rename the temp file to the final file
-                os.rename(temp_file_path, file_path)
+            # IGDB always downloads PNG files, so no conversion needed
+            # Just rename the temp file to the final file
+            os.rename(temp_file_path, file_path)
+            print(f"{emoji} DEBUG: ✅ Downloaded PNG file: {filename}")
             
             # Check if file was written successfully
             if os.path.exists(file_path):
@@ -10266,19 +10249,26 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                 print(f"{emoji} DEBUG: ERROR - File was not created!")
                 return None
             
-            # Return relative path for gamelist
-            if image_type == "fanart":
-                relative_path = f"./media/fanarts/{filename}"
-            elif image_type == "screenshot":
-                relative_path = f"./media/screenshots/{filename}"
-            elif image_type == "cover":
-                # Cover maps to extra1 field, which uses box2d directory
-                relative_path = f"./media/box2d/{filename}"
-            elif image_type == "logo":
-                # Logo maps to marquee field
-                relative_path = f"./media/marquee/{filename}"
-            else:
+            # Return relative path for gamelist using config mappings
+            # Map IGDB image type to gamelist field using config
+            gamelist_field = image_type_mappings.get(image_type)
+            if not gamelist_field:
+                print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
                 relative_path = f"./media/images/{filename}"
+            else:
+                # Find the media directory for this gamelist field
+                directory_name = None
+                for dir_name, field_name in media_mappings.items():
+                    if field_name == gamelist_field:
+                        directory_name = dir_name
+                        break
+                
+                if directory_name:
+                    relative_path = f"./media/{directory_name}/{filename}"
+                    print(f"{emoji} DEBUG: Mapped {image_type} -> {gamelist_field} -> {directory_name}")
+                else:
+                    print(f"{emoji} DEBUG: No directory mapping found for gamelist field: {gamelist_field}")
+                    relative_path = f"./media/images/{filename}"
             
             print(f"{emoji} DEBUG: Returning relative path: {relative_path}")
             return relative_path
@@ -10824,6 +10814,11 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
 async def process_game_async(game, igdb_platform_id, access_token, client_id, async_client, igdb_config, company_cache=None):
     """Process a single game asynchronously"""
     try:
+        # Load IGDB field mappings from config
+        config = load_config()
+        igdb_mapping = config.get('igdb', {}).get('mapping', {})
+        igdb_image_mapping = config.get('igdb', {}).get('image_type_mappings', {})
+        
         # Get game name
         name_elem = game.find('name')
         if name_elem is None or not name_elem.text:
@@ -10890,7 +10885,8 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or 'artworks' in selected_fields:
                 print(f"🎨 DEBUG: Fanart field is selected or no field selection (all fields)")
                 # Check if fanart field is selected or if no field selection (all fields)
-                fanart_elem = game.find('fanart')
+                fanart_field = igdb_image_mapping.get('artworks', 'fanart')
+                fanart_elem = game.find(fanart_field)
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
                 print(f"🎨 DEBUG: Existing fanart element: {fanart_elem is not None}")
@@ -10930,13 +10926,13 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                     artwork, 
                                     system_name, 
                                     rom_filename,
-                                    "fanart"
+                                    "artworks"
                                 ),
                                 timeout=30.0  # 30 second timeout
                             )
                             if fanart_path:
                                 if fanart_elem is None:
-                                    fanart_elem = ET.SubElement(game, 'fanart')
+                                    fanart_elem = ET.SubElement(game, fanart_field)
                                 fanart_elem.text = fanart_path
                                 print(f"✅ Downloaded fanart for '{game_name}': {fanart_path}")
                             else:
@@ -10956,7 +10952,8 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or 'screenshots' in selected_fields:
                 print(f"📸 DEBUG: Screenshot field is selected or no field selection (all fields)")
                 # Check if screenshot field is selected or if no field selection (all fields)
-                screenshot_elem = game.find('screenshot')
+                screenshot_field = igdb_image_mapping.get('screenshots', 'image')
+                screenshot_elem = game.find(screenshot_field)
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
                 print(f"📸 DEBUG: Existing screenshot element: {screenshot_elem is not None}")
@@ -10995,13 +10992,13 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                     screenshot, 
                                     system_name, 
                                     rom_filename,
-                                    "screenshot"
+                                    "screenshots"
                                 ),
                                 timeout=30.0  # 30 second timeout
                             )
                             if screenshot_path:
                                 if screenshot_elem is None:
-                                    screenshot_elem = ET.SubElement(game, 'screenshot')
+                                    screenshot_elem = ET.SubElement(game, screenshot_field)
                                 screenshot_elem.text = screenshot_path
                                 print(f"✅ Downloaded screenshot for '{game_name}': {screenshot_path}")
                             else:
@@ -11021,16 +11018,17 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or 'cover' in selected_fields:
                 print(f"🖼️ DEBUG: Cover field is selected or no field selection (all fields)")
                 # Check if cover field is selected or if no field selection (all fields)
-                extra1_elem = game.find('extra1')  # Cover is stored in extra1 field
+                cover_field = igdb_image_mapping.get('cover', 'thumbnail')
+                box2d_elem = game.find(cover_field)  # Cover is stored in mapped field
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
-                print(f"🖼️ DEBUG: Existing extra1 element: {extra1_elem is not None}")
-                if extra1_elem is not None:
-                    print(f"🖼️ DEBUG: Existing extra1 text: '{extra1_elem.text}'")
+                print(f"🖼️ DEBUG: Existing box2d element: {box2d_elem is not None}")
+                if box2d_elem is not None:
+                    print(f"🖼️ DEBUG: Existing box2d text: '{box2d_elem.text}'")
                 print(f"🖼️ DEBUG: Overwrite media fields: {overwrite_media_fields}")
                 
                 # Only download cover if it doesn't exist or if overwrite is enabled
-                if extra1_elem is None or not extra1_elem.text or overwrite_media_fields:
+                if box2d_elem is None or not box2d_elem.text or overwrite_media_fields:
                     print(f"🖼️ DEBUG: Proceeding with cover download for '{game_name}'...")
                     print(f"🖼️ Fetching cover for '{game_name}'...")
                     try:
@@ -11065,9 +11063,9 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 timeout=30.0  # 30 second timeout
                             )
                             if cover_path:
-                                if extra1_elem is None:
-                                    extra1_elem = ET.SubElement(game, 'extra1')
-                                extra1_elem.text = cover_path
+                                if box2d_elem is None:
+                                    box2d_elem = ET.SubElement(game, cover_field)
+                                box2d_elem.text = cover_path
                                 print(f"✅ Downloaded cover for '{game_name}': {cover_path}")
                             else:
                                 print(f"❌ Failed to download cover for '{game_name}'")
@@ -11086,7 +11084,8 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or 'logos' in selected_fields:
                 print(f"🏷️ DEBUG: Logo field is selected or no field selection (all fields)")
                 # Check if logo field is selected or if no field selection (all fields)
-                marquee_elem = game.find('marquee')
+                logo_field = igdb_image_mapping.get('logos', 'marquee')
+                marquee_elem = game.find(logo_field)
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
                 print(f"🏷️ DEBUG: Existing marquee element: {marquee_elem is not None}")
@@ -11125,13 +11124,13 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                     logo, 
                                     system_name, 
                                     rom_filename,
-                                    "logo"
+                                    "logos"
                                 ),
                                 timeout=30.0  # 30 second timeout
                             )
                             if logo_path:
                                 if marquee_elem is None:
-                                    marquee_elem = ET.SubElement(game, 'marquee')
+                                    marquee_elem = ET.SubElement(game, logo_field)
                                 marquee_elem.text = logo_path
                                 print(f"✅ Downloaded logo for '{game_name}': {logo_path}")
                             else:
@@ -11274,6 +11273,10 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             config = load_config()
             systems_config = config.get('systems', {})
             system_config = systems_config.get(system_name, {})
+            
+            # Get IGDB field mappings from config
+            igdb_mapping = config.get('igdb', {}).get('mapping', {})
+            igdb_image_mapping = config.get('igdb', {}).get('image_type_mappings', {})
             
             if not system_config:
                 result_q.put({
