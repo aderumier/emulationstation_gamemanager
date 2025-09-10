@@ -11679,6 +11679,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             
             updated_count = 0
             media_updated_count = 0
+            text_updated_count = 0
             for game in all_games:
                 if game['path'] in results:
                     result = results[game['path']]
@@ -11691,6 +11692,19 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                         game[media_field] = media_path
                         media_updated_count += 1
                         print(f"📝 Updated {media_field} for {game['name']}: {media_path}")
+                    
+                    # Update text fields with extracted information
+                    text_info = result.get('text_info', {})
+                    game_text_updated_count = 0
+                    for text_field, text_value in text_info.items():
+                        if text_value and text_value.strip():  # Only update if we have a non-empty value
+                            game[text_field] = text_value
+                            game_text_updated_count += 1
+                            text_updated_count += 1
+                            print(f"📝 Updated {text_field} for {game['name']}: {text_value}")
+                    
+                    if game_text_updated_count > 0:
+                        print(f"📝 Updated {game_text_updated_count} text fields for {game['name']}")
             
             # Save updated gamelist (all games, not just processed ones)
             # Always save gamelist, even if no games were updated (to ensure consistency)
@@ -11709,12 +11723,16 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     message = f"ScreenScraper task stopped. Updated {updated_count} games with ScreenScraper IDs"
                     if media_updated_count > 0:
                         message += f" and downloaded {media_updated_count} media files"
+                    if text_updated_count > 0:
+                        message += f" and updated {text_updated_count} text fields"
                     # Mark as completed (not error) when stopped, as partial results are saved
                     t.complete(True, message)
                 else:
                     message = f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs"
                     if media_updated_count > 0:
                         message += f" and downloaded {media_updated_count} media files"
+                    if text_updated_count > 0:
+                        message += f" and updated {text_updated_count} text fields"
                     t.complete(True, message)
             
         except Exception as e:
