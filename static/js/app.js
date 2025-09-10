@@ -6856,14 +6856,47 @@ class GameCollectionManager {
         const tbody = document.getElementById('systemsTableBody');
         if (!tbody) return;
         
-        tbody.innerHTML = '';
+        // Show loading message while fetching platform data
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-4">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span>Loading platform data from ScreenScraper and IGDB APIs...</span>
+                    </div>
+                </td>
+            </tr>
+        `;
         
         // Load LaunchBox platforms, ScreenScraper systems, and IGDB platforms for comboboxes
-        const [platforms, screenscraperSystems, igdbPlatforms] = await Promise.all([
-            this.loadLaunchBoxPlatforms(),
-            this.loadScreenScraperSystems(),
-            this.loadIgdbPlatforms()
-        ]);
+        let platforms = [], screenscraperSystems = [], igdbPlatforms = [];
+        
+        try {
+            [platforms, screenscraperSystems, igdbPlatforms] = await Promise.all([
+                this.loadLaunchBoxPlatforms(),
+                this.loadScreenScraperSystems(),
+                this.loadIgdbPlatforms()
+            ]);
+        } catch (error) {
+            console.error('Error loading platform data:', error);
+            // Show error message
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Error loading platform data. Some comboboxes may be empty.
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        // Clear loading message and populate table
+        tbody.innerHTML = '';
         
         Object.entries(systems).forEach(([systemName, systemData]) => {
             const row = document.createElement('tr');
@@ -6949,9 +6982,11 @@ class GameCollectionManager {
     
     async loadScreenScraperSystems() {
         try {
+            console.log('Loading ScreenScraper systems...');
             const response = await fetch('/api/screenscraper-systems');
             const data = await response.json();
             if (data.systems) {
+                console.log(`Loaded ${data.systems.length} ScreenScraper systems`);
                 return data.systems || [];
             } else {
                 console.error('Failed to load ScreenScraper systems:', data.error);
@@ -6965,9 +7000,11 @@ class GameCollectionManager {
     
     async loadIgdbPlatforms() {
         try {
+            console.log('Loading IGDB platforms...');
             const response = await fetch('/api/igdb-platforms');
             const data = await response.json();
             if (data.platforms) {
+                console.log(`Loaded ${data.platforms.length} IGDB platforms`);
                 return data.platforms || [];
             } else {
                 console.error('Failed to load IGDB platforms:', data.error);
