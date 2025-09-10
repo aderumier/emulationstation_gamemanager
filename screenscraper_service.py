@@ -824,12 +824,9 @@ class ScreenScraperService:
         try:
             import xml.etree.ElementTree as ET
             
-            print(f"🔧 DEBUG: get_current_media_field_value - game_path='{game_path}', field_name='{field_name}', system_name='{system_name}'")
-            
             # Construct path to gamelist.xml
-            gamelist_path = os.path.join('roms', system_name, 'gamelist.xml')
+            gamelist_path = os.path.join('var', 'gamelists', system_name, 'gamelist.xml')
             if not os.path.exists(gamelist_path):
-                print(f"🔧 DEBUG: Gamelist not found at {gamelist_path}")
                 return None
             
             # Parse the XML
@@ -839,20 +836,13 @@ class ScreenScraperService:
             # Find the game entry
             for game in root.findall('game'):
                 path_elem = game.find('path')
-                if path_elem is not None:
-                    print(f"🔧 DEBUG: Checking game path: '{path_elem.text}' vs '{game_path}'")
-                    if path_elem.text == game_path:
-                        print(f"🔧 DEBUG: Found matching game!")
-                        # Found the game, get the media field value
-                        field_elem = game.find(field_name)
-                        if field_elem is not None and field_elem.text:
-                            print(f"🔧 DEBUG: Found field {field_name} with value: '{field_elem.text.strip()}'")
-                            return field_elem.text.strip()
-                        else:
-                            print(f"🔧 DEBUG: Field {field_name} not found or empty")
-                        break
+                if path_elem is not None and path_elem.text == game_path:
+                    # Found the game, get the media field value
+                    field_elem = game.find(field_name)
+                    if field_elem is not None and field_elem.text:
+                        return field_elem.text.strip()
+                    break
             
-            print(f"🔧 DEBUG: No matching game found for path: '{game_path}'")
             return None
             
         except Exception as e:
@@ -886,7 +876,6 @@ class ScreenScraperService:
         
         print(f"Processing {len(medias)} media items")
         print(f"Selected fields: {selected_fields}")
-        print(f"🔧 DEBUG: process_media_downloads - overwrite_media_fields: {overwrite_media_fields}")
         
         # Group medias by type to handle duplicates
         media_by_type = {}
@@ -916,31 +905,11 @@ class ScreenScraperService:
             if not overwrite_media_fields:
                 # Get the current game data to check if the field already has a value
                 current_value = self.get_current_media_field_value(game_data.get('path', ''), local_field, system_name)
-                print(f"🔧 DEBUG: Media field check - {local_field}: current_value='{current_value}', overwrite_media_fields={overwrite_media_fields}")
                 
-                # Also check if the actual media file exists on disk
-                file_exists = False
+                # Skip download if the media field in gamelist is not empty
                 if current_value and current_value.strip():
-                    # Check if the file actually exists
-                    if os.path.exists(current_value):
-                        file_exists = True
-                        print(f"🔧 DEBUG: File exists at absolute path: {current_value}")
-                    else:
-                        # Try relative path from roms directory
-                        relative_path = os.path.join('roms', system_name, current_value)
-                        if os.path.exists(relative_path):
-                            file_exists = True
-                            print(f"🔧 DEBUG: File exists at relative path: {relative_path}")
-                        else:
-                            print(f"🔧 DEBUG: File does not exist at either path: {current_value} or {relative_path}")
-                else:
-                    print(f"🔧 DEBUG: No current value found for {local_field}")
-                
-                if file_exists:
-                    print(f"⏸️ Skipping {media_type} -> {local_field} (file already exists: {current_value})")
+                    print(f"⏸️ Skipping {media_type} -> {local_field} (field already has value: {current_value})")
                     continue
-                else:
-                    print(f"🔧 DEBUG: Proceeding with download for {media_type} -> {local_field}")
             
             # Get the media directory
             media_dir = self.get_media_directory(local_field, system_name)
