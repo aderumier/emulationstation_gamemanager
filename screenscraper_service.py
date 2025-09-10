@@ -12,37 +12,119 @@ from urllib.parse import urlparse
 # Global httpx client for ScreenScraper API
 _screenscraper_async_client = None
 
-# Region mapping for ScreenScraper
+# Region mapping for ScreenScraper - based on official API regionsListe.php
 REGION_MAPPING = {
+    # World regions
     'wor': 'World',
-    'usa': 'USA', 
+    'world': 'World',
+    
+    # USA regions
+    'usa': 'USA',
     'us': 'USA',
+    'america': 'USA',
+    
+    # Europe regions
     'eu': 'Europe',
     'europe': 'Europe',
-    'jp': 'Japan',
-    'japan': 'Japan',
     'fr': 'France',
     'france': 'France',
-    'de': 'Germany', 
+    'de': 'Germany',
     'germany': 'Germany',
     'uk': 'United Kingdom',
     'gb': 'United Kingdom',
+    'united kingdom': 'United Kingdom',
     'it': 'Italy',
     'italy': 'Italy',
     'es': 'Spain',
     'spain': 'Spain',
-    'au': 'Australia',
-    'australia': 'Australia',
+    'sp': 'Spain',
+    'nl': 'Netherlands',
+    'netherlands': 'Netherlands',
+    'dk': 'Denmark',
+    'denmark': 'Denmark',
+    'fi': 'Finland',
+    'finland': 'Finland',
+    'se': 'Sweden',
+    'sweden': 'Sweden',
+    'no': 'Norway',
+    'norway': 'Norway',
+    'pl': 'Poland',
+    'poland': 'Poland',
+    'pt': 'Portugal',
+    'portugal': 'Portugal',
+    'cz': 'Czech Republic',
+    'czech republic': 'Czech Republic',
+    'czech': 'Czech Republic',
+    'hu': 'Hungary',
+    'hungary': 'Hungary',
+    'gr': 'Greece',
+    'greece': 'Greece',
+    'bg': 'Bulgaria',
+    'bulgaria': 'Bulgaria',
+    'sk': 'Slovakia',
+    'slovakia': 'Slovakia',
+    
+    # Asia regions
+    'jp': 'Japan',
+    'japan': 'Japan',
+    'cn': 'China',
+    'china': 'China',
+    'kr': 'Korea',
+    'korea': 'Korea',
+    'tw': 'Taiwan',
+    'taiwan': 'Taiwan',
+    'asi': 'Asia',
+    'asia': 'Asia',
+    
+    # Americas regions
     'ca': 'Canada',
     'canada': 'Canada',
     'br': 'Brazil',
     'brazil': 'Brazil',
-    'kr': 'South Korea',
-    'korea': 'South Korea',
-    'cn': 'China',
-    'china': 'China',
+    'mex': 'Mexico',
+    'mexico': 'Mexico',
+    'cl': 'Chile',
+    'chile': 'Chile',
+    'pe': 'Peru',
+    'peru': 'Peru',
+    'ame': 'American Continent',
+    'american continent': 'American Continent',
+    
+    # Oceania regions
+    'au': 'Australia',
+    'australia': 'Australia',
+    'nz': 'New Zealand',
+    'new zealand': 'New Zealand',
+    'oce': 'Oceania',
+    'oceania': 'Oceania',
+    
+    # Middle East regions
+    'il': 'Israel',
+    'israel': 'Israel',
+    'ae': 'United Arab Emirates',
+    'united arab emirates': 'United Arab Emirates',
+    'kw': 'Kuwait',
+    'kuwait': 'Kuwait',
+    'tr': 'Turkey',
+    'turkey': 'Turkey',
+    'mor': 'Middle East',
+    'middle east': 'Middle East',
+    
+    # Africa regions
+    'za': 'South Africa',
+    'south africa': 'South Africa',
+    'afr': 'African Continent',
+    'african continent': 'African Continent',
+    
+    # Russia and Eastern Europe
     'ru': 'Russia',
-    'russia': 'Russia'
+    'russia': 'Russia',
+    
+    # Custom regions
+    'cus': 'Custom',
+    'custom': 'Custom',
+    'ss': 'ScreenScraper',
+    'screenscraper': 'ScreenScraper'
 }
 
 def extract_country_from_filename(filename: str) -> Optional[str]:
@@ -84,6 +166,8 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
             region_mapping = {
                 'world': 'wor',
                 'usa': 'usa',
+                'us': 'usa',
+                'america': 'usa',
                 'europe': 'eu',
                 'japan': 'jp',
                 'france': 'fr',
@@ -91,12 +175,42 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
                 'united kingdom': 'uk',
                 'italy': 'it',
                 'spain': 'es',
-                'australia': 'au',
+                'netherlands': 'nl',
+                'denmark': 'dk',
+                'finland': 'fi',
+                'sweden': 'se',
+                'norway': 'no',
+                'poland': 'pl',
+                'portugal': 'pt',
+                'czech republic': 'cz',
+                'czech': 'cz',
+                'hungary': 'hu',
+                'greece': 'gr',
+                'bulgaria': 'bg',
+                'slovakia': 'sk',
+                'china': 'cn',
+                'korea': 'kr',
+                'taiwan': 'tw',
+                'asia': 'asi',
                 'canada': 'ca',
                 'brazil': 'br',
-                'south korea': 'kr',
-                'china': 'cn',
-                'russia': 'ru'
+                'mexico': 'mex',
+                'chile': 'cl',
+                'peru': 'pe',
+                'american continent': 'ame',
+                'australia': 'au',
+                'new zealand': 'nz',
+                'oceania': 'oce',
+                'israel': 'il',
+                'united arab emirates': 'ae',
+                'kuwait': 'kw',
+                'turkey': 'tr',
+                'middle east': 'mor',
+                'south africa': 'za',
+                'african continent': 'afr',
+                'russia': 'ru',
+                'custom': 'cus',
+                'screenscraper': 'ss'
             }
             expected_region_code = region_mapping.get(region.lower(), region.lower())
             if media_region == expected_region_code:
