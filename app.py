@@ -3641,96 +3641,11 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
                         print(f"DEBUG: Found alternate name match for '{game_name}' → '{alt_name}' (via unified index, no parens)")
                         return game, 1.0
     
-    # Clean the game name for better matching (same logic as gamelist.xml)
-    cleaned_name = re.sub(r'\s*[\(\[][^()\[\]]*(?:[\(\[][^()\[\]]*[\)\]][^()\[\]]*)*[\)\]]', '', game_name)  # Remove text in parentheses and brackets (including nested)
-    cleaned_name = cleaned_name.lower().strip()
-    #cleaned_name = normalize_game_name(cleaned_name)
-    
-    # Also try matching with parentheses and brackets removed from both sides (including nested)
-    game_name_no_parens = re.sub(r'\s*[\(\[][^()\[\]]*(?:[\(\[][^()\[\]]*[\)\]][^()\[\]]*)*[\)\]]', '', game_name).strip()
-    game_name_no_parens = game_name_no_parens.lower().strip()
-
+    # No similarity matching - only exact matches are accepted
     best_match = None
     best_score = 0
-    best_match_type = 'main'  # Track whether match was from main name or alternate name
     
-    # Check all games for similarity matching
-    for i, game in enumerate(metadata_games):
-        metadata_name = game.get('Name', '')
-        if not metadata_name:
-            continue
-        
-        # Calculate similarity score for main name (with and without parentheses)
-        main_similarity = difflib.SequenceMatcher(None, cleaned_name, metadata_name.lower()).ratio()
-        main_similarity_no_parens = difflib.SequenceMatcher(None, game_name_no_parens, metadata_name.lower()).ratio()
-        main_similarity = max(main_similarity, main_similarity_no_parens)
-        
-        # Check alternate names for better matches
-        alternate_names = game.get('AlternateNames', [])
-        best_alt_similarity = 0
-        best_alt_name = None
-        
-        for alt_name in alternate_names:
-            # Check both cleaned and no-parentheses versions
-            alt_similarity = difflib.SequenceMatcher(None, cleaned_name, alt_name.lower()).ratio()
-            alt_similarity_no_parens = difflib.SequenceMatcher(None, game_name_no_parens, alt_name.lower()).ratio()
-            alt_similarity = max(alt_similarity, alt_similarity_no_parens)
-            
-            if alt_similarity > best_alt_similarity:
-                best_alt_similarity = alt_similarity
-                best_alt_name = alt_name
-        
-        # Use the best similarity score (main name or alternate name)
-        if best_alt_similarity > main_similarity:
-            similarity = best_alt_similarity
-            match_type = 'alternate'
-            matched_name = best_alt_name
-        else:
-            similarity = main_similarity
-            match_type = 'main'
-            matched_name = metadata_name
-        
-          
-        # Bonus for publisher match (if we have publisher info)
-        metadata_publisher = game.get('Publisher', '').lower().strip()
-        if metadata_publisher:
-            # Check if any search variation matches publisher
-            if cleaned_name == metadata_publisher:
-                similarity += 0.15  # Significant bonus for publisher match
-            elif cleaned_name in metadata_publisher or metadata_publisher in cleaned_name:
-                similarity += 0.08  # Partial publisher match bonus
-            elif game_name_no_parens == metadata_publisher:
-                similarity += 0.15  # Significant bonus for publisher match
-            elif game_name_no_parens in metadata_publisher or metadata_publisher in game_name_no_parens:
-                similarity += 0.08  # Partial publisher match bonus
-        
-        # Bonus for developer match (if we have developer info)
-        metadata_developer = game.get('Developer', '').lower().strip()
-        if metadata_developer:
-            # Check if any search variation matches developer
-            if cleaned_name == metadata_developer:
-                similarity += 0.12  # Bonus for developer match
-            elif cleaned_name in metadata_developer or metadata_developer in cleaned_name:
-                similarity += 0.06  # Partial developer match bonus
-            elif game_name_no_parens == metadata_developer:
-                similarity += 0.12  # Bonus for developer match
-            elif game_name_no_parens in metadata_developer or metadata_developer in game_name_no_parens:
-                similarity += 0.06  # Partial developer match bonus
-        
-        if similarity > best_score:
-            best_score = similarity
-            best_match = game
-            best_match_type = match_type
-            best_matched_name = matched_name
-            
-            # Early termination for very good matches (score > 0.98)
-            if similarity > 0.98:
-                break
     
-    # Add match information to the best match for logging purposes
-    if best_match:
-        best_match['_match_type'] = best_match_type
-        best_match['_matched_name'] = best_matched_name
     
     return best_match, best_score
 
@@ -4172,21 +4087,16 @@ def find_best_matches_endpoint():
             game_name = game_data.get('name', 'Unknown')
             existing_launchboxid = game_data.get('launchboxid')
             
-            # Find best match
-            best_match, score = find_best_match(game_name, metadata_games, current_system_platform, existing_launchboxid, platform_cache, mapping_config)
+            # Get top matches for the modal
+            top_matches = get_top_matches(game_name, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
             
-            if best_match and score > 0.5:  # Only include games with reasonable matches
-                # Get top matches for the modal
-                top_matches = get_top_matches(game_name, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
+            if top_matches:  # Only include games with matches
                 
                 result = {
                     'game_name': game_name,
                     'game_data': game_data,
-                    'best_match': best_match,
-                    'score': score,
                     'top_matches': top_matches,
-                    'match_type': best_match.get('_match_type', 'main'),
-                    'matched_name': best_match.get('_matched_name', best_match.get('Name', 'Unknown'))
+                    'existing_launchboxid': existing_launchboxid
                 }
                 results.append(result)
         
@@ -12087,15 +11997,19 @@ def run_steamgrid_task(system_name, task_id, selected_games=None):
                     t.log_message(f"Searching Steam for: {game_name}")
                 
                 # Find Steam app
-                steam_app = service.find_best_match(game_name, app_index)
+                match_result = service.find_best_match(game_name, app_index)
                 
-                if steam_app:
+                if match_result:
+                    steam_app = match_result['app']
+                    matched_name = match_result['matched_name']
+                    
                     game['steamid'] = str(steam_app['appid'])
                     updated_count += 1
-                    print(f"✅ Found Steam match for '{game_name}': {steam_app['name']} (appid: {steam_app['appid']})")
+                    
+                    print(f"✅ Perfect match for '{game_name}': {matched_name} (appid: {steam_app['appid']})")
                     t = get_task(task_id)
                     if t:
-                        t.log_message(f"Found Steam match for '{game_name}': {steam_app['name']} (appid: {steam_app['appid']})")
+                        t.log_message(f"Perfect match for '{game_name}': {matched_name} (appid: {steam_app['appid']})")
                 else:
                     print(f"❌ No Steam match found for: {game_name}")
                     t = get_task(task_id)

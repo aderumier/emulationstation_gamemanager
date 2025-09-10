@@ -9,7 +9,6 @@ import time
 import httpx
 import asyncio
 import re
-import difflib
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import logging
@@ -142,6 +141,7 @@ class SteamGridService:
         """
         Find best matching Steam app for a game name
         Uses the same sophisticated matching logic as LaunchBox but adapted for Steam data
+        Returns a dict with match info including whether it's a perfect match and similarity score
         """
         if not game_name or not steam_apps:
             return None
@@ -180,48 +180,27 @@ class SteamGridService:
             for app_idx in self._unified_index[normalized_search]:
                 app = steam_apps[app_idx]
                 logger.debug(f"Found exact Steam match for '{game_name}' → '{app['name']}' (appid: {app['appid']})")
-                return app
+                return {
+                    'app': app,
+                    'match_type': 'perfect',
+                    'score': 1.0,
+                    'matched_name': app['name']
+                }
         
         # If no match found with normalized search, try with no_parens version
         if normalized_search != normalized_search_no_parens and normalized_search_no_parens in self._unified_index:
             for app_idx in self._unified_index[normalized_search_no_parens]:
                 app = steam_apps[app_idx]
                 logger.debug(f"Found exact Steam match for '{game_name}' → '{app['name']}' (appid: {app['appid']}, no parens)")
-                return app
+                return {
+                    'app': app,
+                    'match_type': 'perfect',
+                    'score': 1.0,
+                    'matched_name': app['name']
+                }
         
-        # Fall back to similarity matching if no exact match found
-        # Clean the game name for better matching (same logic as gamelist.xml)
-        # Always remove text between parentheses and brackets
-        cleaned_name = re.sub(r'\s*[\(\[][^()\[\]]*(?:[\(\[][^()\[\]]*[\)\]][^()\[\]]*)*[\)\]]', '', game_name)
-        cleaned_name = cleaned_name.lower().strip()
-        
-        best_match = None
-        best_score = 0.0
-        best_matched_name = ""
-        
-        # Check all Steam apps for similarity matching
-        for app in steam_apps:
-            steam_name = app.get('name', '')
-            if not steam_name:
-                continue
-            
-            # Calculate similarity score
-            similarity = difflib.SequenceMatcher(None, cleaned_name, steam_name.lower()).ratio()
-            
-            # Use the best similarity score
-            if similarity > best_score:
-                best_score = similarity
-                best_match = app
-                best_matched_name = steam_name
-                
-                # Early termination for very good matches (score > 0.99)
-                if similarity > 0.99:
-                    break
-        
-        if best_match:
-            logger.debug(f"Found Steam similarity match for '{game_name}': {best_matched_name} (appid: {best_match['appid']}, score: {best_score:.2f})")
-        
-        return best_match
+        # No similarity matching - only exact matches are accepted
+        return None
     
     
     async def find_steam_app(self, game_name: str) -> Optional[Dict]:
