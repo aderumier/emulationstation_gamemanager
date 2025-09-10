@@ -153,6 +153,58 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
     # If no region match found, return the first media
     return media_list[0]
 
+
+def extract_text_info_from_game_data(game_data: Dict) -> Dict[str, str]:
+    """
+    Extract text information from ScreenScraper game data.
+    
+    Args:
+        game_data: Game data dictionary from ScreenScraper API
+        
+    Returns:
+        Dictionary with extracted text information
+    """
+    text_info = {}
+    
+    # Extract game name from noms[text] with region='wor'
+    if 'noms' in game_data and isinstance(game_data['noms'], list):
+        for nom in game_data['noms']:
+            if isinstance(nom, dict) and nom.get('region') == 'wor' and 'text' in nom:
+                text_info['name'] = nom['text']
+                break
+    
+    # Extract publisher from editeur.text
+    if 'editeur' in game_data and isinstance(game_data['editeur'], dict):
+        if 'text' in game_data['editeur']:
+            text_info['publisher'] = game_data['editeur']['text']
+    
+    # Extract developer from developpeur.text
+    if 'developpeur' in game_data and isinstance(game_data['developpeur'], dict):
+        if 'text' in game_data['developpeur']:
+            text_info['developer'] = game_data['developpeur']['text']
+    
+    # Extract description from synopsis[text] with region='wor'
+    if 'synopsis' in game_data and isinstance(game_data['synopsis'], list):
+        for synopsis in game_data['synopsis']:
+            if isinstance(synopsis, dict) and synopsis.get('region') == 'wor' and 'text' in synopsis:
+                text_info['description'] = synopsis['text']
+                break
+    
+    # Extract genres from genres[noms[text]] with langue='en', concatenate with '/'
+    if 'genres' in game_data and isinstance(game_data['genres'], list):
+        genre_names = []
+        for genre in game_data['genres']:
+            if isinstance(genre, dict) and 'noms' in genre and isinstance(genre['noms'], list):
+                for nom in genre['noms']:
+                    if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
+                        genre_names.append(nom['text'])
+                        break
+        if genre_names:
+            text_info['genre'] = '/'.join(genre_names)
+    
+    return text_info
+
+
 def get_screenscraper_systems(devid: str, devpassword: str, force_refresh: bool = False) -> Dict[int, str]:
     """
     Get ScreenScraper systems mapping (id -> nom_eu) with caching
@@ -492,6 +544,17 @@ class ScreenScraperService:
                     # Add path to game data for media processing
                     game_data['path'] = game_path
                     
+                    # Extract text information from game data
+                    print(f"📝 Extracting text information for {game_name}...")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Extracting text information for {game_name}")
+                    
+                    text_info = extract_text_info_from_game_data(game_data)
+                    if text_info:
+                        print(f"📝 Extracted text info: {text_info}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Extracted text info: {', '.join(text_info.keys())}")
+                    
                     # Create client for media downloads
                     async with httpx.AsyncClient(timeout=30.0) as media_client:
                         # Process media downloads
@@ -501,10 +564,11 @@ class ScreenScraperService:
                         
                         downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields, detailed_progress_callback)
                     
-                    # Store both jeu_id and downloaded media
+                    # Store jeu_id, downloaded media, and text information
                     results[game_path] = {
                         'jeu_id': jeu_id,
-                        'downloaded_media': downloaded_media
+                        'downloaded_media': downloaded_media,
+                        'text_info': text_info
                     }
                     print(f"✅ Successfully processed {game_name} -> ScreenScraper ID: {jeu_id}")
                     print(f"📁 Downloaded media: {list(downloaded_media.keys())}")
@@ -521,7 +585,8 @@ class ScreenScraperService:
                     # Store just the jeu_id if no media processing
                     results[game_path] = {
                         'jeu_id': None,
-                        'downloaded_media': {}
+                        'downloaded_media': {},
+                        'text_info': {}
                     }
                 
                 if progress_callback:
