@@ -2986,13 +2986,16 @@ def manage_screenscraper_credentials():
             from credential_manager import credential_manager
             screenscraper_creds = credential_manager.get_screenscraper_credentials()
             
+            # Check if ScreenScraper is enabled based on credentials
+            is_enabled = bool(screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword'))
+            
             return jsonify({
                 'has_dev_id': bool(screenscraper_creds.get('devid')),
                 'has_dev_password': bool(screenscraper_creds.get('devpassword')),
                 'has_ss_id': bool(screenscraper_creds.get('ssid')),
                 'has_ss_password': bool(screenscraper_creds.get('sspassword')),
                 'configured': bool(screenscraper_creds.get('devid') and screenscraper_creds.get('devpassword') and screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')),
-                'enabled': screenscraper_config.get('enabled', True)
+                'enabled': is_enabled
             })
         
         elif request.method == 'POST':
@@ -11452,13 +11455,13 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
         try:
             print(f"Starting ScreenScraper task for system: {system_name}")
             
-            # Check if ScreenScraper is enabled
-            config = load_config()
-            screenscraper_config = config.get('screenscraper', {})
-            if not screenscraper_config.get('enabled', True):
+            # Check if ScreenScraper credentials are configured
+            from credential_manager import credential_manager
+            screenscraper_creds = credential_manager.get_screenscraper_credentials()
+            if not (screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')):
                 t = get_task(task_id)
                 if t:
-                    t.complete(False, "ScreenScraper integration is disabled")
+                    t.complete(False, "ScreenScraper credentials not configured")
                 return
             
             # Check if task was cancelled before starting
@@ -11468,10 +11471,6 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                 if t:
                     t.complete(False, "Task cancelled before starting")
                 return
-            
-            # Load credentials using secure credential manager
-            from credential_manager import credential_manager
-            screenscraper_creds = credential_manager.get_screenscraper_credentials()
             
             if not all(screenscraper_creds.get(key) for key in ['devid', 'devpassword', 'ssid', 'sspassword']):
                 t = get_task(task_id)
@@ -11863,11 +11862,11 @@ def scrap_screenscraper_system(system_name):
         if not system_name:
             return jsonify({'error': 'System name is required'}), 400
 
-        # Check if ScreenScraper is enabled
-        config = load_config()
-        screenscraper_config = config.get('screenscraper', {})
-        if not screenscraper_config.get('enabled', True):
-            return jsonify({'error': 'ScreenScraper integration is disabled'}), 400
+        # Check if ScreenScraper credentials are configured
+        from credential_manager import credential_manager
+        screenscraper_creds = credential_manager.get_screenscraper_credentials()
+        if not (screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')):
+            return jsonify({'error': 'ScreenScraper credentials not configured'}), 400
         
         # Get request data
         data = request.get_json() or {}

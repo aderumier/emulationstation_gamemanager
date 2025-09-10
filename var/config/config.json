@@ -775,7 +775,6 @@
         ]
     },
     "screenscraper": {
-        "enabled": true,
         "systems": {
             "3DO": "29",
             "Aamber Pegasus": "83",
