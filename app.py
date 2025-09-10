@@ -2963,14 +2963,11 @@ def get_screenscraper_systems():
         
         # Get ScreenScraper credentials
         screenscraper_creds = credential_manager.get_screenscraper_credentials()
-        if not (screenscraper_creds.get('devid') and screenscraper_creds.get('devpassword')):
-            return jsonify({'error': 'ScreenScraper developer credentials not configured'}), 400
+        devid = screenscraper_creds.get('devid', '')
+        devpassword = screenscraper_creds.get('devpassword', '')
         
-        # Get systems mapping
-        systems = get_screenscraper_systems(
-            screenscraper_creds.get('devid', ''),
-            screenscraper_creds.get('devpassword', '')
-        )
+        # Get systems mapping (will use expired cache if credentials missing)
+        systems = get_screenscraper_systems(devid, devpassword)
         
         # Convert to format expected by GUI (id -> name)
         systems_list = []
@@ -2998,6 +2995,7 @@ def get_igdb_platforms():
         import json
         import os
         from datetime import datetime, timedelta
+        from credential_manager import credential_manager
         
         platforms_file = "var/db/igdb/platforms.json"
         
@@ -3011,8 +3009,15 @@ def get_igdb_platforms():
         
         # Check if cache is expired (24 hours)
         cache_timestamp = data.get('timestamp', 0)
-        if datetime.now().timestamp() - cache_timestamp > 86400:  # 24 hours
-            return jsonify({'error': 'IGDB platforms cache expired'}), 410
+        cache_expired = datetime.now().timestamp() - cache_timestamp > 86400  # 24 hours
+        
+        # Check if IGDB credentials are configured
+        igdb_creds = credential_manager.get_igdb_credentials()
+        has_credentials = igdb_creds.get('client_id') and igdb_creds.get('client_secret')
+        
+        if cache_expired and not has_credentials:
+            # Cache is expired but no credentials available, use expired cache anyway
+            print("⚠️ IGDB cache expired but no credentials available, using expired cache")
         
         # Convert to format expected by GUI (id -> name)
         platforms_list = []

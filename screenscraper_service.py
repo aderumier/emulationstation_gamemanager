@@ -183,6 +183,19 @@ def get_screenscraper_systems(devid: str, devpassword: str, force_refresh: bool 
         except Exception as e:
             print(f"⚠️ Error reading ScreenScraper systems cache: {e}")
     
+    # Check if credentials are provided
+    if not devid or not devpassword:
+        print("⚠️ ScreenScraper credentials not provided, using expired cache if available")
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                print(f"📋 Using expired cache due to missing credentials (count: {len(cache_data.get('systems', {}))})")
+                return cache_data.get('systems', {})
+            except Exception as e:
+                print(f"⚠️ Error reading expired cache: {e}")
+        return {}
+    
     try:
         api_url = f"https://api.screenscraper.fr/api2/systemesListe.php?devid={devid}&devpassword={devpassword}&softname=cursorscraper&output=json&ssid=test&sspassword=test"
         print(f"🌐 Fetching ScreenScraper systems from API...")
@@ -218,10 +231,10 @@ def get_screenscraper_systems(devid: str, devpassword: str, force_refresh: bool 
             try:
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     cache_data = json.load(f)
-                print(f"⚠️ Using expired cache due to API error")
+                print(f"⚠️ Using expired cache due to API error (count: {len(cache_data.get('systems', {}))})")
                 return cache_data.get('systems', {})
-            except:
-                pass
+            except Exception as e2:
+                print(f"⚠️ Error reading expired cache: {e2}")
         return {}
 
 async def get_screenscraper_async_client(max_connections: int = 1):
