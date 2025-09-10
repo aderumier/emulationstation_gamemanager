@@ -1640,7 +1640,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation']:
             self.grid_refresh_needed = True
 
     
