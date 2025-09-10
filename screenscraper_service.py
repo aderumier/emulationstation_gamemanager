@@ -45,10 +45,11 @@ class ScreenScraperService:
         self.config = config
         self.credentials = credentials
         self.logger = logging.getLogger(__name__)
-        self.api_url = config.get('api_url', 'https://api.screenscraper.fr/api2/jeuInfos.php')
-        self.max_connections = config.get('max_connections', 2)
-        self.timeout = config.get('timeout', 30)
-        self.retry_attempts = config.get('retry_attempts', 3)
+        # Static ScreenScraper configuration
+        self.api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
+        self.max_connections = 2
+        self.timeout = 30
+        self.retry_attempts = 3
         
         # Extract credentials
         self.devid = credentials.get('devid', '')

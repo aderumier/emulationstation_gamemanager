@@ -2992,7 +2992,7 @@ def manage_screenscraper_credentials():
                 'has_ss_id': bool(screenscraper_creds.get('ssid')),
                 'has_ss_password': bool(screenscraper_creds.get('sspassword')),
                 'configured': bool(screenscraper_creds.get('devid') and screenscraper_creds.get('devpassword') and screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')),
-                'enabled': screenscraper_config.get('enabled', False)
+                'enabled': True
             })
         
         elif request.method == 'POST':
@@ -11368,9 +11368,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     t.complete(False, "Task cancelled before starting")
                 return
             
-            # Get ScreenScraper configuration
-            screenscraper_config = config.get('screenscraper', {})
-            if not screenscraper_config.get('enabled', False):
+            # ScreenScraper is always enabled (static configuration)
+            if False:  # ScreenScraper is always enabled
                 t = get_task(task_id)
                 if t:
                     t.complete(False, "ScreenScraper integration is disabled")
@@ -11390,6 +11389,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             service = ScreenScraperService(config, screenscraper_creds)
             
             # Add field selection settings to config
+            screenscraper_config = config.get('screenscraper', {})
             screenscraper_config['selected_fields'] = selected_fields or []
             screenscraper_config['overwrite_text_fields'] = overwrite_text_fields
             screenscraper_config['overwrite_media_fields'] = overwrite_media_fields
@@ -11759,9 +11759,8 @@ def scrap_screenscraper_system(system_name):
         if not system_name:
             return jsonify({'error': 'System name is required'}), 400
         
-        # Check if ScreenScraper is enabled
-        screenscraper_config = config.get('screenscraper', {})
-        if not screenscraper_config.get('enabled', False):
+        # ScreenScraper is always enabled (static configuration)
+        if False:  # ScreenScraper is always enabled
             return jsonify({'error': 'ScreenScraper integration is disabled'}), 400
         
         # Get request data

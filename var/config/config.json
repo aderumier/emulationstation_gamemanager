@@ -775,11 +775,6 @@
         ]
     },
     "screenscraper": {
-        "enabled": true,
-        "api_url": "https://api.screenscraper.fr/api2/jeuInfos.php",
-        "max_connections": 2,
-        "timeout": 30,
-        "retry_attempts": 3,
         "systems": {
             "3DO": "29",
             "Aamber Pegasus": "83",
@@ -890,7 +885,7 @@
             "Megadrive": "1",
             "Megadrive - Sonic The Hedgehog 2 Hacks": "203",
             "Megadrive 32X": "19",
-            "MGT SAM Coupé": "213",
+            "MGT SAM Coup\u00e9": "213",
             "Midway Classics": "150",
             "Mikrosha": "124",
             "Mitchell": "189",
@@ -951,7 +946,7 @@
             "Playstation minis": "172",
             "Plus/4": "99",
             "Pocket Challenge V2": "237",
-            "Pokémon mini": "211",
+            "Pok\u00e9mon mini": "211",
             "PrBoom": "290",
             "PS Vita": "62",
             "Psikyo": "167",
