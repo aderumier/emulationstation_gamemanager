@@ -1,5 +1,5 @@
 {
-    "roms_root_directory": "/home/aderumier/cursorscraper/roms",
+    "roms_root_directory": "/home/aderumier/nfs/roms",
     "task_logs_directory": "var/task_logs",
     "max_tasks_to_keep": 30,
     "server": {
@@ -150,11 +150,14 @@
             "screenscraper": 4
         },
         "windows": {
-            "extensions": [
-                ".wsquashfs"
-            ],
             "launchbox": "Windows",
-            "igdb": 6
+            "screenscraper": "",
+            "igdb": 6,
+            "extensions": [
+                ".wsquashfs",
+                ".wine",
+                ".pc"
+            ]
         },
         "gba": {
             "extensions": [
@@ -315,13 +318,13 @@
             "screenscraper": 34
         },
         "xboxseries": {
+            "launchbox": "Microsoft Xbox Series X|S",
+            "screenscraper": 169,
+            "igdb": 169,
             "extensions": [
                 ".xvc",
                 ".XVC"
-            ],
-            "launchbox": "Microsoft Xbox Series X|S",
-            "igdb": 169,
-            "screenscraper": 169
+            ]
         },
         "xbla": {
             "extensions": [
@@ -512,13 +515,13 @@
             "screenscraper": 28
         },
         "vectrex": {
+            "launchbox": "GCE Vectrex",
+            "screenscraper": 102,
+            "igdb": 70,
             "extensions": [
                 ".vec",
                 ".VEC"
-            ],
-            "launchbox": "GCE Vectrex",
-            "igdb": 70,
-            "screenscraper": 102
+            ]
         },
         "intellivision": {
             "extensions": [
@@ -825,12 +828,12 @@
         },
         "typex": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "apogee": {
@@ -858,11 +861,11 @@
         },
         "namco10": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "7z"
+                ".zip",
+                ".7z"
             ]
         },
         "studio2": {
@@ -947,43 +950,43 @@
         },
         "pinballfx3": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "bat"
+                ".bat"
             ]
         },
         "namco23": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "7z"
+                ".zip",
+                ".7z"
             ]
         },
         "segasystem32": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "7z"
+                ".zip",
+                ".7z"
             ]
         },
         "win311": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "dos",
-                "zip",
-                "squashfs",
-                "dosz",
-                "m3u",
-                "iso",
-                "cue"
+                ".pc",
+                ".dos",
+                ".zip",
+                ".squashfs",
+                ".dosz",
+                ".m3u",
+                ".iso",
+                ".cue"
             ]
         },
         "n501": {
@@ -1076,12 +1079,12 @@
         },
         "wahlap": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "pockstat": {
@@ -1160,20 +1163,20 @@
         },
         "nesicax2": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "3dsen": {
-            "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "launchbox": "3DO Interactive Multiplayer",
+            "screenscraper": "29",
+            "igdb": "139",
             "extensions": [
-                "zip"
+                "zip zip2"
             ]
         },
         "pcvr": {
@@ -1199,12 +1202,12 @@
         },
         "segaer": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "hyprscan": {
@@ -1577,12 +1580,12 @@
         },
         "unis": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "clonehero": {
@@ -1634,18 +1637,18 @@
         },
         "pinballfx2": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "bat"
+                ".bat"
             ]
         },
         "pinballm": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "bat"
+                ".bat"
             ]
         },
         "tgcd": {
@@ -1706,11 +1709,11 @@
         },
         "neogeo64": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "7z",
-                "zip"
+                ".zip",
+                ".7z"
             ]
         },
         "tg16": {
@@ -1726,14 +1729,12 @@
         },
         "win11": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "exe",
-                "wine",
-                "wsquashfs",
-                "wtgz"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "gbah": {
@@ -1748,11 +1749,11 @@
         },
         "segastv": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "7z"
+                ".zip",
+                ".7z"
             ]
         },
         "sega32xcd": {
@@ -1849,12 +1850,12 @@
         },
         "rawthrills": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "msxlaserdisk": {
@@ -1875,11 +1876,11 @@
         },
         "namco11": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "7z"
+                ".zip",
+                ".7z"
             ]
         },
         "mononcol": {
@@ -1978,17 +1979,17 @@
         },
         "win95": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "dos",
-                "zip",
-                "squashfs",
-                "dosz",
-                "m3u",
-                "iso",
-                "cue"
+                ".pc",
+                ".dos",
+                ".zip",
+                ".squashfs",
+                ".dosz",
+                ".m3u",
+                ".iso",
+                ".cue"
             ]
         },
         "ggh": {
@@ -2012,9 +2013,7 @@
             ]
         },
         "cps1": {
-            "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "launchbox": "Arcade",
             "extensions": [
                 "zip",
                 "7z"
@@ -2049,11 +2048,11 @@
         },
         "namco12": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "7z"
+                ".zip",
+                ".7z"
             ]
         },
         "megacd": {
@@ -2188,10 +2187,10 @@
         },
         "zaccariapinball": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "bat"
+                ".bat"
             ]
         },
         "fightcade2": {
@@ -2254,14 +2253,12 @@
         },
         "popcap": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "exe",
-                "wine",
-                "wsquashfs",
-                "wtgz"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "neogeomvs": {
@@ -2311,20 +2308,20 @@
         },
         "segaalls": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "pinballfx": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "bat"
+                ".bat"
             ]
         },
         "orao103": {
@@ -2380,12 +2377,12 @@
         },
         "nesicax": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "mz2500": {
@@ -2431,27 +2428,27 @@
         },
         "win98": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "dos",
-                "zip",
-                "squashfs",
-                "dosz",
-                "m3u",
-                "iso",
-                "cue"
+                ".pc",
+                ".dos",
+                ".zip",
+                ".squashfs",
+                ".dosz",
+                ".m3u",
+                ".iso",
+                ".cue"
             ]
         },
         "segarw": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "amiga600": {
@@ -2501,12 +2498,12 @@
         },
         "typex2": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "vg5k": {
@@ -2522,13 +2519,11 @@
         },
         "zinc": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "ZIP",
-                "7z",
-                "7Z"
+                ".zip",
+                ".7z"
             ]
         },
         "aquarius": {
@@ -2631,12 +2626,12 @@
         },
         "segare": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "pc",
-                "wsquashfs",
-                "wine"
+                ".wsquashfs",
+                ".wine",
+                ".pc"
             ]
         },
         "snesh": {
@@ -2667,11 +2662,11 @@
         },
         "namco22": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
-                "zip",
-                "7z"
+                ".zip",
+                ".7z"
             ]
         },
         "gamecubeh": {

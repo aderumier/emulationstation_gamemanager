@@ -3521,19 +3521,7 @@ def parse_launchbox_metadata(metadata_path, target_platform, skip_global_cache=F
         traceback.print_exc()
         return []
 
-def normalize_game_name(name):
-    """Normalize game name for consistent matching across the application"""
-    if not name:
-        return ""
-
-    # Remove 
-    normalized = name.replace(' III','3').replace(' II', ' 2').replace(" IV", '4').lower()
-
-    
-    # Remove specific characters: dash, colon, underscore, apostrophe
-    for char in ['-', ':', '_', '/', '\\', '|', '!', '*', "'", '"', ',', '.',' ']:
-        normalized = normalized.replace(char, '')
-    return normalized
+from game_utils import normalize_game_name
 
 def find_best_match(game_name, metadata_games, target_platform, existing_launchboxid=None, platform_cache=None, mapping_config=None):
     """Find the best matching game in Launchbox metadata"""
@@ -3735,8 +3723,8 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
             best_match_type = match_type
             best_matched_name = matched_name
             
-            # Early termination for very good matches (score > 0.9)
-            if similarity > 0.9:
+            # Early termination for very good matches (score > 0.98)
+            if similarity > 0.98:
                 break
     
     # Add match information to the best match for logging purposes
@@ -5075,16 +5063,24 @@ def scan_media_files(system_name):
             # Ensure all expected media fields exist in the game data
             # Use the same field names that the scraper expects (from consolidated config.json)
             scraper_media_fields = ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']
-            task.update_progress(f"Checking media fields for '{game.get('name', 'Unknown')}': {list(game.keys())}")
+            missing_fields = []
+            none_fields = []
+            
             for field in scraper_media_fields:
                 if field not in game:
                     game[field] = ''  # Initialize missing media fields as empty
                     game_updated = True
-                    task.update_progress(f"Added missing media field '{field}' for '{game.get('name', 'Unknown')}'")
+                    missing_fields.append(field)
                 elif game[field] is None:
                     game[field] = ''  # Convert None to empty string
                     game_updated = True
-                    task.update_progress(f"Converted None to empty string for field '{field}' in '{game.get('name', 'Unknown')}'")
+                    none_fields.append(field)
+            
+            # Log grouped messages for missing fields
+            if missing_fields:
+                task.update_progress(f"Added missing media fields for '{game.get('name', 'Unknown')}': {', '.join(missing_fields)}")
+            if none_fields:
+                task.update_progress(f"Converted None to empty string for fields in '{game.get('name', 'Unknown')}': {', '.join(none_fields)}")
             
             # Check each media type
             for media_type, gamelist_field in media_mappings.items():
@@ -7204,6 +7200,7 @@ def run_rom_scan_task(system_name):
         # Get supported ROM extensions for this system
         system_config = config.get('systems', {}).get(system_name, {})
         rom_extensions = system_config.get('extensions', [])
+        
         if not rom_extensions:
             # Default extensions if system not found in config
             rom_extensions = ['.zip', '.ZIP', '.7z', '.7Z']
@@ -7235,6 +7232,7 @@ def run_rom_scan_task(system_name):
             # Calculate current depth
             current_depth = root[len(system_path):].count(os.sep)
             
+            
             # Report progress every 100 directories or 1000 files
             if scanned_dirs % 100 == 0 or scanned_files % 1000 == 0:
                 task.update_progress(f"Scanning directories... ({scanned_dirs} dirs, {scanned_files} files scanned, depth: {current_depth})")
@@ -7243,6 +7241,44 @@ def run_rom_scan_task(system_name):
             if current_depth >= max_depth:
                 dirs.clear()  # Don't recurse deeper
                 continue
+            
+            # Check if current directory name has a ROM extension
+            # If so, treat it as a ROM file and skip scanning subdirectories
+            current_dir_name = os.path.basename(root)
+            if current_dir_name:
+                
+                # Check for exact extension match (case-insensitive)
+                dir_lower = current_dir_name.lower()
+                rom_detected = False
+                
+                
+                for ext in rom_extensions:
+                    ext_lower = ext.lower()
+                    ends_with = dir_lower.endswith(ext_lower)
+                    
+                    if ends_with:
+                        # This directory has a ROM extension, treat it as a ROM file
+                        rel_path = os.path.relpath(root, system_path)
+                        rom_files.append(rel_path)
+                        task.update_progress(f"✅ Found ROM directory: {current_dir_name} (extension: {ext}) - SKIPPING subdirectories")
+                        # Clear dirs to skip scanning subdirectories
+                        dirs.clear()
+                        rom_detected = True
+                        break
+                
+                if not rom_detected:
+                    # Also try pattern matching as fallback
+                    if any(fnmatch.fnmatch(current_dir_name, pattern) for pattern in extension_patterns):
+                        # This directory has a ROM extension, treat it as a ROM file
+                        rel_path = os.path.relpath(root, system_path)
+                        rom_files.append(rel_path)
+                        task.update_progress(f"✅ Found ROM directory (pattern): {current_dir_name} - SKIPPING subdirectories")
+                        # Clear dirs to skip scanning subdirectories
+                        dirs.clear()
+                        rom_detected = True
+                
+                if rom_detected:
+                    continue
             
             # Skip only the media directory (contains downloaded media, not ROMs)
             if 'media' in dirs:
@@ -8529,9 +8565,6 @@ def run_2d_box_generation_task(system_name, selected_games):
         media_config = load_media_config()
         media_mappings = media_config.get('mappings', {})
         
-        # Debug logging
-        task.update_progress(f"DEBUG: media_config = {media_config}")
-        task.update_progress(f"DEBUG: media_mappings = {media_mappings}")
         
         # Find the media directory for extra1 field
         extra1_directory = None
@@ -8540,7 +8573,6 @@ def run_2d_box_generation_task(system_name, selected_games):
                 extra1_directory = directory
                 break
         
-        task.update_progress(f"DEBUG: extra1_directory = {extra1_directory}")
         
         if not extra1_directory:
             task.complete(False, f'No media mapping found for extra1 field. Available mappings: {media_mappings}')
@@ -11949,6 +11981,176 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
 # IGDB Scraper API Routes
 # =============================================================================
 
+def run_steamgrid_task(system_name, task_id, selected_games=None):
+    """Run SteamGrid task for a specific system"""
+    import asyncio
+    import threading
+    from steamgrid_service import SteamGridService
+    
+    # Add task to cancel map
+    global _steamgrid_cancel_maps
+    if '_steamgrid_cancel_maps' not in globals():
+        _steamgrid_cancel_maps = {}
+    _steamgrid_cancel_maps[task_id] = False
+    
+    def is_cancelled():
+        """Check if the SteamGrid task should be cancelled"""
+        global _steamgrid_cancel_maps
+        return _steamgrid_cancel_maps.get(task_id, False)
+    
+    def progress_callback(completed, total):
+        """Update task progress"""
+        t = get_task(task_id)
+        if t:
+            progress = int((completed / total) * 100) if total > 0 else 0
+            t.update_progress(progress, None, current_step=completed, total_steps=total)
+            print(f"🔄 SteamGrid Progress: {completed}/{total} ({progress}%)")
+    
+    async def async_steamgrid():
+        try:
+            print(f"Starting SteamGrid task for system: {system_name}")
+            
+            # Check if task was cancelled before starting
+            if is_cancelled():
+                print(f"SteamGrid task {task_id} was cancelled before starting")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "Task cancelled before starting")
+                return
+            
+            # Initialize SteamGrid service
+            service = SteamGridService()
+            
+            # Load games for the system
+            gamelist_path = get_gamelist_path(system_name)
+            if not os.path.exists(gamelist_path):
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"Gamelist not found for system: {system_name}")
+                return
+            
+            all_games = parse_gamelist_xml(gamelist_path)
+            if not all_games:
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"No games found for system: {system_name}")
+                return
+            
+            # Filter games if selection is provided
+            if selected_games:
+                selected_paths = set(selected_games)
+                games_to_process = [game for game in all_games if game['path'] in selected_paths]
+            else:
+                games_to_process = all_games
+            
+            if not games_to_process:
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "No games selected for processing")
+                return
+            
+            print(f"🎮 Processing {len(games_to_process)} games with SteamGrid")
+            
+            # Update initial progress
+            t = get_task(task_id)
+            if t:
+                t.update_progress(0, None)
+                t.log_message(f"Starting SteamGrid processing for {len(games_to_process)} games")
+            
+            # Get Steam app index
+            t = get_task(task_id)
+            if t:
+                t.update_progress(10, None)
+                t.log_message("Loading Steam app index...")
+            
+            app_index = await service.get_app_index()
+            if not app_index:
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "Failed to load Steam app index")
+                return
+            
+            # Process games
+            updated_count = 0
+            for i, game in enumerate(games_to_process):
+                if is_cancelled():
+                    print(f"SteamGrid task {task_id} was cancelled during processing")
+                    break
+                
+                game_name = game.get('name', '')
+                if not game_name:
+                    continue
+                
+                print(f"🔍 Searching Steam for: {game_name}")
+                t = get_task(task_id)
+                if t:
+                    t.log_message(f"Searching Steam for: {game_name}")
+                
+                # Find Steam app
+                steam_app = service.find_best_match(game_name, app_index)
+                
+                if steam_app:
+                    game['steamid'] = str(steam_app['appid'])
+                    updated_count += 1
+                    print(f"✅ Found Steam match for '{game_name}': {steam_app['name']} (appid: {steam_app['appid']})")
+                    t = get_task(task_id)
+                    if t:
+                        t.log_message(f"Found Steam match for '{game_name}': {steam_app['name']} (appid: {steam_app['appid']})")
+                else:
+                    print(f"❌ No Steam match found for: {game_name}")
+                    t = get_task(task_id)
+                    if t:
+                        t.log_message(f"No Steam match found for: {game_name}")
+                
+                # Update progress
+                progress_callback(i + 1, len(games_to_process))
+            
+            # Save updated gamelist
+            if updated_count > 0:
+                print(f"💾 Saving updated gamelist with {updated_count} Steam IDs...")
+                t = get_task(task_id)
+                if t:
+                    t.update_progress(95, None)
+                    t.log_message(f"Saving updated gamelist with {updated_count} Steam IDs...")
+                
+                save_gamelist_xml(gamelist_path, all_games)
+                
+                # Notify clients of gamelist update
+                notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+                
+                print(f"✅ SteamGrid task completed: {updated_count} games updated with Steam IDs")
+                t = get_task(task_id)
+                if t:
+                    t.complete(True, f"SteamGrid task completed: {updated_count} games updated with Steam IDs")
+            else:
+                print("ℹ️ SteamGrid task completed: No Steam matches found")
+                t = get_task(task_id)
+                if t:
+                    t.complete(True, "SteamGrid task completed: No Steam matches found")
+                
+        except Exception as e:
+            print(f"❌ Error in SteamGrid task: {e}")
+            import traceback
+            traceback.print_exc()
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"SteamGrid task failed: {str(e)}")
+    
+    # Run the async function in a new thread
+    def run_async():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(async_steamgrid())
+        finally:
+            loop.close()
+    
+    thread = threading.Thread(target=run_async)
+    thread.daemon = True
+    thread.start()
+
+# =============================================================================
+
 @app.route('/api/scrap-igdb/<system_name>', methods=['POST'])
 @login_required
 def scrap_igdb_system(system_name):
@@ -12235,6 +12437,58 @@ def scrap_screenscraper_system(system_name):
     except Exception as e:
         print(f"Error starting ScreenScraper task: {e}")
         return jsonify({'error': f'Failed to start ScreenScraper task: {str(e)}'}), 500
+
+@app.route('/api/scrap-steamgrid/<system_name>', methods=['POST'])
+@login_required
+def scrap_steamgrid_system(system_name):
+    """Start SteamGrid task for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        task = Task('steamgrid_scraping', task_data, username)
+        
+        # Set global current task ID for progress updates
+        global current_task_id
+        current_task_id = task.id
+        
+        # Add to tasks list
+        tasks[task.id] = task
+        
+        # Start the task
+        task.start()
+        
+        # Start the scraper task in a separate thread
+        import threading
+        scraper_thread = threading.Thread(
+            target=run_steamgrid_task,
+            args=(system_name, task.id, selected_games),
+            daemon=True
+        )
+        scraper_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'SteamGrid task started for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting SteamGrid task: {e}")
+        return jsonify({'error': f'Failed to start SteamGrid task: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Initialize default admin user
