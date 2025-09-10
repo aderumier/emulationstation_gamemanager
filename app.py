@@ -3142,6 +3142,8 @@ def manage_systems():
             
             system_name = data['system_name']
             launchbox_platform = data.get('launchbox_platform', '')
+            screenscraper_platform = data.get('screenscraper_platform', '')
+            igdb_platform = data.get('igdb_platform', '')
             extensions = data.get('extensions', [])
             
             # Validate system name (lowercase, no spaces)
@@ -3158,6 +3160,8 @@ def manage_systems():
             
             config['systems'][system_name] = {
                 'launchbox': launchbox_platform,
+                'screenscraper': screenscraper_platform,
+                'igdb': igdb_platform,
                 'extensions': extensions
             }
             
@@ -3175,6 +3179,8 @@ def manage_systems():
             
             system_name = data['system_name']
             launchbox_platform = data.get('launchbox_platform', '')
+            screenscraper_platform = data.get('screenscraper_platform', '')
+            igdb_platform = data.get('igdb_platform', '')
             extensions = data.get('extensions', [])
             
             # Check if system exists
@@ -3184,6 +3190,8 @@ def manage_systems():
             # Update system
             config['systems'][system_name] = {
                 'launchbox': launchbox_platform,
+                'screenscraper': screenscraper_platform,
+                'igdb': igdb_platform,
                 'extensions': extensions
             }
             
