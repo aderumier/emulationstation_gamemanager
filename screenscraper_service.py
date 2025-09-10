@@ -824,9 +824,12 @@ class ScreenScraperService:
         try:
             import xml.etree.ElementTree as ET
             
+            print(f"🔧 DEBUG: get_current_media_field_value - game_path='{game_path}', field_name='{field_name}', system_name='{system_name}'")
+            
             # Construct path to gamelist.xml
             gamelist_path = os.path.join('roms', system_name, 'gamelist.xml')
             if not os.path.exists(gamelist_path):
+                print(f"🔧 DEBUG: Gamelist not found at {gamelist_path}")
                 return None
             
             # Parse the XML
@@ -836,13 +839,20 @@ class ScreenScraperService:
             # Find the game entry
             for game in root.findall('game'):
                 path_elem = game.find('path')
-                if path_elem is not None and path_elem.text == game_path:
-                    # Found the game, get the media field value
-                    field_elem = game.find(field_name)
-                    if field_elem is not None and field_elem.text:
-                        return field_elem.text.strip()
-                    break
+                if path_elem is not None:
+                    print(f"🔧 DEBUG: Checking game path: '{path_elem.text}' vs '{game_path}'")
+                    if path_elem.text == game_path:
+                        print(f"🔧 DEBUG: Found matching game!")
+                        # Found the game, get the media field value
+                        field_elem = game.find(field_name)
+                        if field_elem is not None and field_elem.text:
+                            print(f"🔧 DEBUG: Found field {field_name} with value: '{field_elem.text.strip()}'")
+                            return field_elem.text.strip()
+                        else:
+                            print(f"🔧 DEBUG: Field {field_name} not found or empty")
+                        break
             
+            print(f"🔧 DEBUG: No matching game found for path: '{game_path}'")
             return None
             
         except Exception as e:
