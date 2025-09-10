@@ -839,14 +839,15 @@ class ScreenScraperService:
         media_mappings = media_config.get('mappings', {})
         
         # Find the media directory for this field
-        if media_field in media_mappings:
-            media_dir_name = media_mappings[media_field]
-            # Get ROMs root directory from config
-            roms_root = self.config.get('roms_root_directory', 'roms')
-            # Create full path: roms/{system_name}/media/{media_dir_name}
-            full_path = os.path.join(roms_root, system_name, 'media', media_dir_name)
-            print(f"Media directory for {media_field}: {full_path}")
-            return full_path
+        # The mappings are directory_name -> gamelist_field, so we need to reverse lookup
+        for directory_name, gamelist_field in media_mappings.items():
+            if gamelist_field == media_field:
+                # Get ROMs root directory from config
+                roms_root = self.config.get('roms_root_directory', 'roms')
+                # Create full path: roms/{system_name}/media/{directory_name}
+                full_path = os.path.join(roms_root, system_name, 'media', directory_name)
+                print(f"Media directory for {media_field}: {full_path}")
+                return full_path
         
         print(f"No media directory found for field: {media_field}")
         return None
