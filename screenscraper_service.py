@@ -730,6 +730,8 @@ class ScreenScraperService:
                                 # Remove original file and rename PNG file
                                 os.remove(final_file_path)
                                 os.rename(png_path, final_file_path)
+                                # Update final_file_path to reflect PNG extension
+                                final_file_path = png_path
                                 print(f"✅ Converted to PNG: {os.path.basename(final_file_path)}")
                             else:
                                 print(f"⚠️ Failed to convert to PNG, keeping original: {os.path.basename(final_file_path)}")
