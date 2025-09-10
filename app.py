@@ -4547,18 +4547,23 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                 file_size = os.path.getsize(local_path)
                 print(f"DEBUG: {log_prefix} File verification: exists={True}, size={file_size} bytes")
                 if file_size > 0:
-                    # Convert to PNG if this is extra1 or boxart field
+                    # Convert to PNG if this is extra1 or boxart field and not already PNG
                     # Use target_field parameter if available, otherwise fall back to media_type
                     field_to_check = target_field if target_field else media_type
                     if field_to_check in ['extra1', 'boxart']:
-                        png_path = os.path.splitext(local_path)[0] + '.png'
-                        if convert_image_to_png(local_path, png_path):
-                            # Remove original file and rename PNG file
-                            os.remove(local_path)
-                            os.rename(png_path, local_path)
-                            print(f"DEBUG: {log_prefix} ✅ Converted to PNG: {filename}")
+                        # Check if file is already PNG format
+                        file_extension = os.path.splitext(local_path)[1].lower()
+                        if file_extension != '.png':
+                            png_path = os.path.splitext(local_path)[0] + '.png'
+                            if convert_image_to_png(local_path, png_path):
+                                # Remove original file and rename PNG file
+                                os.remove(local_path)
+                                os.rename(png_path, local_path)
+                                print(f"DEBUG: {log_prefix} ✅ Converted to PNG: {filename}")
+                            else:
+                                print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to PNG, keeping original: {filename}")
                         else:
-                            print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to PNG, keeping original: {filename}")
+                            print(f"DEBUG: {log_prefix} ✅ Already PNG format: {filename}")
                     
                     print(f"DEBUG: {log_prefix} ✅ Download successful: {filename} ({file_size} bytes)")
                     return True, f"Downloaded {filename} ({file_size} bytes)"
@@ -9271,17 +9276,22 @@ def download_launchbox_media():
         with open(local_path, 'wb') as f:
             f.write(response.content)
         
-        # Convert to PNG if this is extra1 or boxart field
+        # Convert to PNG if this is extra1 or boxart field and not already PNG
         # Check the target field name, not the source field name
         if media_type in ['extra1', 'boxart']:
-            png_path = os.path.splitext(local_path)[0] + '.png'
-            if convert_image_to_png(local_path, png_path):
-                # Remove original file and rename PNG file
-                os.remove(local_path)
-                os.rename(png_path, local_path)
-                print(f"✅ Converted to PNG: {local_filename}")
+            # Check if file is already PNG format
+            file_extension = os.path.splitext(local_path)[1].lower()
+            if file_extension != '.png':
+                png_path = os.path.splitext(local_path)[0] + '.png'
+                if convert_image_to_png(local_path, png_path):
+                    # Remove original file and rename PNG file
+                    os.remove(local_path)
+                    os.rename(png_path, local_path)
+                    print(f"✅ Converted to PNG: {local_filename}")
+                else:
+                    print(f"⚠️ Failed to convert to PNG, keeping original: {local_filename}")
             else:
-                print(f"⚠️ Failed to convert to PNG, keeping original: {local_filename}")
+                print(f"✅ Already PNG format: {local_filename}")
         
         # Update gamelist.xml
         media_field = game_element.find(media_type)

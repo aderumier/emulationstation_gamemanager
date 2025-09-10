@@ -718,18 +718,23 @@ class ScreenScraperService:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
                     
-                    # Convert to PNG if this is extra1 or boxart field
+                    # Convert to PNG if this is extra1 or boxart field and not already PNG
                     # Check the target field name by looking up the mapping
                     local_field = self.get_media_type_mapping(media_type)
                     if local_field in ['extra1', 'boxart']:
-                        png_path = os.path.splitext(final_file_path)[0] + '.png'
-                        if self.convert_image_to_png(final_file_path, png_path):
-                            # Remove original file and rename PNG file
-                            os.remove(final_file_path)
-                            os.rename(png_path, final_file_path)
-                            print(f"✅ Converted to PNG: {os.path.basename(final_file_path)}")
+                        # Check if file is already PNG format
+                        file_extension = os.path.splitext(final_file_path)[1].lower()
+                        if file_extension != '.png':
+                            png_path = os.path.splitext(final_file_path)[0] + '.png'
+                            if self.convert_image_to_png(final_file_path, png_path):
+                                # Remove original file and rename PNG file
+                                os.remove(final_file_path)
+                                os.rename(png_path, final_file_path)
+                                print(f"✅ Converted to PNG: {os.path.basename(final_file_path)}")
+                            else:
+                                print(f"⚠️ Failed to convert to PNG, keeping original: {os.path.basename(final_file_path)}")
                         else:
-                            print(f"⚠️ Failed to convert to PNG, keeping original: {os.path.basename(final_file_path)}")
+                            print(f"✅ Already PNG format: {os.path.basename(final_file_path)}")
                     
                     print(f"Successfully downloaded: {final_file_path}")
                     return True
