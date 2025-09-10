@@ -2801,6 +2801,8 @@ def parse_gamelist_xml(file_path):
                     game_data['igdbid'] = text
                 elif tag == 'screenscraperid':
                     game_data['screenscraperid'] = text
+                elif tag == 'steamid':
+                    game_data['steamid'] = text
                 elif tag == 'youtubeurl':
                     game_data['youtubeurl'] = text
             
@@ -5097,10 +5099,11 @@ def save_gamelist_xml(file_path, games):
                 # Always include media-related fields, even if empty
                 if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl']:
                     elem = ET.SubElement(game_elem, field)
-                    elem.text = str(value) if value else ''
+                    elem.text = html.escape(str(value), quote=False) if value else ''
                 elif value:  # For non-media fields, only add if they have values
                     elem = ET.SubElement(game_elem, field)
-                    elem.text = str(value)
+                    # Properly escape XML characters
+                    elem.text = html.escape(str(value), quote=False)
         
         # Create XML tree and save
         tree = ET.ElementTree(root)
@@ -12003,7 +12006,15 @@ def run_steamgrid_task(system_name, task_id, selected_games=None):
                     steam_app = match_result['app']
                     matched_name = match_result['matched_name']
                     
+                    # Update the game in both games_to_process and all_games
                     game['steamid'] = str(steam_app['appid'])
+                    
+                    # Also update the corresponding game in all_games
+                    for all_game in all_games:
+                        if all_game['path'] == game['path']:
+                            all_game['steamid'] = str(steam_app['appid'])
+                            break
+                    
                     updated_count += 1
                     
                     print(f"✅ Perfect match for '{game_name}': {matched_name} (appid: {steam_app['appid']})")
