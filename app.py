@@ -2830,7 +2830,7 @@ def test_session():
 def index():
     """Serve the main application page"""
     # Check if Launchbox metadata.xml exists
-    metadata_path = os.path.join('var', 'launchbox', 'metadata.xml')
+    metadata_path = os.path.join('var', 'db', 'launchbox', 'metadata.xml')
     show_cache_modal = not os.path.exists(metadata_path)
     
     return render_template('index.html', show_cache_modal=show_cache_modal)
