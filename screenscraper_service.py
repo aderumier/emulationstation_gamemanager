@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 # Global httpx client for ScreenScraper API
 _screenscraper_async_client = None
 
-async def get_screenscraper_async_client(max_connections: int = 2):
+async def get_screenscraper_async_client(max_connections: int = 1):
     """Get or create global httpx async client for ScreenScraper API with connection pooling"""
     global _screenscraper_async_client
     if _screenscraper_async_client is None:

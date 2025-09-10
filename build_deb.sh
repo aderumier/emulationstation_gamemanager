@@ -24,6 +24,8 @@ echo "📋 Syncing latest source files..."
 cp app.py debian/opt/gamemanager/app.py
 cp box_generator.py debian/opt/gamemanager/box_generator.py
 cp download_manager.py debian/opt/gamemanager/download_manager.py
+cp credential_manager.py debian/opt/gamemanager/credential_manager.py
+cp screenscraper_service.py debian/opt/gamemanager/screenscraper_service.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
@@ -33,6 +35,10 @@ cp -r templates/* debian/opt/gamemanager/templates/
 # Configuration files
 cp var/config/config.json debian/opt/gamemanager/var/config/config.json
 cp var/config/user.cfg debian/opt/gamemanager/var/config/user.cfg
+
+# Credentials and embedded modules
+cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
+cp -r pyrate_limiter debian/opt/gamemanager/pyrate_limiter
 
 # Fix paths in config.json for production environment
 echo "🔧 Updating paths for production environment..."
@@ -56,6 +62,27 @@ fi
 
 if ! grep -q "os.makedirs.*metadata_path" debian/opt/gamemanager/app.py; then
     echo "❌ ERROR: app.py doesn't contain directory creation logic!"
+    exit 1
+fi
+
+# Verify new files are included
+if [ ! -f "debian/opt/gamemanager/credential_manager.py" ]; then
+    echo "❌ ERROR: credential_manager.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/screenscraper_service.py" ]; then
+    echo "❌ ERROR: screenscraper_service.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/var/config/credentials.enc" ]; then
+    echo "❌ ERROR: credentials.enc not found in package!"
+    exit 1
+fi
+
+if [ ! -d "debian/opt/gamemanager/pyrate_limiter" ]; then
+    echo "❌ ERROR: pyrate_limiter directory not found in package!"
     exit 1
 fi
 
