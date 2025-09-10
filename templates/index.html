@@ -39,6 +39,30 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         .crop-controls {
             margin-top: 15px;
         }
+        
+        /* Compact Systems Table */
+        .compact-table {
+            font-size: 0.85rem;
+        }
+        .compact-table th {
+            padding: 0.4rem 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .compact-table td {
+            padding: 0.3rem 0.5rem;
+            vertical-align: middle;
+        }
+        .compact-table .form-select,
+        .compact-table .form-control {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.4rem;
+            height: auto;
+        }
+        .compact-table .btn {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.4rem;
+        }
         #cropImage {
             display: block;
             min-width: 600px;
@@ -1690,15 +1714,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-sm table-striped table-hover" id="systemsTable">
+                        <table class="table table-sm table-striped table-hover compact-table" id="systemsTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 10%">System</th>
-                                    <th style="width: 25%">Launchbox</th>
-                                    <th style="width: 25%">Screenscraper</th>
-                                    <th style="width: 25%">IGDB</th>
-                                    <th style="width: 15%">Extensions</th>
-                                    <th style="width: 10%">Actions</th>
+                                    <th style="width: 15%">System</th>
+                                    <th style="width: 28%">Launchbox</th>
+                                    <th style="width: 28%">Screenscraper</th>
+                                    <th style="width: 28%">IGDB</th>
+                                    <th style="width: 20%">Extensions</th>
                                 </tr>
                             </thead>
                             <tbody id="systemsTableBody">

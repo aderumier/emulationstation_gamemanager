@@ -6859,7 +6859,7 @@ class GameCollectionManager {
         // Show loading message while fetching platform data
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center py-4">
+                <td colspan="5" class="text-center py-4">
                     <div class="d-flex align-items-center justify-content-center">
                         <div class="spinner-border spinner-border-sm me-2" role="status">
                             <span class="visually-hidden">Loading...</span>
@@ -6884,7 +6884,7 @@ class GameCollectionManager {
             // Show error message
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center py-4">
+                    <td colspan="5" class="text-center py-4">
                         <div class="alert alert-warning mb-0">
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             Error loading platform data. Some comboboxes may be empty.
@@ -6957,7 +6957,6 @@ class GameCollectionManager {
                            data-system="${systemName}"
                            data-field="extensions">
                 </td>
-                <td></td>
             `;
             tbody.appendChild(row);
         });
