@@ -8514,7 +8514,7 @@ def run_2d_box_generation_task(system_name, selected_games):
                 continue
             
             # Generate 2D box
-            output_filename = f"{rom_filename}.jpg"
+            output_filename = f"{rom_filename}.png"
             output_path = os.path.join(extra1_dir, output_filename)
             
             try:

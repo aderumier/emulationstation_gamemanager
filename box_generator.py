@@ -276,7 +276,8 @@ class BoxGenerator:
                 ]
                 subprocess.run(cmd, check=True)
             else:
-                cmd = ['cp', final_temp, output_path]
+                # Convert to PNG format when copying
+                cmd = ['convert', final_temp, output_path]
                 subprocess.run(cmd, check=True)
             
             logging.info(f"✅ 2D box generated successfully: {output_path}")
