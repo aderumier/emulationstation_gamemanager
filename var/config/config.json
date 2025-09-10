@@ -774,6 +774,12 @@
         ]
     },
     "screenscraper": {
+        "region_priority": [
+            "World",
+            "USA", 
+            "Europe",
+            "Japan"
+        ],
         "systems": {
             "3DO": "29",
             "Aamber Pegasus": "83",

@@ -3,6 +3,7 @@ import httpx
 import json
 import os
 import logging
+import re
 import aiofiles
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
@@ -10,6 +11,99 @@ from urllib.parse import urlparse
 
 # Global httpx client for ScreenScraper API
 _screenscraper_async_client = None
+
+# Region mapping for ScreenScraper
+REGION_MAPPING = {
+    'wor': 'World',
+    'usa': 'USA', 
+    'us': 'USA',
+    'eu': 'Europe',
+    'europe': 'Europe',
+    'jp': 'Japan',
+    'japan': 'Japan',
+    'fr': 'France',
+    'france': 'France',
+    'de': 'Germany', 
+    'germany': 'Germany',
+    'uk': 'United Kingdom',
+    'gb': 'United Kingdom',
+    'it': 'Italy',
+    'italy': 'Italy',
+    'es': 'Spain',
+    'spain': 'Spain',
+    'au': 'Australia',
+    'australia': 'Australia',
+    'ca': 'Canada',
+    'canada': 'Canada',
+    'br': 'Brazil',
+    'brazil': 'Brazil',
+    'kr': 'South Korea',
+    'korea': 'South Korea',
+    'cn': 'China',
+    'china': 'China',
+    'ru': 'Russia',
+    'russia': 'Russia'
+}
+
+def extract_country_from_filename(filename: str) -> Optional[str]:
+    """Extract country information from ROM filename in parentheses"""
+    # Look for country code in parentheses at the end of filename (before extension)
+    pattern = r'\(([^)]+)\)\.(?:zip|7z|rar|iso|bin|cue|img|mdf|mds|nrg|gdi|cdi|gcm|wbfs|ciso|wud|wux|nsp|xci|pkg|xvc|xex|xbe|v64|z64|n64|nes|sfc|smc|gb|gbc|gba|gg|sms|md|gen|32x|pce|pcecd|ngp|ngc|ws|wsc|vb|lnx|a26|a52|a78|j64|jag|vec|int|col|o2|dsk|tap|adf|ipf|st|msa|rom|mx1|mx2|d64|t64|prg|stx|dsk|do|po|mgw|zip|ZIP|7z|7Z|rar|RAR|iso|ISO|bin|BIN|cue|CUE|img|IMG|mdf|MDF|mds|MDS|nrg|NRG|gdi|GDI|cdi|CDI|gcm|GCM|wbfs|WBFS|ciso|CISO|wud|WUD|wux|WUX|nsp|NSP|xci|XCI|pkg|PKG|xvc|XVC|xex|XEX|xbe|XBE|v64|V64|z64|Z64|n64|N64|nes|NES|sfc|SFC|smc|SMC|gb|GB|gbc|GBC|gba|GBA|gg|GG|sms|SMS|md|MD|gen|GEN|32x|32X|pce|PCE|pcecd|PCECD|ngp|NGP|ngc|NGC|ws|WS|wsc|WSC|vb|VB|lnx|LNX|a26|A26|a52|A52|a78|A78|j64|J64|jag|JAG|vec|VEC|int|INT|col|COL|o2|O2|dsk|DSK|tap|TAP|adf|ADF|ipf|IPF|st|ST|msa|MSA|rom|ROM|mx1|MX1|mx2|MX2|d64|D64|t64|T64|prg|PRG|stx|STX|dsk|DSK|do|DO|po|PO|mgw|MGW)$'
+    
+    match = re.search(pattern, filename)
+    if match:
+        country_code = match.group(1).lower().strip()
+        return REGION_MAPPING.get(country_code, country_code.title())
+    
+    return None
+
+def get_region_priority_for_game(filename: str, default_priority: List[str]) -> List[str]:
+    """Get region priority list for a specific game based on filename and default priority"""
+    country = extract_country_from_filename(filename)
+    
+    if country:
+        # If country found in filename, prioritize it
+        priority = [country] + [region for region in default_priority if region != country]
+        return priority
+    
+    return default_priority
+
+def select_best_media_by_region(media_list: List[Dict], region_priority: List[str]) -> Optional[Dict]:
+    """Select the best media from a list based on region priority"""
+    if not media_list:
+        return None
+    
+    if len(media_list) == 1:
+        return media_list[0]
+    
+    # Try to find media by region priority
+    for region in region_priority:
+        for media in media_list:
+            media_region = media.get('region', '').lower()
+            # Map region names to ScreenScraper region codes
+            region_mapping = {
+                'world': 'wor',
+                'usa': 'usa',
+                'europe': 'eu',
+                'japan': 'jp',
+                'france': 'fr',
+                'germany': 'de',
+                'united kingdom': 'uk',
+                'italy': 'it',
+                'spain': 'es',
+                'australia': 'au',
+                'canada': 'ca',
+                'brazil': 'br',
+                'south korea': 'kr',
+                'china': 'cn',
+                'russia': 'ru'
+            }
+            expected_region_code = region_mapping.get(region.lower(), region.lower())
+            if media_region == expected_region_code:
+                return media
+    
+    # If no region match found, return the first media
+    return media_list[0]
 
 async def get_screenscraper_async_client(max_connections: int = 1):
     """Get or create global httpx async client for ScreenScraper API with connection pooling"""
@@ -595,8 +689,20 @@ class ScreenScraperService:
             print(f"📁 Media directory for {local_field}: {media_dir}")
             print(f"📁 Directory exists: {os.path.exists(media_dir)}")
             
-            # Use the first media of this type
-            media = media_list[0]
+            # Select the best media by region priority
+            region_priority = self.config.get('screenscraper', {}).get('region_priority', ['World', 'USA', 'Europe', 'Japan'])
+            game_filename = os.path.basename(game_data.get('path', ''))
+            game_region_priority = get_region_priority_for_game(game_filename, region_priority)
+            
+            media = select_best_media_by_region(media_list, game_region_priority)
+            if not media:
+                print(f"❌ No media selected for type: {media_type}")
+                continue
+            
+            # Log the selected media region
+            selected_region = media.get('region', 'Unknown')
+            print(f"🌍 Selected {media_type} from region: {selected_region}")
+            
             media_url = media.get('url')
             if not media_url:
                 print(f"❌ No URL found for media type: {media_type}")
