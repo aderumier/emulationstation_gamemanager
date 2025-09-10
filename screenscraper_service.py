@@ -210,12 +210,25 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
         if 'text' in game_data['developpeur']:
             text_info['developer'] = game_data['developpeur']['text']
     
-    # Extract description from synopsis[text] with langue='en'
+    # Extract description from synopsis[text] with langue='en', fallback to first available
     if 'synopsis' in game_data and isinstance(game_data['synopsis'], list):
+        description_text = None
+        
+        # First try to find English synopsis
         for synopsis in game_data['synopsis']:
             if isinstance(synopsis, dict) and synopsis.get('langue') == 'en' and 'text' in synopsis:
-                text_info['description'] = synopsis['text']
+                description_text = synopsis['text']
                 break
+        
+        # If no English synopsis found, use the first available
+        if not description_text:
+            for synopsis in game_data['synopsis']:
+                if isinstance(synopsis, dict) and 'text' in synopsis:
+                    description_text = synopsis['text']
+                    break
+        
+        if description_text:
+            text_info['description'] = description_text
     
     # Extract genres from genres[noms[text]] with langue='en', concatenate with '/'
     if 'genres' in game_data and isinstance(game_data['genres'], list):
