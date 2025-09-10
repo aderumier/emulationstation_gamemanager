@@ -167,27 +167,38 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
     """
     text_info = {}
     
-    # Extract game name from noms[text] with region='wor'
+    # Extract game name from noms[text] with region='wor', fallback to first available
     if 'noms' in game_data and isinstance(game_data['noms'], list):
+        screenscraper_name = None
+        
+        # First try to find 'wor' region
         for nom in game_data['noms']:
             if isinstance(nom, dict) and nom.get('region') == 'wor' and 'text' in nom:
                 screenscraper_name = nom['text']
-                
-                # Preserve parentheses text from ROM filename if present
-                if rom_filename:
-                    import re
-                    # Extract all text in parentheses from ROM filename
-                    parentheses_matches = re.findall(r'\(([^)]+)\)', rom_filename)
-                    if parentheses_matches:
-                        # Join all parentheses text with spaces
-                        parentheses_text = ' '.join(f"({match})" for match in parentheses_matches)
-                        # Append parentheses text to ScreenScraper name
-                        text_info['name'] = f"{screenscraper_name} {parentheses_text}"
-                    else:
-                        text_info['name'] = screenscraper_name
+                break
+        
+        # If no 'wor' region found, use the first available name
+        if not screenscraper_name:
+            for nom in game_data['noms']:
+                if isinstance(nom, dict) and 'text' in nom:
+                    screenscraper_name = nom['text']
+                    break
+        
+        if screenscraper_name:
+            # Preserve parentheses text from ROM filename if present
+            if rom_filename:
+                import re
+                # Extract all text in parentheses from ROM filename
+                parentheses_matches = re.findall(r'\(([^)]+)\)', rom_filename)
+                if parentheses_matches:
+                    # Join all parentheses text with spaces
+                    parentheses_text = ' '.join(f"({match})" for match in parentheses_matches)
+                    # Append parentheses text to ScreenScraper name
+                    text_info['name'] = f"{screenscraper_name} {parentheses_text}"
                 else:
                     text_info['name'] = screenscraper_name
-                break
+            else:
+                text_info['name'] = screenscraper_name
     
     # Extract publisher from editeur.text
     if 'editeur' in game_data and isinstance(game_data['editeur'], dict):
