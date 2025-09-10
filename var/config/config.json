@@ -126,7 +126,7 @@
                 ".7Z"
             ],
             "launchbox": "Arcade",
-            "igdb": "52",
+            "igdb": 52,
             "screenscraper": 75
         },
         "nes": {
@@ -135,7 +135,7 @@
                 ".NES"
             ],
             "launchbox": "Nintendo Entertainment System",
-            "igdb": "18",
+            "igdb": 18,
             "screenscraper": 3
         },
         "snes": {
@@ -146,7 +146,7 @@
                 ".SMC"
             ],
             "launchbox": "Super Nintendo Entertainment System",
-            "igdb": "19",
+            "igdb": 19,
             "screenscraper": 4
         },
         "windows": {
@@ -154,7 +154,7 @@
                 ".wsquashfs"
             ],
             "launchbox": "Windows",
-            "igdb": "6"
+            "igdb": 6
         },
         "gba": {
             "extensions": [
@@ -162,7 +162,7 @@
                 ".GBA2"
             ],
             "launchbox": "Nintendo Game Boy Advance",
-            "igdb": "24",
+            "igdb": 24,
             "screenscraper": 12
         },
         "gbc": {
@@ -171,7 +171,7 @@
                 ".GBC"
             ],
             "launchbox": "Nintendo Game Boy Color",
-            "igdb": "22",
+            "igdb": 22,
             "screenscraper": 10
         },
         "gb": {
@@ -180,7 +180,7 @@
                 ".GB"
             ],
             "launchbox": "Nintendo Game Boy",
-            "igdb": "33",
+            "igdb": 33,
             "screenscraper": 9
         },
         "n64": {
@@ -193,7 +193,7 @@
                 ".Z64"
             ],
             "launchbox": "Nintendo 64",
-            "igdb": "4",
+            "igdb": 4,
             "screenscraper": 2
         },
         "psx": {
@@ -212,7 +212,7 @@
                 ".MDS"
             ],
             "launchbox": "Sony Playstation",
-            "igdb": "7",
+            "igdb": 7,
             "screenscraper": 57
         },
         "ps2": {
@@ -231,7 +231,7 @@
                 ".MDS"
             ],
             "launchbox": "Sony Playstation 2",
-            "igdb": "8",
+            "igdb": 8,
             "screenscraper": 58
         },
         "ps3": {
@@ -242,7 +242,7 @@
                 ".PKG"
             ],
             "launchbox": "Sony Playstation 3",
-            "igdb": "9",
+            "igdb": 9,
             "screenscraper": 59
         },
         "ps4": {
@@ -251,7 +251,7 @@
                 ".PKG"
             ],
             "launchbox": "Sony Playstation 4",
-            "igdb": "48",
+            "igdb": 48,
             "screenscraper": 60
         },
         "ps5": {
@@ -260,7 +260,7 @@
                 ".PKG"
             ],
             "launchbox": "Sony Playstation 5",
-            "igdb": "167",
+            "igdb": 167,
             "screenscraper": 284
         },
         "psp": {
@@ -271,7 +271,7 @@
                 ".CSO"
             ],
             "launchbox": "Sony Playstation Portable",
-            "igdb": "38",
+            "igdb": 38,
             "screenscraper": 61
         },
         "psvita": {
@@ -280,7 +280,7 @@
                 ".VPK"
             ],
             "launchbox": "Sony Playstation Vita",
-            "igdb": "46",
+            "igdb": 46,
             "screenscraper": 62
         },
         "xbox": {
@@ -291,7 +291,7 @@
                 ".XBE"
             ],
             "launchbox": "Microsoft Xbox",
-            "igdb": "11",
+            "igdb": 11,
             "screenscraper": 32
         },
         "xbox360": {
@@ -302,7 +302,7 @@
                 ".XEX"
             ],
             "launchbox": "Microsoft Xbox 360",
-            "igdb": "12",
+            "igdb": 12,
             "screenscraper": 33
         },
         "xboxone": {
@@ -311,7 +311,7 @@
                 ".XVC"
             ],
             "launchbox": "Microsoft Xbox One",
-            "igdb": "49",
+            "igdb": 49,
             "screenscraper": 34
         },
         "xboxseries": {
@@ -320,7 +320,7 @@
                 ".XVC"
             ],
             "launchbox": "Microsoft Xbox Series X|S",
-            "igdb": "169",
+            "igdb": 169,
             "screenscraper": 169
         },
         "xbla": {
@@ -329,7 +329,7 @@
                 ".X360"
             ],
             "launchbox": "Microsoft Xbox 360",
-            "igdb": "12"
+            "igdb": 12
         },
         "wii": {
             "extensions": [
@@ -341,7 +341,7 @@
                 ".CISO"
             ],
             "launchbox": "Nintendo Wii",
-            "igdb": "5",
+            "igdb": 5,
             "screenscraper": 16
         },
         "wiiu": {
@@ -352,7 +352,7 @@
                 ".WUX"
             ],
             "launchbox": "Nintendo Wii U",
-            "igdb": "41",
+            "igdb": 41,
             "screenscraper": 18
         },
         "switch": {
@@ -363,7 +363,7 @@
                 ".XCI"
             ],
             "launchbox": "Nintendo Switch",
-            "igdb": "130",
+            "igdb": 130,
             "screenscraper": 225
         },
         "genesis": {
@@ -376,7 +376,7 @@
                 ".SMD"
             ],
             "launchbox": "Sega Genesis",
-            "igdb": "29",
+            "igdb": 29,
             "screenscraper": 1
         },
         "megadrive": {
@@ -389,7 +389,7 @@
                 ".SMD"
             ],
             "launchbox": "Sega Mega Drive",
-            "igdb": "29",
+            "igdb": 29,
             "screenscraper": 1
         },
         "saturn": {
@@ -402,7 +402,7 @@
                 ".ISO"
             ],
             "launchbox": "Sega Saturn",
-            "igdb": "32",
+            "igdb": 32,
             "screenscraper": 22
         },
         "dreamcast": {
@@ -415,7 +415,7 @@
                 ".ISO"
             ],
             "launchbox": "Sega Dreamcast",
-            "igdb": "23",
+            "igdb": 23,
             "screenscraper": 23
         },
         "gamegear": {
@@ -424,7 +424,7 @@
                 ".GG"
             ],
             "launchbox": "Sega Game Gear",
-            "igdb": "35",
+            "igdb": 35,
             "screenscraper": 21
         },
         "mastersystem": {
@@ -433,7 +433,7 @@
                 ".SMS"
             ],
             "launchbox": "Sega Master System",
-            "igdb": "64",
+            "igdb": 64,
             "screenscraper": 2
         },
         "sega32x": {
@@ -442,7 +442,7 @@
                 ".32X"
             ],
             "launchbox": "Sega 32X",
-            "igdb": "30",
+            "igdb": 30,
             "screenscraper": 19
         },
         "segaCD": {
@@ -455,7 +455,7 @@
                 ".ISO"
             ],
             "launchbox": "Sega CD",
-            "igdb": "78",
+            "igdb": 78,
             "screenscraper": 20
         },
         "atari2600": {
@@ -466,7 +466,7 @@
                 ".BIN"
             ],
             "launchbox": "Atari 2600",
-            "igdb": "59",
+            "igdb": 59,
             "screenscraper": 26
         },
         "atari5200": {
@@ -477,7 +477,7 @@
                 ".BIN"
             ],
             "launchbox": "Atari 5200",
-            "igdb": "66",
+            "igdb": 66,
             "screenscraper": 40
         },
         "atari7800": {
@@ -488,7 +488,7 @@
                 ".BIN"
             ],
             "launchbox": "Atari 7800",
-            "igdb": "60",
+            "igdb": 60,
             "screenscraper": 41
         },
         "atarijaguar": {
@@ -499,7 +499,7 @@
                 ".JAG"
             ],
             "launchbox": "Atari Jaguar",
-            "igdb": "62",
+            "igdb": 62,
             "screenscraper": 27
         },
         "atarilynx": {
@@ -508,7 +508,7 @@
                 ".LNX"
             ],
             "launchbox": "Atari Lynx",
-            "igdb": "61",
+            "igdb": 61,
             "screenscraper": 28
         },
         "vectrex": {
@@ -517,7 +517,7 @@
                 ".VEC"
             ],
             "launchbox": "GCE Vectrex",
-            "igdb": "70",
+            "igdb": 70,
             "screenscraper": 102
         },
         "intellivision": {
@@ -526,7 +526,7 @@
                 ".INT"
             ],
             "launchbox": "Mattel Intellivision",
-            "igdb": "67",
+            "igdb": 67,
             "screenscraper": 115
         },
         "colecovision": {
@@ -535,7 +535,7 @@
                 ".COL"
             ],
             "launchbox": "ColecoVision",
-            "igdb": "68",
+            "igdb": 68,
             "screenscraper": 48
         },
         "odyssey2": {
@@ -544,7 +544,7 @@
                 ".O2"
             ],
             "launchbox": "Magnavox Odyssey 2",
-            "igdb": "133",
+            "igdb": 133,
             "screenscraper": 133
         },
         "3do": {
@@ -555,7 +555,7 @@
                 ".CUE"
             ],
             "launchbox": "3DO Interactive Multiplayer",
-            "igdb": "50",
+            "igdb": 50,
             "screenscraper": 29
         },
         "amigacd32": {
@@ -566,7 +566,7 @@
                 ".CUE"
             ],
             "launchbox": "Amiga CD32",
-            "igdb": "114",
+            "igdb": 114,
             "screenscraper": 130
         },
         "amstradcpc": {
@@ -577,7 +577,7 @@
                 ".TAP"
             ],
             "launchbox": "Amstrad CPC",
-            "igdb": "25",
+            "igdb": 25,
             "screenscraper": 25
         },
         "apple2": {
@@ -590,7 +590,7 @@
                 ".PO"
             ],
             "launchbox": "Apple II",
-            "igdb": "75",
+            "igdb": 75,
             "screenscraper": 86
         },
         "commodore64": {
@@ -603,7 +603,7 @@
                 ".PRG"
             ],
             "launchbox": "Commodore 64",
-            "igdb": "15",
+            "igdb": 15,
             "screenscraper": 66
         },
         "commodore128": {
@@ -616,7 +616,7 @@
                 ".PRG"
             ],
             "launchbox": "Commodore 128",
-            "igdb": "15",
+            "igdb": 15,
             "screenscraper": 15
         },
         "amiga": {
@@ -627,7 +627,7 @@
                 ".IPF"
             ],
             "launchbox": "Commodore Amiga",
-            "igdb": "16",
+            "igdb": 16,
             "screenscraper": 64
         },
         "atarist": {
@@ -638,7 +638,7 @@
                 ".MSA"
             ],
             "launchbox": "Atari ST",
-            "igdb": "63",
+            "igdb": 63,
             "screenscraper": 42
         },
         "msx": {
@@ -651,7 +651,7 @@
                 ".MX2"
             ],
             "launchbox": "MSX",
-            "igdb": "27",
+            "igdb": 27,
             "screenscraper": 113
         },
         "msx2": {
@@ -664,7 +664,7 @@
                 ".MX2"
             ],
             "launchbox": "MSX2",
-            "igdb": "53",
+            "igdb": 53,
             "screenscraper": 116
         },
         "pcengine": {
@@ -675,7 +675,7 @@
                 ".CUE"
             ],
             "launchbox": "TurboGrafx-16",
-            "igdb": "86",
+            "igdb": 86,
             "screenscraper": 31
         },
         "pcenginecd": {
@@ -686,7 +686,7 @@
                 ".ISO"
             ],
             "launchbox": "TurboGrafx-CD",
-            "igdb": "150",
+            "igdb": 150,
             "screenscraper": 114
         },
         "neogeo": {
@@ -695,7 +695,7 @@
                 ".ZIP"
             ],
             "launchbox": "SNK Neo Geo",
-            "igdb": "79",
+            "igdb": 79,
             "screenscraper": 142
         },
         "neogeocd": {
@@ -706,7 +706,7 @@
                 ".ISO"
             ],
             "launchbox": "SNK Neo Geo CD",
-            "igdb": "136",
+            "igdb": 136,
             "screenscraper": 70
         },
         "neogeopocket": {
@@ -715,7 +715,7 @@
                 ".NGP"
             ],
             "launchbox": "SNK Neo Geo Pocket",
-            "igdb": "119",
+            "igdb": 119,
             "screenscraper": 25
         },
         "neogeopocketcolor": {
@@ -724,7 +724,7 @@
                 ".NGC"
             ],
             "launchbox": "SNK Neo Geo Pocket Color",
-            "igdb": "120",
+            "igdb": 120,
             "screenscraper": 82
         },
         "wonderswan": {
@@ -733,7 +733,7 @@
                 ".WS"
             ],
             "launchbox": "Bandai WonderSwan",
-            "igdb": "57",
+            "igdb": 57,
             "screenscraper": 45
         },
         "wonderswancolor": {
@@ -742,7 +742,7 @@
                 ".WSC"
             ],
             "launchbox": "Bandai WonderSwan Color",
-            "igdb": "123",
+            "igdb": 123,
             "screenscraper": 46
         },
         "virtualboy": {
@@ -751,7 +751,7 @@
                 ".VB"
             ],
             "launchbox": "Nintendo Virtual Boy",
-            "igdb": "87",
+            "igdb": 87,
             "screenscraper": 11
         },
         "gameandwatch": {
@@ -760,7 +760,7 @@
                 ".MGW"
             ],
             "launchbox": "Nintendo Game & Watch",
-            "igdb": "307",
+            "igdb": 307,
             "screenscraper": 52
         },
         "lcdgames": {
@@ -769,7 +769,7 @@
                 ".ZIP"
             ],
             "launchbox": "LCD Games",
-            "igdb": "52",
+            "igdb": 52,
             "screenscraper": 75
         },
         "fbneo": {
@@ -778,7 +778,7 @@
                 ".ZIP"
             ],
             "launchbox": "Arcade",
-            "igdb": "52",
+            "igdb": 52,
             "screenscraper": 75
         }
     },
