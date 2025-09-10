@@ -2992,7 +2992,7 @@ def manage_screenscraper_credentials():
                 'has_ss_id': bool(screenscraper_creds.get('ssid')),
                 'has_ss_password': bool(screenscraper_creds.get('sspassword')),
                 'configured': bool(screenscraper_creds.get('devid') and screenscraper_creds.get('devpassword') and screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')),
-                'enabled': True
+                'enabled': screenscraper_config.get('enabled', True)
             })
         
         elif request.method == 'POST':
@@ -11452,6 +11452,15 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
         try:
             print(f"Starting ScreenScraper task for system: {system_name}")
             
+            # Check if ScreenScraper is enabled
+            config = load_config()
+            screenscraper_config = config.get('screenscraper', {})
+            if not screenscraper_config.get('enabled', True):
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "ScreenScraper integration is disabled")
+                return
+            
             # Check if task was cancelled before starting
             if is_cancelled():
                 print(f"ScreenScraper task {task_id} was cancelled before starting")
@@ -11459,12 +11468,6 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                 if t:
                     t.complete(False, "Task cancelled before starting")
                 return
-            
-            
-            t = get_task(task_id)
-            if t:
-                t.complete(False, "ScreenScraper integration is disabled")
-            return
             
             # Load credentials using secure credential manager
             from credential_manager import credential_manager
@@ -11860,6 +11863,11 @@ def scrap_screenscraper_system(system_name):
         if not system_name:
             return jsonify({'error': 'System name is required'}), 400
 
+        # Check if ScreenScraper is enabled
+        config = load_config()
+        screenscraper_config = config.get('screenscraper', {})
+        if not screenscraper_config.get('enabled', True):
+            return jsonify({'error': 'ScreenScraper integration is disabled'}), 400
         
         # Get request data
         data = request.get_json() or {}
