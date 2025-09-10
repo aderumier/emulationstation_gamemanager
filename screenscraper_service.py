@@ -719,7 +719,9 @@ class ScreenScraperService:
                             await f.write(chunk)
                     
                     # Convert to PNG if this is extra1 or boxart field
-                    if media_type in ['box-2D', 'box-3D']:  # ScreenScraper boxart types
+                    # Check the target field name by looking up the mapping
+                    local_field = self.get_media_type_mapping(media_type)
+                    if local_field in ['extra1', 'boxart']:
                         png_path = os.path.splitext(final_file_path)[0] + '.png'
                         if self.convert_image_to_png(final_file_path, png_path):
                             # Remove original file and rename PNG file

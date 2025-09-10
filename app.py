@@ -4548,6 +4548,7 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                 print(f"DEBUG: {log_prefix} File verification: exists={True}, size={file_size} bytes")
                 if file_size > 0:
                     # Convert to PNG if this is extra1 or boxart field
+                    # Check the target field name, not the source field name
                     if media_type in ['extra1', 'boxart']:
                         png_path = os.path.splitext(local_path)[0] + '.png'
                         if convert_image_to_png(local_path, png_path):
@@ -9269,6 +9270,7 @@ def download_launchbox_media():
             f.write(response.content)
         
         # Convert to PNG if this is extra1 or boxart field
+        # Check the target field name, not the source field name
         if media_type in ['extra1', 'boxart']:
             png_path = os.path.splitext(local_path)[0] + '.png'
             if convert_image_to_png(local_path, png_path):
