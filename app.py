@@ -10217,9 +10217,18 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             
             # Convert to PNG if this is extra1 field (cover) or marquee field (logo) and not already PNG
             if image_type in ["cover", "logo"]:  # Cover maps to extra1 field, logo maps to marquee field
-                # Check if file is already PNG format
-                file_extension = os.path.splitext(file_path)[1].lower()
-                if file_extension != '.png':
+                # Check if the downloaded file is already PNG format by examining the content type
+                content_type = response.headers.get('content-type', '').lower()
+                is_png_content = 'png' in content_type
+                
+                # Also check if the temp file is already PNG by trying to identify it
+                if not is_png_content:
+                    # Check file signature to determine if it's PNG
+                    with open(temp_file_path, 'rb') as f:
+                        header = f.read(8)
+                        is_png_content = header.startswith(b'\x89PNG\r\n\x1a\n')
+                
+                if not is_png_content:
                     # Convert to PNG using ImageMagick
                     png_path = os.path.splitext(file_path)[0] + '.png'
                     if convert_image_to_png(temp_file_path, png_path):
