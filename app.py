@@ -11696,12 +11696,30 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     # Update text fields with extracted information
                     text_info = result.get('text_info', {})
                     game_text_updated_count = 0
+                    
+                    # Field mapping from ScreenScraper to gamelist XML
+                    field_mapping = {
+                        'name': 'name',
+                        'publisher': 'publisher', 
+                        'developer': 'developer',
+                        'description': 'desc',  # Map description to desc for gamelist XML
+                        'genre': 'genre',
+                        'players': 'players'
+                    }
+                    
                     for text_field, text_value in text_info.items():
                         if text_value and text_value.strip():  # Only update if we have a non-empty value
-                            game[text_field] = text_value
+                            # Map field name to gamelist field
+                            gamelist_field = field_mapping.get(text_field, text_field)
+                            
+                            # HTML entity encode the text value for XML
+                            import html
+                            encoded_value = html.escape(text_value)
+                            
+                            game[gamelist_field] = encoded_value
                             game_text_updated_count += 1
                             text_updated_count += 1
-                            print(f"📝 Updated {text_field} for {game['name']}: {text_value}")
+                            print(f"📝 Updated {gamelist_field} for {game['name']}: {encoded_value[:100]}...")
                     
                     if game_text_updated_count > 0:
                         print(f"📝 Updated {game_text_updated_count} text fields for {game['name']}")
