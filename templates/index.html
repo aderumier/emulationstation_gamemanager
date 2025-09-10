@@ -91,6 +91,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <span class="navbar-subtitle">gamelist manager</span>
             </div>
             
+            <!-- User Preferences Menu -->
+            <div class="navbar-nav me-3">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userPreferencesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-person-gear me-1"></i>User Preferences
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="userPreferencesDropdown">
+                        <li><a class="dropdown-item" href="#" id="openLaunchboxModal">
+                            <i class="bi bi-box me-2"></i>LaunchBox Configuration
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="openScreenscraperModal">
+                            <i class="bi bi-image me-2"></i>ScreenScraper Configuration
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="openIgdbModal">
+                            <i class="bi bi-globe me-2"></i>IGDB Configuration
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+            
             <!-- Configuration Menu -->
             <div class="navbar-nav me-3">
                 <div class="nav-item dropdown">
@@ -100,15 +120,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <ul class="dropdown-menu" aria-labelledby="configurationDropdown">
                         <li><a class="dropdown-item" href="#" id="openCacheModal">
                             <i class="bi bi-database me-2"></i>Cache Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openLaunchboxModal">
-                            <i class="bi bi-box me-2"></i>LaunchBox Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openIgdbModal">
-                            <i class="bi bi-globe me-2"></i>IGDB Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openScreenscraperModal">
-                            <i class="bi bi-image me-2"></i>ScreenScraper Configuration
                         </a></li>
                         <li><a class="dropdown-item" href="#" id="openSystemsModal">
                             <i class="bi bi-controller me-2"></i>Systems Configuration
