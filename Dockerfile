@@ -52,11 +52,11 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-COPY gamemanager_1.9.1-1_all.deb .
+COPY gamemanager_1.9.2-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_1.9.1-1_all.deb / && \
-    rm gamemanager_1.9.1-1_all.deb
+RUN dpkg-deb -x gamemanager_1.9.2-1_all.deb / && \
+    rm gamemanager_1.9.2-1_all.deb
 
 # Create necessary directories with proper structure first
 RUN mkdir -p \
@@ -159,6 +159,6 @@ CMD ["/opt/gamemanager/start.sh"]
 # Labels for metadata
 LABEL maintainer="GameManager Team <admin@gamemanager.local>"
 LABEL description="Game Collection Management System with LaunchBox integration"
-LABEL version="1.9.1-1"
+LABEL version="1.9.2-1"
 LABEL org.opencontainers.image.source="https://github.com/yourusername/gamemanager"
 LABEL org.opencontainers.image.description="Flask-based web application for managing game collections with metadata and media from LaunchBox database"

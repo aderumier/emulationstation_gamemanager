@@ -1315,6 +1315,20 @@ class GameCollectionManager {
         } else {
             console.error('ScreenScraper button not found during event listener setup!');
         }
+        
+        const steamgridBtn = document.getElementById('scrapSteamgridBtn');
+        console.log('Looking for SteamGrid button during initialization...');
+        console.log('Button found:', steamgridBtn);
+        if (steamgridBtn) {
+            steamgridBtn.addEventListener('click', () => {
+                console.log('SteamGrid button clicked');
+                this.scrapSteamgrid();
+            });
+            console.log('SteamGrid button event listener added');
+            
+        } else {
+            console.error('SteamGrid button not found during event listener setup!');
+        }
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
@@ -2136,6 +2150,21 @@ class GameCollectionManager {
                         fontSize: '0.9em'
                     }
                 },
+                { 
+                    field: 'steamid', 
+                    headerName: 'Steam ID', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    flex: 1,
+                    headerTooltip: 'Steam App ID for exact matching. Auto-populated when scraping.',
+                    cellStyle: { 
+                        backgroundColor: '#d1ecf1',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em'
+                    }
+                },
 
                 { 
                     field: 'path', 
@@ -2677,6 +2706,7 @@ class GameCollectionManager {
         document.getElementById('editLaunchboxId').value = '';
         document.getElementById('editIgdbId').value = '';
         document.getElementById('editScreenscraperId').value = '';
+        document.getElementById('editSteamId').value = '';
         document.getElementById('editYoutubeurl').value = '';
         
         // Now populate with game data
@@ -2691,6 +2721,7 @@ class GameCollectionManager {
         document.getElementById('editLaunchboxId').value = game.launchboxid || '';
         document.getElementById('editIgdbId').value = game.igdbid || '';
         document.getElementById('editScreenscraperId').value = game.screenscraperid || '';
+        document.getElementById('editSteamId').value = game.steamid || '';
         document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
         // Populate the media tab with the same media display as the preview panel
@@ -3603,6 +3634,7 @@ class GameCollectionManager {
         game.players = document.getElementById('editPlayers').value;
         game.igdbid = document.getElementById('editIgdbId').value;
         game.screenscraperid = document.getElementById('editScreenscraperId').value;
+        game.steamid = document.getElementById('editSteamId').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
 
         console.log('Updated game object:', game);
@@ -8064,6 +8096,14 @@ class GameCollectionManager {
             console.error('ScreenScraper button not found!');
         }
         
+        const steamgridBtn = document.getElementById('scrapSteamgridBtn');
+        if (steamgridBtn) {
+            steamgridBtn.disabled = false; // Allow SteamGrid scraping
+            console.log('SteamGrid button enabled');
+        } else {
+            console.error('SteamGrid button not found!');
+        }
+        
 
         
         // Update selection display
@@ -8222,6 +8262,66 @@ class GameCollectionManager {
             // Restore button state
             const button = document.getElementById('scrapScreenscraperBtn');
             button.innerHTML = '<i class="bi bi-search"></i> ScreenScraper';
+            button.disabled = false;
+        }
+    }
+
+    async scrapSteamgrid() {
+        console.log('scrapSteamgrid method called');
+        console.log('Current system:', this.currentSystem);
+        
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapSteamgridBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Determine scraping mode
+            const isFullCollection = this.selectedGames.length === 0;
+            const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
+            
+            this.showAlert('Starting SteamGrid task...', 'info');
+            
+            const requestBody = {
+                selected_games: gamesToScrape.map(game => game.path)
+            };
+            console.log('📤 SteamGrid request body:', requestBody);
+            
+            const response = await fetch(`/api/scrap-steamgrid/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showAlert(`✅ ${result.message}`, 'success');
+                console.log('SteamGrid task started:', result);
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
+                console.error('SteamGrid task failed:', result);
+            }
+            
+        } catch (error) {
+            console.error('Error starting SteamGrid task:', error);
+            this.showAlert(`❌ Error starting SteamGrid task: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapSteamgridBtn');
+            button.innerHTML = '<i class="bi bi-steam"></i> SteamGrid';
             button.disabled = false;
         }
     }
