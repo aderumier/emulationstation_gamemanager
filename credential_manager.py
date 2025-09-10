@@ -55,6 +55,23 @@ class CredentialManager:
             'sspassword': user_creds.get('sspassword', '')
         }
     
+    def get_igdb_credentials(self) -> Dict[str, str]:
+        """Get IGDB credentials from regular credentials file"""
+        if os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    credentials = json.load(f)
+                    if 'igdb' in credentials:
+                        return credentials['igdb']
+            except Exception as e:
+                print(f"Error loading IGDB credentials: {e}")
+        
+        # Return empty IGDB credentials
+        return {
+            'client_id': '',
+            'client_secret': ''
+        }
+    
     def _get_developer_credentials(self) -> Dict[str, str]:
         """Get developer credentials from encoded file"""
         if os.path.exists(self.encoded_credentials_file):
