@@ -5155,21 +5155,33 @@ def format_xml_for_readability(xml_content):
         
         root = ET.fromstring(xml_content_clean)
         
-        # Use lxml's pretty_print functionality
-        import io
-        from lxml import etree
+        # Custom formatting function for proper indentation
+        def format_element(element, indent_level=0):
+            indent = '  ' * indent_level
+            tag = element.tag
+            
+            # Handle text content
+            if element.text and element.text.strip():
+                text = element.text.strip()
+                return f'{indent}<{tag}>{text}</{tag}>'
+            else:
+                # Empty element or element with children
+                if len(element) == 0:
+                    return f'{indent}<{tag}></{tag}>'
+                else:
+                    lines = [f'{indent}<{tag}>']
+                    for child in element:
+                        lines.append(format_element(child, indent_level + 1))
+                    lines.append(f'{indent}</{tag}>')
+                    return '\n'.join(lines)
         
-        # Create a new tree with pretty printing
-        tree = etree.ElementTree(root)
+        # Format the root element
+        formatted_content = format_element(root)
         
-        # Write to BytesIO with pretty_print
-        xml_bytes = io.BytesIO()
-        tree.write(xml_bytes, encoding='utf-8', xml_declaration=True, pretty_print=True)
+        # Add XML declaration
+        result = '<?xml version=\'1.0\' encoding=\'UTF-8\'?>\n' + formatted_content
         
-        # Convert back to string
-        formatted_xml = xml_bytes.getvalue().decode('utf-8')
-        
-        return formatted_xml
+        return result
         
     except Exception as e:
         print(f"Error formatting XML: {e}")
