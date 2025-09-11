@@ -2917,8 +2917,8 @@ class GameCollectionManager {
                 continue;
             }
             
-            // Use the original media type name as header
-            const headerName = mediaType;
+            // Use the media field name as header instead of directory name
+            const headerName = fieldName;
             
             mediaColumns.push({
                 field: fieldName,
