@@ -11,8 +11,94 @@
         "level": "INFO",
         "file": "app.log"
     },
-    "media_root_directory": "media",
-    "cache_directory": "cache",
+    "media": {
+        "scan_settings": {
+            "recursive_search": true,
+            "case_sensitive": false,
+            "auto_update_gamelist": true
+        }
+    },
+    "media_fields": {
+        "video": {
+            "directory": "videos",
+            "extensions": [
+                ".mp4"
+            ]
+        },
+        "marquee": {
+            "directory": "marquee",
+            "target_extension": ".png",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "boxart": {
+            "directory": "box2d",
+            "target_extension": ".png",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "image": {
+            "directory": "images",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "cartridge": {
+            "directory": "cartridges",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "fanart": {
+            "directory": "fanarts",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "titleshot": {
+            "directory": "titles",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "manual": {
+            "directory": "manuals",
+            "extensions": [
+                ".pdf"
+            ]
+        },
+        "boxback": {
+            "directory": "boxback",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        },
+        "thumbnail": {
+            "directory": "thumbnails",
+            "target_extension": ".png",
+            "extensions": [
+                ".png",
+                ".jpg",
+                ".jpeg"
+            ]
+        }
+    },
     "launchbox": {
         "mapping": {
             "Name": "name",
@@ -45,11 +131,50 @@
             "description": "Region priority order for image downloads. Images are selected by type and region priority, with only one image per type being downloaded."
         }
     },
-    "media": {
-        "scan_settings": {
-            "recursive_search": true,
-            "case_sensitive": false,
-            "auto_update_gamelist": true
+    "igdb": {
+        "database_directory": "var/db/igdb",
+        "mapping": {
+            "name": "name",
+            "summary": "desc",
+            "developer": "developer",
+            "publisher": "publisher",
+            "genre": "genre",
+            "rating": "rating",
+            "players": "players",
+            "release_date": "releasedate",
+            "youtubeurl": "youtubeurl"
+        },
+        "image_type_mappings": {
+            "cover": "thumbnail",
+            "screenshots": "image",
+            "artworks": "fanart",
+            "logos": "marquee"
+        },
+        "region_priority": [
+            "World",
+            "North America",
+            "Europe",
+            "Japan"
+        ]
+    },
+    "screenscraper": {
+        "region_priority": [
+            "World",
+            "USA",
+            "Europe",
+            "Japan"
+        ],
+        "image_type_mappings": {
+            "wheel": "marquee",
+            "box-2D": "boxart",
+            "box-3D": "thumbnail",
+            "box-2D-back": "boxback",
+            "ss": "image",
+            "sstitle": "titleshot",
+            "manuel": "manual",
+            "video": "video",
+            "fanart": "fanart",
+            "support-2D": "cartridge"
         }
     },
     "systems": {
@@ -2744,132 +2869,5 @@
         "client_secret": "your_discord_client_secret_here",
         "redirect_uri": "http://localhost:5000/discord/callback",
         "scope": "identify email"
-    },
-    "igdb": {
-        "database_directory": "var/db/igdb",
-        "mapping": {
-            "name": "name",
-            "summary": "desc",
-            "developer": "developer",
-            "publisher": "publisher",
-            "genre": "genre",
-            "rating": "rating",
-            "players": "players",
-            "release_date": "releasedate",
-            "youtubeurl": "youtubeurl"
-        },
-        "image_type_mappings": {
-            "cover": "thumbnail",
-            "screenshots": "image",
-            "artworks": "fanart",
-            "logos": "marquee"
-        },
-        "region_priority": [
-            "World",
-            "North America",
-            "Europe",
-            "Japan"
-        ]
-    },
-    "screenscraper": {
-        "region_priority": [
-            "World",
-            "USA",
-            "Europe",
-            "Japan"
-        ],
-        "image_type_mappings": {
-            "wheel": "marquee",
-            "box-2D": "boxart",
-            "box-3D": "thumbnail",
-            "box-2D-back": "boxback",
-            "ss": "image",
-            "sstitle": "titleshot",
-            "manuel": "manual",
-            "video": "video",
-            "fanart": "fanart",
-            "support-2D": "cartridge"
-        }
-    },
-    "media_fields": {
-        "video": {
-            "directory": "videos",
-            "extensions": [
-                ".mp4"
-            ]
-        },
-        "marquee": {
-            "directory": "logos",
-            "target_extension": ".png",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
-        "boxart": {
-            "directory": "box2d",
-            "target_extension": ".png",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
-        "image": {
-            "directory": "screenshots",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
-        "cartridge": {
-            "directory": "cartridges",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
-        "fanart": {
-            "directory": "fanarts",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
-        "titleshot": {
-            "directory": "titleshots",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
-        "manual": {
-            "directory": "manuals",
-            "extensions": [
-                ".pdf"
-            ]
-        },
-        "boxback": {
-            "directory": "boxback",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        },
-        "thumbnail": {
-            "directory": "thumbnails",
-            "target_extension": ".png",
-            "extensions": [
-                ".png",
-                ".jpg",
-                ".jpeg"
-            ]
-        }
     }
 }
