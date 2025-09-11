@@ -924,8 +924,8 @@ class ScreenScraperService:
                 print(f"⚠️ No mapping found for media type: {media_type}")
                 continue
             
-            # Check if this field is selected
-            if local_field not in selected_fields:
+            # Check if this field is selected (use ScreenScraper API field name, not mapped name)
+            if media_type not in selected_fields:
                 print(f"⏸️ Skipping {media_type} -> {local_field} (not selected)")
                 continue
             
