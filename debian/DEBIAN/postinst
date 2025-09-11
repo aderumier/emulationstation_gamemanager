@@ -99,8 +99,31 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     mkdir -p /opt/gamemanager/var/config
     mkdir -p /opt/gamemanager/roms
     
-    # Backup existing config files before upgrade
+    # Check if this is a real user config or just the default config from package
+    # We'll check if there's a backup from previous installation or if config was modified
+    USER_HAS_EXISTING_CONFIG=false
+    
+    # Check if there's a backup from previous installation
+    if [ -f /opt/gamemanager/var/config/config.json.backup ]; then
+        USER_HAS_EXISTING_CONFIG=true
+    fi
+    
+    # Check if config.json exists and is different from the default (just installed)
     if [ -f /opt/gamemanager/var/config/config.json ]; then
+        # If no backup exists, this might be a fresh install
+        # Check if the file was modified recently (within last 5 minutes) - likely just installed
+        CURRENT_TIME=$(date +%s)
+        FILE_TIME=$(stat -c %Y /opt/gamemanager/var/config/config.json 2>/dev/null || echo 0)
+        TIME_DIFF=$((CURRENT_TIME - FILE_TIME))
+        
+        # If file was modified more than 5 minutes ago, assume it's user's existing config
+        if [ $TIME_DIFF -gt 300 ]; then
+            USER_HAS_EXISTING_CONFIG=true
+        fi
+    fi
+    
+    # Only show config overwrite prompt if user has existing config
+    if [ "$USER_HAS_EXISTING_CONFIG" = true ] && [ -f /opt/gamemanager/var/config/config.json ]; then
         cp /opt/gamemanager/var/config/config.json /opt/gamemanager/var/config/config.json.backup
         echo ""
         echo "⚠️  Existing configuration file found: /opt/gamemanager/var/config/config.json"
@@ -149,6 +172,8 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
         else
             echo "Will overwrite config.json with new version."
         fi
+    else
+        echo "Using default configuration for fresh installation."
     fi
     if [ -f /opt/gamemanager/var/config/user.cfg ]; then
         cp /opt/gamemanager/var/config/user.cfg /opt/gamemanager/var/config/user.cfg.backup
