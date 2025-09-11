@@ -1135,8 +1135,8 @@ def process_single_game_worker(args):
             
             for launchbox_field, gamelist_field in mapping_config.items():
                 # Skip field if not in selected fields (except launchboxid which is always processed)
-                # Only filter if selected_fields is provided and not empty
-                if selected_fields and len(selected_fields) > 0 and launchbox_field not in selected_fields and launchbox_field != 'launchboxid':
+                # Filter based on selected_fields
+                if launchbox_field not in selected_fields and launchbox_field != 'launchboxid':
                     continue
                     
                 if launchbox_field in best_match and best_match[launchbox_field]:
@@ -4988,19 +4988,16 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
 
         fields_to_download = list(image_config.get('image_type_mappings', {}).values())
     
-    # Filter fields based on selected_fields (only if provided and not empty)
-    if selected_fields and len(selected_fields) > 0:
-        # Create reverse mapping from gamelist field to LaunchBox image type
-        field_to_launchbox_type = {}
-        for launchbox_type, gamelist_field in image_config.get('image_type_mappings', {}).items():
-            field_to_launchbox_type[gamelist_field] = launchbox_type
-        
-        # Filter fields_to_download to only include selected media fields
-        selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_type.values()]
-        fields_to_download = [field for field in fields_to_download if field_to_launchbox_type.get(field) in selected_media_fields]
-        print(f"🔧 DEBUG: Filtered fields_to_download to selected fields: {fields_to_download}")
-    else:
-        print(f"🔧 DEBUG: No selected_fields provided or empty, using all available fields: {fields_to_download}")
+    # Filter fields based on selected_fields
+    # Create reverse mapping from gamelist field to LaunchBox image type
+    field_to_launchbox_type = {}
+    for launchbox_type, gamelist_field in image_config.get('image_type_mappings', {}).items():
+        field_to_launchbox_type[gamelist_field] = launchbox_type
+    
+    # Filter fields_to_download to only include selected media fields
+    selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_type.values()]
+    fields_to_download = [field for field in fields_to_download if field_to_launchbox_type.get(field) in selected_media_fields]
+    print(f"🔧 DEBUG: Filtered fields_to_download to selected fields: {fields_to_download}")
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
@@ -11120,7 +11117,7 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
         for igdb_field, gamelist_field in mapping.items():
             # Skip field if not in selected fields (except igdbid which is always processed)
             # Only filter if selected_fields is provided and not empty
-            if selected_fields and len(selected_fields) > 0 and igdb_field not in selected_fields and igdb_field != 'igdbid':
+            if igdb_field not in selected_fields and igdb_field != 'igdbid':
                 continue
                 
             if igdb_field in field_mappings:
@@ -12159,8 +12156,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                             gamelist_field = field_mapping.get(text_field, text_field)
                             
                             # Check if this field is selected (check original field name, not mapped name)
-                            # Only filter if selected_fields is provided and not empty
-                            if selected_fields and len(selected_fields) > 0 and text_field not in selected_fields:
+                            if text_field not in selected_fields:
                                 print(f"⏸️ Skipping {gamelist_field} for {game['name']} (not selected)")
                                 continue
                             
