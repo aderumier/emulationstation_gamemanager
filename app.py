@@ -3404,6 +3404,161 @@ def manage_launchbox_mappings():
     except Exception as e:
         return jsonify({'error': f'Failed to manage launchbox mappings: {str(e)}'}), 500
 
+@app.route('/api/igdb-mappings', methods=['GET', 'PUT', 'POST'])
+@login_required
+def manage_igdb_mappings():
+    """Manage IGDB image type mappings"""
+    try:
+        if request.method == 'GET':
+            # Return current mappings and available media fields
+            igdb_mappings = config.get('igdb', {}).get('image_type_mappings', {})
+            media_fields = config.get('media_fields', {})
+            return jsonify({
+                'success': True, 
+                'igdb_mappings': igdb_mappings,
+                'media_fields': media_fields
+            })
+        
+        elif request.method == 'PUT':
+            # Update existing mapping
+            data = request.get_json()
+            if not data or 'igdb_type' not in data:
+                return jsonify({'error': 'IGDB type is required'}), 400
+            
+            igdb_type = data['igdb_type']
+            media_field = data.get('media_field', '')
+            
+            # Validate that the media field exists
+            if media_field and media_field not in config.get('media_fields', {}):
+                return jsonify({'error': 'Invalid media field'}), 400
+            
+            # Update the mapping
+            if 'igdb' not in config:
+                config['igdb'] = {}
+            if 'image_type_mappings' not in config['igdb']:
+                config['igdb']['image_type_mappings'] = {}
+            
+            config['igdb']['image_type_mappings'][igdb_type] = media_field
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'IGDB mapping updated successfully'})
+        
+        elif request.method == 'POST':
+            # Reset mapping to default
+            data = request.get_json()
+            if not data or 'igdb_type' not in data or not data.get('reset'):
+                return jsonify({'error': 'Reset operation requires igdb_type and reset flag'}), 400
+            
+            igdb_type = data['igdb_type']
+            
+            # Define default mappings (these should match the original config)
+            default_mappings = {
+                "cover": "thumbnail",
+                "screenshots": "image",
+                "artworks": "fanart"
+            }
+            
+            # Reset to default value
+            if 'igdb' not in config:
+                config['igdb'] = {}
+            if 'image_type_mappings' not in config['igdb']:
+                config['igdb']['image_type_mappings'] = {}
+            
+            default_value = default_mappings.get(igdb_type, '')
+            config['igdb']['image_type_mappings'][igdb_type] = default_value
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'IGDB mapping reset to default'})
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage IGDB mappings: {str(e)}'}), 500
+
+@app.route('/api/screenscraper-mappings', methods=['GET', 'PUT', 'POST'])
+@login_required
+def manage_screenscraper_mappings():
+    """Manage ScreenScraper image type mappings"""
+    try:
+        if request.method == 'GET':
+            # Return current mappings and available media fields
+            screenscraper_mappings = config.get('screenscraper', {}).get('image_type_mappings', {})
+            media_fields = config.get('media_fields', {})
+            return jsonify({
+                'success': True, 
+                'screenscraper_mappings': screenscraper_mappings,
+                'media_fields': media_fields
+            })
+        
+        elif request.method == 'PUT':
+            # Update existing mapping
+            data = request.get_json()
+            if not data or 'screenscraper_type' not in data:
+                return jsonify({'error': 'ScreenScraper type is required'}), 400
+            
+            screenscraper_type = data['screenscraper_type']
+            media_field = data.get('media_field', '')
+            
+            # Validate that the media field exists
+            if media_field and media_field not in config.get('media_fields', {}):
+                return jsonify({'error': 'Invalid media field'}), 400
+            
+            # Update the mapping
+            if 'screenscraper' not in config:
+                config['screenscraper'] = {}
+            if 'image_type_mappings' not in config['screenscraper']:
+                config['screenscraper']['image_type_mappings'] = {}
+            
+            config['screenscraper']['image_type_mappings'][screenscraper_type] = media_field
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'ScreenScraper mapping updated successfully'})
+        
+        elif request.method == 'POST':
+            # Reset mapping to default
+            data = request.get_json()
+            if not data or 'screenscraper_type' not in data or not data.get('reset'):
+                return jsonify({'error': 'Reset operation requires screenscraper_type and reset flag'}), 400
+            
+            screenscraper_type = data['screenscraper_type']
+            
+            # Define default mappings (these should match the original config)
+            default_mappings = {
+                "box-2D": "thumbnail",
+                "box-3D": "boxart",
+                "box-texture": "boxback",
+                "screenshot": "image",
+                "titlescreen": "titleshot",
+                "fanart": "fanart",
+                "wheel": "marquee",
+                "cartridge": "cartridge"
+            }
+            
+            # Reset to default value
+            if 'screenscraper' not in config:
+                config['screenscraper'] = {}
+            if 'image_type_mappings' not in config['screenscraper']:
+                config['screenscraper']['image_type_mappings'] = {}
+            
+            default_value = default_mappings.get(screenscraper_type, '')
+            config['screenscraper']['image_type_mappings'][screenscraper_type] = default_value
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'ScreenScraper mapping reset to default'})
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage ScreenScraper mappings: {str(e)}'}), 500
+
 # Cache for LaunchBox platforms (generated at startup)
 _launchbox_platforms_cache = None
 

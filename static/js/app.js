@@ -116,6 +116,12 @@ class GameCollectionManager {
         // Initialize launchbox configuration modal
         this.initializeLaunchboxConfigModal();
         
+        // Initialize IGDB configuration modal
+        this.initializeIgdbConfigModal();
+        
+        // Initialize ScreenScraper configuration modal
+        this.initializeScreenscraperConfigModal();
+        
         // Initialize application configuration modal
         this.initializeAppConfigurationModal();
         
@@ -6206,6 +6212,32 @@ class GameCollectionManager {
             console.warn('openLaunchboxConfigModal element not found');
         }
 
+        // Add event listener for IGDB config modal
+        const openIgdbConfigModal = document.getElementById('openIgdbConfigModal');
+        if (openIgdbConfigModal) {
+            console.log('Found openIgdbConfigModal element, adding click listener');
+            openIgdbConfigModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('IGDB config modal link clicked');
+                this.openIgdbConfigurationModal();
+            });
+        } else {
+            console.warn('openIgdbConfigModal element not found');
+        }
+
+        // Add event listener for ScreenScraper config modal
+        const openScreenscraperConfigModal = document.getElementById('openScreenscraperConfigModal');
+        if (openScreenscraperConfigModal) {
+            console.log('Found openScreenscraperConfigModal element, adding click listener');
+            openScreenscraperConfigModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('ScreenScraper config modal link clicked');
+                this.openScreenscraperConfigurationModal();
+            });
+        } else {
+            console.warn('openScreenscraperConfigModal element not found');
+        }
+
         
         // Add event listener for update metadata button
         const updateMetadataBtn = document.getElementById('updateMetadataBtn');
@@ -7774,6 +7806,270 @@ class GameCollectionManager {
         if (refreshLaunchboxMappingsBtn) {
             refreshLaunchboxMappingsBtn.addEventListener('click', () => {
                 this.loadLaunchboxMappingsData();
+            });
+        }
+    }
+    
+    openIgdbConfigurationModal() {
+        // Load IGDB mappings data before opening modal
+        this.loadIgdbMappingsData();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('igdbConfigModal'));
+        modal.show();
+    }
+    
+    async loadIgdbMappingsData() {
+        try {
+            const response = await fetch('/api/igdb-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.populateIgdbMappingsTable(data.igdb_mappings, data.media_fields);
+            } else {
+                console.error('Failed to load IGDB mappings:', data.error);
+                this.showAlert('Failed to load IGDB mappings data', 'danger');
+            }
+        } catch (error) {
+            console.error('Error loading IGDB mappings:', error);
+            this.showAlert('Error loading IGDB mappings data', 'danger');
+        }
+    }
+    
+    async populateIgdbMappingsTable(igdbMappings, mediaFields) {
+        const tbody = document.getElementById('igdbMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        Object.entries(igdbMappings).forEach(([igdbType, mediaField]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="igdb-type-display">${igdbType}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" 
+                            data-igdb-type="${igdbType}" 
+                            onchange="gameManager.updateIgdbMapping('${igdbType}', this.value)">
+                        <option value="">-- Select Media Field --</option>
+                        ${Object.keys(mediaFields).map(field => 
+                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="gameManager.resetIgdbMapping('${igdbType}')"
+                            title="Reset to default">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    async updateIgdbMapping(igdbType, mediaField) {
+        try {
+            const response = await fetch('/api/igdb-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    igdb_type: igdbType,
+                    media_field: mediaField
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log(`Successfully updated IGDB mapping: ${igdbType} -> ${mediaField}`);
+                this.showAlert(`IGDB mapping updated: ${igdbType} → ${mediaField}`, 'success');
+            } else {
+                this.showAlert(`Failed to update IGDB mapping: ${data.error}`, 'danger');
+                // Reload data to revert changes
+                this.loadIgdbMappingsData();
+            }
+        } catch (error) {
+            console.error('Error updating IGDB mapping:', error);
+            this.showAlert('Error updating IGDB mapping', 'danger');
+            // Reload data to revert changes
+            this.loadIgdbMappingsData();
+        }
+    }
+    
+    async resetIgdbMapping(igdbType) {
+        if (!confirm(`Reset IGDB mapping for "${igdbType}" to default?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/igdb-mappings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    igdb_type: igdbType,
+                    reset: true
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`IGDB mapping reset for "${igdbType}"`, 'success');
+                this.loadIgdbMappingsData(); // Reload the table
+            } else {
+                this.showAlert(`Failed to reset IGDB mapping: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error resetting IGDB mapping:', error);
+            this.showAlert('Error resetting IGDB mapping', 'danger');
+        }
+    }
+    
+    openScreenscraperConfigurationModal() {
+        // Load ScreenScraper mappings data before opening modal
+        this.loadScreenscraperMappingsData();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('screenscraperConfigModal'));
+        modal.show();
+    }
+    
+    async loadScreenscraperMappingsData() {
+        try {
+            const response = await fetch('/api/screenscraper-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.populateScreenscraperMappingsTable(data.screenscraper_mappings, data.media_fields);
+            } else {
+                console.error('Failed to load ScreenScraper mappings:', data.error);
+                this.showAlert('Failed to load ScreenScraper mappings data', 'danger');
+            }
+        } catch (error) {
+            console.error('Error loading ScreenScraper mappings:', error);
+            this.showAlert('Error loading ScreenScraper mappings data', 'danger');
+        }
+    }
+    
+    async populateScreenscraperMappingsTable(screenscraperMappings, mediaFields) {
+        const tbody = document.getElementById('screenscraperMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        Object.entries(screenscraperMappings).forEach(([screenscraperType, mediaField]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="screenscraper-type-display">${screenscraperType}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" 
+                            data-screenscraper-type="${screenscraperType}" 
+                            onchange="gameManager.updateScreenscraperMapping('${screenscraperType}', this.value)">
+                        <option value="">-- Select Media Field --</option>
+                        ${Object.keys(mediaFields).map(field => 
+                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="gameManager.resetScreenscraperMapping('${screenscraperType}')"
+                            title="Reset to default">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    async updateScreenscraperMapping(screenscraperType, mediaField) {
+        try {
+            const response = await fetch('/api/screenscraper-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    screenscraper_type: screenscraperType,
+                    media_field: mediaField
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log(`Successfully updated ScreenScraper mapping: ${screenscraperType} -> ${mediaField}`);
+                this.showAlert(`ScreenScraper mapping updated: ${screenscraperType} → ${mediaField}`, 'success');
+            } else {
+                this.showAlert(`Failed to update ScreenScraper mapping: ${data.error}`, 'danger');
+                // Reload data to revert changes
+                this.loadScreenscraperMappingsData();
+            }
+        } catch (error) {
+            console.error('Error updating ScreenScraper mapping:', error);
+            this.showAlert('Error updating ScreenScraper mapping', 'danger');
+            // Reload data to revert changes
+            this.loadScreenscraperMappingsData();
+        }
+    }
+    
+    async resetScreenscraperMapping(screenscraperType) {
+        if (!confirm(`Reset ScreenScraper mapping for "${screenscraperType}" to default?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/screenscraper-mappings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    screenscraper_type: screenscraperType,
+                    reset: true
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`ScreenScraper mapping reset for "${screenscraperType}"`, 'success');
+                this.loadScreenscraperMappingsData(); // Reload the table
+            } else {
+                this.showAlert(`Failed to reset ScreenScraper mapping: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error resetting ScreenScraper mapping:', error);
+            this.showAlert('Error resetting ScreenScraper mapping', 'danger');
+        }
+    }
+    
+    initializeIgdbConfigModal() {
+        // Refresh button
+        const refreshIgdbMappingsBtn = document.getElementById('refreshIgdbMappingsBtn');
+        if (refreshIgdbMappingsBtn) {
+            refreshIgdbMappingsBtn.addEventListener('click', () => {
+                this.loadIgdbMappingsData();
+            });
+        }
+    }
+    
+    initializeScreenscraperConfigModal() {
+        // Refresh button
+        const refreshScreenscraperMappingsBtn = document.getElementById('refreshScreenscraperMappingsBtn');
+        if (refreshScreenscraperMappingsBtn) {
+            refreshScreenscraperMappingsBtn.addEventListener('click', () => {
+                this.loadScreenscraperMappingsData();
             });
         }
     }
