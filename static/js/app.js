@@ -6936,73 +6936,41 @@ class GameCollectionManager {
         console.log('🖼️ Media fields from config:', mediaFields);
         console.log('📋 All fields combined:', allFields);
         
-        // First, try to get selections from DOM checkboxes (if modal was opened)
+        // Read field selections directly from cookies (simplified approach)
+        console.log('🔧 DEBUG: Reading ScreenScraper field selections from cookies...');
         const selectedFields = [];
-        let hasUncheckedFields = false;
-        let hasCheckboxes = false;
-        
-        allFields.forEach(field => {
-            // Convert field name to checkbox ID format: field_name -> FieldName
-            const fieldId = field.split('_').map(word => 
-                word.charAt(0).toUpperCase() + word.slice(1)
-            ).join('');
-            const checkboxId = `screenscraperField${fieldId}`;
-            const checkbox = document.getElementById(checkboxId);
-            
-            console.log(`🔍 Field: "${field}" -> Checkbox ID: "${checkboxId}" -> Element found: ${!!checkbox} -> Checked: ${checkbox?.checked}`);
-            
-            if (checkbox) {
-                hasCheckboxes = true;
-                if (checkbox.checked) {
-                    selectedFields.push(field);
-                    console.log(`✅ Added field: "${field}"`);
-                } else {
-                    hasUncheckedFields = true;
-                    console.log(`⏸️ Field "${field}" not checked`);
-                }
-            } else {
-                console.log(`❌ Checkbox not found for field: "${field}" (ID: "${checkboxId}")`);
-            }
-        });
-        
-        // If checkboxes exist in DOM, use their state
-        if (hasCheckboxes) {
-            if (!hasUncheckedFields && selectedFields.length === allFields.length) {
-                console.log('🔧 All ScreenScraper fields are selected (DOM state), returning all fields');
-                return allFields;
-            }
-            console.log('🔧 Some ScreenScraper fields are unchecked (DOM state), returning selected fields:', selectedFields);
-            return selectedFields;
-        }
-        
-        // If no checkboxes exist (modal not opened), check cookies for saved preferences
-        console.log('🔧 No ScreenScraper checkboxes in DOM, checking cookies for saved preferences...');
-        const selectedFromCookies = [];
         let hasUncheckedInCookies = false;
         
         allFields.forEach(field => {
-            const cookieValue = this.getCookie(`screenscraperField_${field}`);
+            const cookieName = `screenscraperField_${field}`;
+            const cookieValue = this.getCookie(cookieName);
+            console.log(`🔧 DEBUG: Cookie for field "${field}" (${cookieName}):`, cookieValue);
+            
             if (cookieValue !== null) {
                 if (cookieValue === 'true') {
-                    selectedFromCookies.push(field);
+                    selectedFields.push(field);
+                    console.log(`🔧 DEBUG: Added field "${field}" to selectedFields`);
                 } else {
                     hasUncheckedInCookies = true;
+                    console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                 }
+            } else {
+                console.log(`🔧 DEBUG: No cookie found for field "${field}", treating as checked (default)`);
+                selectedFields.push(field);
             }
         });
         
-        // If we have cookie data, use it
-        if (selectedFromCookies.length > 0 || hasUncheckedInCookies) {
-            if (!hasUncheckedInCookies && selectedFromCookies.length === allFields.length) {
-                console.log('🔧 All ScreenScraper fields are selected (cookie state), returning all fields');
-                return allFields;
-            }
-            console.log('🔧 Using ScreenScraper field selections from cookies:', selectedFromCookies);
-            return selectedFromCookies;
+        console.log('🔧 DEBUG: Selected fields from cookies:', selectedFields);
+        console.log('🔧 DEBUG: Has unchecked fields in cookies:', hasUncheckedInCookies);
+        
+        // If we have some unchecked fields, return only the selected ones
+        if (hasUncheckedInCookies) {
+            console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
+            return selectedFields;
         }
         
-        // If no cookies exist either, return all fields as default
-        console.log('🔧 No ScreenScraper preferences found, returning all fields as default');
+        // If all fields are selected (no unchecked fields), return all fields
+        console.log('🔧 DEBUG: All fields selected, returning all fields:', allFields);
         return allFields;
     }
 
@@ -7116,69 +7084,41 @@ class GameCollectionManager {
                 return fallbackFields;
             }
             
-            // First, try to get selections from DOM checkboxes (if modal was opened)
+            // Read field selections directly from cookies (simplified approach)
+            console.log('🔧 DEBUG: Reading LaunchBox field selections from cookies...');
             const selectedFields = [];
-            let hasUncheckedFields = false;
-            let hasCheckboxes = false;
-            
-            allFields.forEach(field => {
-                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
-                if (checkbox) {
-                    hasCheckboxes = true;
-                    if (checkbox.checked) {
-                        selectedFields.push(field);
-                    } else {
-                        hasUncheckedFields = true;
-                    }
-                }
-            });
-            
-            console.log('🔧 DEBUG: Has checkboxes in DOM:', hasCheckboxes);
-            console.log('🔧 DEBUG: Selected fields from DOM:', selectedFields);
-            console.log('🔧 DEBUG: Has unchecked fields:', hasUncheckedFields);
-            
-            // If checkboxes exist in DOM, use their state
-            if (hasCheckboxes) {
-                if (!hasUncheckedFields && selectedFields.length === allFields.length) {
-                    console.log('🔧 All LaunchBox fields are selected (DOM state), returning all fields');
-                    return allFields;
-                }
-                console.log('🔧 Some LaunchBox fields are unchecked (DOM state), returning selected fields:', selectedFields);
-                return selectedFields;
-            }
-            
-            // If no checkboxes exist (modal not opened), check cookies for saved preferences
-            console.log('🔧 No LaunchBox checkboxes in DOM, checking cookies for saved preferences...');
-            const selectedFromCookies = [];
             let hasUncheckedInCookies = false;
             
             allFields.forEach(field => {
-                const cookieValue = this.getCookie(`launchboxField_${field}`);
-                console.log(`🔧 DEBUG: Cookie for field "${field}":`, cookieValue);
+                const cookieName = `launchboxField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                console.log(`🔧 DEBUG: Cookie for field "${field}" (${cookieName}):`, cookieValue);
+                
                 if (cookieValue !== null) {
                     if (cookieValue === 'true') {
-                        selectedFromCookies.push(field);
+                        selectedFields.push(field);
+                        console.log(`🔧 DEBUG: Added field "${field}" to selectedFields`);
                     } else {
                         hasUncheckedInCookies = true;
+                        console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                     }
+                } else {
+                    console.log(`🔧 DEBUG: No cookie found for field "${field}", treating as checked (default)`);
+                    selectedFields.push(field);
                 }
             });
             
-            console.log('🔧 DEBUG: Selected from cookies:', selectedFromCookies);
-            console.log('🔧 DEBUG: Has unchecked in cookies:', hasUncheckedInCookies);
+            console.log('🔧 DEBUG: Selected fields from cookies:', selectedFields);
+            console.log('🔧 DEBUG: Has unchecked fields in cookies:', hasUncheckedInCookies);
             
-            // If we have cookie data, use it
-            if (selectedFromCookies.length > 0 || hasUncheckedInCookies) {
-                if (!hasUncheckedInCookies && selectedFromCookies.length === allFields.length) {
-                    console.log('🔧 All LaunchBox fields are selected (cookie state), returning all fields');
-                    return allFields;
-                }
-                console.log('🔧 Using LaunchBox field selections from cookies:', selectedFromCookies);
-                return selectedFromCookies;
+            // If we have some unchecked fields, return only the selected ones
+            if (hasUncheckedInCookies) {
+                console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
+                return selectedFields;
             }
             
-            // If no cookies exist either, return all fields as default
-            console.log('🔧 No LaunchBox preferences found, returning all fields as default:', allFields);
+            // If all fields are selected (no unchecked fields), return all fields
+            console.log('🔧 DEBUG: All fields selected, returning all fields:', allFields);
             return allFields;
             
         } catch (error) {
