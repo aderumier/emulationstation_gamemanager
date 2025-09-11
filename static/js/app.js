@@ -6417,6 +6417,9 @@ class GameCollectionManager {
         // Initialize dynamic field checkboxes from config
         await this.initializeScreenscraperFieldCheckboxes();
         
+        // Load field settings AFTER checkboxes are created
+        this.loadScreenscraperFieldSettings();
+        
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('screenscraperConfigurationModal'));
         modal.show();
@@ -6678,9 +6681,9 @@ class GameCollectionManager {
                 console.log(`🔧 DEBUG LOAD: Field "${field}" -> Cookie: screenscraperField_${field} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
                 
                 if (checkbox) {
-                    // Default to checked if no saved value (first time)
-                    checkbox.checked = savedValue === 'true' || savedValue === null;
-                    console.log(`🔧 DEBUG LOAD: Set checkbox "${checkboxId}" to ${checkbox.checked}`);
+                    // If cookie exists, use its value; if not, default to checked (first time)
+                    checkbox.checked = savedValue === null ? true : savedValue === 'true';
+                    console.log(`🔧 DEBUG LOAD: Set checkbox "${checkboxId}" to ${checkbox.checked} (cookie: ${savedValue})`);
                 } else {
                     console.log(`🔧 DEBUG LOAD: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
