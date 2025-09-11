@@ -26,6 +26,8 @@ cp box_generator.py debian/opt/gamemanager/box_generator.py
 cp download_manager.py debian/opt/gamemanager/download_manager.py
 cp credential_manager.py debian/opt/gamemanager/credential_manager.py
 cp screenscraper_service.py debian/opt/gamemanager/screenscraper_service.py
+cp game_utils.py debian/opt/gamemanager/game_utils.py
+cp steamgrid_service.py debian/opt/gamemanager/steamgrid_service.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
@@ -73,6 +75,16 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/screenscraper_service.py" ]; then
     echo "❌ ERROR: screenscraper_service.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/game_utils.py" ]; then
+    echo "❌ ERROR: game_utils.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/steamgrid_service.py" ]; then
+    echo "❌ ERROR: steamgrid_service.py not found in package!"
     exit 1
 fi
 
