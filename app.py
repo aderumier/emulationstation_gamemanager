@@ -1135,7 +1135,8 @@ def process_single_game_worker(args):
             
             for launchbox_field, gamelist_field in mapping_config.items():
                 # Skip field if not in selected fields (except launchboxid which is always processed)
-                if selected_fields and launchbox_field not in selected_fields and launchbox_field != 'launchboxid':
+                # Only filter if selected_fields is provided and not empty
+                if selected_fields and len(selected_fields) > 0 and launchbox_field not in selected_fields and launchbox_field != 'launchboxid':
                     continue
                     
                 if launchbox_field in best_match and best_match[launchbox_field]:
@@ -4987,8 +4988,8 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
 
         fields_to_download = list(image_config.get('image_type_mappings', {}).values())
     
-    # Filter fields based on selected_fields
-    if selected_fields:
+    # Filter fields based on selected_fields (only if provided and not empty)
+    if selected_fields and len(selected_fields) > 0:
         # Create reverse mapping from gamelist field to LaunchBox image type
         field_to_launchbox_type = {}
         for launchbox_type, gamelist_field in image_config.get('image_type_mappings', {}).items():
@@ -4997,6 +4998,9 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         # Filter fields_to_download to only include selected media fields
         selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_type.values()]
         fields_to_download = [field for field in fields_to_download if field_to_launchbox_type.get(field) in selected_media_fields]
+        print(f"🔧 DEBUG: Filtered fields_to_download to selected fields: {fields_to_download}")
+    else:
+        print(f"🔧 DEBUG: No selected_fields provided or empty, using all available fields: {fields_to_download}")
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
@@ -11115,7 +11119,8 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
         # Update fields based on overwrite settings
         for igdb_field, gamelist_field in mapping.items():
             # Skip field if not in selected fields (except igdbid which is always processed)
-            if selected_fields and igdb_field not in selected_fields and igdb_field != 'igdbid':
+            # Only filter if selected_fields is provided and not empty
+            if selected_fields and len(selected_fields) > 0 and igdb_field not in selected_fields and igdb_field != 'igdbid':
                 continue
                 
             if igdb_field in field_mappings:
@@ -11222,7 +11227,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             print(f"🎨 DEBUG: Selected fields: {selected_fields}")
             print(f"🎨 DEBUG: Checking if fanart should be processed...")
             
-            if not selected_fields or 'artworks' in selected_fields:
+            if not selected_fields or len(selected_fields) == 0 or 'artworks' in selected_fields:
                 print(f"🎨 DEBUG: Fanart field is selected or no field selection (all fields)")
                 # Check if fanart field is selected or if no field selection (all fields)
                 fanart_field = igdb_image_mapping.get('artworks', 'fanart')
