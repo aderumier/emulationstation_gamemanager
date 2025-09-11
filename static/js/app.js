@@ -6131,8 +6131,8 @@ class GameCollectionManager {
             console.log('Found openLaunchboxModal element, adding click listener');
             openLaunchboxModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('LaunchBox modal link clicked');
-                this.openLaunchboxConfigurationModal();
+                console.log('Launchbox Scrap Preferences modal link clicked');
+                this.openLaunchboxScrapPreferencesModal();
             });
         } else {
             console.warn('openLaunchboxModal element not found');
@@ -6217,7 +6217,7 @@ class GameCollectionManager {
         modal.show();
     }
     
-    async openLaunchboxConfigurationModal() {
+    async openLaunchboxScrapPreferencesModal() {
         // Load current settings before opening modal
         this.loadLaunchboxSettings();
         
