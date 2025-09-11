@@ -10523,9 +10523,10 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
         
-        # Create filename from ROM filename (without extension) + .png extension
+        # Create filename from ROM filename (without extension)
         rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
-        filename = f"{rom_name_without_ext}.png"  # Always save as PNG
+        # We'll determine the final extension after download and conversion
+        filename = rom_name_without_ext
         file_path = os.path.join(media_dir, filename)
         print(f"{emoji} DEBUG: Safe filename: {filename}")
         print(f"{emoji} DEBUG: Full file path: {file_path}")
@@ -10582,13 +10583,17 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             else:
                 print(f"{emoji} DEBUG: ✅ No conversion needed for field: {gamelist_field}")
             
+            # Determine final filename and path
+            final_filename = os.path.basename(temp_file_path)
+            final_file_path = os.path.join(media_dir, final_filename)
+            
             # Rename the temp file to the final file
-            os.rename(temp_file_path, file_path)
-            print(f"{emoji} DEBUG: ✅ Downloaded file: {filename}")
+            os.rename(temp_file_path, final_file_path)
+            print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
             
             # Check if file was written successfully
-            if os.path.exists(file_path):
-                file_size = os.path.getsize(file_path)
+            if os.path.exists(final_file_path):
+                file_size = os.path.getsize(final_file_path)
                 print(f"{emoji} DEBUG: File written successfully, size: {file_size} bytes")
             else:
                 print(f"{emoji} DEBUG: ERROR - File was not created!")
@@ -10599,17 +10604,17 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             gamelist_field = image_type_mappings.get(image_type)
             if not gamelist_field:
                 print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
-                relative_path = f"./media/images/{filename}"
+                relative_path = f"./media/images/{final_filename}"
             else:
                 # Find the media directory for this gamelist field using new structure
                 directory_name = get_media_directory(gamelist_field)
                 
                 if directory_name:
-                    relative_path = f"./media/{directory_name}/{filename}"
+                    relative_path = f"./media/{directory_name}/{final_filename}"
                     print(f"{emoji} DEBUG: Mapped {image_type} -> {gamelist_field} -> {directory_name}")
                 else:
                     print(f"{emoji} DEBUG: No directory mapping found for gamelist field: {gamelist_field}")
-                    relative_path = f"./media/images/{filename}"
+                    relative_path = f"./media/images/{final_filename}"
             
             print(f"{emoji} DEBUG: Returning relative path: {relative_path}")
             return relative_path
