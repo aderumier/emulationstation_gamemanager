@@ -842,7 +842,7 @@ class ScreenScraperService:
             Current value of the field, or None if not found
         """
         try:
-            import xml.etree.ElementTree as ET
+            from lxml import etree as ET
             
             # Construct path to gamelist.xml
             gamelist_path = os.path.join('var', 'gamelists', system_name, 'gamelist.xml')

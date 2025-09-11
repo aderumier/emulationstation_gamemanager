@@ -30,7 +30,7 @@ import os
 import json
 from dotenv import load_dotenv
 import time
-import xml.etree.ElementTree as ET
+from lxml import etree as ET
 import threading
 import re
 import difflib
@@ -5117,9 +5117,9 @@ def save_gamelist_xml(file_path, games):
         # Save the file with proper formatting
         # First write to a temporary string to get the raw XML
         import io
-        xml_string = io.StringIO()
-        tree.write(xml_string, encoding='unicode', xml_declaration=True)
-        xml_content = xml_string.getvalue()
+        xml_string = io.BytesIO()
+        tree.write(xml_string, encoding='utf-8', xml_declaration=True)
+        xml_content = xml_string.getvalue().decode('utf-8')
         
         # Format the XML content for better readability
         formatted_xml = format_xml_for_readability(xml_content)
@@ -8227,7 +8227,7 @@ def apply_auto_crop(task, video_path, game_name):
 def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
     """Update the video field in gamelist.xml for a specific game"""
     try:
-        import xml.etree.ElementTree as ET
+        from lxml import etree as ET
         
         # Parse the gamelist
         tree = ET.parse(gamelist_path)
@@ -10347,7 +10347,7 @@ def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refr
             data = response.json()
         except:
             # If not JSON, try to parse as XML and extract maxthreads
-            import xml.etree.ElementTree as ET
+            from lxml import etree as ET
             try:
                 root = ET.fromstring(response.text)
                 data = {}
