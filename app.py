@@ -3795,9 +3795,9 @@ def write_gamelist_xml(games, file_path):
                     # Write raw text as-is; XML writer will handle escaping (& -> &amp;)
                     field_elem.text = str(value)
         
-        # Write to file
+        # Write to file with formatting
         tree = ET.ElementTree(root)
-        tree.write(file_path, encoding='utf-8', xml_declaration=True)
+        save_formatted_gamelist_xml(tree, file_path)
         
     except Exception as e:
         print(f"Error writing gamelist.xml: {e}")
