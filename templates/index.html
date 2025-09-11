@@ -163,6 +163,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openMediaFieldsModal">
                             <i class="bi bi-image me-2"></i>Media Fields Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openLaunchboxConfigModal">
+                            <i class="bi bi-box me-2"></i>Launchbox Configuration
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -1748,6 +1751,50 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Launchbox Configuration Modal -->
+    <div class="modal fade" id="launchboxConfigModal" tabindex="-1" aria-labelledby="launchboxConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="launchboxConfigModalLabel">
+                        <i class="bi bi-box me-2"></i>Launchbox Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>LaunchBox Image Type Mappings</h6>
+                        <p class="text-muted small">Configure which media fields each LaunchBox image type maps to. These mappings determine how LaunchBox images are categorized in your gamelist.</p>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover compact-table" id="launchboxMappingsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%">LaunchBox Image Type</th>
+                                    <th style="width: 40%">Media Field</th>
+                                    <th style="width: 20%">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="launchboxMappingsTableBody">
+                                <!-- Mappings will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Note:</strong> Changes are saved automatically when you select a different media field from the dropdown.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshLaunchboxMappingsBtn">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>

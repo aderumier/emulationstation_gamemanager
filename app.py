@@ -3324,6 +3324,86 @@ def manage_media_fields():
     except Exception as e:
         return jsonify({'error': f'Failed to manage media fields: {str(e)}'}), 500
 
+@app.route('/api/launchbox-mappings', methods=['GET', 'PUT', 'POST'])
+@login_required
+def manage_launchbox_mappings():
+    """Manage LaunchBox image type mappings"""
+    try:
+        if request.method == 'GET':
+            # Return current mappings and available media fields
+            launchbox_mappings = config.get('launchbox', {}).get('image_type_mappings', {})
+            media_fields = config.get('media_fields', {})
+            return jsonify({
+                'success': True, 
+                'launchbox_mappings': launchbox_mappings,
+                'media_fields': media_fields
+            })
+        
+        elif request.method == 'PUT':
+            # Update existing mapping
+            data = request.get_json()
+            if not data or 'launchbox_type' not in data:
+                return jsonify({'error': 'LaunchBox type is required'}), 400
+            
+            launchbox_type = data['launchbox_type']
+            media_field = data.get('media_field', '')
+            
+            # Validate that the media field exists
+            if media_field and media_field not in config.get('media_fields', {}):
+                return jsonify({'error': 'Invalid media field'}), 400
+            
+            # Update the mapping
+            if 'launchbox' not in config:
+                config['launchbox'] = {}
+            if 'image_type_mappings' not in config['launchbox']:
+                config['launchbox']['image_type_mappings'] = {}
+            
+            config['launchbox']['image_type_mappings'][launchbox_type] = media_field
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'Mapping updated successfully'})
+        
+        elif request.method == 'POST':
+            # Reset mapping to default
+            data = request.get_json()
+            if not data or 'launchbox_type' not in data or not data.get('reset'):
+                return jsonify({'error': 'Reset operation requires launchbox_type and reset flag'}), 400
+            
+            launchbox_type = data['launchbox_type']
+            
+            # Define default mappings (these should match the original config)
+            default_mappings = {
+                "Box - Front": "thumbnail",
+                "Box - Back": "boxback", 
+                "Box - 3D": "boxart",
+                "Clear Logo": "marquee",
+                "Screenshot - Game Title": "titleshot",
+                "Screenshot - Gameplay": "image",
+                "Fanart - Background": "fanart",
+                "Cart - Front": "cartridge"
+            }
+            
+            # Reset to default value
+            if 'launchbox' not in config:
+                config['launchbox'] = {}
+            if 'image_type_mappings' not in config['launchbox']:
+                config['launchbox']['image_type_mappings'] = {}
+            
+            default_value = default_mappings.get(launchbox_type, '')
+            config['launchbox']['image_type_mappings'][launchbox_type] = default_value
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'Mapping reset to default'})
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage launchbox mappings: {str(e)}'}), 500
+
 # Cache for LaunchBox platforms (generated at startup)
 _launchbox_platforms_cache = None
 

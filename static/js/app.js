@@ -113,6 +113,9 @@ class GameCollectionManager {
         // Initialize media fields configuration modal
         this.initializeMediaFieldsModal();
         
+        // Initialize launchbox configuration modal
+        this.initializeLaunchboxConfigModal();
+        
         // Initialize application configuration modal
         this.initializeAppConfigurationModal();
         
@@ -6190,6 +6193,19 @@ class GameCollectionManager {
             console.warn('openMediaFieldsModal element not found');
         }
 
+        // Add event listener for launchbox config modal
+        const openLaunchboxConfigModal = document.getElementById('openLaunchboxConfigModal');
+        if (openLaunchboxConfigModal) {
+            console.log('Found openLaunchboxConfigModal element, adding click listener');
+            openLaunchboxConfigModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('Launchbox config modal link clicked');
+                this.openLaunchboxConfigurationModal();
+            });
+        } else {
+            console.warn('openLaunchboxConfigModal element not found');
+        }
+
         
         // Add event listener for update metadata button
         const updateMetadataBtn = document.getElementById('updateMetadataBtn');
@@ -7626,6 +7642,138 @@ class GameCollectionManager {
         if (refreshMediaFieldsBtn) {
             refreshMediaFieldsBtn.addEventListener('click', () => {
                 this.loadMediaFieldsData();
+            });
+        }
+    }
+    
+    openLaunchboxConfigurationModal() {
+        // Load launchbox mappings data before opening modal
+        this.loadLaunchboxMappingsData();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('launchboxConfigModal'));
+        modal.show();
+    }
+    
+    async loadLaunchboxMappingsData() {
+        try {
+            const response = await fetch('/api/launchbox-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.populateLaunchboxMappingsTable(data.launchbox_mappings, data.media_fields);
+            } else {
+                console.error('Failed to load launchbox mappings:', data.error);
+                this.showAlert('Failed to load launchbox mappings data', 'danger');
+            }
+        } catch (error) {
+            console.error('Error loading launchbox mappings:', error);
+            this.showAlert('Error loading launchbox mappings data', 'danger');
+        }
+    }
+    
+    async populateLaunchboxMappingsTable(launchboxMappings, mediaFields) {
+        const tbody = document.getElementById('launchboxMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        Object.entries(launchboxMappings).forEach(([launchboxType, mediaField]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="launchbox-type-display">${launchboxType}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" 
+                            data-launchbox-type="${launchboxType}" 
+                            onchange="gameManager.updateLaunchboxMapping('${launchboxType}', this.value)">
+                        <option value="">-- Select Media Field --</option>
+                        ${Object.keys(mediaFields).map(field => 
+                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="gameManager.resetLaunchboxMapping('${launchboxType}')"
+                            title="Reset to default">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    async updateLaunchboxMapping(launchboxType, mediaField) {
+        try {
+            const response = await fetch('/api/launchbox-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    launchbox_type: launchboxType,
+                    media_field: mediaField
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log(`Successfully updated mapping: ${launchboxType} -> ${mediaField}`);
+                this.showAlert(`Mapping updated: ${launchboxType} → ${mediaField}`, 'success');
+            } else {
+                this.showAlert(`Failed to update mapping: ${data.error}`, 'danger');
+                // Reload data to revert changes
+                this.loadLaunchboxMappingsData();
+            }
+        } catch (error) {
+            console.error('Error updating launchbox mapping:', error);
+            this.showAlert('Error updating mapping', 'danger');
+            // Reload data to revert changes
+            this.loadLaunchboxMappingsData();
+        }
+    }
+    
+    async resetLaunchboxMapping(launchboxType) {
+        if (!confirm(`Reset mapping for "${launchboxType}" to default?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/launchbox-mappings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    launchbox_type: launchboxType,
+                    reset: true
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Mapping reset for "${launchboxType}"`, 'success');
+                this.loadLaunchboxMappingsData(); // Reload the table
+            } else {
+                this.showAlert(`Failed to reset mapping: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error resetting launchbox mapping:', error);
+            this.showAlert('Error resetting mapping', 'danger');
+        }
+    }
+    
+    initializeLaunchboxConfigModal() {
+        // Refresh button
+        const refreshLaunchboxMappingsBtn = document.getElementById('refreshLaunchboxMappingsBtn');
+        if (refreshLaunchboxMappingsBtn) {
+            refreshLaunchboxMappingsBtn.addEventListener('click', () => {
+                this.loadLaunchboxMappingsData();
             });
         }
     }
