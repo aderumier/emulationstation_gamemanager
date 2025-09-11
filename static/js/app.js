@@ -6557,7 +6557,11 @@ class GameCollectionManager {
             allFields.forEach(field => {
                 const cookieName = `igdbField_${field}`;
                 const savedValue = this.getCookie(cookieName);
-                const checkboxId = `igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`;
+                // Convert field name to checkbox ID format: field_name -> FieldName
+                const fieldId = field.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `igdbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 
                 console.log(`🔧 DEBUG LOAD: Field "${field}" -> Cookie: ${cookieName} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
@@ -6581,7 +6585,11 @@ class GameCollectionManager {
             fallbackFields.forEach(field => {
                 const cookieName = `igdbField_${field}`;
                 const savedValue = this.getCookie(cookieName);
-                const checkboxId = `igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`;
+                // Convert field name to checkbox ID format: field_name -> FieldName
+                const fieldId = field.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `igdbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 
                 console.log(`🔧 DEBUG FALLBACK: Field "${field}" -> Cookie: ${cookieName} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
@@ -6609,7 +6617,11 @@ class GameCollectionManager {
             
             // Save field selections to cookies
             allFields.forEach(field => {
-                const checkboxId = `igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`;
+                // Convert field name to checkbox ID format: field_name -> FieldName
+                const fieldId = field.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `igdbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 const cookieName = `igdbField_${field}`;
                 if (checkbox) {
@@ -6628,7 +6640,12 @@ class GameCollectionManager {
             ];
             
             fallbackFields.forEach(field => {
-                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                // Convert field name to checkbox ID format: field_name -> FieldName
+                const fieldId = field.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `igdbField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
                 if (checkbox) {
                     this.setCookie(`igdbField_${field}`, checkbox.checked);
                 }
@@ -6735,7 +6752,15 @@ class GameCollectionManager {
             let hasCheckboxes = false;
             
             allFields.forEach(field => {
-                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                // Convert field name to checkbox ID format: field_name -> FieldName
+                const fieldId = field.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `igdbField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                
+                console.log(`🔧 DEBUG: Field "${field}" -> Checkbox ID: "${checkboxId}" -> Element found: ${!!checkbox} -> Checked: ${checkbox?.checked}`);
+                
                 if (checkbox) {
                     hasCheckboxes = true;
                     if (checkbox.checked) {
@@ -6752,12 +6777,18 @@ class GameCollectionManager {
             
             // If checkboxes exist in DOM, use their state
             if (hasCheckboxes) {
+                // Check if all fields are selected (no unchecked fields)
                 if (!hasUncheckedFields && selectedFields.length === allFields.length) {
                     console.log('🔧 All IGDB fields are selected (DOM state), returning all fields');
                     return allFields;
                 }
-                console.log('🔧 Some IGDB fields are unchecked (DOM state), returning selected fields:', selectedFields);
-                return selectedFields;
+                // Check if we have a mix of selected/unselected fields
+                if (hasUncheckedFields || selectedFields.length < allFields.length) {
+                    console.log('🔧 Some IGDB fields are unchecked (DOM state), returning selected fields:', selectedFields);
+                    return selectedFields;
+                }
+                // If we have checkboxes but no clear selection state, fall through to cookie check
+                console.log('🔧 DOM checkboxes exist but selection state unclear, checking cookies...');
             }
             
             // If no checkboxes exist (modal not opened), check cookies for saved preferences
