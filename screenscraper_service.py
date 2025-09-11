@@ -328,8 +328,7 @@ def get_screenscraper_systems(devid: str, devpassword: str, force_refresh: bool 
         # Cache the results
         cache_data = {
             'systems': systems,
-            'timestamp': datetime.now().isoformat(),
-            'raw_response': response.text
+            'timestamp': datetime.now().isoformat()
         }
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, indent=2, ensure_ascii=False)

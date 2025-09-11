@@ -10723,8 +10723,7 @@ def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refr
         # Cache the result
         cache_data = {
             'maxthreads': maxthreads,
-            'timestamp': datetime.now().isoformat(),
-            'raw_response': response.text
+            'timestamp': datetime.now().isoformat()
         }
         
         with open(cache_file, 'w') as f:
