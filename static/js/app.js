@@ -6857,8 +6857,10 @@ class GameCollectionManager {
         console.log('🖼️ Media fields from config:', mediaFields);
         console.log('📋 All fields combined:', allFields);
         
+        // First, try to get selections from DOM checkboxes (if modal was opened)
         const selectedFields = [];
         let hasUncheckedFields = false;
+        let hasCheckboxes = false;
         
         allFields.forEach(field => {
             // Convert field name to checkbox ID format: field_name -> FieldName
@@ -6871,6 +6873,7 @@ class GameCollectionManager {
             console.log(`🔍 Field: "${field}" -> Checkbox ID: "${checkboxId}" -> Element found: ${!!checkbox} -> Checked: ${checkbox?.checked}`);
             
             if (checkbox) {
+                hasCheckboxes = true;
                 if (checkbox.checked) {
                     selectedFields.push(field);
                     console.log(`✅ Added field: "${field}"`);
@@ -6883,27 +6886,45 @@ class GameCollectionManager {
             }
         });
         
-        // If no fields are unchecked, it means all are selected (default state)
-        // Return all fields in this case
-        if (!hasUncheckedFields && selectedFields.length === allFields.length) {
-            console.log('🔧 All ScreenScraper fields are selected (default state), returning all fields');
-            return allFields;
+        // If checkboxes exist in DOM, use their state
+        if (hasCheckboxes) {
+            if (!hasUncheckedFields && selectedFields.length === allFields.length) {
+                console.log('🔧 All ScreenScraper fields are selected (DOM state), returning all fields');
+                return allFields;
+            }
+            console.log('🔧 Some ScreenScraper fields are unchecked (DOM state), returning selected fields:', selectedFields);
+            return selectedFields;
         }
         
-        // If some fields are unchecked, return only the checked ones
-        console.log('🔧 Some ScreenScraper fields are unchecked, returning only selected fields:', selectedFields);
-        console.log('🎯 Final selected fields:', selectedFields);
-        console.log('🎯 Selected fields count:', selectedFields.length);
+        // If no checkboxes exist (modal not opened), check cookies for saved preferences
+        console.log('🔧 No ScreenScraper checkboxes in DOM, checking cookies for saved preferences...');
+        const selectedFromCookies = [];
+        let hasUncheckedInCookies = false;
         
-        // Debug: Check all ScreenScraper checkboxes in the DOM
-        console.log('🔍 Debug: Checking all ScreenScraper checkboxes in DOM...');
-        const allCheckboxes = document.querySelectorAll('input[class*="screenscraper-field-checkbox"]');
-        console.log('🔍 Found checkboxes:', allCheckboxes.length);
-        allCheckboxes.forEach(checkbox => {
-            console.log(`🔍 Checkbox ID: "${checkbox.id}" -> Checked: ${checkbox.checked}`);
+        allFields.forEach(field => {
+            const cookieValue = this.getCookie(`screenscraperField_${field}`);
+            if (cookieValue !== null) {
+                if (cookieValue === 'true') {
+                    selectedFromCookies.push(field);
+                } else {
+                    hasUncheckedInCookies = true;
+                }
+            }
         });
         
-        return selectedFields;
+        // If we have cookie data, use it
+        if (selectedFromCookies.length > 0 || hasUncheckedInCookies) {
+            if (!hasUncheckedInCookies && selectedFromCookies.length === allFields.length) {
+                console.log('🔧 All ScreenScraper fields are selected (cookie state), returning all fields');
+                return allFields;
+            }
+            console.log('🔧 Using ScreenScraper field selections from cookies:', selectedFromCookies);
+            return selectedFromCookies;
+        }
+        
+        // If no cookies exist either, return all fields as default
+        console.log('🔧 No ScreenScraper preferences found, returning all fields as default');
+        return allFields;
     }
 
     async loadLaunchboxFieldSettings() {
@@ -6996,12 +7017,15 @@ class GameCollectionManager {
             const mediaFields = Object.keys(config.launchbox?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
+            // First, try to get selections from DOM checkboxes (if modal was opened)
             const selectedFields = [];
             let hasUncheckedFields = false;
+            let hasCheckboxes = false;
             
             allFields.forEach(field => {
                 const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
                 if (checkbox) {
+                    hasCheckboxes = true;
                     if (checkbox.checked) {
                         selectedFields.push(field);
                     } else {
@@ -7010,16 +7034,46 @@ class GameCollectionManager {
                 }
             });
             
-            // If no fields are unchecked, it means all are selected (default state)
-            // Return all fields in this case
-            if (!hasUncheckedFields && selectedFields.length === allFields.length) {
-                console.log('🔧 All LaunchBox fields are selected (default state), returning all fields');
-                return allFields;
+            // If checkboxes exist in DOM, use their state
+            if (hasCheckboxes) {
+                if (!hasUncheckedFields && selectedFields.length === allFields.length) {
+                    console.log('🔧 All LaunchBox fields are selected (DOM state), returning all fields');
+                    return allFields;
+                }
+                console.log('🔧 Some LaunchBox fields are unchecked (DOM state), returning selected fields:', selectedFields);
+                return selectedFields;
             }
             
-            // If some fields are unchecked, return only the checked ones
-            console.log('🔧 Some LaunchBox fields are unchecked, returning only selected fields:', selectedFields);
-            return selectedFields;
+            // If no checkboxes exist (modal not opened), check cookies for saved preferences
+            console.log('🔧 No LaunchBox checkboxes in DOM, checking cookies for saved preferences...');
+            const selectedFromCookies = [];
+            let hasUncheckedInCookies = false;
+            
+            allFields.forEach(field => {
+                const cookieValue = this.getCookie(`launchboxField_${field}`);
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedFromCookies.push(field);
+                    } else {
+                        hasUncheckedInCookies = true;
+                    }
+                }
+            });
+            
+            // If we have cookie data, use it
+            if (selectedFromCookies.length > 0 || hasUncheckedInCookies) {
+                if (!hasUncheckedInCookies && selectedFromCookies.length === allFields.length) {
+                    console.log('🔧 All LaunchBox fields are selected (cookie state), returning all fields');
+                    return allFields;
+                }
+                console.log('🔧 Using LaunchBox field selections from cookies:', selectedFromCookies);
+                return selectedFromCookies;
+            }
+            
+            // If no cookies exist either, return all fields as default
+            console.log('🔧 No LaunchBox preferences found, returning all fields as default');
+            return allFields;
+            
         } catch (error) {
             console.error('Error getting selected LaunchBox fields:', error);
             // Fallback to hardcoded fields if config fetch fails
@@ -7029,27 +7083,7 @@ class GameCollectionManager {
                 'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
                 'Fanart - Background', 'Cart - Front'
             ];
-            
-            const selectedFields = [];
-            let hasUncheckedFields = false;
-            
-            fallbackFields.forEach(field => {
-                const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
-                if (checkbox) {
-                    if (checkbox.checked) {
-                        selectedFields.push(field);
-                    } else {
-                        hasUncheckedFields = true;
-                    }
-                }
-            });
-            
-            // If no fields are unchecked, return all fallback fields
-            if (!hasUncheckedFields && selectedFields.length === fallbackFields.length) {
-                return fallbackFields;
-            }
-            
-            return selectedFields;
+            return fallbackFields;
         }
     }
     
