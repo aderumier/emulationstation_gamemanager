@@ -14,7 +14,6 @@ lib/
 lib64/
 parts/
 sdist/
-var/
 wheels/
 *.egg-info/
 .installed.cfg
@@ -150,6 +149,7 @@ var/
 !var/config/
 !var/config/config.json
 !var/config/user.cfg
+!var/db/screenscraper/platforms.json
 # Exclude credentials files for security
 var/config/credentials.json
 var/config/credentials.enc
