@@ -6747,88 +6747,41 @@ class GameCollectionManager {
                 return fallbackFields;
             }
             
-            // First, try to get selections from DOM checkboxes (if modal was opened)
+            // Read field selections directly from cookies (simplified approach)
+            console.log('🔧 DEBUG: Reading IGDB field selections from cookies...');
             const selectedFields = [];
-            let hasUncheckedFields = false;
-            let hasCheckboxes = false;
-            
-            allFields.forEach(field => {
-                // Convert field name to checkbox ID format: field_name -> FieldName
-                const fieldId = field.split('_').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
-                ).join('');
-                const checkboxId = `igdbField${fieldId}`;
-                const checkbox = document.getElementById(checkboxId);
-                
-                console.log(`🔧 DEBUG: Field "${field}" -> Checkbox ID: "${checkboxId}" -> Element found: ${!!checkbox} -> Checked: ${checkbox?.checked}`);
-                
-                if (checkbox) {
-                    hasCheckboxes = true;
-                    if (checkbox.checked) {
-                        selectedFields.push(field);
-                    } else {
-                        hasUncheckedFields = true;
-                    }
-                }
-            });
-            
-            console.log('🔧 DEBUG: Has checkboxes in DOM:', hasCheckboxes);
-            console.log('🔧 DEBUG: Selected fields from DOM:', selectedFields);
-            console.log('🔧 DEBUG: Has unchecked fields:', hasUncheckedFields);
-            
-            // If checkboxes exist in DOM, use their state
-            if (hasCheckboxes) {
-                // Check if all fields are selected (no unchecked fields)
-                if (!hasUncheckedFields && selectedFields.length === allFields.length) {
-                    console.log('🔧 All IGDB fields are selected (DOM state), returning all fields');
-                    return allFields;
-                }
-                // Check if we have a mix of selected/unselected fields
-                if (hasUncheckedFields || selectedFields.length < allFields.length) {
-                    console.log('🔧 Some IGDB fields are unchecked (DOM state), returning selected fields:', selectedFields);
-                    return selectedFields;
-                }
-                // If we have checkboxes but no clear selection state, fall through to cookie check
-                console.log('🔧 DOM checkboxes exist but selection state unclear, checking cookies...');
-            }
-            
-            // If no checkboxes exist (modal not opened), check cookies for saved preferences
-            console.log('🔧 No IGDB checkboxes in DOM, checking cookies for saved preferences...');
-            const selectedFromCookies = [];
             let hasUncheckedInCookies = false;
             
             allFields.forEach(field => {
                 const cookieName = `igdbField_${field}`;
                 const cookieValue = this.getCookie(cookieName);
                 console.log(`🔧 DEBUG: Cookie for field "${field}" (${cookieName}):`, cookieValue);
+                
                 if (cookieValue !== null) {
                     if (cookieValue === 'true') {
-                        selectedFromCookies.push(field);
-                        console.log(`🔧 DEBUG: Added field "${field}" to selectedFromCookies`);
+                        selectedFields.push(field);
+                        console.log(`🔧 DEBUG: Added field "${field}" to selectedFields`);
                     } else {
                         hasUncheckedInCookies = true;
                         console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                     }
                 } else {
-                    console.log(`🔧 DEBUG: No cookie found for field "${field}"`);
+                    console.log(`🔧 DEBUG: No cookie found for field "${field}", treating as checked (default)`);
+                    selectedFields.push(field);
                 }
             });
             
-            console.log('🔧 DEBUG: Selected from cookies:', selectedFromCookies);
-            console.log('🔧 DEBUG: Has unchecked in cookies:', hasUncheckedInCookies);
+            console.log('🔧 DEBUG: Selected fields from cookies:', selectedFields);
+            console.log('🔧 DEBUG: Has unchecked fields in cookies:', hasUncheckedInCookies);
             
-            // If we have cookie data, use it
-            if (selectedFromCookies.length > 0 || hasUncheckedInCookies) {
-                if (!hasUncheckedInCookies && selectedFromCookies.length === allFields.length) {
-                    console.log('🔧 All IGDB fields are selected (cookie state), returning all fields');
-                    return allFields;
-                }
-                console.log('🔧 Using IGDB field selections from cookies:', selectedFromCookies);
-                return selectedFromCookies;
+            // If we have some unchecked fields, return only the selected ones
+            if (hasUncheckedInCookies) {
+                console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
+                return selectedFields;
             }
             
-            // If no cookies exist either, return all fields as default
-            console.log('🔧 No IGDB preferences found, returning all fields as default:', allFields);
+            // If all fields are selected (no unchecked fields), return all fields
+            console.log('🔧 DEBUG: All fields selected, returning all fields:', allFields);
             return allFields;
             
         } catch (error) {
