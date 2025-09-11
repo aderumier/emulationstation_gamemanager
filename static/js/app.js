@@ -4166,7 +4166,11 @@ class GameCollectionManager {
             console.log('🔧 DEBUG: overwriteTextFields checkbox checked:', overwriteTextFields);
             
             // Get selected fields for LaunchBox scraping
+            console.log('🔧 DEBUG: About to call getSelectedLaunchboxFields...');
             const selectedFields = await this.getSelectedLaunchboxFields();
+            console.log('🔧 DEBUG: getSelectedLaunchboxFields returned:', selectedFields);
+            console.log('🔧 DEBUG: selectedFields type:', typeof selectedFields);
+            console.log('🔧 DEBUG: selectedFields length:', selectedFields?.length);
             
             const requestBody = {
                 selected_games: gamesToScrape.map(game => game.path),
@@ -4174,7 +4178,7 @@ class GameCollectionManager {
                 overwrite_text_fields: overwriteTextFields,
                 selected_fields: selectedFields
             };
-            console.log('DEBUG: JavaScript - Request body:', requestBody);
+            console.log('🔧 DEBUG: LaunchBox request body:', requestBody);
             
             const response = await fetch(`/api/scrap-launchbox/${this.currentSystem}`, {
                 method: 'POST',
@@ -7008,14 +7012,34 @@ class GameCollectionManager {
     
     async getSelectedLaunchboxFields() {
         try {
+            console.log('🔧 DEBUG: Starting getSelectedLaunchboxFields...');
+            
             // Fetch config to get dynamic field mappings
             const response = await fetch('/api/config');
             const config = await response.json();
+            console.log('🔧 DEBUG: Config received:', config);
             
             // Get LaunchBox field mappings from config
             const textFields = Object.keys(config.launchbox?.mapping || {});
             const mediaFields = Object.keys(config.launchbox?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
+            
+            console.log('🔧 DEBUG: Text fields from config:', textFields);
+            console.log('🔧 DEBUG: Media fields from config:', mediaFields);
+            console.log('🔧 DEBUG: All fields combined:', allFields);
+            console.log('🔧 DEBUG: All fields length:', allFields.length);
+            
+            // If no fields found in config, use fallback
+            if (allFields.length === 0) {
+                console.log('🔧 DEBUG: No fields found in config, using fallback fields');
+                const fallbackFields = [
+                    'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
+                    'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
+                    'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
+                    'Fanart - Background', 'Cart - Front'
+                ];
+                return fallbackFields;
+            }
             
             // First, try to get selections from DOM checkboxes (if modal was opened)
             const selectedFields = [];
@@ -7034,6 +7058,10 @@ class GameCollectionManager {
                 }
             });
             
+            console.log('🔧 DEBUG: Has checkboxes in DOM:', hasCheckboxes);
+            console.log('🔧 DEBUG: Selected fields from DOM:', selectedFields);
+            console.log('🔧 DEBUG: Has unchecked fields:', hasUncheckedFields);
+            
             // If checkboxes exist in DOM, use their state
             if (hasCheckboxes) {
                 if (!hasUncheckedFields && selectedFields.length === allFields.length) {
@@ -7051,6 +7079,7 @@ class GameCollectionManager {
             
             allFields.forEach(field => {
                 const cookieValue = this.getCookie(`launchboxField_${field}`);
+                console.log(`🔧 DEBUG: Cookie for field "${field}":`, cookieValue);
                 if (cookieValue !== null) {
                     if (cookieValue === 'true') {
                         selectedFromCookies.push(field);
@@ -7059,6 +7088,9 @@ class GameCollectionManager {
                     }
                 }
             });
+            
+            console.log('🔧 DEBUG: Selected from cookies:', selectedFromCookies);
+            console.log('🔧 DEBUG: Has unchecked in cookies:', hasUncheckedInCookies);
             
             // If we have cookie data, use it
             if (selectedFromCookies.length > 0 || hasUncheckedInCookies) {
@@ -7071,7 +7103,7 @@ class GameCollectionManager {
             }
             
             // If no cookies exist either, return all fields as default
-            console.log('🔧 No LaunchBox preferences found, returning all fields as default');
+            console.log('🔧 No LaunchBox preferences found, returning all fields as default:', allFields);
             return allFields;
             
         } catch (error) {
@@ -7083,6 +7115,7 @@ class GameCollectionManager {
                 'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
                 'Fanart - Background', 'Cart - Front'
             ];
+            console.log('🔧 DEBUG: Using fallback fields due to error:', fallbackFields);
             return fallbackFields;
         }
     }
