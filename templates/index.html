@@ -1297,76 +1297,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- ScreenScraper API Credentials -->
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <h6><i class="bi bi-key-fill me-2"></i>ScreenScraper API Credentials</h6>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="screenscraperSsId" class="form-label">ScreenScraper ID</label>
-                                                    <input type="text" class="form-control" id="screenscraperSsId" placeholder="Enter your ScreenScraper ID">
-                                                    <div class="form-text">Your ScreenScraper user ID</div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="screenscraperSsPassword" class="form-label">ScreenScraper Password</label>
-                                                    <input type="password" class="form-control" id="screenscraperSsPassword" placeholder="Enter your ScreenScraper Password">
-                                                    <div class="form-text">Your ScreenScraper user account password</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div id="screenscraperCredentialsStatus" class="text-muted">
-                                                <i class="bi bi-info-circle me-1"></i>No credentials configured
-                                            </div>
-                                            <button type="button" class="btn btn-primary btn-sm" id="saveScreenscraperCredentialsBtn">
-                                                <i class="bi bi-save me-1"></i>Save Credentials
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- IGDB API Credentials -->
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <h6><i class="bi bi-globe me-2"></i>IGDB API Credentials</h6>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="igdbClientId" class="form-label">Client ID</label>
-                                                    <input type="text" class="form-control" id="igdbClientId" placeholder="Enter your IGDB Client ID">
-                                                    <div class="form-text">Get your Client ID from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="igdbClientSecret" class="form-label">Client Secret</label>
-                                                    <input type="password" class="form-control" id="igdbClientSecret" placeholder="Enter your IGDB Client Secret">
-                                                    <div class="form-text">Get your Client Secret from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div id="igdbCredentialsStatus" class="text-muted">
-                                                <i class="bi bi-info-circle me-1"></i>No credentials configured
-                                            </div>
-                                            <button type="button" class="btn btn-primary btn-sm" id="saveIgdbCredentialsBtn">
-                                                <i class="bi bi-save me-1"></i>Save Credentials
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -1840,6 +1770,41 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <i class="bi bi-info-circle me-1"></i>
                         <strong>Note:</strong> Changes are saved automatically when you select a different media field from the dropdown.
                     </div>
+                    
+                    <!-- IGDB API Credentials -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6><i class="bi bi-globe me-2"></i>IGDB API Credentials</h6>
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="igdbClientId" class="form-label">Client ID</label>
+                                                <input type="text" class="form-control" id="igdbClientId" placeholder="Enter your IGDB Client ID">
+                                                <div class="form-text">Get your Client ID from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="igdbClientSecret" class="form-label">Client Secret</label>
+                                                <input type="password" class="form-control" id="igdbClientSecret" placeholder="Enter your IGDB Client Secret">
+                                                <div class="form-text">Get your Client Secret from <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div id="igdbCredentialsStatus" class="text-muted">
+                                            <i class="bi bi-info-circle me-1"></i>No credentials configured
+                                        </div>
+                                        <button type="button" class="btn btn-primary btn-sm" id="saveIgdbCredentialsBtn">
+                                            <i class="bi bi-save me-1"></i>Save Credentials
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshIgdbMappingsBtn">
@@ -1883,6 +1848,41 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <div class="text-muted small mt-2">
                         <i class="bi bi-info-circle me-1"></i>
                         <strong>Note:</strong> Changes are saved automatically when you select a different media field from the dropdown.
+                    </div>
+                    
+                    <!-- ScreenScraper API Credentials -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6><i class="bi bi-key-fill me-2"></i>ScreenScraper API Credentials</h6>
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="screenscraperSsId" class="form-label">ScreenScraper ID</label>
+                                                <input type="text" class="form-control" id="screenscraperSsId" placeholder="Enter your ScreenScraper ID">
+                                                <div class="form-text">Your ScreenScraper user ID</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="screenscraperSsPassword" class="form-label">ScreenScraper Password</label>
+                                                <input type="password" class="form-control" id="screenscraperSsPassword" placeholder="Enter your ScreenScraper Password">
+                                                <div class="form-text">Your ScreenScraper user account password</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div id="screenscraperCredentialsStatus" class="text-muted">
+                                            <i class="bi bi-info-circle me-1"></i>No credentials configured
+                                        </div>
+                                        <button type="button" class="btn btn-primary btn-sm" id="saveScreenscraperCredentialsBtn">
+                                            <i class="bi bi-save me-1"></i>Save Credentials
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

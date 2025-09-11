@@ -7814,6 +7814,10 @@ class GameCollectionManager {
         // Load IGDB mappings data before opening modal
         this.loadIgdbMappingsData();
         
+        // Load IGDB credentials
+        this.loadIgdbCredentialsStatus();
+        this.loadIgdbCredentialsValues();
+        
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('igdbConfigModal'));
         modal.show();
@@ -7935,6 +7939,10 @@ class GameCollectionManager {
     openScreenscraperConfigurationModal() {
         // Load ScreenScraper mappings data before opening modal
         this.loadScreenscraperMappingsData();
+        
+        // Load ScreenScraper credentials
+        this.loadScreenscraperCredentialsStatus();
+        this.loadScreenscraperCredentialsValues();
         
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('screenscraperConfigModal'));
@@ -8062,6 +8070,14 @@ class GameCollectionManager {
                 this.loadIgdbMappingsData();
             });
         }
+        
+        // IGDB credentials save button
+        const saveIgdbCredentialsBtn = document.getElementById('saveIgdbCredentialsBtn');
+        if (saveIgdbCredentialsBtn) {
+            saveIgdbCredentialsBtn.addEventListener('click', () => {
+                this.saveIgdbCredentials();
+            });
+        }
     }
     
     initializeScreenscraperConfigModal() {
@@ -8070,6 +8086,14 @@ class GameCollectionManager {
         if (refreshScreenscraperMappingsBtn) {
             refreshScreenscraperMappingsBtn.addEventListener('click', () => {
                 this.loadScreenscraperMappingsData();
+            });
+        }
+        
+        // ScreenScraper credentials save button
+        const saveScreenscraperCredentialsBtn = document.getElementById('saveScreenscraperCredentialsBtn');
+        if (saveScreenscraperCredentialsBtn) {
+            saveScreenscraperCredentialsBtn.addEventListener('click', () => {
+                this.saveScreenscraperCredentials();
             });
         }
     }
@@ -8093,21 +8117,6 @@ class GameCollectionManager {
             });
         }
         
-        // Add event listener for IGDB credentials save button
-        const saveIgdbCredentialsBtn = document.getElementById('saveIgdbCredentialsBtn');
-        if (saveIgdbCredentialsBtn) {
-            saveIgdbCredentialsBtn.addEventListener('click', () => {
-                this.saveIgdbCredentials();
-            });
-        }
-        
-        // Add event listener for ScreenScraper credentials save button
-        const saveScreenscraperCredentialsBtn = document.getElementById('saveScreenscraperCredentialsBtn');
-        if (saveScreenscraperCredentialsBtn) {
-            saveScreenscraperCredentialsBtn.addEventListener('click', () => {
-                this.saveScreenscraperCredentials();
-            });
-        }
     }
     
     openAppConfigurationModal() {
@@ -8134,13 +8143,6 @@ class GameCollectionManager {
                 
                 document.getElementById('maxTasksToKeep').value = config.max_tasks_to_keep || 30;
                 
-                // Load ScreenScraper credentials
-                await this.loadScreenscraperCredentialsStatus();
-                await this.loadScreenscraperCredentialsValues();
-                
-                // Load IGDB credentials
-                await this.loadIgdbCredentialsStatus();
-                await this.loadIgdbCredentialsValues();
                 
                 console.log('Configuration loaded:', config);
             } else {
