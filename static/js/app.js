@@ -6718,6 +6718,7 @@ class GameCollectionManager {
     }
     
     async getSelectedIgdbFields() {
+        console.log('🔧 DEBUG: getSelectedIgdbFields() called!');
         try {
             console.log('🔧 DEBUG: Starting getSelectedIgdbFields...');
             
@@ -9156,8 +9157,16 @@ class GameCollectionManager {
             
             this.showAlert('Starting IGDB scraping...', 'info');
             
+            console.log('🔧 DEBUG: About to call getSelectedIgdbFields()...');
             // Get selected fields for IGDB scraping
-            const selectedFields = await this.getSelectedIgdbFields();
+            let selectedFields;
+            try {
+                selectedFields = await this.getSelectedIgdbFields();
+                console.log('🔧 DEBUG: getSelectedIgdbFields() returned:', selectedFields);
+            } catch (error) {
+                console.error('🔧 DEBUG: Error in getSelectedIgdbFields():', error);
+                selectedFields = []; // Fallback to empty array
+            }
             
             const response = await fetch(`/api/scrap-igdb/${this.currentSystem}`, {
                 method: 'POST',
