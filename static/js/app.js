@@ -6157,8 +6157,8 @@ class GameCollectionManager {
             console.log('Found openScreenscraperModal element, adding click listener');
             openScreenscraperModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('ScreenScraper modal link clicked');
-                this.openScreenscraperConfigurationModal();
+                console.log('Screenscraper Scrap Preferences modal link clicked');
+                this.openScreenscraperScrapPreferencesModal();
             });
         } else {
             console.warn('openScreenscraperModal element not found');
@@ -6358,7 +6358,7 @@ class GameCollectionManager {
     }
 
     // ScreenScraper Configuration Functions
-    async openScreenscraperConfigurationModal() {
+    async openScreenscraperScrapPreferencesModal() {
         // Load current settings before opening modal
         this.loadScreenscraperSettings();
         
