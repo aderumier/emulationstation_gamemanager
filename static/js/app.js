@@ -6144,8 +6144,8 @@ class GameCollectionManager {
             console.log('Found openIgdbModal element, adding click listener');
             openIgdbModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('IGDB modal link clicked');
-                this.openIgdbConfigurationModal();
+                console.log('IGDB Scrap Preferences modal link clicked');
+                this.openIgdbScrapPreferencesModal();
             });
         } else {
             console.warn('openIgdbModal element not found');
@@ -6257,7 +6257,7 @@ class GameCollectionManager {
         }
     }
     
-    openIgdbConfigurationModal() {
+    openIgdbScrapPreferencesModal() {
         // Load current settings before opening modal
         this.loadIgdbSettings();
         
