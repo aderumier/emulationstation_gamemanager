@@ -5145,66 +5145,31 @@ def save_gamelist_xml(file_path, games):
 def format_xml_for_readability(xml_content):
     """Format XML content to be more human-readable with proper line breaks and indentation"""
     try:
-        # Parse the XML content
-        root = ET.fromstring(xml_content)
+        # Parse the XML content (remove encoding declaration for lxml compatibility)
+        xml_content_clean = xml_content
+        if xml_content.startswith('<?xml'):
+            # Find the end of the XML declaration
+            end_decl = xml_content.find('?>')
+            if end_decl != -1:
+                xml_content_clean = xml_content[end_decl + 2:].strip()
         
-        # Create a new formatted XML string
-        formatted_lines = ['<?xml version="1.0" encoding="utf-8"?>', '']
+        root = ET.fromstring(xml_content_clean)
         
-        def escape_xml_text(text):
-            """Properly escape XML special characters in text content"""
-            if not text:
-                return text
-            # Convert to string and let ElementTree handle XML escaping
-            return str(text)
+        # Use lxml's pretty_print functionality
+        import io
+        from lxml import etree
         
-        def format_element(element, indent_level=0):
-            indent = '  ' * indent_level
-            tag = element.tag
-            
-            # Handle text content
-            if element.text and element.text.strip():
-                text = element.text.strip()
-                escaped_text = escape_xml_text(text)
-                
-                # If text is long, add line breaks for readability
-                if len(text) > 80:
-                    # Split long text at word boundaries
-                    words = text.split()
-                    lines = []
-                    current_line = ''
-                    for word in words:
-                        if len(current_line + word) > 80:
-                            if current_line:
-                                lines.append(current_line.strip())
-                            current_line = word
-                        else:
-                            current_line += ' ' + word if current_line else word
-                    if current_line:
-                        lines.append(current_line.strip())
-                    
-                    # Format multi-line text with proper escaping
-                    formatted_lines.append(f'{indent}<{tag}>')
-                    for line in lines:
-                        escaped_line = escape_xml_text(line)
-                        formatted_lines.append(f'{indent}  {escaped_line}')
-                    formatted_lines.append(f'{indent}</{tag}>')
-                else:
-                    formatted_lines.append(f'{indent}<{tag}>{escaped_text}</{tag}>')
-            else:
-                # Empty element or element with children
-                if len(element) == 0:
-                    formatted_lines.append(f'{indent}<{tag} />')
-                else:
-                    formatted_lines.append(f'{indent}<{tag}>')
-                    for child in element:
-                        format_element(child, indent_level + 1)
-                    formatted_lines.append(f'{indent}</{tag}>')
+        # Create a new tree with pretty printing
+        tree = etree.ElementTree(root)
         
-        # Format the root element
-        format_element(root)
+        # Write to BytesIO with pretty_print
+        xml_bytes = io.BytesIO()
+        tree.write(xml_bytes, encoding='utf-8', xml_declaration=True, pretty_print=True)
         
-        return '\n'.join(formatted_lines)
+        # Convert back to string
+        formatted_xml = xml_bytes.getvalue().decode('utf-8')
+        
+        return formatted_xml
         
     except Exception as e:
         print(f"Error formatting XML: {e}")
