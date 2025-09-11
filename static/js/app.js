@@ -6595,9 +6595,14 @@ class GameCollectionManager {
             
             // Save field selections to cookies
             allFields.forEach(field => {
-                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                const checkboxId = `igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`;
+                const checkbox = document.getElementById(checkboxId);
+                const cookieName = `igdbField_${field}`;
                 if (checkbox) {
-                    this.setCookie(`igdbField_${field}`, checkbox.checked);
+                    this.setCookie(cookieName, checkbox.checked);
+                    console.log(`🔧 DEBUG: Saved cookie for field "${field}" (${cookieName}):`, checkbox.checked);
+                } else {
+                    console.log(`🔧 DEBUG: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
@@ -6747,14 +6752,19 @@ class GameCollectionManager {
             let hasUncheckedInCookies = false;
             
             allFields.forEach(field => {
-                const cookieValue = this.getCookie(`igdbField_${field}`);
-                console.log(`🔧 DEBUG: Cookie for field "${field}":`, cookieValue);
+                const cookieName = `igdbField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                console.log(`🔧 DEBUG: Cookie for field "${field}" (${cookieName}):`, cookieValue);
                 if (cookieValue !== null) {
                     if (cookieValue === 'true') {
                         selectedFromCookies.push(field);
+                        console.log(`🔧 DEBUG: Added field "${field}" to selectedFromCookies`);
                     } else {
                         hasUncheckedInCookies = true;
+                        console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                     }
+                } else {
+                    console.log(`🔧 DEBUG: No cookie found for field "${field}"`);
                 }
             });
             
