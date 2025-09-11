@@ -11294,7 +11294,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                 print(f"🎨 DEBUG: Fanart field not selected, skipping fanart processing")
             
             # Fetch and download screenshot if selected fields include screenshots
-            if not selected_fields or 'screenshots' in selected_fields:
+            if not selected_fields or len(selected_fields) == 0 or 'screenshots' in selected_fields:
                 print(f"📸 DEBUG: Screenshot field is selected or no field selection (all fields)")
                 # Check if screenshot field is selected or if no field selection (all fields)
                 screenshot_field = igdb_image_mapping.get('screenshots', 'image')
@@ -11360,7 +11360,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                 print(f"📸 DEBUG: Screenshot field not selected, skipping screenshot processing")
             
             # Fetch and download cover if selected fields include covers
-            if not selected_fields or 'cover' in selected_fields:
+            if not selected_fields or len(selected_fields) == 0 or 'cover' in selected_fields:
                 print(f"🖼️ DEBUG: Cover field is selected or no field selection (all fields)")
                 # Check if cover field is selected or if no field selection (all fields)
                 cover_field = igdb_image_mapping.get('cover', 'thumbnail')
@@ -12159,7 +12159,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                             gamelist_field = field_mapping.get(text_field, text_field)
                             
                             # Check if this field is selected (check original field name, not mapped name)
-                            if selected_fields and text_field not in selected_fields:
+                            # Only filter if selected_fields is provided and not empty
+                            if selected_fields and len(selected_fields) > 0 and text_field not in selected_fields:
                                 print(f"⏸️ Skipping {gamelist_field} for {game['name']} (not selected)")
                                 continue
                             
