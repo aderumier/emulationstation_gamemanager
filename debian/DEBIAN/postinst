@@ -102,6 +102,23 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     # Backup existing config files before upgrade
     if [ -f /opt/gamemanager/var/config/config.json ]; then
         cp /opt/gamemanager/var/config/config.json /opt/gamemanager/var/config/config.json.backup
+        echo ""
+        echo "⚠️  Existing configuration file found: /opt/gamemanager/var/config/config.json"
+        echo "The new version includes updated configuration structure and directory mappings."
+        echo ""
+        echo "Options:"
+        echo "  [Y] Yes - Overwrite with new config (recommended for new features)"
+        echo "  [N] No  - Keep existing config (preserve current settings)"
+        echo ""
+        read -p "Do you want to overwrite the existing config.json? [Y/n]: " -r
+        echo ""
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            echo "Keeping existing config.json - you may need to manually update it later."
+            # Mark that we should restore the backup
+            touch /opt/gamemanager/var/config/config.json.keep_existing
+        else
+            echo "Will overwrite config.json with new version."
+        fi
     fi
     if [ -f /opt/gamemanager/var/config/user.cfg ]; then
         cp /opt/gamemanager/var/config/user.cfg /opt/gamemanager/var/config/user.cfg.backup
@@ -147,8 +164,15 @@ EOF
 
     # Restore config files if they existed before upgrade
     if [ -f /opt/gamemanager/var/config/config.json.backup ]; then
-        mv /opt/gamemanager/var/config/config.json.backup /opt/gamemanager/var/config/config.json
-        echo "Restored existing config.json"
+        if [ -f /opt/gamemanager/var/config/config.json.keep_existing ]; then
+            mv /opt/gamemanager/var/config/config.json.backup /opt/gamemanager/var/config/config.json
+            rm -f /opt/gamemanager/var/config/config.json.keep_existing
+            echo "Restored existing config.json (user chose to keep it)"
+        else
+            echo "Using new config.json (user chose to overwrite)"
+        fi
+        # Clean up backup file
+        rm -f /opt/gamemanager/var/config/config.json.backup
     fi
     if [ -f /opt/gamemanager/var/config/user.cfg.backup ]; then
         mv /opt/gamemanager/var/config/user.cfg.backup /opt/gamemanager/var/config/user.cfg
