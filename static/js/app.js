@@ -6668,11 +6668,21 @@ class GameCollectionManager {
             // Load saved field selections from cookies
             allFields.forEach(field => {
                 const savedValue = this.getCookie(`screenscraperField_${field}`);
-                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                // Convert field name to checkbox ID format: field_name -> FieldName
+                const fieldId = field.split(/[-_]/).map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `screenscraperField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                
+                console.log(`🔧 DEBUG LOAD: Field "${field}" -> Cookie: screenscraperField_${field} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
                 
                 if (checkbox) {
                     // Default to checked if no saved value (first time)
                     checkbox.checked = savedValue === 'true' || savedValue === null;
+                    console.log(`🔧 DEBUG LOAD: Set checkbox "${checkboxId}" to ${checkbox.checked}`);
+                } else {
+                    console.log(`🔧 DEBUG LOAD: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
@@ -6709,9 +6719,17 @@ class GameCollectionManager {
             
             // Save field selections to cookies
             allFields.forEach(field => {
-                const checkbox = document.getElementById(`screenscraperField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                // Convert field name to checkbox ID format: field_name -> FieldName
+                const fieldId = field.split(/[-_]/).map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `screenscraperField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
                 if (checkbox) {
                     this.setCookie(`screenscraperField_${field}`, checkbox.checked);
+                    console.log(`🔧 DEBUG: Saved cookie for field "${field}" (screenscraperField_${field}):`, checkbox.checked);
+                } else {
+                    console.log(`🔧 DEBUG: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
@@ -6818,7 +6836,8 @@ class GameCollectionManager {
             
             // Add media field checkboxes dynamically
             Object.entries(imageTypeMappings).forEach(([apiField, gamelistField]) => {
-                const fieldId = gamelistField.split('_').map(word => 
+                // Use apiField (ScreenScraper field name) for checkbox ID to match save/load functions
+                const fieldId = apiField.split(/[-_]/).map(word => 
                     word.charAt(0).toUpperCase() + word.slice(1)
                 ).join('');
                 const checkboxId = `screenscraperField${fieldId}`;
@@ -6827,8 +6846,8 @@ class GameCollectionManager {
                 const checkboxDiv = document.createElement('div');
                 checkboxDiv.className = 'form-check mb-2';
                 checkboxDiv.innerHTML = `
-                    <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${gamelistField}" checked>
-                    <label class="form-check-label" for="${checkboxId}">${this.formatFieldName(gamelistField)}</label>
+                    <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${apiField}" checked>
+                    <label class="form-check-label" for="${checkboxId}">${this.formatFieldName(apiField)}</label>
                 `;
                 
                 mediaFieldsContainer.appendChild(checkboxDiv);
