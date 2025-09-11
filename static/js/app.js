@@ -6555,12 +6555,19 @@ class GameCollectionManager {
             
             // Load saved field selections from cookies
             allFields.forEach(field => {
-                const savedValue = this.getCookie(`igdbField_${field}`);
-                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                const cookieName = `igdbField_${field}`;
+                const savedValue = this.getCookie(cookieName);
+                const checkboxId = `igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`;
+                const checkbox = document.getElementById(checkboxId);
+                
+                console.log(`🔧 DEBUG LOAD: Field "${field}" -> Cookie: ${cookieName} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
                 
                 if (checkbox) {
                     // Default to checked if no saved value (first time)
                     checkbox.checked = savedValue === 'true' || savedValue === null;
+                    console.log(`🔧 DEBUG LOAD: Set checkbox "${checkboxId}" to ${checkbox.checked}`);
+                } else {
+                    console.log(`🔧 DEBUG LOAD: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
@@ -6572,11 +6579,18 @@ class GameCollectionManager {
             ];
             
             fallbackFields.forEach(field => {
-                const savedValue = this.getCookie(`igdbField_${field}`);
-                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
+                const cookieName = `igdbField_${field}`;
+                const savedValue = this.getCookie(cookieName);
+                const checkboxId = `igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`;
+                const checkbox = document.getElementById(checkboxId);
+                
+                console.log(`🔧 DEBUG FALLBACK: Field "${field}" -> Cookie: ${cookieName} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
                 
                 if (checkbox) {
                     checkbox.checked = savedValue === 'true' || savedValue === null;
+                    console.log(`🔧 DEBUG FALLBACK: Set checkbox "${checkboxId}" to ${checkbox.checked}`);
+                } else {
+                    console.log(`🔧 DEBUG FALLBACK: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         }
