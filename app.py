@@ -423,21 +423,21 @@ def ensure_yt_dlp_binary():
         print("yt-dlp binary not found, downloading in background...")
         
         def download_yt_dlp():
-            try:
+        try:
                 print("Downloading latest yt-dlp binary...")
-                # Download the latest yt-dlp binary
-                response = requests.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', timeout=30)
-                response.raise_for_status()
-                
-                # Save the binary
-                with open(yt_dlp_path, 'wb') as f:
-                    f.write(response.content)
-                
-                # Make it executable
-                os.chmod(yt_dlp_path, 0o755)
+            # Download the latest yt-dlp binary
+            response = requests.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', timeout=30)
+            response.raise_for_status()
+            
+            # Save the binary
+            with open(yt_dlp_path, 'wb') as f:
+                f.write(response.content)
+            
+            # Make it executable
+            os.chmod(yt_dlp_path, 0o755)
                 print(f"✅ Downloaded yt-dlp to {yt_dlp_path}")
-                
-            except Exception as e:
+            
+        except Exception as e:
                 print(f"❌ Failed to download yt-dlp: {e}")
         
         # Start download in background thread
@@ -514,7 +514,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 def log_request_info():
     # Skip logging for frequent API calls to reduce console spam
     if request.path != '/api/tasks':
-        print(f"DEBUG REQUEST: {request.method} {request.path} - Endpoint: {request.endpoint}")
+    print(f"DEBUG REQUEST: {request.method} {request.path} - Endpoint: {request.endpoint}")
 
 # Disable Flask's default HTTP request logging to reduce console spam
 import logging
@@ -1160,9 +1160,9 @@ def process_single_game_worker(args):
                             # Preserve parentheses text from ROM filename when using alternate name
                             if rom_parentheses_text and rom_parentheses_text not in alternate_name:
                                 new_value = f"{alternate_name} {rom_parentheses_text}"
+                                else:
+                                    new_value = alternate_name
                             else:
-                                new_value = alternate_name
-                        else:
                             # For main name matches, preserve parentheses text from ROM filename
                             if rom_parentheses_text and rom_parentheses_text not in new_value:
                                 new_value = f"{new_value} {rom_parentheses_text}"
@@ -1173,7 +1173,7 @@ def process_single_game_worker(args):
                         # If overwrite is enabled, always update if values are different
                         should_update = (old_value != new_value)
                         print(f"🔧 DEBUG: overwrite_text_fields=True - comparing '{old_value}' vs '{new_value}' -> should_update: {should_update}")
-                    else:
+                        else:
                         # If overwrite is disabled, only update if old value is empty
                         should_update = (old_value == '' or old_value is None) and new_value
                         print(f"🔧 DEBUG: overwrite_text_fields=False - checking if empty: '{old_value}' -> should_update: {should_update}")
@@ -6261,7 +6261,7 @@ def stop_task_endpoint(task_id):
         
         # Stop the task (except for YouTube batch download which handles its own completion)
         if task.type != 'youtube_download_batch':
-            task.stop()
+        task.stop()
         else:
             # For YouTube batch download, just set the stop event - the task will handle completion itself
             task.update_progress("🛑 Stop requested - task will complete gracefully")
