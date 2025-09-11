@@ -6660,7 +6660,8 @@ class GameCollectionManager {
             const config = await response.json();
             
             // Get ScreenScraper field mappings from config
-            const textFields = Object.keys(config.screenscraper?.mapping || {});
+            // For text fields, use hardcoded field names since ScreenScraper doesn't have a text field mapping
+            const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
             const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
@@ -6701,7 +6702,8 @@ class GameCollectionManager {
             const config = await response.json();
 
             // Get ScreenScraper field mappings from config
-            const textFields = Object.keys(config.screenscraper?.mapping || {});
+            // For text fields, use hardcoded field names since ScreenScraper doesn't have a text field mapping
+            const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
             const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
@@ -6923,8 +6925,8 @@ class GameCollectionManager {
         
         // Get ScreenScraper field mappings from config
         // ScreenScraper has image_type_mappings that map API field names to gamelist field names
-        // We need to use the VALUES (gamelist field names) not the KEYS (API field names)
-        const mediaFields = Object.values(config.screenscraper?.image_type_mappings || {});
+        // We need to use the KEYS (ScreenScraper API field names) for cookies, not the VALUES (gamelist field names)
+        const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
         
         // For text fields, we need to use the hardcoded field names that match the HTML checkboxes
         // since ScreenScraper doesn't have a text field mapping in the config
