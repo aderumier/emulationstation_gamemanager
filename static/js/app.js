@@ -6276,6 +6276,9 @@ class GameCollectionManager {
         // Initialize dynamic field checkboxes from config
         await this.initializeLaunchboxFieldCheckboxes();
         
+        // Load field settings AFTER checkboxes are created
+        this.loadLaunchboxFieldSettings();
+        
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('launchboxConfigurationModal'));
         modal.show();
@@ -7015,8 +7018,8 @@ class GameCollectionManager {
                 const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
                 
                 if (checkbox) {
-                    // Default to checked if no saved value (first time)
-                    checkbox.checked = savedValue === 'true' || savedValue === null;
+                    // If cookie exists, use its value; if not, default to checked (first time)
+                    checkbox.checked = savedValue === null ? true : savedValue === 'true';
                 }
             });
         } catch (error) {
