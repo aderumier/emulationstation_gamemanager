@@ -109,9 +109,39 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
         echo "Options:"
         echo "  [Y] Yes - Overwrite with new config (recommended for new features)"
         echo "  [N] No  - Keep existing config (preserve current settings)"
+        echo "  [D] Diff - Show differences between old and new config files"
         echo ""
-        read -p "Do you want to overwrite the existing config.json? [Y/n]: " -r
+        read -p "Do you want to overwrite the existing config.json? [Y/n/d]: " -r
         echo ""
+        
+        # Handle diff option
+        while [[ $REPLY =~ ^[Dd]$ ]]; do
+            echo ""
+            echo "📋 Showing differences between old and new config.json:"
+            echo "   - (red) Lines removed from old config"
+            echo "   + (green) Lines added in new config"
+            echo "   ~ (yellow) Lines modified"
+            echo ""
+            echo "Press Enter to continue..."
+            read
+            
+            # Show diff with colors if available
+            if command -v colordiff >/dev/null 2>&1; then
+                colordiff -u /opt/gamemanager/var/config/config.json.backup /opt/gamemanager/var/config/config.json || true
+            else
+                diff -u /opt/gamemanager/var/config/config.json.backup /opt/gamemanager/var/config/config.json || true
+            fi
+            
+            echo ""
+            echo "Options:"
+            echo "  [Y] Yes - Overwrite with new config (recommended for new features)"
+            echo "  [N] No  - Keep existing config (preserve current settings)"
+            echo "  [D] Diff - Show differences again"
+            echo ""
+            read -p "Do you want to overwrite the existing config.json? [Y/n/d]: " -r
+            echo ""
+        done
+        
         if [[ $REPLY =~ ^[Nn]$ ]]; then
             echo "Keeping existing config.json - you may need to manually update it later."
             # Mark that we should restore the backup
