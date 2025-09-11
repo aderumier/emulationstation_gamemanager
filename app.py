@@ -5143,7 +5143,7 @@ def save_gamelist_xml(file_path, games):
         raise
 
 def format_xml_for_readability(xml_content):
-    """Format XML content to be more human-readable with proper line breaks and indentation"""
+    """Format XML content to be more human-readable with proper line breaks and indentation using lxml's pretty_print"""
     try:
         # Parse the XML content (remove encoding declaration for lxml compatibility)
         xml_content_clean = xml_content
@@ -5153,35 +5153,17 @@ def format_xml_for_readability(xml_content):
             if end_decl != -1:
                 xml_content_clean = xml_content[end_decl + 2:].strip()
         
-        root = ET.fromstring(xml_content_clean)
+        # Parse XML and use lxml's pretty_print
+        from lxml import etree
+        root = etree.XML(xml_content_clean)
         
-        # Custom formatting function for proper indentation
-        def format_element(element, indent_level=0):
-            indent = '  ' * indent_level
-            tag = element.tag
-            
-            # Handle text content
-            if element.text and element.text.strip():
-                text = element.text.strip()
-                return f'{indent}<{tag}>{text}</{tag}>'
-            else:
-                # Empty element or element with children
-                if len(element) == 0:
-                    return f'{indent}<{tag}></{tag}>'
-                else:
-                    lines = [f'{indent}<{tag}>']
-                    for child in element:
-                        lines.append(format_element(child, indent_level + 1))
-                    lines.append(f'{indent}</{tag}>')
-                    return '\n'.join(lines)
+        # Use BytesIO to get proper XML declaration with pretty_print
+        import io
+        xml_bytes = io.BytesIO()
+        etree.ElementTree(root).write(xml_bytes, pretty_print=True, encoding='utf-8', xml_declaration=True)
+        formatted_xml = xml_bytes.getvalue().decode('utf-8')
         
-        # Format the root element
-        formatted_content = format_element(root)
-        
-        # Add XML declaration
-        result = '<?xml version=\'1.0\' encoding=\'UTF-8\'?>\n' + formatted_content
-        
-        return result
+        return formatted_xml
         
     except Exception as e:
         print(f"Error formatting XML: {e}")
