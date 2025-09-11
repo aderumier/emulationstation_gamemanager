@@ -127,25 +127,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <span class="navbar-subtitle">gamelist manager</span>
             </div>
             
-            <!-- User Preferences Menu -->
-            <div class="navbar-nav me-3">
-                <div class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="userPreferencesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-person-gear me-1"></i>User Preferences
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="userPreferencesDropdown">
-                        <li><a class="dropdown-item" href="#" id="openLaunchboxModal">
-                            <i class="bi bi-box me-2"></i>Launchbox Scrap Preferences
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openScreenscraperModal">
-                            <i class="bi bi-image me-2"></i>Screenscraper Scrap Preferences
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openIgdbModal">
-                            <i class="bi bi-globe me-2"></i>IGDB Scrap Preferences
-                        </a></li>
-                    </ul>
-                </div>
-            </div>
             
             <!-- Configuration Menu -->
             <div class="navbar-nav me-3">
@@ -196,6 +177,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <i class="bi bi-person me-2"></i>{{ current_user.username }}
                             {% if current_user.email %}<br><small class="text-muted">{{ current_user.email }}</small>{% endif %}
                         </span></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">Scrap Preferences</h6></li>
+                        <li><a class="dropdown-item" href="#" id="openLaunchboxModal">
+                            <i class="bi bi-box me-2"></i>Launchbox Scrap Preferences
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="openScreenscraperModal">
+                            <i class="bi bi-image me-2"></i>Screenscraper Scrap Preferences
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="openIgdbModal">
+                            <i class="bi bi-globe me-2"></i>IGDB Scrap Preferences
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
