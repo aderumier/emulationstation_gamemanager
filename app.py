@@ -5189,6 +5189,30 @@ def format_xml_for_readability(xml_content):
         return xml_content
 
 
+def save_formatted_gamelist_xml(tree, gamelist_path):
+    """Save gamelist.xml with proper formatting using the common formatting function"""
+    try:
+        # Write to a temporary string to get the raw XML
+        import io
+        xml_bytes = io.BytesIO()
+        tree.write(xml_bytes, encoding='utf-8', xml_declaration=True)
+        xml_content = xml_bytes.getvalue().decode('utf-8')
+        
+        # Format the XML content for better readability
+        formatted_xml = format_xml_for_readability(xml_content)
+        
+        # Write the formatted XML to file
+        with open(gamelist_path, 'w', encoding='utf-8') as f:
+            f.write(formatted_xml)
+            
+        print(f"Successfully saved formatted gamelist.xml to {gamelist_path}")
+        
+    except Exception as e:
+        print(f"Error saving formatted gamelist.xml: {e}")
+        # Fallback to direct write if formatting fails
+        tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+
+
 
 @app.route('/api/rom-system/<system_name>/scan-media', methods=['POST'])
 @login_required
@@ -8225,7 +8249,7 @@ def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
         
         if game_updated:
             # Save the updated gamelist
-            tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+            save_formatted_gamelist_xml(tree, gamelist_path)
             
             # Send notifications for gamelist update
             system_name = os.path.basename(os.path.dirname(gamelist_path))
@@ -8376,7 +8400,7 @@ def run_manual_crop_task(task_id, data):
                         video_element.text = f"./media/videos/{original_filename}"
                     
                     # Save the updated gamelist.xml
-                    tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+                    save_formatted_gamelist_xml(tree, gamelist_path)
                     task.update_progress("Updated gamelist.xml with cropped video")
                 else:
                     task.update_progress("Warning: Could not find game in gamelist.xml to update")
@@ -8571,7 +8595,7 @@ def run_2d_box_generation_task(system_name, selected_games):
                         thumbnail_element.text = f"./media/{box2d_directory}/{output_filename}"
                     
                     # Save the updated gamelist.xml
-                    tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+                    save_formatted_gamelist_xml(tree, gamelist_path)
                 
                 task.update_progress(f"✅ Generated 2D box for {game_name}")
                 processed += 1
@@ -9281,7 +9305,7 @@ def download_launchbox_media():
             new_media_field.text = f"./media/{media_directory}/{local_filename}"
         
         # Save the updated gamelist
-        tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+        save_formatted_gamelist_xml(tree, gamelist_path)
         
         # Notify all connected clients about the gamelist update
         games = parse_gamelist_xml(gamelist_path)
@@ -11392,7 +11416,7 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                     })
                     # Save the gamelist before exiting with explicit flushing
                     print(f"DEBUG: Saving gamelist to {gamelist_path} before task stop...")
-                    tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+                    save_formatted_gamelist_xml(tree, gamelist_path)
                     print(f"DEBUG: Gamelist write completed")
                     # Force flush to ensure file is written to disk
                     try:
@@ -11489,7 +11513,7 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                     company_cache = await ensure_igdb_company_cache(list(batch_company_ids))
             
             # Save updated gamelist
-            tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+            save_formatted_gamelist_xml(tree, gamelist_path)
             
             # Complete task
             result_q.put({
