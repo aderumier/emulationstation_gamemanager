@@ -6683,24 +6683,98 @@ class GameCollectionManager {
     
     async getSelectedIgdbFields() {
         try {
+            console.log('🔧 DEBUG: Starting getSelectedIgdbFields...');
+            
             // Fetch config to get dynamic field mappings
             const response = await fetch('/api/config');
             const config = await response.json();
+            console.log('🔧 DEBUG: Config received:', config);
             
             // Get IGDB field mappings from config
             const textFields = Object.keys(config.igdb?.mapping || {});
             const mediaFields = Object.keys(config.igdb?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
+            console.log('🔧 DEBUG: Text fields from config:', textFields);
+            console.log('🔧 DEBUG: Media fields from config:', mediaFields);
+            console.log('🔧 DEBUG: All fields combined:', allFields);
+            console.log('🔧 DEBUG: All fields length:', allFields.length);
+            
+            // If no fields found in config, use fallback
+            if (allFields.length === 0) {
+                console.log('🔧 DEBUG: No fields found in config, using fallback fields');
+                const fallbackFields = [
+                    'name', 'summary', 'developer', 'publisher', 'genre', 
+                    'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
+                ];
+                return fallbackFields;
+            }
+            
+            // First, try to get selections from DOM checkboxes (if modal was opened)
             const selectedFields = [];
+            let hasUncheckedFields = false;
+            let hasCheckboxes = false;
+            
             allFields.forEach(field => {
                 const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
-                if (checkbox && checkbox.checked) {
-                    selectedFields.push(field);
+                if (checkbox) {
+                    hasCheckboxes = true;
+                    if (checkbox.checked) {
+                        selectedFields.push(field);
+                    } else {
+                        hasUncheckedFields = true;
+                    }
                 }
             });
             
-            return selectedFields;
+            console.log('🔧 DEBUG: Has checkboxes in DOM:', hasCheckboxes);
+            console.log('🔧 DEBUG: Selected fields from DOM:', selectedFields);
+            console.log('🔧 DEBUG: Has unchecked fields:', hasUncheckedFields);
+            
+            // If checkboxes exist in DOM, use their state
+            if (hasCheckboxes) {
+                if (!hasUncheckedFields && selectedFields.length === allFields.length) {
+                    console.log('🔧 All IGDB fields are selected (DOM state), returning all fields');
+                    return allFields;
+                }
+                console.log('🔧 Some IGDB fields are unchecked (DOM state), returning selected fields:', selectedFields);
+                return selectedFields;
+            }
+            
+            // If no checkboxes exist (modal not opened), check cookies for saved preferences
+            console.log('🔧 No IGDB checkboxes in DOM, checking cookies for saved preferences...');
+            const selectedFromCookies = [];
+            let hasUncheckedInCookies = false;
+            
+            allFields.forEach(field => {
+                const cookieValue = this.getCookie(`igdbField_${field}`);
+                console.log(`🔧 DEBUG: Cookie for field "${field}":`, cookieValue);
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedFromCookies.push(field);
+                    } else {
+                        hasUncheckedInCookies = true;
+                    }
+                }
+            });
+            
+            console.log('🔧 DEBUG: Selected from cookies:', selectedFromCookies);
+            console.log('🔧 DEBUG: Has unchecked in cookies:', hasUncheckedInCookies);
+            
+            // If we have cookie data, use it
+            if (selectedFromCookies.length > 0 || hasUncheckedInCookies) {
+                if (!hasUncheckedInCookies && selectedFromCookies.length === allFields.length) {
+                    console.log('🔧 All IGDB fields are selected (cookie state), returning all fields');
+                    return allFields;
+                }
+                console.log('🔧 Using IGDB field selections from cookies:', selectedFromCookies);
+                return selectedFromCookies;
+            }
+            
+            // If no cookies exist either, return all fields as default
+            console.log('🔧 No IGDB preferences found, returning all fields as default:', allFields);
+            return allFields;
+            
         } catch (error) {
             console.error('Error getting selected IGDB fields:', error);
             // Fallback to hardcoded fields if config fetch fails
@@ -6708,16 +6782,8 @@ class GameCollectionManager {
                 'name', 'summary', 'developer', 'publisher', 'genre', 
                 'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
             ];
-            
-            const selectedFields = [];
-            fallbackFields.forEach(field => {
-                const checkbox = document.getElementById(`igdbField${field.charAt(0).toUpperCase() + field.slice(1).replace('_', '')}`);
-                if (checkbox && checkbox.checked) {
-                    selectedFields.push(field);
-                }
-            });
-            
-            return selectedFields;
+            console.log('🔧 DEBUG: Using fallback fields due to error:', fallbackFields);
+            return fallbackFields;
         }
     }
 
