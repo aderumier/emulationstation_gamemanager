@@ -110,6 +110,9 @@ class GameCollectionManager {
         // Initialize systems configuration modal
         this.initializeSystemsModal();
         
+        // Initialize media fields configuration modal
+        this.initializeMediaFieldsModal();
+        
         // Initialize application configuration modal
         this.initializeAppConfigurationModal();
         
@@ -6174,6 +6177,19 @@ class GameCollectionManager {
             console.warn('openSystemsModal element not found');
         }
 
+        // Add event listener for media fields modal
+        const openMediaFieldsModal = document.getElementById('openMediaFieldsModal');
+        if (openMediaFieldsModal) {
+            console.log('Found openMediaFieldsModal element, adding click listener');
+            openMediaFieldsModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('Media fields modal link clicked');
+                this.openMediaFieldsConfigurationModal();
+            });
+        } else {
+            console.warn('openMediaFieldsModal element not found');
+        }
+
         
         // Add event listener for update metadata button
         const updateMetadataBtn = document.getElementById('updateMetadataBtn');
@@ -6794,6 +6810,7 @@ class GameCollectionManager {
         console.log('📋 All fields combined:', allFields);
         
         const selectedFields = [];
+        let hasUncheckedFields = false;
         
         allFields.forEach(field => {
             // Convert field name to checkbox ID format: field_name -> FieldName
@@ -6805,16 +6822,28 @@ class GameCollectionManager {
             
             console.log(`🔍 Field: "${field}" -> Checkbox ID: "${checkboxId}" -> Element found: ${!!checkbox} -> Checked: ${checkbox?.checked}`);
             
-            if (checkbox && checkbox.checked) {
-                selectedFields.push(field);
-                console.log(`✅ Added field: "${field}"`);
-            } else if (!checkbox) {
-                console.log(`❌ Checkbox not found for field: "${field}" (ID: "${checkboxId}")`);
+            if (checkbox) {
+                if (checkbox.checked) {
+                    selectedFields.push(field);
+                    console.log(`✅ Added field: "${field}"`);
+                } else {
+                    hasUncheckedFields = true;
+                    console.log(`⏸️ Field "${field}" not checked`);
+                }
             } else {
-                console.log(`⏸️ Field "${field}" not checked`);
+                console.log(`❌ Checkbox not found for field: "${field}" (ID: "${checkboxId}")`);
             }
         });
         
+        // If no fields are unchecked, it means all are selected (default state)
+        // Return all fields in this case
+        if (!hasUncheckedFields && selectedFields.length === allFields.length) {
+            console.log('🔧 All ScreenScraper fields are selected (default state), returning all fields');
+            return allFields;
+        }
+        
+        // If some fields are unchecked, return only the checked ones
+        console.log('🔧 Some ScreenScraper fields are unchecked, returning only selected fields:', selectedFields);
         console.log('🎯 Final selected fields:', selectedFields);
         console.log('🎯 Selected fields count:', selectedFields.length);
         
@@ -6920,13 +6949,28 @@ class GameCollectionManager {
             const allFields = [...textFields, ...mediaFields];
             
             const selectedFields = [];
+            let hasUncheckedFields = false;
+            
             allFields.forEach(field => {
                 const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
-                if (checkbox && checkbox.checked) {
-                    selectedFields.push(field);
+                if (checkbox) {
+                    if (checkbox.checked) {
+                        selectedFields.push(field);
+                    } else {
+                        hasUncheckedFields = true;
+                    }
                 }
             });
             
+            // If no fields are unchecked, it means all are selected (default state)
+            // Return all fields in this case
+            if (!hasUncheckedFields && selectedFields.length === allFields.length) {
+                console.log('🔧 All LaunchBox fields are selected (default state), returning all fields');
+                return allFields;
+            }
+            
+            // If some fields are unchecked, return only the checked ones
+            console.log('🔧 Some LaunchBox fields are unchecked, returning only selected fields:', selectedFields);
             return selectedFields;
         } catch (error) {
             console.error('Error getting selected LaunchBox fields:', error);
@@ -6939,12 +6983,23 @@ class GameCollectionManager {
             ];
             
             const selectedFields = [];
+            let hasUncheckedFields = false;
+            
             fallbackFields.forEach(field => {
                 const checkbox = document.getElementById(`launchboxField${field.replace(/[^a-zA-Z0-9]/g, '')}`);
-                if (checkbox && checkbox.checked) {
-                    selectedFields.push(field);
+                if (checkbox) {
+                    if (checkbox.checked) {
+                        selectedFields.push(field);
+                    } else {
+                        hasUncheckedFields = true;
+                    }
                 }
             });
+            
+            // If no fields are unchecked, return all fallback fields
+            if (!hasUncheckedFields && selectedFields.length === fallbackFields.length) {
+                return fallbackFields;
+            }
             
             return selectedFields;
         }
@@ -7357,6 +7412,221 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error adding system:', error);
             this.showAlert('Error adding system', 'danger');
+        }
+    }
+    
+    openMediaFieldsConfigurationModal() {
+        // Load media fields data before opening modal
+        this.loadMediaFieldsData();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('mediaFieldsConfigurationModal'));
+        modal.show();
+    }
+    
+    async loadMediaFieldsData() {
+        try {
+            const response = await fetch('/api/media-fields');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.populateMediaFieldsTable(data.media_fields);
+            } else {
+                console.error('Failed to load media fields:', data.error);
+                this.showAlert('Failed to load media fields data', 'danger');
+            }
+        } catch (error) {
+            console.error('Error loading media fields:', error);
+            this.showAlert('Error loading media fields data', 'danger');
+        }
+    }
+    
+    async populateMediaFieldsTable(mediaFields) {
+        const tbody = document.getElementById('mediaFieldsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        Object.entries(mediaFields).forEach(([fieldName, fieldConfig]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="field-name-display">${fieldName}</span>
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" 
+                           data-field="directory" data-field-name="${fieldName}" 
+                           value="${fieldConfig.directory || ''}" 
+                           placeholder="e.g., boxarts">
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" 
+                           data-field="extensions" data-field-name="${fieldName}" 
+                           value="${Array.isArray(fieldConfig.extensions) ? fieldConfig.extensions.join(', ') : ''}" 
+                           placeholder="e.g., .png, .jpg, .jpeg">
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" 
+                           data-field="target_extension" data-field-name="${fieldName}" 
+                           value="${fieldConfig.target_extension || ''}" 
+                           placeholder="e.g., .png">
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" 
+                            data-field-name="${fieldName}" 
+                            onclick="gameManager.deleteMediaField('${fieldName}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        // Add event listeners for inline editing
+        this.attachMediaFieldsInlineEditing();
+    }
+    
+    attachMediaFieldsInlineEditing() {
+        const tbody = document.getElementById('mediaFieldsTableBody');
+        if (!tbody) return;
+        
+        // Event delegation for input changes
+        tbody.addEventListener('blur', async (e) => {
+            if (e.target.matches('input[data-field]')) {
+                await this.saveMediaFieldInline(e.target);
+            }
+        }, true);
+        
+        tbody.addEventListener('keypress', async (e) => {
+            if (e.target.matches('input[data-field]') && e.key === 'Enter') {
+                e.target.blur();
+            }
+        });
+    }
+    
+    async saveMediaFieldInline(input) {
+        const fieldName = input.dataset.fieldName;
+        const fieldType = input.dataset.field;
+        const value = input.value.trim();
+        
+        try {
+            let processedValue = value;
+            
+            // Process extensions field (convert comma-separated string to array)
+            if (fieldType === 'extensions') {
+                processedValue = value ? value.split(',').map(ext => ext.trim()).filter(ext => ext) : [];
+            }
+            
+            const response = await fetch('/api/media-fields', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    field_name: fieldName,
+                    field_type: fieldType,
+                    value: processedValue
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log(`Successfully updated ${fieldName}.${fieldType}`);
+            } else {
+                this.showAlert(`Failed to update ${fieldName}.${fieldType}: ${data.error}`, 'danger');
+                // Reload data to revert changes
+                this.loadMediaFieldsData();
+            }
+        } catch (error) {
+            console.error('Error saving inline field:', error);
+            this.showAlert('Error saving changes', 'danger');
+            // Reload data to revert changes
+            this.loadMediaFieldsData();
+        }
+    }
+    
+    async deleteMediaField(fieldName) {
+        if (!confirm(`Are you sure you want to delete the media field "${fieldName}"?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/media-fields', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    field_name: fieldName
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Media field "${fieldName}" deleted successfully`, 'success');
+                this.loadMediaFieldsData(); // Reload the table
+            } else {
+                this.showAlert(`Failed to delete media field: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error deleting media field:', error);
+            this.showAlert('Error deleting media field', 'danger');
+        }
+    }
+    
+    async addMediaField() {
+        const fieldName = prompt('Enter the new media field name:');
+        if (!fieldName || !fieldName.trim()) {
+            return;
+        }
+        
+        const trimmedFieldName = fieldName.trim();
+        
+        try {
+            const response = await fetch('/api/media-fields', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    field_name: trimmedFieldName,
+                    directory: '',
+                    extensions: [],
+                    target_extension: ''
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Media field "${trimmedFieldName}" added successfully`, 'success');
+                this.loadMediaFieldsData(); // Reload the table
+            } else {
+                this.showAlert(`Failed to add media field: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error adding media field:', error);
+            this.showAlert('Error adding media field', 'danger');
+        }
+    }
+    
+    initializeMediaFieldsModal() {
+        // Add media field button
+        const addMediaFieldBtn = document.getElementById('addMediaFieldBtn');
+        if (addMediaFieldBtn) {
+            addMediaFieldBtn.addEventListener('click', () => {
+                this.addMediaField();
+            });
+        }
+        
+        // Refresh button
+        const refreshMediaFieldsBtn = document.getElementById('refreshMediaFieldsBtn');
+        if (refreshMediaFieldsBtn) {
+            refreshMediaFieldsBtn.addEventListener('click', () => {
+                this.loadMediaFieldsData();
+            });
         }
     }
     

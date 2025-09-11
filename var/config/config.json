@@ -26,9 +26,9 @@
         },
         "image_base_url": "https://images.launchbox-app.com/",
         "image_type_mappings": {
-            "Box - Front": "thumbnail",
+            "Box - Front": "boxart",
             "Box - Back": "boxback",
-            "Box - 3D": "boxart",
+            "Box - 3D": "thumbnail",
             "Clear Logo": "marquee",
             "Screenshot - Game Title": "titleshot",
             "Screenshot - Gameplay": "image",
@@ -2780,8 +2780,8 @@
         ],
         "image_type_mappings": {
             "wheel": "marquee",
-            "box-2D": "thumbnail",
-            "box-3D": "boxart",
+            "box-2D": "boxart",
+            "box-3D": "thumbnail",
             "box-2D-back": "boxback",
             "ss": "image",
             "sstitle": "titleshot",
@@ -2800,6 +2800,7 @@
         },
         "marquee": {
             "directory": "logos",
+            "target_extension": ".png",
             "extensions": [
                 ".png",
                 ".jpg",
@@ -2807,7 +2808,8 @@
             ]
         },
         "boxart": {
-            "directory": "boxarts",
+            "directory": "box2d",
+            "target_extension": ".png",
             "extensions": [
                 ".png",
                 ".jpg",
@@ -2861,7 +2863,8 @@
             ]
         },
         "thumbnail": {
-            "directory": "box2d",
+            "directory": "thumbnails",
+            "target_extension": ".png",
             "extensions": [
                 ".png",
                 ".jpg",

@@ -3229,6 +3229,101 @@ def manage_systems():
     except Exception as e:
         return jsonify({'error': f'Failed to manage systems: {str(e)}'}), 500
 
+@app.route('/api/media-fields', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@login_required
+def manage_media_fields():
+    """Manage media fields configuration"""
+    try:
+        if request.method == 'GET':
+            # Return all media fields
+            media_fields = config.get('media_fields', {})
+            return jsonify({'success': True, 'media_fields': media_fields})
+        
+        elif request.method == 'POST':
+            # Add new media field
+            data = request.get_json()
+            if not data or 'field_name' not in data:
+                return jsonify({'error': 'Field name is required'}), 400
+            
+            field_name = data['field_name']
+            directory = data.get('directory', '')
+            extensions = data.get('extensions', [])
+            target_extension = data.get('target_extension', '')
+            
+            # Validate field name (lowercase, no spaces)
+            if not field_name.islower() or ' ' in field_name:
+                return jsonify({'error': 'Field name must be lowercase with no spaces'}), 400
+            
+            # Check if field already exists
+            if field_name in config.get('media_fields', {}):
+                return jsonify({'error': 'Media field already exists'}), 400
+            
+            # Add new media field
+            if 'media_fields' not in config:
+                config['media_fields'] = {}
+            
+            config['media_fields'][field_name] = {
+                'directory': directory,
+                'extensions': extensions,
+                'target_extension': target_extension
+            }
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'Media field added successfully'})
+        
+        elif request.method == 'PUT':
+            # Update existing media field
+            data = request.get_json()
+            if not data or 'field_name' not in data or 'field_type' not in data:
+                return jsonify({'error': 'Field name and field type are required'}), 400
+            
+            field_name = data['field_name']
+            field_type = data['field_type']
+            value = data.get('value')
+            
+            if field_name not in config.get('media_fields', {}):
+                return jsonify({'error': 'Media field not found'}), 404
+            
+            # Update the specific field
+            if field_type in ['directory', 'target_extension']:
+                config['media_fields'][field_name][field_type] = value
+            elif field_type == 'extensions':
+                config['media_fields'][field_name][field_type] = value if isinstance(value, list) else []
+            else:
+                return jsonify({'error': 'Invalid field type'}), 400
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'Media field updated successfully'})
+        
+        elif request.method == 'DELETE':
+            # Delete media field
+            data = request.get_json()
+            if not data or 'field_name' not in data:
+                return jsonify({'error': 'Field name is required'}), 400
+            
+            field_name = data['field_name']
+            
+            if field_name not in config.get('media_fields', {}):
+                return jsonify({'error': 'Media field not found'}), 404
+            
+            # Delete the field
+            del config['media_fields'][field_name]
+            
+            # Save to file
+            with open('var/config/config.json', 'w') as f:
+                json.dump(config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'Media field deleted successfully'})
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage media fields: {str(e)}'}), 500
+
 # Cache for LaunchBox platforms (generated at startup)
 _launchbox_platforms_cache = None
 
@@ -4395,7 +4490,6 @@ def load_region_config():
     """Load region priority configuration from consolidated config.json"""
     return config.get('launchbox', {}).get('region', {})
 
-# convert_image_to_png function moved to game_utils.py
 
 async def download_launchbox_image_httpx(image_url, local_path, media_type=None, target_field=None, timeout=30, retry_attempts=10, client=None, game_name=None):
     """Download a single image from LaunchBox using HTTPX with HTTP/2 support"""
@@ -4474,23 +4568,31 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                 file_size = os.path.getsize(local_path)
                 print(f"DEBUG: {log_prefix} File verification: exists={True}, size={file_size} bytes")
                 if file_size > 0:
-                    # Convert to PNG if this is extra1 or boxart field and not already PNG
+                    # Convert image if field has target_extension configured
                     # Use target_field parameter if available, otherwise fall back to media_type
                     field_to_check = target_field if target_field else media_type
-                    if field_to_check in ['extra1', 'boxart', 'thumbnail']:
-                        from game_utils import convert_image_to_png_replace
-                        new_path, status = convert_image_to_png_replace(local_path)
+                    from game_utils import should_convert_field, convert_image_replace, needs_conversion
+                    should_convert, target_extension = should_convert_field(field_to_check, config)
+                    
+                    if should_convert and needs_conversion(local_path, target_extension):
+                        new_path, status = convert_image_replace(local_path, target_extension)
                         if status == "converted":
                             # Conversion successful, update path and filename
                             local_path = new_path
                             filename = os.path.basename(local_path)
-                            print(f"DEBUG: {log_prefix} ✅ Converted to PNG: {filename}")
-                        elif status == "already_png":
-                            # File was already PNG, no conversion needed
-                            print(f"DEBUG: {log_prefix} ✅ Already PNG format: {filename}")
+                            print(f"DEBUG: {log_prefix} ✅ Converted to {target_extension}: {filename}")
+                        elif status == "already_target":
+                            # File was already in target format, no conversion needed
+                            print(f"DEBUG: {log_prefix} ✅ Already {target_extension} format: {filename}")
                         else:
                             # Conversion failed
-                            print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to PNG, keeping original: {filename}")
+                            print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to {target_extension}, keeping original: {filename}")
+                    elif should_convert:
+                        # Field should be converted but file is already in target format
+                        print(f"DEBUG: {log_prefix} ✅ Already {target_extension} format: {filename}")
+                    else:
+                        # No conversion needed for this field
+                        print(f"DEBUG: {log_prefix} ✅ No conversion needed for field: {field_to_check}")
                     
                     print(f"DEBUG: {log_prefix} ✅ Download successful: {filename} ({file_size} bytes)")
                     return True, f"Downloaded {filename} ({file_size} bytes)"
@@ -5537,21 +5639,29 @@ def upload_game_media(system_name):
         # Save the uploaded file
         file.save(file_path)
         
-        # Convert to PNG if this is thumbnail or boxart field and not already PNG
-        if media_field in ['thumbnail', 'boxart']:
-            from game_utils import convert_image_to_png_replace
-            new_path, status = convert_image_to_png_replace(file_path)
+        # Convert image if field has target_extension configured
+        from game_utils import should_convert_field, convert_image_replace, needs_conversion
+        should_convert, target_extension = should_convert_field(media_field, config)
+        
+        if should_convert and needs_conversion(file_path, target_extension):
+            new_path, status = convert_image_replace(file_path, target_extension)
             if status == "converted":
                 # Conversion successful, update paths and filename
                 file_path = new_path
                 new_filename = os.path.basename(file_path)
-                print(f"✅ Converted uploaded image to PNG: {new_filename}")
-            elif status == "already_png":
-                # File was already PNG, no conversion needed
-                print(f"✅ Uploaded image already PNG format: {new_filename}")
+                print(f"✅ Converted uploaded image to {target_extension}: {new_filename}")
+            elif status == "already_target":
+                # File was already in target format, no conversion needed
+                print(f"✅ Uploaded image already {target_extension} format: {new_filename}")
             else:
                 # Conversion failed
-                print(f"⚠️ Failed to convert uploaded image to PNG, keeping original: {new_filename}")
+                print(f"⚠️ Failed to convert uploaded image to {target_extension}, keeping original: {new_filename}")
+        elif should_convert:
+            # Field should be converted but file is already in target format
+            print(f"✅ Uploaded image already {target_extension} format: {new_filename}")
+        else:
+            # No conversion needed for this field
+            print(f"✅ No conversion needed for uploaded field: {media_field}")
         
         # Update the game object in memory with relative path
         relative_path = os.path.relpath(file_path, system_path)
@@ -9260,22 +9370,30 @@ def download_launchbox_media():
         with open(local_path, 'wb') as f:
             f.write(response.content)
         
-        # Convert to PNG if this is extra1 or thumbnail or boxart field and not already PNG
+        # Convert image if field has target_extension configured
         # Check the target field name, not the source field name
-        if media_type in ['extra1', 'thumbnail','boxart']:
-            from game_utils import convert_image_to_png_replace
-            new_path, status = convert_image_to_png_replace(local_path)
+        from game_utils import should_convert_field, convert_image_replace, needs_conversion
+        should_convert, target_extension = should_convert_field(media_type, config)
+        
+        if should_convert and needs_conversion(local_path, target_extension):
+            new_path, status = convert_image_replace(local_path, target_extension)
             if status == "converted":
                 # Conversion successful, update paths and filename
                 local_path = new_path
                 local_filename = os.path.basename(local_path)
-                print(f"✅ Converted to PNG: {local_filename}")
-            elif status == "already_png":
-                # File was already PNG, no conversion needed
-                print(f"✅ Already PNG format: {local_filename}")
+                print(f"✅ Converted to {target_extension}: {local_filename}")
+            elif status == "already_target":
+                # File was already in target format, no conversion needed
+                print(f"✅ Already {target_extension} format: {local_filename}")
             else:
                 # Conversion failed
-                print(f"⚠️ Failed to convert to PNG, keeping original: {local_filename}")
+                print(f"⚠️ Failed to convert to {target_extension}, keeping original: {local_filename}")
+        elif should_convert:
+            # Field should be converted but file is already in target format
+            print(f"✅ Already {target_extension} format: {local_filename}")
+        else:
+            # No conversion needed for this field
+            print(f"✅ No conversion needed for field: {media_type}")
         
         # Update gamelist.xml
         media_field = game_element.find(media_type)
@@ -10206,18 +10324,27 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
             
-            # Check if this field should be converted to PNG
+            # Check if this field should be converted based on configuration
             # Map IGDB image type to gamelist field to check if conversion is needed
             gamelist_field = image_type_mappings.get(image_type)
-            if gamelist_field in ['thumbnail', 'boxart']:
-                # Convert to PNG if needed
-                from game_utils import convert_image_to_png_inplace
-                if convert_image_to_png_inplace(temp_file_path):
-                    print(f"{emoji} DEBUG: ✅ Converted to PNG: {filename}")
+            from game_utils import should_convert_field, convert_image_replace, needs_conversion
+            should_convert, target_extension = should_convert_field(gamelist_field, config)
+            
+            if should_convert and needs_conversion(temp_file_path, target_extension):
+                new_path, status = convert_image_replace(temp_file_path, target_extension)
+                if status == "converted":
+                    # Update temp_file_path to the converted file
+                    temp_file_path = new_path
+                    filename = os.path.basename(temp_file_path)
+                    print(f"{emoji} DEBUG: ✅ Converted to {target_extension}: {filename}")
+                elif status == "already_target":
+                    print(f"{emoji} DEBUG: ✅ Already {target_extension} format: {filename}")
                 else:
-                    print(f"{emoji} DEBUG: ⚠️ Failed to convert to PNG, keeping original: {filename}")
+                    print(f"{emoji} DEBUG: ⚠️ Failed to convert to {target_extension}, keeping original: {filename}")
+            elif should_convert:
+                print(f"{emoji} DEBUG: ✅ Already {target_extension} format: {filename}")
             else:
-                print(f"{emoji} DEBUG: ✅ No PNG conversion needed for field: {gamelist_field}")
+                print(f"{emoji} DEBUG: ✅ No conversion needed for field: {gamelist_field}")
             
             # Rename the temp file to the final file
             os.rename(temp_file_path, file_path)

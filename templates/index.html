@@ -160,6 +160,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openSystemsModal">
                             <i class="bi bi-controller me-2"></i>Systems Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openMediaFieldsModal">
+                            <i class="bi bi-image me-2"></i>Media Fields Configuration
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -1686,6 +1689,56 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </thead>
                             <tbody id="systemsTableBody">
                                 <!-- Systems will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Tip:</strong> Click on any field in the table to edit it directly. Changes are saved automatically when you click away or press Enter.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Fields Configuration Modal -->
+    <div class="modal fade" id="mediaFieldsConfigurationModal" tabindex="-1" aria-labelledby="mediaFieldsConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mediaFieldsConfigurationModalLabel">
+                        <i class="bi bi-image me-2"></i>Media Fields Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>Configured Media Fields</h6>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm" id="addMediaFieldBtn">
+                                <i class="bi bi-plus-circle me-1"></i>Add Media Field
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshMediaFieldsBtn">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover compact-table" id="mediaFieldsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 20%">Field Name</th>
+                                    <th style="width: 25%">Directory</th>
+                                    <th style="width: 30%">Extensions</th>
+                                    <th style="width: 15%">Target Extension</th>
+                                    <th style="width: 10%">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mediaFieldsTableBody">
+                                <!-- Media fields will be populated here -->
                             </tbody>
                         </table>
                     </div>

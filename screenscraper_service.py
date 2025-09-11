@@ -718,22 +718,30 @@ class ScreenScraperService:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
                     
-                    # Convert to PNG if this is extra1 or thumbnail or boxart field and not already PNG
+                    # Convert image if field has target_extension configured
                     # Check the target field name by looking up the mapping
                     local_field = self.get_media_type_mapping(media_type)
-                    if local_field in ['extra1', 'thumbnail', 'boxart']:
-                        from game_utils import convert_image_to_png_replace
-                        new_path, status = convert_image_to_png_replace(final_file_path)
+                    from game_utils import should_convert_field, convert_image_replace, needs_conversion
+                    should_convert, target_extension = should_convert_field(local_field, self.config)
+                    
+                    if should_convert and needs_conversion(final_file_path, target_extension):
+                        new_path, status = convert_image_replace(final_file_path, target_extension)
                         if status == "converted":
                             # Conversion successful, update path
                             final_file_path = new_path
-                            print(f"✅ Converted to PNG: {os.path.basename(final_file_path)}")
-                        elif status == "already_png":
-                            # File was already PNG, no conversion needed
-                            print(f"✅ Already PNG format: {os.path.basename(final_file_path)}")
+                            print(f"✅ Converted to {target_extension}: {os.path.basename(final_file_path)}")
+                        elif status == "already_target":
+                            # File was already in target format, no conversion needed
+                            print(f"✅ Already {target_extension} format: {os.path.basename(final_file_path)}")
                         else:
                             # Conversion failed
-                            print(f"⚠️ Failed to convert to PNG, keeping original: {os.path.basename(final_file_path)}")
+                            print(f"⚠️ Failed to convert to {target_extension}, keeping original: {os.path.basename(final_file_path)}")
+                    elif should_convert:
+                        # Field should be converted but file is already in target format
+                        print(f"✅ Already {target_extension} format: {os.path.basename(final_file_path)}")
+                    else:
+                        # No conversion needed for this field
+                        print(f"✅ No conversion needed for field: {local_field}")
                     
                     print(f"Successfully downloaded: {final_file_path}")
                     return True
