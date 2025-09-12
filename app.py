@@ -13814,14 +13814,17 @@ def scrap_steam_system(system_name):
         # Get Steam preferences from cookies
         overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteam', 'false').lower() == 'true'
         
-        # Get selected media fields from cookies if not provided
-        if not selected_fields:
-            selected_fields = []
-            steam_fields = ['capsule', 'logo', 'hero']
-            for field in steam_fields:
-                cookie_name = f'steamField_{field}'
-                if request.cookies.get(cookie_name, 'true').lower() == 'true':
-                    selected_fields.append(field)
+        # Get selected media fields from cookies (always use cookies for Steam)
+        selected_fields = []
+        steam_fields = ['capsule', 'logo', 'hero']
+        for field in steam_fields:
+            cookie_name = f'steamField_{field}'
+            cookie_value = request.cookies.get(cookie_name, 'true').lower() == 'true'
+            if cookie_value:
+                selected_fields.append(field)
+            print(f"🔧 DEBUG: Steam field {field} (cookie {cookie_name}): {cookie_value}")
+        
+        print(f"🔧 DEBUG: Final selected_fields from cookies: {selected_fields}")
         
         # Create task object
         task_data = {
