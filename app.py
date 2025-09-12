@@ -12269,7 +12269,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                 print(f"ScreenScraper task {task_id} was cancelled before starting")
                 t = get_task(task_id)
                 if t:
-                    t.complete(False, "Task cancelled before starting")
+                    t.complete(True, "Task cancelled before starting")
                 return
             
             if not all(screenscraper_creds.get(key) for key in ['devid', 'devpassword', 'ssid', 'sspassword']):
@@ -12538,7 +12538,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
                 print(f"Steam task {task_id} was cancelled before starting")
                 t = get_task(task_id)
                 if t:
-                    t.complete(False, "Task cancelled before starting")
+                    t.complete(True, "Task cancelled before starting")
                 return
             
             # Initialize Steam service
@@ -12799,7 +12799,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
                     print(f"🔧 DEBUG: Steam ID lookup cancelled for task {task_id}")
                     t = get_task(task_id)
                     if t:
-                        t.complete(False, "Task cancelled during Steam ID lookup")
+                        t.complete(True, "Task cancelled during Steam ID lookup")
                     return
                 
                 print(f"🔍 Looking up Steam IDs for {len(games_needing_steam_lookup)} games")
@@ -12821,7 +12821,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
                         print(f"🔧 DEBUG: Steam ID lookup batch cancelled at batch {i//batch_size + 1}")
                         t = get_task(task_id)
                         if t:
-                            t.complete(False, "Task cancelled during Steam ID lookup")
+                            t.complete(True, "Task cancelled during Steam ID lookup")
                         return
                     
                     batch = games_needing_steam_lookup[i:i + batch_size]
@@ -12924,7 +12924,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
                         print(f"🔧 DEBUG: Media download cancelled for task {task_id}")
                         t = get_task(task_id)
                         if t:
-                            t.complete(False, "Task cancelled during media download")
+                            t.complete(True, "Task cancelled during media download")
                         return
                     
                     print(f"🎮 Downloading media for {len(games_with_steam_ids)} games with Steam IDs")
@@ -13216,7 +13216,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
                 print(f"SteamGridDB task {task_id} was cancelled before starting")
                 t = get_task(task_id)
                 if t:
-                    t.complete(False, "Task cancelled before starting")
+                    t.complete(True, "Task cancelled before starting")
                 return
             
             # Initialize SteamGridDB service
