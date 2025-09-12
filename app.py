@@ -12965,6 +12965,9 @@ def run_steam_task(system_name, task_id, selected_games=None):
                                 t.update_progress(f"Progress: {progress_percent}% ({completed_games}/{len(games_to_process)})", 
                                                 progress_percentage=progress_percent, current_step=completed_games, total_steps=len(games_to_process))
                         
+                        # Reset progress counter for media download phase
+                        completed_games = 0
+                        
                         # Log when media download processing starts for each game
                         for game_data in games_with_steam_ids:
                             game_name = game_data['name']
