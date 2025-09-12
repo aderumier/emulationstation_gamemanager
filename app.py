@@ -2757,7 +2757,7 @@ def parse_gamelist_xml(file_path):
                 text = fix_over_escaped_xml_entities(raw_text) if raw_text else ''
                 
                 if tag == 'id':
-                    game_data['id'] = int(text) if text.isdigit() else 0
+                    game_data['id'] = int(text) if text.isdigit() else None
                 elif tag == 'path':
                     game_data['path'] = text
                 elif tag == 'name':
@@ -2801,17 +2801,20 @@ def parse_gamelist_xml(file_path):
                 elif tag == 'extra1':
                     game_data['extra1'] = text
                 elif tag == 'launchboxid':
-                    game_data['launchboxid'] = text
+                    game_data['launchboxid'] = int(text) if text.isdigit() else None
                 elif tag == 'igdbid':
-                    game_data['igdbid'] = text
+                    game_data['igdbid'] = int(text) if text.isdigit() else None
                 elif tag == 'screenscraperid':
-                    game_data['screenscraperid'] = text
+                    game_data['screenscraperid'] = int(text) if text.isdigit() else None
                 elif tag == 'steamid':
-                    game_data['steamid'] = text
+                    game_data['steamid'] = int(text) if text.isdigit() else None
                 elif tag == 'steamgridid':
-                    game_data['steamgridid'] = text
+                    game_data['steamgridid'] = int(text) if text.isdigit() else None
                 elif tag == 'youtubeurl':
                     game_data['youtubeurl'] = text
+                else:
+                    # Handle unknown tags by storing them as text
+                    game_data[tag] = text
             
             # Ensure required fields exist
             if 'id' not in game_data:
@@ -12957,11 +12960,11 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                     t.log_message(f"Found Steam ID {steam_id} for '{game_name}' (confidence: {confidence:.2f})")
                                 
                                 # Update game with Steam ID
-                                game['steamid'] = str(steam_id)
+                                game['steamid'] = steam_id
                                 # Also update the corresponding game in all_games
                                 for all_game in all_games:
                                     if all_game['path'] == game['path']:
-                                        all_game['steamid'] = str(steam_id)
+                                        all_game['steamid'] = steam_id
                                 
                                 # Add to games with Steam IDs for media download
                                 games_with_steam_ids.append({
@@ -13495,13 +13498,13 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                                         t.log_message(f"Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
                                     
                                     # Update game with SteamGridDB ID
-                                    game['steamgridid'] = str(steamgrid_id)
+                                    game['steamgridid'] = steamgrid_id
                                     steamgridid_count += 1
                                     
                                     # Also update the corresponding game in all_games
                                     for all_game in all_games:
                                         if all_game['path'] == game['path']:
-                                            all_game['steamgridid'] = str(steamgrid_id)
+                                            all_game['steamgridid'] = steamgrid_id
                                             break
                             else:
                                 print(f"❌ No SteamGridDB ID found for '{game_name}'")

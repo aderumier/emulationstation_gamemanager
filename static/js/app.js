@@ -9480,11 +9480,19 @@ class GameCollectionManager {
         const duplicates = [];
         const seenNames = new Map();
         const seenLaunchboxIds = new Map();
+        const seenIgdbIds = new Map();
+        const seenScreenscraperIds = new Map();
+        const seenSteamIds = new Map();
+        const seenSteamgridIds = new Map();
         
-        // First pass: collect all names and launchbox IDs
+        // First pass: collect all names and IDs
         this.games.forEach(game => {
             const name = game.name?.toLowerCase().trim();
-            const launchboxId = game.launchboxid?.trim();
+            const launchboxId = game.launchboxid ? game.launchboxid.toString().trim() : null;
+            const igdbId = game.igdbid ? game.igdbid.toString().trim() : null;
+            const screenscraperId = game.screenscraperid ? game.screenscraperid.toString().trim() : null;
+            const steamId = game.steamid ? game.steamid.toString().trim() : null;
+            const steamgridId = game.steamgridid ? game.steamgridid.toString().trim() : null;
             
             if (name) {
                 if (!seenNames.has(name)) {
@@ -9493,11 +9501,39 @@ class GameCollectionManager {
                 seenNames.get(name).push(game);
             }
             
-            if (launchboxId) {
+            if (launchboxId && launchboxId !== '0') {
                 if (!seenLaunchboxIds.has(launchboxId)) {
                     seenLaunchboxIds.set(launchboxId, []);
                 }
                 seenLaunchboxIds.get(launchboxId).push(game);
+            }
+            
+            if (igdbId && igdbId !== '0') {
+                if (!seenIgdbIds.has(igdbId)) {
+                    seenIgdbIds.set(igdbId, []);
+                }
+                seenIgdbIds.get(igdbId).push(game);
+            }
+            
+            if (screenscraperId && screenscraperId !== '0') {
+                if (!seenScreenscraperIds.has(screenscraperId)) {
+                    seenScreenscraperIds.set(screenscraperId, []);
+                }
+                seenScreenscraperIds.get(screenscraperId).push(game);
+            }
+            
+            if (steamId && steamId !== '0') {
+                if (!seenSteamIds.has(steamId)) {
+                    seenSteamIds.set(steamId, []);
+                }
+                seenSteamIds.get(steamId).push(game);
+            }
+            
+            if (steamgridId && steamgridId !== '0') {
+                if (!seenSteamgridIds.has(steamgridId)) {
+                    seenSteamgridIds.set(steamgridId, []);
+                }
+                seenSteamgridIds.get(steamgridId).push(game);
             }
         });
         
@@ -9509,6 +9545,50 @@ class GameCollectionManager {
         });
         
         seenLaunchboxIds.forEach((games, launchboxId) => {
+            if (games.length > 1) {
+                // Only add games that aren't already in duplicates array
+                games.forEach(game => {
+                    if (!duplicates.some(dup => dup.id === game.id)) {
+                        duplicates.push(game);
+                    }
+                });
+            }
+        });
+        
+        seenIgdbIds.forEach((games, igdbId) => {
+            if (games.length > 1) {
+                // Only add games that aren't already in duplicates array
+                games.forEach(game => {
+                    if (!duplicates.some(dup => dup.id === game.id)) {
+                        duplicates.push(game);
+                    }
+                });
+            }
+        });
+        
+        seenScreenscraperIds.forEach((games, screenscraperId) => {
+            if (games.length > 1) {
+                // Only add games that aren't already in duplicates array
+                games.forEach(game => {
+                    if (!duplicates.some(dup => dup.id === game.id)) {
+                        duplicates.push(game);
+                    }
+                });
+            }
+        });
+        
+        seenSteamIds.forEach((games, steamId) => {
+            if (games.length > 1) {
+                // Only add games that aren't already in duplicates array
+                games.forEach(game => {
+                    if (!duplicates.some(dup => dup.id === game.id)) {
+                        duplicates.push(game);
+                    }
+                });
+            }
+        });
+        
+        seenSteamgridIds.forEach((games, steamgridId) => {
             if (games.length > 1) {
                 // Only add games that aren't already in duplicates array
                 games.forEach(game => {
