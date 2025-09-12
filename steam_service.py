@@ -372,8 +372,10 @@ class SteamService:
             
             # Check if media already exists and we're not overwriting
             print(f"🔧 DEBUG: Checking overwrite_media_fields: {overwrite_media_fields}")
+            print(f"🔧 DEBUG: gamelist_path: {gamelist_path}")
             if not overwrite_media_fields and gamelist_path:
                 # Check if media already exists in gamelist.xml
+                print(f"🔧 DEBUG: Checking if gamelist exists: {os.path.exists(gamelist_path)}")
                 if os.path.exists(gamelist_path):
                     import xml.etree.ElementTree as ET
                     try:
