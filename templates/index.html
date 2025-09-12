@@ -159,6 +159,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openSteamConfigModal">
                             <i class="bi bi-steam me-2"></i>Steam Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="open2DBoxGeneratorConfigModal">
+                            <i class="bi bi-box-seam me-2"></i>2D Box Generator Configuration
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -2122,6 +2125,60 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSteamMappingsBtn">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2D Box Generator Configuration Modal -->
+    <div class="modal fade" id="2DBoxGeneratorConfigModal" tabindex="-1" aria-labelledby="2DBoxGeneratorConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="2DBoxGeneratorConfigModalLabel">
+                        <i class="bi bi-box-seam me-2"></i>2D Box Generator Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>Target Media Field</h6>
+                        <p class="text-muted small">Select which media field the 2D box generator should target. The generated 2D boxes will be saved to this field in the gamelist.</p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="boxGeneratorMediaField" class="form-label">Media Field</label>
+                                <select class="form-select" id="boxGeneratorMediaField">
+                                    <option value="">Loading media fields...</option>
+                                </select>
+                                <div class="form-text">Choose the media field where 2D boxes will be saved</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Current Setting</label>
+                                <div class="form-control-plaintext" id="currentBoxGeneratorField">
+                                    <span class="badge bg-secondary">Not loaded</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> The 2D box generator creates composite images from titlescreen, gameplay, and logo images. The selected media field determines where these generated images are stored in your gamelist.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshBoxGeneratorConfigBtn">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                    <button type="button" class="btn btn-primary" id="saveBoxGeneratorConfigBtn">
+                        <i class="bi bi-check-lg me-1"></i>Save Configuration
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>

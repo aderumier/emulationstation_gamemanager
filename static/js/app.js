@@ -8651,6 +8651,31 @@ class GameCollectionManager {
                 this.openSteamConfigurationModal();
             });
         }
+
+        // 2D Box Generator Configuration event listeners
+        const open2DBoxGeneratorConfigBtn = document.getElementById('open2DBoxGeneratorConfigModal');
+        if (open2DBoxGeneratorConfigBtn) {
+            open2DBoxGeneratorConfigBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.open2DBoxGeneratorConfigModal();
+            });
+        }
+
+        const saveBoxGeneratorConfigBtn = document.getElementById('saveBoxGeneratorConfigBtn');
+        if (saveBoxGeneratorConfigBtn) {
+            saveBoxGeneratorConfigBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.save2DBoxGeneratorConfig();
+            });
+        }
+
+        const refreshBoxGeneratorConfigBtn = document.getElementById('refreshBoxGeneratorConfigBtn');
+        if (refreshBoxGeneratorConfigBtn) {
+            refreshBoxGeneratorConfigBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.load2DBoxGeneratorConfig();
+            });
+        }
     }
     
     async loadSteamMappingsData() {
@@ -11629,6 +11654,89 @@ class GameCollectionManager {
             }
         } catch (e) {
             console.error('Error checking for completed YouTube tasks:', e);
+        }
+    }
+
+    // 2D Box Generator Configuration Functions
+    open2DBoxGeneratorConfigModal() {
+        this.load2DBoxGeneratorConfig();
+        const modal = new bootstrap.Modal(document.getElementById('2DBoxGeneratorConfigModal'));
+        modal.show();
+    }
+
+    async load2DBoxGeneratorConfig() {
+        try {
+            // Load media fields from config
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            if (config.success) {
+                const mediaFields = config.data.media_fields || {};
+                const currentField = config.data['2dboxgenerator']?.media_field || 'thumbnail';
+                
+                // Populate the combobox
+                const select = document.getElementById('boxGeneratorMediaField');
+                select.innerHTML = '';
+                
+                Object.keys(mediaFields).forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    if (field === currentField) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+                
+                // Update current setting display
+                const currentFieldDisplay = document.getElementById('currentBoxGeneratorField');
+                currentFieldDisplay.innerHTML = `<span class="badge bg-primary">${currentField}</span>`;
+            }
+        } catch (error) {
+            console.error('Error loading 2D Box Generator config:', error);
+            this.showAlert('Error loading configuration', 'error');
+        }
+    }
+
+    async save2DBoxGeneratorConfig() {
+        try {
+            const selectedField = document.getElementById('boxGeneratorMediaField').value;
+            
+            if (!selectedField) {
+                this.showAlert('Please select a media field', 'warning');
+                return;
+            }
+            
+            const response = await fetch('/api/config', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    '2dboxgenerator': {
+                        'media_field': selectedField
+                    }
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('2D Box Generator configuration saved successfully!', 'success');
+                
+                // Update current setting display
+                const currentFieldDisplay = document.getElementById('currentBoxGeneratorField');
+                currentFieldDisplay.innerHTML = `<span class="badge bg-primary">${selectedField}</span>`;
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('2DBoxGeneratorConfigModal'));
+                modal.hide();
+            } else {
+                this.showAlert(`Error saving configuration: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error saving 2D Box Generator config:', error);
+            this.showAlert('Error saving configuration', 'error');
         }
     }
 }

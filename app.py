@@ -9056,11 +9056,15 @@ def run_2d_box_generation_task(system_name, selected_games):
         # Load media config to get media mappings
         media_config = load_media_config()
         
-        # Find the media directory for thumbnail field (box2d)
-        box2d_directory = get_media_directory('thumbnail')
+        # Get the target media field from 2D box generator config
+        box2d_config = media_config.get('2dboxgenerator', {})
+        target_media_field = box2d_config.get('media_field', 'thumbnail')
+        
+        # Find the media directory for the target field
+        box2d_directory = get_media_directory(target_media_field)
         
         if not box2d_directory:
-            task.complete(False, f'No media mapping found for thumbnail field. Available fields: {list(media_config.get("media_fields", {}).keys())}')
+            task.complete(False, f'No media mapping found for {target_media_field} field. Available fields: {list(media_config.get("media_fields", {}).keys())}')
             return
         
         # Create media directories
@@ -9154,13 +9158,13 @@ def run_2d_box_generation_task(system_name, selected_games):
                             break
                 
                 if game_element is not None:
-                    # Update or add thumbnail field
-                    thumbnail_element = game_element.find('thumbnail')
-                    if thumbnail_element is not None:
-                        thumbnail_element.text = f"./media/{box2d_directory}/{output_filename}"
+                    # Update or add the target media field
+                    target_element = game_element.find(target_media_field)
+                    if target_element is not None:
+                        target_element.text = f"./media/{box2d_directory}/{output_filename}"
                     else:
-                        thumbnail_element = ET.SubElement(game_element, 'thumbnail')
-                        thumbnail_element.text = f"./media/{box2d_directory}/{output_filename}"
+                        target_element = ET.SubElement(game_element, target_media_field)
+                        target_element.text = f"./media/{box2d_directory}/{output_filename}"
                     
                     # Save the updated gamelist.xml
                     save_formatted_gamelist_xml(tree, gamelist_path)
