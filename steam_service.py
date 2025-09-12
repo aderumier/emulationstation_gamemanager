@@ -165,6 +165,7 @@ class SteamService:
             candidates = unified_index[normalized_search]
             print(f"🔧 DEBUG: Found exact match with {len(candidates)} candidates")
             if len(candidates) == 1:
+                print(f"🔧 DEBUG: Returning single match: '{candidates[0]['name']}'")
                 return {
                     'app': candidates[0],
                     'matched_name': candidates[0]['name'],
@@ -172,15 +173,15 @@ class SteamService:
                 }
             elif len(candidates) > 1:
                 # Multiple exact matches, return the first one
+                print(f"🔧 DEBUG: Returning first of {len(candidates)} matches: '{candidates[0]['name']}'")
                 return {
                     'app': candidates[0],
                     'matched_name': candidates[0]['name'],
                     'confidence': 0.9
                 }
         
-        # No partial matching - only exact normalized name matches
+        # No exact match found
         print(f"🔧 DEBUG: No exact match found for '{normalized_search}'")
-        
         print(f"🔧 DEBUG: No match found for '{game_name}'")
         return None
     
