@@ -12891,14 +12891,13 @@ def run_steam_task(system_name, task_id, selected_games=None):
                             
                             # Update progress for Steam ID lookup completion
                             steam_lookup_completed += 1
-                            total_completed_games += 1
                             
                             # Calculate dynamic progress percentage
-                            progress_percent = int((total_completed_games / len(games_to_process)) * 100)
+                            progress_percent = int((steam_lookup_completed / len(games_to_process)) * 100)
                             t = get_task(task_id)
                             if t:
-                                t.update_progress(f"Progress: {progress_percent}% ({total_completed_games}/{len(games_to_process)})", 
-                                                progress_percentage=progress_percent, current_step=total_completed_games, total_steps=len(games_to_process))
+                                t.update_progress(f"Progress: {progress_percent}% ({steam_lookup_completed}/{len(games_to_process)})", 
+                                                progress_percentage=progress_percent, current_step=steam_lookup_completed, total_steps=len(games_to_process))
                     
                     # Small delay between batches
                     if i + batch_size < len(games_needing_steam_lookup):
@@ -12918,9 +12917,9 @@ def run_steam_task(system_name, task_id, selected_games=None):
                     t = get_task(task_id)
                     if t:
                         # Calculate progress based on games already processed
-                        progress_percent = int((total_completed_games / len(games_to_process)) * 100)
-                        t.update_progress(f"Progress: {progress_percent}% ({total_completed_games}/{len(games_to_process)})", 
-                                        progress_percentage=progress_percent, current_step=total_completed_games, total_steps=len(games_to_process))
+                        progress_percent = int((steam_lookup_completed / len(games_to_process)) * 100)
+                        t.update_progress(f"Progress: {progress_percent}% ({steam_lookup_completed}/{len(games_to_process)})", 
+                                        progress_percentage=progress_percent, current_step=steam_lookup_completed, total_steps=len(games_to_process))
                     
                     try:
                         # Track completed games for progress (continue from previous count)
@@ -12929,9 +12928,8 @@ def run_steam_task(system_name, task_id, selected_games=None):
                         # Define progress callback for individual game completion
                         def steam_progress_callback(game_name, downloaded_media):
                             """Handle progress for each completed game"""
-                            nonlocal completed_games, total_completed_games, total_images_downloaded
+                            nonlocal completed_games, total_images_downloaded
                             completed_games += 1
-                            total_completed_games += 1
                             
                             if downloaded_media:
                                 media_count = len(downloaded_media)
@@ -12947,11 +12945,11 @@ def run_steam_task(system_name, task_id, selected_games=None):
                                     t.log_message(f"No media downloaded for '{game_name}'")
                             
                             # Calculate dynamic progress percentage
-                            progress_percent = int((total_completed_games / len(games_to_process)) * 100)
+                            progress_percent = int((completed_games / len(games_to_process)) * 100)
                             t = get_task(task_id)
                             if t:
-                                t.update_progress(f"Progress: {progress_percent}% ({total_completed_games}/{len(games_to_process)})", 
-                                                progress_percentage=progress_percent, current_step=total_completed_games, total_steps=len(games_to_process))
+                                t.update_progress(f"Progress: {progress_percent}% ({completed_games}/{len(games_to_process)})", 
+                                                progress_percentage=progress_percent, current_step=completed_games, total_steps=len(games_to_process))
                         
                         # Use batch processing for media downloads
                         batch_results = await service.download_steam_media_batch(
