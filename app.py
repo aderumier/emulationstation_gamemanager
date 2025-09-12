@@ -13258,7 +13258,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
     thread.start()
     print(f"🔧 DEBUG: Thread started for Steam task {task_id}")
 
-def run_steamgriddb_task(system_name, task_id, selected_games=None):
+def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_media_fields=False):
     """Run SteamGridDB task for a specific system (SteamGridDB API only)"""
     import asyncio
     import threading
@@ -13284,7 +13284,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
             t.update_progress(progress, None, current_step=completed, total_steps=total)
             print(f"🔄 SteamGridDB Progress: {completed}/{total} ({progress}%)")
     
-    async def async_steamgriddb():
+    async def async_steamgriddb(overwrite_media_fields=False):
         service = None
         try:
             print(f"Starting SteamGridDB task for system: {system_name}")
@@ -13508,7 +13508,9 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
                             system_name=system_name,
                             selected_fields=selected_fields,
                             image_type_mappings=image_type_mappings,
-                            api_key=steamgriddb_api_key
+                            api_key=steamgriddb_api_key,
+                            overwrite_media_fields=overwrite_media_fields,
+                            gamelist_path=gamelist_path
                         )
                         
                         # Update game with downloaded media paths
@@ -13609,7 +13611,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(async_steamgriddb())
+            loop.run_until_complete(async_steamgriddb(overwrite_media_fields))
         finally:
             loop.close()
     
@@ -13994,11 +13996,27 @@ def scrap_steamgriddb_system(system_name):
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
         
+        # Get SteamGridDB preferences from cookies
+        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteamGridDB', 'false').lower() == 'true'
+        
+        # Get selected media fields from cookies (always use cookies for SteamGridDB)
+        selected_fields = []
+        steamgriddb_fields = ['grids', 'logos', 'heroes']
+        for field in steamgriddb_fields:
+            cookie_name = f'steamgriddbField_{field}'
+            cookie_value = request.cookies.get(cookie_name, 'true').lower() == 'true'
+            if cookie_value:
+                selected_fields.append(field)
+            print(f"🔧 DEBUG: SteamGridDB field {field} (cookie {cookie_name}): {cookie_value}")
+        
+        print(f"🔧 DEBUG: Final selected_fields from cookies: {selected_fields}")
+        
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
-            'selected_fields': selected_fields
+            'selected_fields': selected_fields,
+            'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
@@ -14018,7 +14036,7 @@ def scrap_steamgriddb_system(system_name):
         import threading
         scraper_thread = threading.Thread(
             target=run_steamgriddb_task,
-            args=(system_name, task.id, selected_games),
+            args=(system_name, task.id, selected_games, overwrite_media_fields),
             daemon=True
         )
         scraper_thread.start()

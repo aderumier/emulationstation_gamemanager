@@ -255,7 +255,9 @@ class SteamGridService:
                                      roms_root: str, system_name: str,
                                      selected_fields: List[str] = None,
                                      image_type_mappings: Dict[str, str] = None,
-                                     api_key: str = None) -> Dict[str, str]:
+                                     api_key: str = None,
+                                     overwrite_media_fields: bool = False,
+                                     gamelist_path: str = None) -> Dict[str, str]:
         """Download media from SteamGridDB for a specific game"""
         if not steamgrid_id or not game_name:
             return {}
@@ -279,13 +281,57 @@ class SteamGridService:
         
         results = {}
         
-        # Process each media type
+        # First, check which fields need to be downloaded
+        fields_to_download = {}
+        
         for media_type, media_list in media_data.items():
             if not media_list or media_type not in image_type_mappings:
                 continue
             
+            # Check if this field is selected
+            if selected_fields and media_type not in selected_fields:
+                logger.debug(f"Skipping {media_type} -> {image_type_mappings[media_type]} (not selected)")
+                continue
+            
             # Get the target field name
             target_field = image_type_mappings[media_type]
+            
+            # Check if we should skip this media field based on overwrite setting
+            should_download = True
+            if not overwrite_media_fields and gamelist_path:
+                # Check if media already exists in gamelist.xml
+                if os.path.exists(gamelist_path):
+                    import xml.etree.ElementTree as ET
+                    try:
+                        tree = ET.parse(gamelist_path)
+                        root = tree.getroot()
+                        
+                        # Find the game entry
+                        for game in root.findall('game'):
+                            game_name_elem = game.find('name')
+                            if game_name_elem is not None and game_name_elem.text == game_name:
+                                # Check if this media field already has a value (not empty)
+                                # Use the mapped field name (target_field) which is the actual gamelist field
+                                media_elem = game.find(target_field)
+                                if media_elem is not None and media_elem.text and media_elem.text.strip():
+                                    logger.debug(f"Media field {target_field} (mapped from {media_type}) is not empty for {game_name}, skipping download")
+                                    should_download = False
+                                else:
+                                    logger.debug(f"Media field {target_field} (mapped from {media_type}) is empty for {game_name}, will download")
+                                break
+                    except Exception as e:
+                        logger.warning(f"Error reading gamelist.xml: {e}")
+            
+            if should_download:
+                fields_to_download[media_type] = {
+                    'media_list': media_list,
+                    'target_field': target_field
+                }
+        
+        # Now process only the fields that need to be downloaded
+        for media_type, field_data in fields_to_download.items():
+            media_list = field_data['media_list']
+            target_field = field_data['target_field']
             
             # Get media directory and extensions
             media_dir, extensions = get_media_directory_and_extensions(target_field)

@@ -1390,6 +1390,11 @@ class GameCollectionManager {
             this.setCookie('overwriteMediaFieldsSteam', e.target.checked);
         });
 
+        // SteamGridDB overwrite media fields toggle (in SteamGridDB Configuration modal)
+        document.getElementById('overwriteMediaFieldsSteamGridDBModal').addEventListener('change', (e) => {
+            this.setCookie('overwriteMediaFieldsSteamGridDB', e.target.checked);
+        });
+
         // ScreenScraper overwrite text fields toggle (in ScreenScraper Configuration modal)
         document.getElementById('overwriteTextFieldsScreenscraperModal').addEventListener('change', (e) => {
             this.setCookie('overwriteTextFieldsScreenscraper', e.target.checked);
@@ -1442,6 +1447,28 @@ class GameCollectionManager {
                 checkbox.checked = false;
             });
             await this.saveSteamFieldSettings();
+        });
+
+        // SteamGridDB field selection checkboxes
+        document.querySelectorAll('.steamgriddb-field-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', async () => {
+                await this.saveSteamGridDBFieldSettings();
+            });
+        });
+
+        // SteamGridDB field selection quick actions
+        document.getElementById('selectAllSteamGridDBFields').addEventListener('click', async () => {
+            document.querySelectorAll('.steamgriddb-field-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            await this.saveSteamGridDBFieldSettings();
+        });
+
+        document.getElementById('deselectAllSteamGridDBFields').addEventListener('click', async () => {
+            document.querySelectorAll('.steamgriddb-field-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            await this.saveSteamGridDBFieldSettings();
         });
 
         // ScreenScraper field selection checkboxes
@@ -6225,6 +6252,19 @@ class GameCollectionManager {
             console.warn('openSteamModal element not found');
         }
 
+        // Add event listener for opening SteamGridDB modal
+        const openSteamGridDBModal = document.getElementById('openSteamGridDBModal');
+        if (openSteamGridDBModal) {
+            console.log('Found openSteamGridDBModal element, adding click listener');
+            openSteamGridDBModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('SteamGridDB Scrap Preferences modal link clicked');
+                this.openSteamGridDBScrapPreferencesModal();
+            });
+        } else {
+            console.warn('openSteamGridDBModal element not found');
+        }
+
         // Add event listener for opening ScreenScraper modal
         const openScreenscraperModal = document.getElementById('openScreenscraperModal');
         if (openScreenscraperModal) {
@@ -6558,6 +6598,81 @@ class GameCollectionManager {
             });
         } catch (error) {
             console.error('Error saving Steam field settings:', error);
+        }
+    }
+
+    // SteamGridDB Configuration Functions
+    openSteamGridDBScrapPreferencesModal() {
+        // Load current settings before opening modal
+        this.loadSteamGridDBSettings();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('steamgriddbConfigurationModal'));
+        modal.show();
+    }
+    
+    loadSteamGridDBSettings() {
+        // Load saved settings from cookies
+        const savedOverwriteMediaFields = this.getCookie('overwriteMediaFieldsSteamGridDB');
+        
+        // Update modal checkboxes with saved values
+        const overwriteMediaCheckbox = document.getElementById('overwriteMediaFieldsSteamGridDBModal');
+        
+        if (overwriteMediaCheckbox) {
+            overwriteMediaCheckbox.checked = savedOverwriteMediaFields === 'true';
+        }
+        
+        // Load field selection settings
+        this.loadSteamGridDBFieldSettings();
+    }
+    
+    loadSteamGridDBFieldSettings() {
+        // Load saved field selections from cookies
+        const steamgriddbFields = ['grids', 'logos', 'heroes'];
+        
+        steamgriddbFields.forEach(field => {
+            const cookieName = `steamgriddbField_${field}`;
+            const savedValue = this.getCookie(cookieName);
+            // Convert field name to checkbox ID format: field -> Field
+            const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+            const checkboxId = `steamgriddbField${fieldId}`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            if (checkbox) {
+                if (savedValue !== null) {
+                    checkbox.checked = savedValue === 'true';
+                } else {
+                    // Default to checked if no saved value
+                    checkbox.checked = true;
+                }
+                console.log(`🔧 DEBUG: Loaded SteamGridDB field "${field}" (${cookieName}):`, checkbox.checked);
+            } else {
+                console.log(`🔧 DEBUG: Checkbox not found for SteamGridDB field "${field}" (${checkboxId})`);
+            }
+        });
+    }
+    
+    async saveSteamGridDBFieldSettings() {
+        try {
+            // Save field selections to cookies
+            const steamgriddbFields = ['grids', 'logos', 'heroes'];
+            
+            steamgriddbFields.forEach(field => {
+                // Convert field name to checkbox ID format: field -> Field
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                const checkboxId = `steamgriddbField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                const cookieName = `steamgriddbField_${field}`;
+                
+                if (checkbox) {
+                    this.setCookie(cookieName, checkbox.checked);
+                    console.log(`🔧 DEBUG: Saved SteamGridDB cookie for field "${field}" (${cookieName}):`, checkbox.checked);
+                } else {
+                    console.log(`🔧 DEBUG: Checkbox not found for SteamGridDB field "${field}" (${checkboxId})`);
+                }
+            });
+        } catch (error) {
+            console.error('Error saving SteamGridDB field settings:', error);
         }
     }
 
