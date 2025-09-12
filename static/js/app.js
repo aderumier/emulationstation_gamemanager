@@ -125,6 +125,9 @@ class GameCollectionManager {
         // Initialize SteamGridDB configuration modal
         this.initializeSteamgriddbConfigModal();
         
+        // Initialize Steam configuration modal
+        this.initializeSteamConfigModal();
+        
         // Initialize application configuration modal
         this.initializeAppConfigurationModal();
         
@@ -1318,6 +1321,8 @@ class GameCollectionManager {
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
         document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
+        document.getElementById('scrapSteamBtn').addEventListener('click', () => this.scrapSteam());
+        document.getElementById('scrapSteamgriddbBtn').addEventListener('click', () => this.scrapSteamgriddb());
         const screenscraperBtn = document.getElementById('scrapScreenscraperBtn');
         console.log('Looking for ScreenScraper button during initialization...');
         console.log('Button found:', screenscraperBtn);
@@ -1332,19 +1337,6 @@ class GameCollectionManager {
             console.error('ScreenScraper button not found during event listener setup!');
         }
         
-        const steamgridBtn = document.getElementById('scrapSteamgridBtn');
-        console.log('Looking for SteamGrid button during initialization...');
-        console.log('Button found:', steamgridBtn);
-        if (steamgridBtn) {
-            steamgridBtn.addEventListener('click', () => {
-                console.log('SteamGrid button clicked');
-                this.scrapSteamgrid();
-            });
-            console.log('SteamGrid button event listener added');
-            
-        } else {
-            console.error('SteamGrid button not found during event listener setup!');
-        }
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
@@ -7038,6 +7030,18 @@ class GameCollectionManager {
         return allFields;
     }
 
+    async getSelectedSteamFields() {
+        // For now, return all available fields
+        // In the future, this could be made configurable
+        return ['capsule', 'logo', 'hero'];
+    }
+
+    async getSelectedSteamgriddbFields() {
+        // For now, return all available fields
+        // In the future, this could be made configurable
+        return ['grids', 'logos', 'heroes'];
+    }
+
     async loadLaunchboxFieldSettings() {
         try {
             // Fetch config to get dynamic field mappings
@@ -8221,6 +8225,15 @@ class GameCollectionManager {
         modal.show();
     }
     
+    openSteamConfigurationModal() {
+        // Load Steam mappings data before opening modal
+        this.loadSteamMappingsData();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('steamConfigModal'));
+        modal.show();
+    }
+    
     async loadSteamgriddbMappingsData() {
         try {
             const response = await fetch('/api/steamgriddb-mappings');
@@ -8498,6 +8511,161 @@ class GameCollectionManager {
                     steamgriddbApiKeyInput.value = '';
                 }
             });
+        }
+    }
+    
+    initializeSteamConfigModal() {
+        // Refresh button
+        const refreshSteamMappingsBtn = document.getElementById('refreshSteamMappingsBtn');
+        if (refreshSteamMappingsBtn) {
+            refreshSteamMappingsBtn.addEventListener('click', () => {
+                this.loadSteamMappingsData();
+            });
+        }
+        
+        // Load data when modal is opened
+        const openSteamConfigBtn = document.getElementById('openSteamConfigModal');
+        if (openSteamConfigBtn) {
+            openSteamConfigBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openSteamConfigurationModal();
+            });
+        }
+    }
+    
+    async loadSteamMappingsData() {
+        try {
+            const response = await fetch('/api/steam-mappings');
+            if (response.ok) {
+                const data = await response.json();
+                this.populateSteamMappingsTable(data.steam_mappings, data.media_fields);
+            } else {
+                console.error('Failed to load Steam mappings');
+            }
+        } catch (error) {
+            console.error('Error loading Steam mappings:', error);
+        }
+    }
+    
+    populateSteamMappingsTable(steamMappings, mediaFields) {
+        const tbody = document.getElementById('steamMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        const steamTypes = ['capsule', 'logo', 'hero'];
+        
+        steamTypes.forEach(steamType => {
+            const row = document.createElement('tr');
+            
+            // Steam type column
+            const typeCell = document.createElement('td');
+            typeCell.textContent = steamType.charAt(0).toUpperCase() + steamType.slice(1);
+            typeCell.style.fontWeight = 'bold';
+            row.appendChild(typeCell);
+            
+            // Media field dropdown
+            const fieldCell = document.createElement('td');
+            const select = document.createElement('select');
+            select.className = 'form-select form-select-sm';
+            select.id = `steamMapping_${steamType}`;
+            
+            // Add empty option
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = '-- Select Media Field --';
+            select.appendChild(emptyOption);
+            
+            // Add media field options
+            Object.keys(mediaFields).forEach(fieldName => {
+                const option = document.createElement('option');
+                option.value = fieldName;
+                option.textContent = fieldName;
+                if (steamMappings[steamType] === fieldName) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+            
+            // Add change event listener
+            select.addEventListener('change', () => {
+                this.updateSteamMapping(steamType, select.value);
+            });
+            
+            fieldCell.appendChild(select);
+            row.appendChild(fieldCell);
+            
+            // Actions column
+            const actionsCell = document.createElement('td');
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'btn btn-outline-secondary btn-sm';
+            resetBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
+            resetBtn.title = 'Reset to default';
+            resetBtn.addEventListener('click', () => {
+                this.resetSteamMapping(steamType);
+            });
+            actionsCell.appendChild(resetBtn);
+            row.appendChild(actionsCell);
+            
+            tbody.appendChild(row);
+        });
+    }
+    
+    async updateSteamMapping(steamType, mediaField) {
+        try {
+            const response = await fetch('/api/steam-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    steam_type: steamType,
+                    media_field: mediaField
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`Steam mapping updated: ${steamType} -> ${mediaField}`);
+                } else {
+                    console.error('Failed to update Steam mapping:', result.error);
+                }
+            } else {
+                console.error('Failed to update Steam mapping');
+            }
+        } catch (error) {
+            console.error('Error updating Steam mapping:', error);
+        }
+    }
+    
+    async resetSteamMapping(steamType) {
+        try {
+            const response = await fetch('/api/steam-mappings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    steam_type: steamType,
+                    reset: true
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`Steam mapping reset: ${steamType}`);
+                    // Reload the mappings to reflect the reset
+                    this.loadSteamMappingsData();
+                } else {
+                    console.error('Failed to reset Steam mapping:', result.error);
+                }
+            } else {
+                console.error('Failed to reset Steam mapping');
+            }
+        } catch (error) {
+            console.error('Error resetting Steam mapping:', error);
         }
     }
     
@@ -9298,6 +9466,8 @@ class GameCollectionManager {
 
         document.getElementById('scrapLaunchboxBtn').disabled = false; // Allow full collection scraping
         document.getElementById('scrapIgdbBtn').disabled = false; // Allow IGDB scraping
+        document.getElementById('scrapSteamBtn').disabled = false; // Allow Steam scraping
+        document.getElementById('scrapSteamgriddbBtn').disabled = false; // Allow SteamGridDB scraping
         
         const screenscraperBtn = document.getElementById('scrapScreenscraperBtn');
         if (screenscraperBtn) {
@@ -9307,13 +9477,6 @@ class GameCollectionManager {
             console.error('ScreenScraper button not found!');
         }
         
-        const steamgridBtn = document.getElementById('scrapSteamgridBtn');
-        if (steamgridBtn) {
-            steamgridBtn.disabled = false; // Allow SteamGrid scraping
-            console.log('SteamGrid button enabled');
-        } else {
-            console.error('SteamGrid button not found!');
-        }
         
 
         
@@ -9417,6 +9580,122 @@ class GameCollectionManager {
         }
     }
 
+    async scrapSteam() {
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapSteamBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Determine scraping mode
+            const isFullCollection = this.selectedGames.length === 0;
+            const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
+            
+            this.showAlert('Starting Steam scraping...', 'info');
+            
+            // Get selected fields for Steam scraping
+            const selectedFields = await this.getSelectedSteamFields();
+            
+            const response = await fetch(`/api/scrap-steam/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: gamesToScrape.map(game => game.path),
+                    selected_fields: selectedFields
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showAlert(`✅ ${result.message}`, 'success');
+                console.log('Steam scraping started:', result);
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
+                console.error('Steam scraping failed:', result);
+            }
+            
+        } catch (error) {
+            console.error('Error starting Steam scraping:', error);
+            this.showAlert(`❌ Error starting Steam scraping: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapSteamBtn');
+            button.innerHTML = '<i class="bi bi-steam"></i> Steam Scrap';
+            button.disabled = false;
+        }
+    }
+
+    async scrapSteamgriddb() {
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapSteamgriddbBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Determine scraping mode
+            const isFullCollection = this.selectedGames.length === 0;
+            const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
+            
+            this.showAlert('Starting SteamGridDB scraping...', 'info');
+            
+            // Get selected fields for SteamGridDB scraping
+            const selectedFields = await this.getSelectedSteamgriddbFields();
+            
+            const response = await fetch(`/api/scrap-steamgriddb/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: gamesToScrape.map(game => game.path),
+                    selected_fields: selectedFields
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showAlert(`✅ ${result.message}`, 'success');
+                console.log('SteamGridDB scraping started:', result);
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
+                console.error('SteamGridDB scraping failed:', result);
+            }
+            
+        } catch (error) {
+            console.error('Error starting SteamGridDB scraping:', error);
+            this.showAlert(`❌ Error starting SteamGridDB scraping: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapSteamgriddbBtn');
+            button.innerHTML = '<i class="bi bi-grid-3x3-gap"></i> SteamGridDB Scrap';
+            button.disabled = false;
+        }
+    }
+
     async scrapScreenscraper() {
         console.log('scrapScreenscraper method called');
         console.log('Current system:', this.currentSystem);
@@ -9485,65 +9764,6 @@ class GameCollectionManager {
         }
     }
 
-    async scrapSteamgrid() {
-        console.log('scrapSteamgrid method called');
-        console.log('Current system:', this.currentSystem);
-        
-        if (!this.currentSystem) {
-            this.showAlert('Please select a system first', 'warning');
-            return;
-        }
-        
-        try {
-            const button = document.getElementById('scrapSteamgridBtn');
-            const originalText = button.innerHTML;
-            
-            // Show loading state
-            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
-            button.disabled = true;
-            
-            // Determine scraping mode
-            const isFullCollection = this.selectedGames.length === 0;
-            const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
-            
-            this.showAlert('Starting SteamGrid task...', 'info');
-            
-            const requestBody = {
-                selected_games: gamesToScrape.map(game => game.path)
-            };
-            console.log('📤 SteamGrid request body:', requestBody);
-            
-            const response = await fetch(`/api/scrap-steamgrid/${this.currentSystem}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
-            
-            const result = await response.json();
-            
-            if (response.ok && result.success) {
-                this.showAlert(`✅ ${result.message}`, 'success');
-                console.log('SteamGrid task started:', result);
-                
-                // Refresh tasks to show the new task
-                this.refreshTasks();
-            } else {
-                this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
-                console.error('SteamGrid task failed:', result);
-            }
-            
-        } catch (error) {
-            console.error('Error starting SteamGrid task:', error);
-            this.showAlert(`❌ Error starting SteamGrid task: ${error.message}`, 'danger');
-        } finally {
-            // Restore button state
-            const button = document.getElementById('scrapSteamgridBtn');
-            button.innerHTML = '<i class="bi bi-steam"></i> SteamGrid';
-            button.disabled = false;
-        }
-    }
 
     showInlineEditNotification(field, oldValue, newValue) {
         // Create a small, subtle notification for inline edits

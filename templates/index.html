@@ -156,6 +156,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openSteamgriddbConfigModal">
                             <i class="bi bi-steam me-2"></i>SteamGridDB Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openSteamConfigModal">
+                            <i class="bi bi-steam me-2"></i>Steam Configuration
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -267,11 +270,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <button id="scrapIgdbBtn" class="btn btn-info btn-sm ms-2" disabled>
                     <i class="bi bi-globe"></i> IGDB Scrap
                 </button>
+                <button id="scrapSteamBtn" class="btn btn-success btn-sm ms-2" disabled>
+                    <i class="bi bi-steam"></i> Steam Scrap
+                </button>
+                <button id="scrapSteamgriddbBtn" class="btn btn-warning btn-sm ms-2" disabled>
+                    <i class="bi bi-grid-3x3-gap"></i> SteamGridDB Scrap
+                </button>
                 <button id="scrapScreenscraperBtn" class="btn btn-warning btn-sm ms-2" disabled>
                     <i class="bi bi-search"></i> ScreenScraper
-                </button>
-                <button id="scrapSteamgridBtn" class="btn btn-success btn-sm ms-2" disabled>
-                    <i class="bi bi-steam"></i> SteamGrid
                 </button>
                 <button id="globalFindBestMatchBtn" class="btn btn-outline-info btn-sm ms-2" disabled>
                     <i class="bi bi-search"></i> Find Best Match
@@ -1972,6 +1978,60 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSteamgriddbMappingsBtn">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Steam Configuration Modal -->
+    <div class="modal fade" id="steamConfigModal" tabindex="-1" aria-labelledby="steamConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="steamConfigModalLabel">
+                        <i class="bi bi-steam me-2"></i>Steam Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>Steam Image Type Mappings</h6>
+                        <p class="text-muted small">Configure which media fields each Steam image type maps to. These mappings determine how Steam images are categorized in your gamelist.</p>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover compact-table" id="steamMappingsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%">Steam Image Type</th>
+                                    <th style="width: 40%">Media Field</th>
+                                    <th style="width: 20%">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="steamMappingsTableBody">
+                                <!-- Mappings will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Note:</strong> Changes are saved automatically when you select a different media field from the dropdown.
+                    </div>
+                    
+                    <div class="alert alert-info mt-3" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Steam CDN URLs:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li><strong>Capsule:</strong> <code>https://shared.steamstatic.com/store_item_assets/steam/apps/&lt;steamid&gt;/library_600x900_2x.jpg</code></li>
+                            <li><strong>Logo:</strong> <code>https://shared.steamstatic.com/store_item_assets/steam/steamid/&lt;steamid&gt;/logo_2x.png</code></li>
+                            <li><strong>Hero:</strong> <code>https://shared.steamstatic.com/store_item_assets/steam/apps/&lt;steamid&gt;/library_hero.jpg</code></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSteamMappingsBtn">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

@@ -184,6 +184,13 @@
             "heroes": "fanart"
         }
     },
+    "steam": {
+        "image_type_mappings": {
+            "capsule": "boxart",
+            "logo": "marquee",
+            "hero": "fanart"
+        }
+    },
     "systems": {
         "mame": {
             "extensions": [
