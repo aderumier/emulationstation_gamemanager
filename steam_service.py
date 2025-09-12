@@ -316,7 +316,7 @@ class SteamService:
                     if steam_id:
                         batch_tasks.append(self.download_steam_media(
                             steam_id, game_name, roms_root, system_name,
-                            selected_fields, image_type_mappings, overwrite_media_fields
+                            selected_fields, image_type_mappings, overwrite_media_fields, gamelist_path
                         ))
                     else:
                         logger.warning(f"🔧 DEBUG: No Steam ID for game: {game_name}")
