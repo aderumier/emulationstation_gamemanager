@@ -21,8 +21,8 @@ def normalize_game_name(name):
     # Remove roman numerals and convert to numbers
     normalized = normalized.replace(' III','3').replace(' II', ' 2').replace(" IV", '4').lower()
 
-    # Then keep only ASCII letters and numbers (removes accented chars and special chars)
-    normalized = re.sub(r'[^a-zA-Z0-9]', '', normalized)
+    # Then keep only ASCII letters, numbers, and parentheses (removes accented chars and special chars)
+    normalized = re.sub(r'[^a-zA-Z0-9()]', '', normalized)
 
 #    # Remove specific characters: dash, colon, underscore, apostrophe
 #    for char in ['-', ':', '_', '/', '\\', '|', '!', '*', "'", '"', ',', '.',' ']:
