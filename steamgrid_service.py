@@ -357,7 +357,7 @@ class SteamGridService:
                 continue
             
             # Create full path
-            full_media_dir = os.path.join(roms_root, system_name, media_dir)
+            full_media_dir = os.path.join(roms_root, system_name, "media", media_dir)
             os.makedirs(full_media_dir, exist_ok=True)
             
             # Select best media (for grids, use highest score)
@@ -386,7 +386,7 @@ class SteamGridService:
                 )
                 
                 if downloaded_path:
-                    relative_path = os.path.join('.', media_dir, os.path.basename(downloaded_path))
+                    relative_path = os.path.join('.', 'media', media_dir, os.path.basename(downloaded_path))
                     results[target_field] = relative_path
                     logger.debug(f"Downloaded {media_type} for {game_name}: {relative_path}")
                 
