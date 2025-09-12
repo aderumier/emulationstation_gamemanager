@@ -12872,8 +12872,8 @@ def run_steam_task(system_name, task_id, selected_games=None):
                             game_name = result['game_name']
                             steam_match = result['steam_match']
                             
-                            if steam_match and steam_match.get('steam_id'):
-                                steam_id = steam_match['steam_id']
+                            if steam_match and steam_match.get('app') and steam_match['app'].get('appid'):
+                                steam_id = steam_match['app']['appid']
                                 confidence = steam_match.get('confidence', 0)
                                 
                                 print(f"✅ Found Steam ID {steam_id} for '{game_name}' (confidence: {confidence:.2f})")
