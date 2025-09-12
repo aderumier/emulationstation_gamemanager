@@ -12825,6 +12825,12 @@ def run_steam_task(system_name, task_id, selected_games=None):
                         game = game_data['game']
                         game_name = game_data['name']
                         
+                        # Log when processing starts for this game
+                        print(f"🔍 Processing Steam ID lookup for '{game_name}'")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"Processing Steam ID lookup for '{game_name}'")
+                        
                         # Create async task for Steam ID lookup
                         async def lookup_steam_id(game, game_name):
                             try:
@@ -12950,6 +12956,14 @@ def run_steam_task(system_name, task_id, selected_games=None):
                             if t:
                                 t.update_progress(f"Progress: {progress_percent}% ({completed_games}/{len(games_to_process)})", 
                                                 progress_percentage=progress_percent, current_step=completed_games, total_steps=len(games_to_process))
+                        
+                        # Log when media download processing starts for each game
+                        for game_data in games_with_steam_ids:
+                            game_name = game_data['name']
+                            print(f"🎨 Starting media download for '{game_name}'")
+                            t = get_task(task_id)
+                            if t:
+                                t.log_message(f"Starting media download for '{game_name}'")
                         
                         # Use batch processing for media downloads
                         batch_results = await service.download_steam_media_batch(
