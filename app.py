@@ -4888,7 +4888,8 @@ def load_media_config():
     """Load media configuration from consolidated config.json"""
     return {
         'media_fields': config.get('media_fields', {}),
-        'scan_settings': config.get('media', {}).get('scan_settings', {})
+        'scan_settings': config.get('media', {}).get('scan_settings', {}),
+        '2dboxgenerator': config.get('2dboxgenerator', {})
     }
 
 def get_media_directory_and_extensions(gamelist_field):
