@@ -166,13 +166,13 @@ class SteamService:
         normalized_search = normalize_game_name(game_name)
         
         # Debug logging
-        logger.info(f"🔧 DEBUG: Searching for '{game_name}' -> normalized: '{normalized_search}'")
-        logger.info(f"🔧 DEBUG: Unified index has {len(unified_index)} entries")
+        print(f"🔧 DEBUG: Searching for '{game_name}' -> normalized: '{normalized_search}'")
+        print(f"🔧 DEBUG: Unified index has {len(unified_index)} entries")
         
         # Try exact match first
         if normalized_search in unified_index:
             candidates = unified_index[normalized_search]
-            logger.info(f"🔧 DEBUG: Found exact match with {len(candidates)} candidates")
+            print(f"🔧 DEBUG: Found exact match with {len(candidates)} candidates")
             if len(candidates) == 1:
                 return {
                     'app': candidates[0],
@@ -204,21 +204,21 @@ class SteamService:
         
         # Debug logging for partial matches
         if partial_matches:
-            logger.info(f"🔧 DEBUG: Found {len(partial_matches)} partial matches:")
+            print(f"🔧 DEBUG: Found {len(partial_matches)} partial matches:")
             for match_name, score, app_name in sorted(partial_matches, key=lambda x: x[1], reverse=True)[:5]:  # Top 5
-                logger.info(f"🔧 DEBUG:   '{match_name}' -> '{app_name}' (score: {score:.2f})")
+                print(f"🔧 DEBUG:   '{match_name}' -> '{app_name}' (score: {score:.2f})")
         else:
-            logger.info(f"🔧 DEBUG: No partial matches found")
+            print(f"🔧 DEBUG: No partial matches found")
         
         if best_match:
-            logger.info(f"🔧 DEBUG: Best match: '{best_match['name']}' (score: {best_score:.2f})")
+            print(f"🔧 DEBUG: Best match: '{best_match['name']}' (score: {best_score:.2f})")
             return {
                 'app': best_match,
                 'matched_name': best_match['name'],
                 'confidence': best_score
             }
         
-        logger.info(f"🔧 DEBUG: No match found for '{game_name}'")
+        print(f"🔧 DEBUG: No match found for '{game_name}'")
         return None
     
     async def download_steam_media(self, steam_id: int, game_name: str, 
