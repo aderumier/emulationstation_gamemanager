@@ -12714,6 +12714,14 @@ def run_steam_task(system_name, task_id, selected_games=None):
                 if t:
                     t.update_progress(f"Progress: 0% (0/{len(games_to_process)})", progress_percentage=0, current_step=0, total_steps=len(games_to_process))
                 
+                # Log each game that already has a Steam ID
+                for game_data in games_with_steam_ids:
+                    game_name = game_data['name']
+                    print(f"🎮 Game '{game_name}' already has Steam ID, processing for media download")
+                    t = get_task(task_id)
+                    if t:
+                        t.log_message(f"Game '{game_name}' already has Steam ID, processing for media download")
+                
                 try:
                     # Track completed games for progress (start from 0)
                     completed_games = 0
@@ -12889,10 +12897,10 @@ def run_steam_task(system_name, task_id, selected_games=None):
                                 
                                 updated_count += 1
                             else:
-                                print(f"❌ No Steam ID found for '{game_name}'")
+                                print(f"❌ No Steam ID found for '{game_name}' - skipping media download")
                                 t = get_task(task_id)
                                 if t:
-                                    t.log_message(f"No Steam ID found for '{game_name}'")
+                                    t.log_message(f"No Steam ID found for '{game_name}' - skipping media download")
                                 skipped_count += 1
                             
                             # Update progress for Steam ID lookup completion
