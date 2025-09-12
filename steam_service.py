@@ -370,11 +370,19 @@ class SteamService:
 
             response = await client.get(url)
             
+            # If logo gets 404, try fallback URL
+            if response.status_code == 404 and media_type == 'logo':
+                fallback_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo.png"
+                print(f"🔧 DEBUG: Logo 404, trying fallback URL: {fallback_url}")
+                logger.info(f"🔧 DEBUG: Logo 404, trying fallback URL: {fallback_url}")
+                response = await client.get(fallback_url)
             
             if response.status_code == 200:
                 content_length = len(response.content)
-                print(f"🔧 DEBUG: Successfully downloaded {content_length} bytes from {url}")
-                logger.info(f"🔧 DEBUG: Successfully downloaded {content_length} bytes from {url}")
+                # Show the actual URL used (fallback if applicable)
+                actual_url = response.url
+                print(f"🔧 DEBUG: Successfully downloaded {content_length} bytes from {actual_url}")
+                logger.info(f"🔧 DEBUG: Successfully downloaded {content_length} bytes from {actual_url}")
                 
                 # Get media directory and extensions
                 media_dir, extensions = get_media_directory_and_extensions(target_field)
