@@ -344,16 +344,26 @@ class SteamService:
                     
                     # Process batch results
                     for j, result in enumerate(batch_results):
-                        if isinstance(result, Exception):
-                            logger.error(f"🔧 DEBUG: Error in batch task {j}: {result}")
-                        elif result and j < len(batch):
+                        if j < len(batch):
                             game_name = batch[j].get('name', f'Game_{j}')
-                            results[game_name] = result
-                            logger.info(f"🔧 DEBUG: Successfully processed Steam media for {game_name}")
                             
-                            # Call progress callback for each completed game
-                            if progress_callback:
-                                progress_callback(game_name, result)
+                            if isinstance(result, Exception):
+                                logger.error(f"🔧 DEBUG: Error in batch task {j}: {result}")
+                                # Call progress callback even for errors
+                                if progress_callback:
+                                    progress_callback(game_name, {})
+                            elif result:
+                                results[game_name] = result
+                                logger.info(f"🔧 DEBUG: Successfully processed Steam media for {game_name}")
+                                
+                                # Call progress callback for each completed game
+                                if progress_callback:
+                                    progress_callback(game_name, result)
+                            else:
+                                # No media downloaded, but still call progress callback
+                                logger.info(f"🔧 DEBUG: No media downloaded for {game_name}")
+                                if progress_callback:
+                                    progress_callback(game_name, {})
                 
                 # Small delay between batches to be respectful to the server
                 if i + max_concurrent < len(games_data):
@@ -376,23 +386,9 @@ class SteamService:
             print(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")
             logger.info(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")
             
-            # Make HTTP request with detailed logging
-            print(f"🔧 DEBUG: Making HTTP request to: {url}")
-            logger.info(f"🔧 DEBUG: Making HTTP request to: {url}")
+
             response = await client.get(url)
             
-            # Log detailed response information
-            print(f"🔧 DEBUG: HTTP response for {url}:")
-            print(f"🔧 DEBUG:   Status Code: {response.status_code}")
-            print(f"🔧 DEBUG:   Content-Type: {response.headers.get('content-type', 'Unknown')}")
-            print(f"🔧 DEBUG:   Content-Length: {response.headers.get('content-length', 'Unknown')}")
-            print(f"🔧 DEBUG:   Response Headers: {dict(response.headers)}")
-            
-            logger.info(f"🔧 DEBUG: HTTP response for {url}:")
-            logger.info(f"🔧 DEBUG:   Status Code: {response.status_code}")
-            logger.info(f"🔧 DEBUG:   Content-Type: {response.headers.get('content-type', 'Unknown')}")
-            logger.info(f"🔧 DEBUG:   Content-Length: {response.headers.get('content-length', 'Unknown')}")
-            logger.info(f"🔧 DEBUG:   Response Headers: {dict(response.headers)}")
             
             if response.status_code == 200:
                 content_length = len(response.content)
