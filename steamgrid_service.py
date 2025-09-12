@@ -42,7 +42,7 @@ class SteamGridService:
         except Exception as e:
             logger.error(f"Error loading SteamGridDB API key: {e}")
             return None
-    
+        
     def save_api_key(self, api_key: str) -> bool:
         """Save SteamGridDB API key to credentials"""
         try:
@@ -68,7 +68,7 @@ class SteamGridService:
         """Get SteamGridDB ID using Steam ID"""
         if not steam_id:
             return None
-        
+    
         try:
             base_url = "https://www.steamgriddb.com/api/v2"
             url = f"{base_url}/games/steam/{steam_id}"
@@ -93,12 +93,17 @@ class SteamGridService:
                 
                 if response.status_code == 200:
                     data = response.json()
+                    print(f"🔍 SteamGridDB Steam ID lookup response for Steam ID {steam_id}:")
+                    print(f"   📊 Full response data: {json.dumps(data, indent=2)}")
+                    
                     if data.get('success') and data.get('data'):
                         steamgrid_id = data['data'].get('id')
-                        logger.debug(f"SteamGridDB API response for Steam ID {steam_id}: {data}")
+                        game_name = data['data'].get('name', 'Unknown')
+                        verified = data['data'].get('verified', False)
+                        print(f"   ✅ Found SteamGridDB ID: {steamgrid_id}, Name: '{game_name}', Verified: {verified}")
                         return steamgrid_id
                     else:
-                        logger.debug(f"No SteamGridDB ID found for Steam ID {steam_id}")
+                        print(f"   ❌ No SteamGridDB ID found for Steam ID {steam_id} (success={data.get('success')}, data={data.get('data')})")
                         return None
                 elif response.status_code == 401:
                     logger.error("SteamGridDB API authentication failed - check API key")
@@ -109,7 +114,7 @@ class SteamGridService:
                 else:
                     logger.warning(f"SteamGridDB API error for Steam ID {steam_id}: HTTP {response.status_code}")
                     return None
-                    
+            
         except Exception as e:
             logger.error(f"Error fetching SteamGridDB ID for Steam ID {steam_id}: {e}")
             return None
@@ -150,17 +155,23 @@ class SteamGridService:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    logger.debug(f"SteamGridDB search response for '{clean_name}': {data}")
+                    print(f"🔍 SteamGridDB search response for '{clean_name}':")
+                    print(f"   📊 Full response data: {json.dumps(data, indent=2)}")
                     
                     if data.get('success') and data.get('data'):
                         games = data['data']
+                        print(f"   🎮 Found {len(games)} games in SteamGridDB search results:")
+                        for i, game in enumerate(games):
+                            print(f"      [{i+1}] ID: {game.get('id')}, Name: '{game.get('name')}', Verified: {game.get('verified', False)}")
+                        
                         if games:
                             # Return the first game's ID
                             steamgrid_id = games[0].get('id')
-                            logger.debug(f"Found SteamGridDB ID {steamgrid_id} for '{clean_name}'")
+                            game_name = games[0].get('name', 'Unknown')
+                            print(f"   ✅ Selected first game: ID={steamgrid_id}, Name='{game_name}'")
                             return steamgrid_id
                     else:
-                        logger.debug(f"No SteamGridDB games found for '{clean_name}'")
+                        print(f"   ❌ No SteamGridDB games found for '{clean_name}' (success={data.get('success')}, data={data.get('data')})")
                         return None
                 elif response.status_code == 401:
                     logger.error("SteamGridDB API authentication failed - check API key")
@@ -171,7 +182,7 @@ class SteamGridService:
                 else:
                     logger.warning(f"SteamGridDB API error for '{clean_name}': HTTP {response.status_code}")
                     return None
-                    
+                
         except Exception as e:
             logger.error(f"Error searching SteamGridDB for '{game_name}': {e}")
             return None
@@ -236,13 +247,19 @@ class SteamGridService:
                         continue
                     
                     data = response.json()
-                    logger.debug(f"SteamGridDB API response for {media_type}: {data}")
+#                    print(f"🔍 SteamGridDB {media_type} API response for ID {steamgrid_id}:")
+#                    print(f"   📊 Full response data: {json.dumps(data, indent=2)}")
                     
                     if data.get('success') and data.get('data'):
-                        results[media_type] = data['data']
-                        logger.debug(f"Found {len(data['data'])} {media_type} for SteamGridDB ID {steamgrid_id}")
+                        media_items = data['data']
+                        results[media_type] = media_items
+                        print(f"   ✅ Found {len(media_items)} {media_type} items for SteamGridDB ID {steamgrid_id}")
+                        for i, item in enumerate(media_items[:3]):  # Show first 3 items
+                            print(f"      [{i+1}] ID: {item.get('id')}, URL: {item.get('url', 'N/A')[:50]}..., Score: {item.get('score', 'N/A')}")
+                        if len(media_items) > 3:
+                            print(f"      ... and {len(media_items) - 3} more items")
                     else:
-                        logger.debug(f"No {media_type} found for SteamGridDB ID {steamgrid_id}")
+                        print(f"   ❌ No {media_type} found for SteamGridDB ID {steamgrid_id} (success={data.get('success')}, data={data.get('data')})")
                         results[media_type] = []
                         
                 except Exception as e:

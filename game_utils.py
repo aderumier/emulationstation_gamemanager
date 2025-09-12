@@ -6,18 +6,27 @@ Game Utilities - Common functions for game name normalization and matching
 import os
 import subprocess
 import json
+import re
+import unicodedata
 
 def normalize_game_name(name):
     """Normalize game name for consistent matching across the application"""
     if not name:
         return ""
 
-    # Remove roman numerals and convert to numbers
-    normalized = name.replace(' III','3').replace(' II', ' 2').replace(" IV", '4').lower()
+    # Remove non-Latin characters and normalize accented characters
+    # First, normalize accented characters to their base forms
+    normalized = unicodedata.normalize('NFD', name)
 
-    # Remove specific characters: dash, colon, underscore, apostrophe
-    for char in ['-', ':', '_', '/', '\\', '|', '!', '*', "'", '"', ',', '.',' ']:
-        normalized = normalized.replace(char, '')
+    # Remove roman numerals and convert to numbers
+    normalized = normalized.replace(' III','3').replace(' II', ' 2').replace(" IV", '4').lower()
+
+    # Then keep only ASCII letters and numbers (removes accented chars and special chars)
+    normalized = re.sub(r'[^a-zA-Z0-9]', '', normalized)
+
+#    # Remove specific characters: dash, colon, underscore, apostrophe
+#    for char in ['-', ':', '_', '/', '\\', '|', '!', '*', "'", '"', ',', '.',' ']:
+#        normalized = normalized.replace(char, '')
     return normalized
 
 def convert_image_to_png(input_path: str, output_path: str) -> bool:
