@@ -245,7 +245,7 @@ class SteamService:
                 target_field = image_type_mappings.get(media_type, media_type)
                 download_tasks.append(self._download_single_media(
                     client, url, media_type, target_field, game_name, 
-                    steam_id, roms_root, system_name, overwrite_media_fields, cancellation_event
+                    steam_id, roms_root, system_name, overwrite_media_fields, gamelist_path, cancellation_event
                 ))
             
             # Execute all downloads in parallel
@@ -271,6 +271,7 @@ class SteamService:
                                        max_concurrent: int = 10,
                                        progress_callback=None,
                                        overwrite_media_fields: bool = False,
+                                       gamelist_path: str = None,
                                        cancellation_event=None) -> Dict[str, Dict[str, str]]:
         """Download Steam media for multiple games in parallel"""
         if not games_data:
@@ -359,6 +360,7 @@ class SteamService:
                                    game_name: str, steam_id: int, 
                                    roms_root: str, system_name: str,
                                    overwrite_media_fields: bool = False,
+                                   gamelist_path: str = None,
                                    cancellation_event=None) -> Optional[Dict[str, str]]:
         """Download a single media file"""
         try:
@@ -369,9 +371,8 @@ class SteamService:
             
             # Check if media already exists and we're not overwriting
             print(f"🔧 DEBUG: Checking overwrite_media_fields: {overwrite_media_fields}")
-            if not overwrite_media_fields:
+            if not overwrite_media_fields and gamelist_path:
                 # Check if media already exists in gamelist.xml
-                gamelist_path = os.path.join(roms_root, system_name, "gamelist.xml")
                 if os.path.exists(gamelist_path):
                     import xml.etree.ElementTree as ET
                     try:
