@@ -426,8 +426,15 @@ class SteamGridService:
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
                 
-                # Convert image if needed
-                should_convert, target_extension = should_convert_field(target_field, {})
+                # Convert image if needed using config-based target extension
+                try:
+                    with open('var/config/config.json', 'r') as f:
+                        config = json.load(f)
+                except Exception as e:
+                    logger.warning(f"Failed to load config for image conversion: {e}")
+                    config = {}
+                
+                should_convert, target_extension = should_convert_field(target_field, config)
                 if should_convert and needs_conversion(file_path, target_extension):
                     new_path, status = convert_image_replace(file_path, target_extension)
                     if status == "converted":
