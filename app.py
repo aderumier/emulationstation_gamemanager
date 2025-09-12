@@ -889,12 +889,13 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
             stats['matched_games'] += 1
             original_name = result.get('original_name', result['game_name'])
             for j, og in enumerate(original_games):
-                # Prefer matching by ROM path if available for reliability
+                # Match by ROM path for reliability (this is the primary method)
                 if result.get('game_path') and og.get('path') == result.get('game_path'):
                     original_games[j] = result['game_data'].copy()
                     stats['updated_games'] += 1
                     break
-                if og.get('name') == original_name:
+                # Only use name matching as fallback if no path was provided
+                elif not result.get('game_path') and og.get('name') == original_name:
                     original_games[j] = result['game_data'].copy()
                     stats['updated_games'] += 1
                     break
@@ -1145,28 +1146,38 @@ def process_single_game_worker(args):
                     
                     # Special handling for name field: use alternate name directly when matching via alternate name
                     if launchbox_field == 'Name' and gamelist_field == 'name':
-                        # Extract parentheses text from ROM filename
+                        # Extract parentheses text from both original game name and ROM filename
                         import re
                         rom_path = game_data.get('path', '')
                         rom_filename = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else ''
-                        # Find all parentheses text in the ROM filename
-                        rom_parentheses_matches = re.findall(r'\([^)]*\)', rom_filename)
-                        rom_parentheses_text = ' '.join(rom_parentheses_matches) if rom_parentheses_matches else ''
+                        
+                        # Find parentheses text at the end of the original game name
+                        original_parentheses_match = re.search(r'\s*\([^)]*\)\s*$', original_game_name)
+                        original_parentheses_text = original_parentheses_match.group(0).strip() if original_parentheses_match else ''
+                        
+                        # Find parentheses text at the end of the ROM filename
+                        rom_parentheses_match = re.search(r'\s*\([^)]*\)\s*$', rom_filename)
+                        rom_parentheses_text = rom_parentheses_match.group(0).strip() if rom_parentheses_match else ''
+                        
+                        # Combine parentheses text, prioritizing original name, then adding ROM filename if not already present
+                        combined_parentheses = original_parentheses_text
+                        if rom_parentheses_text and rom_parentheses_text not in original_parentheses_text:
+                            combined_parentheses = f"{original_parentheses_text} {rom_parentheses_text}".strip()
                         
                         # Check if this was an alternate name match
                         match_source = best_match.get('_match_type', 'main')
                         if match_source == 'alternate':
                             # Use the exact alternate name that was matched, not the main name
                             alternate_name = best_match.get('_matched_name', old_value)
-                            # Preserve parentheses text from ROM filename when using alternate name
-                            if rom_parentheses_text and rom_parentheses_text not in alternate_name:
-                                new_value = f"{alternate_name} {rom_parentheses_text}"
+                            # Append combined parentheses text if it exists
+                            if combined_parentheses and combined_parentheses not in alternate_name:
+                                new_value = f"{alternate_name} {combined_parentheses}"
                             else:
                                 new_value = alternate_name
                         else:
-                            # For main name matches, preserve parentheses text from ROM filename
-                            if rom_parentheses_text and rom_parentheses_text not in new_value:
-                                new_value = f"{new_value} {rom_parentheses_text}"
+                            # For main name matches, append combined parentheses text
+                            if combined_parentheses and combined_parentheses not in new_value:
+                                new_value = f"{new_value} {combined_parentheses}"
                     
                     # Check if we should update this field based on overwrite_text_fields setting
                     should_update = False
@@ -7966,7 +7977,8 @@ def scan_rom_files_confirm(system_name):
             return jsonify({'error': 'Failed to load media configuration'})
         
         system_path = os.path.join(ROMS_FOLDER, system_name)
-        gamelist_path = os.path.join(system_path, 'gamelist.xml')
+        # Use the correct gamelist path from var/gamelists, not roms folder
+        gamelist_path = get_gamelist_path(system_name)
         
         # Get supported ROM extensions
         system_config = config.get('systems', {}).get(system_name, {})
