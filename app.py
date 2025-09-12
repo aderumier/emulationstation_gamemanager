@@ -1016,7 +1016,7 @@ def _scraping_result_listener(result_q):
                                 'system_name': os.path.basename(os.path.dirname(gl)),
                                 'data': {
                                     'selected_games': rom_paths,
-                                    'force_download': data.get('force_download', False),
+                                    'force_download': original_task.data.get('force_download', False),
                                     'selected_fields': original_task.data.get('selected_fields')
                                 }
                             }, username=username)
@@ -2214,10 +2214,6 @@ def run_image_download_task(system_name, data):
             try:
                 # Start timing for this specific game
                 game_start_time = time.time()
-                
-                
-                
-
                 
                 # Get ROM filename from game data
                 rom_filename = os.path.splitext(os.path.basename(game.get('path', '')))[0]
@@ -5169,8 +5165,6 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
     # Create game name prefix for logging
     game_prefix = f"[{game_name or rom_filename}]" if game_name or rom_filename else ""
     
-
-    
     downloaded_images = []
     # Use passed configs (already validated at task start)
     media_fields = media_config.get('media_fields', {})
@@ -5179,7 +5173,6 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
     # Check which fields need images based on current gamelist data
     fields_to_download = []
     if current_game_data and not force_download:
-
         for field_name in image_config.get('image_type_mappings', {}).values():
             current_value = current_game_data.get(field_name)
             # Consider field empty if it's None, empty string, or just whitespace
@@ -5190,7 +5183,6 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
             return []
         
     else:
-
         fields_to_download = list(image_config.get('image_type_mappings', {}).values())
     
     # Filter fields based on selected_fields
@@ -5202,11 +5194,22 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         # Filter fields_to_download to only include selected media fields
         selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_type.values()]
         fields_to_download = [field for field in fields_to_download if field_to_launchbox_type.get(field) in selected_media_fields]
-    print(f"🔧 DEBUG: Filtered fields_to_download to selected fields: {fields_to_download}")
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
-        all_game_images = (global_metadata_cache.get(game_launchbox_id) or {}).get('images', [])
+        # Try both string and integer keys
+        game_metadata = global_metadata_cache.get(game_launchbox_id)
+        if not game_metadata:
+            # Try with string conversion
+            game_metadata = global_metadata_cache.get(str(game_launchbox_id))
+        if not game_metadata:
+            # Try with integer conversion
+            try:
+                game_metadata = global_metadata_cache.get(int(game_launchbox_id))
+            except (ValueError, TypeError):
+                pass
+        
+        all_game_images = (game_metadata or {}).get('images', [])
         
         # Use region configuration (already loaded at task start)
         default_region_priority = region_config.get('priority', ['World', 'North America', 'Europe', 'Japan'])
