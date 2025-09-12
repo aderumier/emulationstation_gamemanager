@@ -12849,13 +12849,13 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                             # Update game with downloaded media paths
                             for media_field, media_path in downloaded_media.items():
                                 game[media_field] = media_path
-                            
-                            # Also update the corresponding game in all_games
-                            for all_game in all_games:
-                                if all_game['path'] == game['path']:
-                                    for media_field, media_path in downloaded_media.items():
-                                        all_game[media_field] = media_path
-                                    break
+                    
+                    # Also update the corresponding game in all_games
+                    for all_game in all_games:
+                        if all_game['path'] == game['path']:
+                            for media_field, media_path in downloaded_media.items():
+                                all_game[media_field] = media_path
+                            break
                             
                             # Media download progress is now handled by the progress callback
                 
@@ -12969,7 +12969,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                     'steam_id': steam_id,
                                     'name': game_name
                                 })
-                                
+                    
                                 updated_count += 1
                             else:
                                 print(f"❌ No Steam ID found for '{game_name}' - skipping media download")
@@ -12983,8 +12983,8 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                             
                             # Calculate dynamic progress percentage
                             progress_percent = int((steam_lookup_completed / len(games_to_process)) * 100)
-                            t = get_task(task_id)
-                            if t:
+                    t = get_task(task_id)
+                    if t:
                                 t.update_progress(f"Progress: {progress_percent}% ({steam_lookup_completed}/{len(games_to_process)})", 
                                                 progress_percentage=progress_percent, current_step=steam_lookup_completed, total_steps=len(games_to_process))
                     
@@ -13262,6 +13262,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
     """Run SteamGridDB task for a specific system (SteamGridDB API only)"""
     import asyncio
     import threading
+    import re
     from steamgrid_service import SteamGridService
     
     # Add task to cancel map
@@ -13334,23 +13335,30 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
                     t.complete(False, "No games selected for processing")
                 return
             
-            # Filter games that have Steam IDs (SteamGridDB needs Steam IDs to work)
+            # Separate games with and without Steam IDs
             games_with_steamid = [game for game in games_to_process if game.get('steamid')]
+            games_without_steamid = [game for game in games_to_process if not game.get('steamid')]
             
-            if not games_with_steamid:
-                print("ℹ️ No games with Steam IDs found - SteamGridDB task requires Steam IDs")
+            total_games = len(games_with_steamid) + len(games_without_steamid)
+            
+            if total_games == 0:
+                print("ℹ️ No games found for SteamGridDB processing")
                 t = get_task(task_id)
                 if t:
-                    t.complete(True, "No games with Steam IDs found - SteamGridDB task requires Steam IDs")
+                    t.complete(True, "No games found for SteamGridDB processing")
                 return
             
-            print(f"🎮 Processing {len(games_with_steamid)} games with SteamGridDB API")
+            print(f"🎮 Processing {total_games} games with SteamGridDB API")
+            if games_with_steamid:
+                print(f"   📋 {len(games_with_steamid)} games with Steam IDs (will use Steam ID lookup)")
+            if games_without_steamid:
+                print(f"   🔍 {len(games_without_steamid)} games without Steam IDs (will use name search)")
             
             # Update initial progress
             t = get_task(task_id)
             if t:
                 t.update_progress(0, None)
-                t.log_message(f"Starting SteamGridDB processing for {len(games_with_steamid)} games with Steam IDs")
+                t.log_message(f"Starting SteamGridDB processing for {total_games} games ({len(games_with_steamid)} with Steam IDs, {len(games_without_steamid)} by name search)")
             
             # Load configuration
             with open('var/config/config.json', 'r') as f:
@@ -13375,7 +13383,10 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
             media_downloaded_count = 0
             skipped_count = 0
             
-            for i, game in enumerate(games_with_steamid):
+            # Combine all games for processing
+            all_games_to_process = games_with_steamid + games_without_steamid
+            
+            for i, game in enumerate(all_games_to_process):
                 if is_cancelled():
                     print(f"SteamGridDB task {task_id} was cancelled during processing")
                     # Save partial changes before exiting
@@ -13411,48 +13422,72 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
                 steam_id = game.get('steamid', '')
                 
                 if existing_steamgridid:
-                    print(f"⏭️ Skipping '{game_name}' - already has SteamGridDB ID ({existing_steamgridid})")
+                    print(f"ℹ️ Game '{game_name}' already has SteamGridDB ID ({existing_steamgridid}) - will download media")
                     t = get_task(task_id)
                     if t:
-                        t.log_message(f"Skipping '{game_name}' - already has SteamGridDB ID ({existing_steamgridid})")
+                        t.log_message(f"Game '{game_name}' already has SteamGridDB ID ({existing_steamgridid}) - will download media")
                     
-                    skipped_count += 1
-                    # Update progress
-                    progress_callback(i + 1, len(games_with_steamid))
-                    continue
+                    # Use existing SteamGridDB ID for media download
+                    steamgrid_id = existing_steamgridid
+                    steamgridid_count += 1  # Count as found since we're using existing ID
+                else:
+                    # Need to find SteamGridDB ID
+                    steamgrid_id = None
                 
-                # Get SteamGridDB ID using existing Steam ID
-                print(f"🔍 Looking up SteamGridDB ID for '{game_name}' (Steam ID: {steam_id})")
-                t = get_task(task_id)
-                if t:
-                    t.log_message(f"Looking up SteamGridDB ID for '{game_name}' (Steam ID: {steam_id})")
+                # Clean game name by removing text in parentheses for better search results
+                clean_game_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
                 
-                # Check for cancellation before SteamGridDB ID lookup
-                if is_cancelled():
-                    print(f"SteamGridDB task {task_id} was cancelled before SteamGridDB ID lookup for '{game_name}'")
-                    break
-                
-                steamgrid_id = await service.get_steamgrid_id(
-                    steam_id=int(steam_id),
-                    game_name=game_name,
-                    api_key=steamgriddb_api_key
-                )
+                # Get SteamGridDB ID using Steam ID or name search (only if we don't already have one)
+                if not steamgrid_id:
+                    if steam_id:
+                        print(f"🔍 Looking up SteamGridDB ID for '{game_name}' (Steam ID: {steam_id})")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"Looking up SteamGridDB ID for '{game_name}' (Steam ID: {steam_id})")
+                    else:
+                        print(f"🔍 Searching SteamGridDB for '{clean_game_name}' by name (cleaned from '{game_name}')")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"Searching SteamGridDB for '{clean_game_name}' by name (cleaned from '{game_name}')")
+                    
+                    # Check for cancellation before SteamGridDB ID lookup
+                    if is_cancelled():
+                        print(f"SteamGridDB task {task_id} was cancelled before SteamGridDB ID lookup for '{game_name}'")
+                        break
+                    
+                    try:
+                        steamgrid_id = await service.get_steamgrid_id(
+                            steam_id=int(steam_id) if steam_id else None,
+                            game_name=clean_game_name,
+                            api_key=steamgriddb_api_key
+                        )
+                    except Exception as e:
+                        print(f"❌ Error looking up SteamGridDB ID for '{game_name}': {e}")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"Error looking up SteamGridDB ID for '{game_name}': {e}")
+                        steamgrid_id = None
                 
                 if steamgrid_id:
-                    print(f"✅ Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
-                    t = get_task(task_id)
-                    if t:
-                        t.log_message(f"Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
-                    
-                    # Update game with SteamGridDB ID
-                    game['steamgridid'] = str(steamgrid_id)
-                    steamgridid_count += 1
-                    
-                    # Also update the corresponding game in all_games
-                    for all_game in all_games:
-                        if all_game['path'] == game['path']:
-                            all_game['steamgridid'] = str(steamgrid_id)
-                            break
+                    if not existing_steamgridid:
+                        print(f"✅ Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
+                        
+                        # Update game with SteamGridDB ID
+                        game['steamgridid'] = str(steamgrid_id)
+                        
+                        # Also update the corresponding game in all_games
+                        for all_game in all_games:
+                            if all_game['path'] == game['path']:
+                                all_game['steamgridid'] = str(steamgrid_id)
+                                break
+                    else:
+                        print(f"✅ Using existing SteamGridDB ID: {steamgrid_id} for '{game_name}'")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"Using existing SteamGridDB ID: {steamgrid_id} for '{game_name}'")
                     
                     # Download media from SteamGridDB
                     try:
@@ -13502,13 +13537,19 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
                         if t:
                             t.log_message(f"Failed to download SteamGridDB media for '{game_name}': {e}")
                 else:
-                    print(f"❌ No SteamGridDB ID found for '{game_name}'")
-                    t = get_task(task_id)
-                    if t:
-                        t.log_message(f"No SteamGridDB ID found for '{game_name}'")
+                    if steam_id:
+                        print(f"❌ No SteamGridDB ID found for '{game_name}' (Steam ID: {steam_id})")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"No SteamGridDB ID found for '{game_name}' (Steam ID: {steam_id})")
+                    else:
+                        print(f"❌ No SteamGridDB ID found for '{game_name}' (name search)")
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"No SteamGridDB ID found for '{game_name}' (name search)")
                 
                 # Update progress
-                progress_callback(i + 1, len(games_with_steamid))
+                progress_callback(i + 1, total_games)
             
             # Save updated gamelist
             if steamgridid_count > 0 or media_downloaded_count > 0:
@@ -13523,29 +13564,31 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
                 # Notify clients of gamelist update
                 notify_gamelist_updated(system_name, len(all_games), updated_count=steamgridid_count)
                 
-                print(f"✅ SteamGridDB task completed: {steamgridid_count} games updated with SteamGridDB IDs, {media_downloaded_count} games with media downloaded, {skipped_count} games skipped")
+                print(f"✅ SteamGridDB task completed: {steamgridid_count} games updated with SteamGridDB IDs, {media_downloaded_count} games with media downloaded")
                 print(f"📊 Task Summary:")
-                print(f"  - Games processed: {len(games_with_steamid)}")
+                print(f"  - Games processed: {total_games}")
                 print(f"  - SteamGridDB IDs found: {steamgridid_count}")
                 print(f"  - Games with media downloaded: {media_downloaded_count}")
-                print(f"  - Games skipped (already had IDs): {skipped_count}")
-                print(f"  - Success rate: {((steamgridid_count + skipped_count)/len(games_with_steamid)*100):.1f}%")
+                print(f"  - Games with existing SteamGridDB IDs: {skipped_count}")
+                success_rate = ((steamgridid_count + skipped_count)/total_games*100) if total_games > 0 else 0
+                print(f"  - Success rate: {success_rate:.1f}%")
                 
                 t = get_task(task_id)
                 if t:
-                    t.complete(True, f"SteamGridDB task completed: {steamgridid_count} games updated with SteamGridDB IDs, {media_downloaded_count} games with media downloaded, {skipped_count} games skipped")
+                    t.complete(True, f"SteamGridDB task completed: {steamgridid_count} games updated with SteamGridDB IDs, {media_downloaded_count} games with media downloaded")
             else:
                 print("ℹ️ SteamGridDB task completed: No SteamGridDB matches found")
                 print(f"📊 Task Summary:")
-                print(f"  - Games processed: {len(games_with_steamid)}")
-                print(f"  - SteamGridDB IDs found: 0")
-                print(f"  - Games with media downloaded: 0")
-                print(f"  - Games skipped (already had IDs): {skipped_count}")
-                print(f"  - Success rate: {(skipped_count/len(games_with_steamid)*100):.1f}%")
+                print(f"  - Games processed: {total_games}")
+                print(f"  - SteamGridDB IDs found: {steamgridid_count}")
+                print(f"  - Games with media downloaded: {media_downloaded_count}")
+                print(f"  - Games with existing SteamGridDB IDs: {skipped_count}")
+                success_rate = (skipped_count/total_games*100) if total_games > 0 else 0
+                print(f"  - Success rate: {success_rate:.1f}%")
                 
                 t = get_task(task_id)
                 if t:
-                    t.complete(True, f"SteamGridDB task completed: No SteamGridDB matches found, {skipped_count} games skipped")
+                    t.complete(True, f"SteamGridDB task completed: No SteamGridDB matches found")
                 
         except Exception as e:
             print(f"❌ Error in SteamGridDB task: {e}")

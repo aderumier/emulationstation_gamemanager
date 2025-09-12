@@ -123,8 +123,12 @@ class SteamGridService:
             # Clean game name by removing text in parentheses
             clean_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
             
+            # URL encode the game name
+            import urllib.parse
+            encoded_name = urllib.parse.quote(clean_name)
+            
             base_url = "https://www.steamgriddb.com/api/v2"
-            url = f"{base_url}/search/grids/{clean_name}"
+            url = f"{base_url}/search/autocomplete/{encoded_name}"
             
             headers = {}
             if api_key:
@@ -360,10 +364,11 @@ class SteamGridService:
                     f.write(response.content)
                 
                 # Convert image if needed
-                if needs_conversion(target_field):
-                    converted_path = convert_image_replace(file_path, target_field)
-                    if converted_path:
-                        file_path = converted_path
+                should_convert, target_extension = should_convert_field(target_field, {})
+                if should_convert and needs_conversion(file_path, target_extension):
+                    new_path, status = convert_image_replace(file_path, target_extension)
+                    if status == "converted":
+                        file_path = new_path
                 
                 return file_path
                 
