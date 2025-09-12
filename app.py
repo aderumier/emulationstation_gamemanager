@@ -9025,13 +9025,18 @@ def run_2d_box_generation_task(system_name, selected_games):
         # Import the box generator
         from box_generator import BoxGenerator
         
+        print(f"🎨 Starting 2D box generation for system: {system_name}")
+        print(f"🔧 DEBUG: Selected games: {selected_games}")
         task.update_progress(f"Starting 2D box generation for {len(selected_games)} games")
         task.update_progress(f"System: {system_name}")
         
         # Validate system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
+        print(f"🔧 DEBUG: System path: {system_path}")
         if not os.path.exists(system_path):
-            task.complete(False, f'System not found: {system_path}')
+            error_msg = f'System not found: {system_path}'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
             return
         
         # Load gamelist to get game data (use var/gamelists, not roms)
@@ -9055,31 +9060,43 @@ def run_2d_box_generation_task(system_name, selected_games):
         
         # Load media config to get media mappings
         media_config = load_media_config()
+        print(f"🔧 DEBUG: Media config loaded: {media_config}")
         
         # Get the target media field from 2D box generator config
         box2d_config = media_config.get('2dboxgenerator', {})
         target_media_field = box2d_config.get('media_field', 'thumbnail')
+        print(f"🔧 DEBUG: Target media field: {target_media_field}")
+        print(f"🔧 DEBUG: Available media fields: {list(media_config.get('media_fields', {}).keys())}")
+        task.update_progress(f"🎯 Target media field: {target_media_field}")
         
         # Find the media directory for the target field
         box2d_directory = get_media_directory(target_media_field)
+        print(f"🔧 DEBUG: Box2D directory: {box2d_directory}")
         
         if not box2d_directory:
-            task.complete(False, f'No media mapping found for {target_media_field} field. Available fields: {list(media_config.get("media_fields", {}).keys())}')
+            error_msg = f'No media mapping found for {target_media_field} field. Available fields: {list(media_config.get("media_fields", {}).keys())}'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
             return
         
         # Create media directories
         media_dir = os.path.join(system_path, 'media')
         box2d_dir = os.path.join(media_dir, box2d_directory)
+        print(f"🔧 DEBUG: Creating media directory: {box2d_dir}")
         os.makedirs(box2d_dir, exist_ok=True)
         
         # Process each selected game
         processed = 0
         failed = 0
+        print(f"🔧 DEBUG: Processing {len(selected_games)} games")
         
         for i, game_path in enumerate(selected_games):
             if is_task_stopped():
+                print("🛑 Task stopped by user")
                 task.update_progress("🛑 Task stopped by user")
                 break
+            
+            print(f"🔧 DEBUG: Processing game {i+1}/{len(selected_games)}: {game_path}")
             
             # Find game in gamelist
             game_data = None
@@ -9089,12 +9106,15 @@ def run_2d_box_generation_task(system_name, selected_games):
                     break
             
             if not game_data:
-                task.update_progress(f"⚠️  Game not found in gamelist: {game_path}")
+                error_msg = f"Game not found in gamelist: {game_path}"
+                print(f"❌ ERROR: {error_msg}")
+                task.update_progress(f"⚠️  {error_msg}")
                 failed += 1
                 continue
             
             game_name = game_data.get('name', 'Unknown')
             rom_filename = os.path.splitext(os.path.basename(game_path))[0]
+            print(f"🔧 DEBUG: Found game: {game_name} (ROM: {rom_filename})")
             
             task.update_progress(f"Processing {i+1}/{len(selected_games)}: {game_name}")
             
@@ -9103,20 +9123,28 @@ def run_2d_box_generation_task(system_name, selected_games):
             gameplay_path = None
             logo_path = None
             
+            print(f"🔧 DEBUG: Looking for media files for {game_name}")
+            
             # Look for titlescreen (titleshot field)
             titleshot = game_data.get('titleshot')
+            print(f"🔧 DEBUG: Titleshot field: {titleshot}")
             if titleshot and titleshot.startswith('./'):
                 titlescreen_path = os.path.join(system_path, titleshot[2:])
+                print(f"🔧 DEBUG: Titlescreen path: {titlescreen_path}")
             
-            # Look for screenshot (image field
+            # Look for screenshot (image field)
             screenshot = game_data.get('image')
+            print(f"🔧 DEBUG: Screenshot field: {screenshot}")
             if screenshot and screenshot.startswith('./'):
                 gameplay_path = os.path.join(system_path, screenshot[2:])
+                print(f"🔧 DEBUG: Gameplay path: {gameplay_path}")
             
             # Look for logo (marquee)
             marquee = game_data.get('marquee')
+            print(f"🔧 DEBUG: Marquee field: {marquee}")
             if marquee and marquee.startswith('./'):
                 logo_path = os.path.join(system_path, marquee[2:])
+                print(f"🔧 DEBUG: Logo path: {logo_path}")
             
             # Check if all required files exist
             missing_files = []
@@ -9127,24 +9155,34 @@ def run_2d_box_generation_task(system_name, selected_games):
             if not logo_path or not os.path.exists(logo_path):
                 missing_files.append('logo')
             
+            print(f"🔧 DEBUG: Missing files: {missing_files}")
+            
             if missing_files:
-                task.update_progress(f"⚠️  Missing required media for {game_name}: {', '.join(missing_files)}")
+                error_msg = f"Missing required media for {game_name}: {', '.join(missing_files)}"
+                print(f"❌ ERROR: {error_msg}")
+                task.update_progress(f"⚠️  {error_msg}")
                 failed += 1
                 continue
             
             # Generate 2D box
             output_filename = f"{rom_filename}.png"
             output_path = os.path.join(box2d_dir, output_filename)
+            print(f"🔧 DEBUG: Generating 2D box for {game_name}")
+            print(f"🔧 DEBUG: Output path: {output_path}")
+            print(f"🔧 DEBUG: Using files - Titlescreen: {titlescreen_path}, Gameplay: {gameplay_path}, Logo: {logo_path}")
             
             try:
+                print(f"🔧 DEBUG: Calling BoxGenerator.generate_2d_box()")
                 generator.generate_2d_box(
                     titlescreen_path=titlescreen_path,
                     gameplay_path=gameplay_path,
                     logo_path=logo_path,
                     output_path=output_path
                 )
+                print(f"✅ DEBUG: Successfully generated 2D box for {game_name}")
                 
                 # Update gamelist.xml with new boxart
+                print(f"🔧 DEBUG: Updating gamelist.xml for {game_name}")
                 game_element = None
                 tree = ET.parse(gamelist_path)
                 root = tree.getroot()
@@ -9158,16 +9196,24 @@ def run_2d_box_generation_task(system_name, selected_games):
                             break
                 
                 if game_element is not None:
+                    print(f"🔧 DEBUG: Found game element in gamelist for {game_name}")
                     # Update or add the target media field
                     target_element = game_element.find(target_media_field)
+                    media_path = f"./media/{box2d_directory}/{output_filename}"
                     if target_element is not None:
-                        target_element.text = f"./media/{box2d_directory}/{output_filename}"
+                        target_element.text = media_path
+                        print(f"🔧 DEBUG: Updated existing {target_media_field} field: {media_path}")
                     else:
                         target_element = ET.SubElement(game_element, target_media_field)
-                        target_element.text = f"./media/{box2d_directory}/{output_filename}"
+                        target_element.text = media_path
+                        print(f"🔧 DEBUG: Added new {target_media_field} field: {media_path}")
                     
                     # Save the updated gamelist.xml
+                    print(f"🔧 DEBUG: Saving updated gamelist.xml")
                     save_formatted_gamelist_xml(tree, gamelist_path)
+                    print(f"✅ DEBUG: Gamelist.xml saved successfully")
+                else:
+                    print(f"❌ ERROR: Game element not found in gamelist for {game_name}")
                 
                 task.update_progress(f"✅ Generated 2D box for {game_name}")
                 processed += 1
@@ -9183,12 +9229,18 @@ def run_2d_box_generation_task(system_name, selected_games):
                                progress_percentage=progress, current_step=i+1, total_steps=len(selected_games))
         
         # Complete the task
+        print(f"🔧 DEBUG: Task completed - Processed: {processed}, Failed: {failed}")
         if processed > 0:
-            task.complete(True, f'2D box generation completed. Generated: {processed}, Failed: {failed}')
+            success_msg = f'2D box generation completed. Generated: {processed}, Failed: {failed}'
+            print(f"✅ DEBUG: {success_msg}")
+            task.complete(True, success_msg)
         else:
-            task.complete(False, f'No 2D boxes were generated. Failed: {failed}')
+            error_msg = f'No 2D boxes were generated. Failed: {failed}'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
         
         # Emit task completion event
+        print(f"🔧 DEBUG: Emitting task completion event")
         socketio.emit('task_completed', {
             'task_type': '2d_box_generation',
             'success': processed > 0,
@@ -9197,13 +9249,16 @@ def run_2d_box_generation_task(system_name, selected_games):
         })
         
     except Exception as e:
-        print(f"Error in 2D box generation task: {e}")
+        error_msg = f"Error in 2D box generation task: {e}"
+        print(f"❌ ERROR: {error_msg}")
         import traceback
         traceback.print_exc()
         if current_task_id and current_task_id in tasks:
+            print(f"🔧 DEBUG: Completing task with error: {str(e)}")
             tasks[current_task_id].complete(False, str(e))
         
         # Emit task failure event
+        print(f"🔧 DEBUG: Emitting task failure event")
         socketio.emit('task_completed', {
             'task_type': '2d_box_generation',
             'success': False,
