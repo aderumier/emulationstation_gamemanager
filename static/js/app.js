@@ -11670,9 +11670,9 @@ class GameCollectionManager {
             const response = await fetch('/api/config');
             const config = await response.json();
             
-            if (config.success) {
-                const mediaFields = config.data.media_fields || {};
-                const currentField = config.data['2dboxgenerator']?.media_field || 'thumbnail';
+            if (response.ok) {
+                const mediaFields = config.media_fields || {};
+                const currentField = config['2dboxgenerator']?.media_field || 'thumbnail';
                 
                 // Populate the combobox
                 const select = document.getElementById('boxGeneratorMediaField');
@@ -11691,6 +11691,9 @@ class GameCollectionManager {
                 // Update current setting display
                 const currentFieldDisplay = document.getElementById('currentBoxGeneratorField');
                 currentFieldDisplay.innerHTML = `<span class="badge bg-primary">${currentField}</span>`;
+            } else {
+                console.error('Failed to load config:', response.status);
+                this.showAlert('Error loading configuration', 'error');
             }
         } catch (error) {
             console.error('Error loading 2D Box Generator config:', error);
@@ -11721,7 +11724,7 @@ class GameCollectionManager {
             
             const result = await response.json();
             
-            if (result.success) {
+            if (response.ok && result.success) {
                 this.showAlert('2D Box Generator configuration saved successfully!', 'success');
                 
                 // Update current setting display
@@ -11732,7 +11735,7 @@ class GameCollectionManager {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('2DBoxGeneratorConfigModal'));
                 modal.hide();
             } else {
-                this.showAlert(`Error saving configuration: ${result.error}`, 'error');
+                this.showAlert(`Error saving configuration: ${result.error || 'Unknown error'}`, 'error');
             }
         } catch (error) {
             console.error('Error saving 2D Box Generator config:', error);
