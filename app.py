@@ -13378,7 +13378,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
             if t and hasattr(t, 'data') and 'selected_fields' in t.data:
                 selected_fields = t.data['selected_fields']
             
-            # Process games
+            # Process games in batches
             steamgridid_count = 0
             media_downloaded_count = 0
             skipped_count = 0
@@ -13386,9 +13386,12 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
             # Combine all games for processing
             all_games_to_process = games_with_steamid + games_without_steamid
             
-            for i, game in enumerate(all_games_to_process):
+            # Process SteamGridDB ID lookups in batches
+            batch_size = 10
+            for i in range(0, len(all_games_to_process), batch_size):
+                # Check for cancellation before each batch
                 if is_cancelled():
-                    print(f"SteamGridDB task {task_id} was cancelled during processing")
+                    print(f"SteamGridDB task {task_id} was cancelled during batch processing")
                     # Save partial changes before exiting
                     if steamgridid_count > 0 or media_downloaded_count > 0 or skipped_count > 0:
                         print(f"💾 Saving partial changes before cancellation...")
@@ -13413,145 +13416,180 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                             t.complete(True, "SteamGridDB task cancelled - no changes made")
                     return
                 
-                game_name = game.get('name', '')
-                if not game_name:
-                    continue
+                batch = all_games_to_process[i:i + batch_size]
+                print(f"🔧 DEBUG: Processing SteamGridDB ID lookup batch {i//batch_size + 1} with {len(batch)} games")
                 
-                # Check if steamgridid already exists
-                existing_steamgridid = game.get('steamgridid', '')
-                steam_id = game.get('steamid', '')
-                
-                if existing_steamgridid:
-                    print(f"ℹ️ Game '{game_name}' already has SteamGridDB ID ({existing_steamgridid}) - will download media")
-                    t = get_task(task_id)
-                    if t:
-                        t.log_message(f"Game '{game_name}' already has SteamGridDB ID ({existing_steamgridid}) - will download media")
+                # Process batch in parallel
+                lookup_tasks = []
+                for game in batch:
+                    game_name = game.get('name', '')
+                    if not game_name:
+                        continue
                     
-                    # Use existing SteamGridDB ID for media download
-                    steamgrid_id = existing_steamgridid
-                    steamgridid_count += 1  # Count as found since we're using existing ID
-                else:
-                    # Need to find SteamGridDB ID
-                    steamgrid_id = None
-                
-                # Clean game name by removing text in parentheses for better search results
-                clean_game_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
-                
-                # Get SteamGridDB ID using Steam ID or name search (only if we don't already have one)
-                if not steamgrid_id:
-                    if steam_id:
-                        print(f"🔍 Looking up SteamGridDB ID for '{game_name}' (Steam ID: {steam_id})")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"Looking up SteamGridDB ID for '{game_name}' (Steam ID: {steam_id})")
-                    else:
-                        print(f"🔍 Searching SteamGridDB for '{clean_game_name}' by name (cleaned from '{game_name}')")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"Searching SteamGridDB for '{clean_game_name}' by name (cleaned from '{game_name}')")
+                    existing_steamgridid = game.get('steamgridid', '')
+                    steam_id = game.get('steamid', '')
                     
-                    # Check for cancellation before SteamGridDB ID lookup
+                    # Clean game name by removing text in parentheses for better search results
+                    clean_game_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+                    
+                    # Create async task for SteamGridDB ID lookup
+                    async def lookup_steamgrid_id(game, game_name, clean_game_name, steam_id, existing_steamgridid):
+                        try:
+                            if existing_steamgridid:
+                                return {
+                                    'game': game,
+                                    'game_name': game_name,
+                                    'steamgrid_id': existing_steamgridid,
+                                    'existing': True
+                                }
+                            else:
+                                steamgrid_id = await service.get_steamgrid_id(
+                                    steam_id=int(steam_id) if steam_id else None,
+                                    game_name=clean_game_name,
+                                    api_key=steamgriddb_api_key
+                                )
+                                return {
+                                    'game': game,
+                                    'game_name': game_name,
+                                    'steamgrid_id': steamgrid_id,
+                                    'existing': False
+                                }
+                        except Exception as e:
+                            print(f"❌ Error looking up SteamGridDB ID for '{game_name}': {e}")
+                            return {
+                                'game': game,
+                                'game_name': game_name,
+                                'steamgrid_id': None,
+                                'existing': False
+                            }
+                    
+                    lookup_tasks.append(lookup_steamgrid_id(game, game_name, clean_game_name, steam_id, existing_steamgridid))
+                
+                # Execute batch lookups
+                if lookup_tasks:
+                    lookup_results = await asyncio.gather(*lookup_tasks, return_exceptions=True)
+                    
+                    # Process lookup results
+                    for j, result in enumerate(lookup_results):
+                        if j < len(batch):
+                            if isinstance(result, Exception):
+                                print(f"❌ Error in SteamGridDB lookup batch task {j}: {result}")
+                                continue
+                            
+                            game = result['game']
+                            game_name = result['game_name']
+                            steamgrid_id = result['steamgrid_id']
+                            is_existing = result['existing']
+                            
+                            if steamgrid_id:
+                                if is_existing:
+                                    print(f"ℹ️ Game '{game_name}' already has SteamGridDB ID ({steamgrid_id}) - will download media")
+                                    t = get_task(task_id)
+                                    if t:
+                                        t.log_message(f"Game '{game_name}' already has SteamGridDB ID ({steamgrid_id}) - will download media")
+                                    steamgridid_count += 1  # Count as found since we're using existing ID
+                                else:
+                                    print(f"✅ Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
+                                    t = get_task(task_id)
+                                    if t:
+                                        t.log_message(f"Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
+                                    
+                                    # Update game with SteamGridDB ID
+                                    game['steamgridid'] = str(steamgrid_id)
+                                    steamgridid_count += 1
+                                    
+                                    # Also update the corresponding game in all_games
+                                    for all_game in all_games:
+                                        if all_game['path'] == game['path']:
+                                            all_game['steamgridid'] = str(steamgrid_id)
+                                            break
+                            else:
+                                print(f"❌ No SteamGridDB ID found for '{game_name}'")
+                                t = get_task(task_id)
+                                if t:
+                                    t.log_message(f"No SteamGridDB ID found for '{game_name}'")
+                
+                # Update progress after each batch
+                progress_callback(min(i + batch_size, total_games), total_games)
+            
+            # Now process media downloads in batches
+            games_with_steamgrid_ids = [game for game in all_games_to_process if game.get('steamgridid')]
+            
+            if games_with_steamgrid_ids:
+                print(f"🖼️ Processing media downloads for {len(games_with_steamgrid_ids)} games with SteamGridDB IDs")
+                
+                # Prepare games data for batch media download
+                games_data = []
+                for game in games_with_steamgrid_ids:
+                    games_data.append({
+                        'steamgrid_id': game.get('steamgridid'),
+                        'name': game.get('name', 'Unknown'),
+                        'game': game
+                    })
+                
+                # Process media downloads in batches
+                for i in range(0, len(games_data), batch_size):
+                    # Check for cancellation before each batch
                     if is_cancelled():
-                        print(f"SteamGridDB task {task_id} was cancelled before SteamGridDB ID lookup for '{game_name}'")
+                        print(f"SteamGridDB task {task_id} was cancelled during media download batch processing")
                         break
                     
-                    try:
-                        steamgrid_id = await service.get_steamgrid_id(
-                            steam_id=int(steam_id) if steam_id else None,
-                            game_name=clean_game_name,
-                            api_key=steamgriddb_api_key
-                        )
-                    except Exception as e:
-                        print(f"❌ Error looking up SteamGridDB ID for '{game_name}': {e}")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"Error looking up SteamGridDB ID for '{game_name}': {e}")
-                        steamgrid_id = None
-                
-                if steamgrid_id:
-                    if not existing_steamgridid:
-                        print(f"✅ Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"Found SteamGridDB ID: {steamgrid_id} for '{game_name}'")
-                        
-                        # Update game with SteamGridDB ID
-                        game['steamgridid'] = str(steamgrid_id)
-                        
-                        # Also update the corresponding game in all_games
-                        for all_game in all_games:
-                            if all_game['path'] == game['path']:
-                                all_game['steamgridid'] = str(steamgrid_id)
-                                break
-                    else:
-                        print(f"✅ Using existing SteamGridDB ID: {steamgrid_id} for '{game_name}'")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"Using existing SteamGridDB ID: {steamgrid_id} for '{game_name}'")
+                    batch = games_data[i:i + batch_size]
+                    print(f"🔧 DEBUG: Processing SteamGridDB media download batch {i//batch_size + 1} with {len(batch)} games")
                     
-                    # Download media from SteamGridDB
-                    try:
-                        # Check for cancellation before downloading media
-                        if is_cancelled():
-                            print(f"SteamGridDB task {task_id} was cancelled before downloading media for '{game_name}'")
-                            break
-                        
-                        print(f"🖼️ Downloading SteamGridDB media for '{game_name}' (SteamGridDB ID: {steamgrid_id})")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"Downloading SteamGridDB media for '{game_name}' (SteamGridDB ID: {steamgrid_id})")
-                        
-                        downloaded_media = await service.download_steamgrid_media(
-                            steamgrid_id=steamgrid_id,
-                            game_name=game_name,
-                            roms_root=roms_root,
-                            system_name=system_name,
-                            selected_fields=selected_fields,
-                            image_type_mappings=image_type_mappings,
-                            api_key=steamgriddb_api_key,
-                            overwrite_media_fields=overwrite_media_fields,
-                            gamelist_path=gamelist_path
-                        )
-                        
-                        # Update game with downloaded media paths
-                        for media_field, media_path in downloaded_media.items():
-                            game[media_field] = media_path
-                            # Also update the corresponding game in all_games
-                            for all_game in all_games:
-                                if all_game['path'] == game['path']:
-                                    all_game[media_field] = media_path
-                                    break
-                        
-                        if downloaded_media:
+                    # Create progress callback for this batch
+                    def batch_progress_callback(game_name, result):
+                        nonlocal media_downloaded_count
+                        if result:
                             media_downloaded_count += 1
-                            print(f"🎨 Successfully downloaded {len(downloaded_media)} media files for '{game_name}'")
+                            print(f"🎨 Successfully downloaded {len(result)} media files for '{game_name}'")
                             t = get_task(task_id)
                             if t:
-                                t.log_message(f"Successfully downloaded {len(downloaded_media)} media files for '{game_name}'")
+                                t.log_message(f"Successfully downloaded {len(result)} media files for '{game_name}'")
                         else:
                             print(f"ℹ️ No media files found for '{game_name}' on SteamGridDB")
                             t = get_task(task_id)
                             if t:
                                 t.log_message(f"No media files found for '{game_name}' on SteamGridDB")
+                    
+                    # Download media for this batch
+                    try:
+                        batch_results = await service.download_steamgrid_media_batch(
+                            games_data=batch,
+                            roms_root=roms_root,
+                            system_name=system_name,
+                            selected_fields=selected_fields,
+                            image_type_mappings=image_type_mappings,
+                            max_concurrent=batch_size,
+                            progress_callback=batch_progress_callback,
+                            overwrite_media_fields=overwrite_media_fields,
+                            gamelist_path=gamelist_path,
+                            api_key=steamgriddb_api_key,
+                            cancellation_event=None  # We handle cancellation at batch level
+                        )
+                        
+                        # Update games with downloaded media paths
+                        for game_name, media_results in batch_results.items():
+                            # Find the corresponding game
+                            for game in all_games_to_process:
+                                if game.get('name') == game_name:
+                                    for media_field, media_path in media_results.items():
+                                        game[media_field] = media_path
+                                        # Also update the corresponding game in all_games
+                                        for all_game in all_games:
+                                            if all_game['path'] == game['path']:
+                                                all_game[media_field] = media_path
+                                                break
+                                    break
+                    
                     except Exception as e:
-                        print(f"❌ Failed to download SteamGridDB media for '{game_name}': {e}")
+                        print(f"❌ Error in SteamGridDB media download batch: {e}")
                         t = get_task(task_id)
                         if t:
-                            t.log_message(f"Failed to download SteamGridDB media for '{game_name}': {e}")
-                else:
-                    if steam_id:
-                        print(f"❌ No SteamGridDB ID found for '{game_name}' (Steam ID: {steam_id})")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"No SteamGridDB ID found for '{game_name}' (Steam ID: {steam_id})")
-                    else:
-                        print(f"❌ No SteamGridDB ID found for '{game_name}' (name search)")
-                        t = get_task(task_id)
-                        if t:
-                            t.log_message(f"No SteamGridDB ID found for '{game_name}' (name search)")
-                
-                # Update progress
-                progress_callback(i + 1, total_games)
+                            t.log_message(f"Error in SteamGridDB media download batch: {e}")
+                    
+                    # Update progress after each batch
+                    progress_callback(min(i + batch_size, len(games_data)), len(games_data))
             
             # Save updated gamelist
             if steamgridid_count > 0 or media_downloaded_count > 0:

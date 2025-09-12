@@ -423,6 +423,99 @@ class SteamGridService:
             return None
 
 
+    async def download_steamgrid_media_batch(self, games_data: List[Dict], 
+                                           roms_root: str, system_name: str,
+                                           selected_fields: List[str] = None,
+                                           image_type_mappings: Dict[str, str] = None,
+                                           max_concurrent: int = 10,
+                                           progress_callback=None,
+                                           overwrite_media_fields: bool = False,
+                                           gamelist_path: str = None,
+                                           api_key: str = None,
+                                           cancellation_event=None) -> Dict[str, Dict[str, str]]:
+        """Download SteamGridDB media for multiple games in parallel"""
+        if not games_data:
+            return {}
+        
+        if not image_type_mappings:
+            image_type_mappings = {
+                'grids': 'boxart',
+                'logos': 'marquee', 
+                'heroes': 'fanart'
+            }
+        
+        if not selected_fields:
+            selected_fields = list(image_type_mappings.keys())
+        
+        results = {}
+        
+        # Create HTTP client with connection pooling and HTTP/2
+        limits = httpx.Limits(max_keepalive_connections=50, max_connections=50)
+        async with httpx.AsyncClient(
+            timeout=30.0,
+            limits=limits,
+            http2=True
+        ) as client:
+            # Process games in batches of max_concurrent
+            for i in range(0, len(games_data), max_concurrent):
+                # Check for cancellation before each batch
+                if cancellation_event and cancellation_event.is_set():
+                    logger.info(f"🔧 DEBUG: SteamGridDB batch processing cancelled at batch {i//max_concurrent + 1}")
+                    break
+                
+                batch = games_data[i:i + max_concurrent]
+                logger.info(f"🔧 DEBUG: Processing SteamGridDB batch {i//max_concurrent + 1} with {len(batch)} games")
+                
+                # Create tasks for this batch
+                batch_tasks = []
+                for game_data in batch:
+                    steamgrid_id = game_data.get('steamgrid_id')
+                    game_name = game_data.get('name', 'Unknown')
+                    
+                    if steamgrid_id:
+                        batch_tasks.append(self.download_steamgrid_media(
+                            steamgrid_id, game_name, roms_root, system_name,
+                            selected_fields, image_type_mappings, api_key, overwrite_media_fields, gamelist_path
+                        ))
+                    else:
+                        logger.warning(f"🔧 DEBUG: No SteamGridDB ID for game: {game_name}")
+                        batch_tasks.append(asyncio.create_task(asyncio.sleep(0)))  # Dummy task
+                
+                # Execute batch in parallel
+                if batch_tasks:
+                    logger.info(f"🔧 DEBUG: Executing {len(batch_tasks)} parallel SteamGridDB download tasks")
+                    batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                    
+                    # Process batch results
+                    for j, result in enumerate(batch_results):
+                        if j < len(batch):
+                            game_name = batch[j].get('name', f'Game_{j}')
+                            
+                            if isinstance(result, Exception):
+                                logger.error(f"🔧 DEBUG: Error in SteamGridDB batch task {j}: {result}")
+                                # Call progress callback even for errors
+                                if progress_callback:
+                                    progress_callback(game_name, {})
+                            elif result:
+                                results[game_name] = result
+                                logger.info(f"🔧 DEBUG: Successfully processed SteamGridDB media for {game_name}")
+                                
+                                # Call progress callback for each completed game
+                                if progress_callback:
+                                    progress_callback(game_name, result)
+                            else:
+                                # No media downloaded, but still call progress callback
+                                logger.info(f"🔧 DEBUG: No media downloaded for {game_name}")
+                                if progress_callback:
+                                    progress_callback(game_name, {})
+                
+                # Small delay between batches to be respectful to the server
+                if i + max_concurrent < len(games_data):
+                    await asyncio.sleep(0.1)
+        
+        return results
+
+
 def get_media_directory_and_extensions(gamelist_field: str) -> Tuple[Optional[str], Optional[List[str]]]:
     """Get media directory and extensions for a gamelist field"""
     try:
