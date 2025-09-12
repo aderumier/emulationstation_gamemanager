@@ -165,9 +165,14 @@ class SteamService:
         # Normalize the search name
         normalized_search = normalize_game_name(game_name)
         
+        # Debug logging
+        logger.info(f"🔧 DEBUG: Searching for '{game_name}' -> normalized: '{normalized_search}'")
+        logger.info(f"🔧 DEBUG: Unified index has {len(unified_index)} entries")
+        
         # Try exact match first
         if normalized_search in unified_index:
             candidates = unified_index[normalized_search]
+            logger.info(f"🔧 DEBUG: Found exact match with {len(candidates)} candidates")
             if len(candidates) == 1:
                 return {
                     'app': candidates[0],
@@ -185,23 +190,35 @@ class SteamService:
         # Try partial matches
         best_match = None
         best_score = 0.0
+        partial_matches = []
         
         for index_name, candidates in unified_index.items():
             if normalized_search in index_name or index_name in normalized_search:
                 # Calculate similarity score
                 score = len(set(normalized_search.split()) & set(index_name.split())) / max(len(normalized_search.split()), len(index_name.split()))
+                partial_matches.append((index_name, score, candidates[0]['name']))
                 
                 if score > best_score and score > 0.3:  # Minimum threshold
                     best_match = candidates[0]  # Take first candidate
                     best_score = score
         
+        # Debug logging for partial matches
+        if partial_matches:
+            logger.info(f"🔧 DEBUG: Found {len(partial_matches)} partial matches:")
+            for match_name, score, app_name in sorted(partial_matches, key=lambda x: x[1], reverse=True)[:5]:  # Top 5
+                logger.info(f"🔧 DEBUG:   '{match_name}' -> '{app_name}' (score: {score:.2f})")
+        else:
+            logger.info(f"🔧 DEBUG: No partial matches found")
+        
         if best_match:
+            logger.info(f"🔧 DEBUG: Best match: '{best_match['name']}' (score: {best_score:.2f})")
             return {
                 'app': best_match,
                 'matched_name': best_match['name'],
                 'confidence': best_score
             }
         
+        logger.info(f"🔧 DEBUG: No match found for '{game_name}'")
         return None
     
     async def download_steam_media(self, steam_id: int, game_name: str, 
