@@ -12588,7 +12588,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
             
             print(f"🎮 Processing {len(games_to_process)} games with Steam CDN")
             
-            # Update initial progress
+            # Update initial progress- Games skipped (already had IDs)
             t = get_task(task_id)
             if t:
                 t.update_progress(0, None)
@@ -13043,31 +13043,26 @@ def run_steam_task(system_name, task_id, selected_games=None):
                 print(f"✅ Steam task completed: {updated_count} games updated with Steam IDs, {media_downloaded_count} games with media downloaded, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
                 print(f"📊 Task Summary:")
                 print(f"  - Games processed: {len(games_to_process)}")
-                print(f"  - Steam matches found: {updated_count}")
-                print(f"  - Games with media downloaded: {media_downloaded_count}")
                 print(f"  - Total images downloaded: {total_images_downloaded}")
-                print(f"  - Games skipped (already had IDs): {skipped_count}")
-                print(f"  - Success rate: {((updated_count + skipped_count)/len(games_to_process)*100):.1f}%")
+
+
                 
                 t = get_task(task_id)
                 if t:
                     t.log_message(f"📊 Task Summary:")
                     t.log_message(f"  - Games processed: {len(games_to_process)}")
-                    t.log_message(f"  - Steam matches found: {updated_count}")
-                    t.log_message(f"  - Games with media downloaded: {media_downloaded_count}")
+
+                    
                     t.log_message(f"  - Total images downloaded: {total_images_downloaded}")
-                    t.log_message(f"  - Games skipped (already had IDs): {skipped_count}")
-                    t.log_message(f"  - Success rate: {((updated_count + skipped_count)/len(games_to_process)*100):.1f}%")
+
+                    
                     t.complete(True, f"Steam task completed: {updated_count} games updated with Steam IDs, {media_downloaded_count} games with media downloaded, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
             else:
                 print("ℹ️ Steam task completed: No Steam matches found")
                 print(f"📊 Task Summary:")
                 print(f"  - Games processed: {len(games_to_process)}")
-                print(f"  - Steam matches found: 0")
-                print(f"  - Games with media downloaded: 0")
                 print(f"  - Total images downloaded: {total_images_downloaded}")
-                print(f"  - Games skipped (already had IDs): {skipped_count}")
-                print(f"  - Success rate: {(skipped_count/len(games_to_process)*100):.1f}%")
+
                 
                 # Save gamelist even if no matches found (in case there were some media downloads)
                 if total_images_downloaded > 0:
