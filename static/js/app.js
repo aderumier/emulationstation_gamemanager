@@ -3655,6 +3655,7 @@ class GameCollectionManager {
         game.publisher = document.getElementById('editPublisher').value;
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
+        game.launchboxid = document.getElementById('editLaunchboxId').value;
         game.igdbid = document.getElementById('editIgdbId').value;
         game.screenscraperid = document.getElementById('editScreenscraperId').value;
         game.steamid = document.getElementById('editSteamId').value;
@@ -3672,6 +3673,10 @@ class GameCollectionManager {
         if (originalGame.publisher !== game.publisher) changedFields.push('publisher');
         if (originalGame.rating !== game.rating) changedFields.push('rating');
         if (originalGame.players !== game.players) changedFields.push('players');
+        if (originalGame.launchboxid !== game.launchboxid) changedFields.push('launchboxid');
+        if (originalGame.igdbid !== game.igdbid) changedFields.push('igdbid');
+        if (originalGame.screenscraperid !== game.screenscraperid) changedFields.push('screenscraperid');
+        if (originalGame.steamid !== game.steamid) changedFields.push('steamid');
         if (originalGame.steamgridid !== game.steamgridid) changedFields.push('steamgridid');
         if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
         
@@ -9724,8 +9729,8 @@ class GameCollectionManager {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    selected_games: gamesToScrape.map(game => game.path),
-                    selected_fields: selectedFields
+                selected_games: gamesToScrape.map(game => game.path),
+                selected_fields: selectedFields
                 })
             });
             
