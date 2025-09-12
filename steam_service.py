@@ -153,7 +153,6 @@ class SteamService:
         unified_index = self._build_unified_index(apps)
         
         # Normalize the search name - remove parentheses for Steam matching
-        import re
         steam_normalized = re.sub(r'\([^)]*\)', '', game_name)  # Remove parentheses for Steam
         normalized_search = normalize_game_name(steam_normalized)
         
