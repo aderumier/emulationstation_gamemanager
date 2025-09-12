@@ -139,16 +139,6 @@ class SteamService:
             if normalized_name not in unified_index:
                 unified_index[normalized_name] = []
             unified_index[normalized_name].append(app)
-            
-            # Also store variations (without common words)
-            words = normalized_name.split()
-            if len(words) > 1:
-                # Try without first word (often "the", "a", etc.)
-                if words[0].lower() in ['the', 'a', 'an']:
-                    variation = ' '.join(words[1:])
-                    if variation not in unified_index:
-                        unified_index[variation] = []
-                    unified_index[variation].append(app)
         
         self._unified_index = unified_index
         logger.info(f"Built unified index with {len(unified_index)} search terms")
