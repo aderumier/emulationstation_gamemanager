@@ -2151,7 +2151,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <div class="row">
                         <div class="col-md-8">
                             <div class="mb-3">
-                                <label for="boxGeneratorMediaField" class="form-label">Media Field</label>
+                                <label for="boxGeneratorMediaField" class="form-label">Target Media Field</label>
                                 <select class="form-select" id="boxGeneratorMediaField">
                                     <option value="">Loading media fields...</option>
                                 </select>
@@ -2168,9 +2168,46 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     
+                    <hr>
+                    
+                    <div class="mb-3">
+                        <h6>Source Media Field Mappings</h6>
+                        <p class="text-muted small">Configure which gamelist fields the 2D box generator should use as sources for titlescreen, gameplay, and logo images.</p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="boxGeneratorTitlescreenField" class="form-label">Titlescreen Field</label>
+                                <select class="form-select" id="boxGeneratorTitlescreenField">
+                                    <option value="">Loading...</option>
+                                </select>
+                                <div class="form-text">Field for titlescreen images</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="boxGeneratorGameplayField" class="form-label">Gameplay Field</label>
+                                <select class="form-select" id="boxGeneratorGameplayField">
+                                    <option value="">Loading...</option>
+                                </select>
+                                <div class="form-text">Field for gameplay/screenshot images</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="boxGeneratorLogoField" class="form-label">Logo Field</label>
+                                <select class="form-select" id="boxGeneratorLogoField">
+                                    <option value="">Loading...</option>
+                                </select>
+                                <div class="form-text">Field for logo/marquee images</div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
-                        <strong>Note:</strong> The 2D box generator creates composite images from titlescreen, gameplay, and logo images. The selected media field determines where these generated images are stored in your gamelist.
+                        <strong>Note:</strong> The 2D box generator creates composite images from titlescreen, gameplay, and logo images. Configure which gamelist fields contain these source images and where the generated boxes should be saved.
                     </div>
                 </div>
                 <div class="modal-footer">

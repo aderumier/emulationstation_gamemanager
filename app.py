@@ -9062,12 +9062,19 @@ def run_2d_box_generation_task(system_name, selected_games):
         media_config = load_media_config()
         print(f"🔧 DEBUG: Media config loaded: {media_config}")
         
-        # Get the target media field from 2D box generator config
+        # Get the target media field and source field mappings from 2D box generator config
         box2d_config = media_config.get('2dboxgenerator', {})
         target_media_field = box2d_config.get('media_field', 'thumbnail')
+        source_fields = box2d_config.get('source_fields', {
+            'titlescreen': 'titleshot',
+            'gameplay': 'image',
+            'logo': 'marquee'
+        })
         print(f"🔧 DEBUG: Target media field: {target_media_field}")
+        print(f"🔧 DEBUG: Source field mappings: {source_fields}")
         print(f"🔧 DEBUG: Available media fields: {list(media_config.get('media_fields', {}).keys())}")
         task.update_progress(f"🎯 Target media field: {target_media_field}")
+        task.update_progress(f"📋 Source mappings: {source_fields}")
         
         # Find the media directory for the target field
         box2d_directory = get_media_directory(target_media_field)
@@ -9125,23 +9132,26 @@ def run_2d_box_generation_task(system_name, selected_games):
             
             print(f"🔧 DEBUG: Looking for media files for {game_name}")
             
-            # Look for titlescreen (titleshot field)
-            titleshot = game_data.get('titleshot')
-            print(f"🔧 DEBUG: Titleshot field: {titleshot}")
+            # Look for titlescreen using dynamic field mapping
+            titlescreen_field = source_fields.get('titlescreen', 'titleshot')
+            titleshot = game_data.get(titlescreen_field)
+            print(f"🔧 DEBUG: {titlescreen_field} field: {titleshot}")
             if titleshot and titleshot.startswith('./'):
                 titlescreen_path = os.path.join(system_path, titleshot[2:])
                 print(f"🔧 DEBUG: Titlescreen path: {titlescreen_path}")
             
-            # Look for screenshot (image field)
-            screenshot = game_data.get('image')
-            print(f"🔧 DEBUG: Screenshot field: {screenshot}")
+            # Look for gameplay using dynamic field mapping
+            gameplay_field = source_fields.get('gameplay', 'image')
+            screenshot = game_data.get(gameplay_field)
+            print(f"🔧 DEBUG: {gameplay_field} field: {screenshot}")
             if screenshot and screenshot.startswith('./'):
                 gameplay_path = os.path.join(system_path, screenshot[2:])
                 print(f"🔧 DEBUG: Gameplay path: {gameplay_path}")
             
-            # Look for logo (marquee)
-            marquee = game_data.get('marquee')
-            print(f"🔧 DEBUG: Marquee field: {marquee}")
+            # Look for logo using dynamic field mapping
+            logo_field = source_fields.get('logo', 'marquee')
+            marquee = game_data.get(logo_field)
+            print(f"🔧 DEBUG: {logo_field} field: {marquee}")
             if marquee and marquee.startswith('./'):
                 logo_path = os.path.join(system_path, marquee[2:])
                 print(f"🔧 DEBUG: Logo path: {logo_path}")
@@ -9149,11 +9159,11 @@ def run_2d_box_generation_task(system_name, selected_games):
             # Check if all required files exist
             missing_files = []
             if not titlescreen_path or not os.path.exists(titlescreen_path):
-                missing_files.append('titleshot')
+                missing_files.append(titlescreen_field)
             if not gameplay_path or not os.path.exists(gameplay_path):
-                missing_files.append('screenshot')
+                missing_files.append(gameplay_field)
             if not logo_path or not os.path.exists(logo_path):
-                missing_files.append('logo')
+                missing_files.append(logo_field)
             
             print(f"🔧 DEBUG: Missing files: {missing_files}")
             

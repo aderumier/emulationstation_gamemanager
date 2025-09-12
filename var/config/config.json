@@ -192,7 +192,12 @@
         }
     },
     "2dboxgenerator": {
-        "media_field": "thumbnail"
+        "media_field": "boxart",
+        "source_fields": {
+            "titlescreen": "titleshot",
+            "gameplay": "image", 
+            "logo": "marquee"
+        }
     },
     "systems": {
         "mame": {

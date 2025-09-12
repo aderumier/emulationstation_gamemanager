@@ -11672,11 +11672,17 @@ class GameCollectionManager {
             
             if (response.ok) {
                 const mediaFields = config.media_fields || {};
-                const currentField = config['2dboxgenerator']?.media_field || 'thumbnail';
+                const boxGeneratorConfig = config['2dboxgenerator'] || {};
+                const currentField = boxGeneratorConfig.media_field || 'thumbnail';
+                const sourceFields = boxGeneratorConfig.source_fields || {
+                    'titlescreen': 'titleshot',
+                    'gameplay': 'image',
+                    'logo': 'marquee'
+                };
                 
-                // Populate the combobox
-                const select = document.getElementById('boxGeneratorMediaField');
-                select.innerHTML = '';
+                // Populate the target media field combobox
+                const targetSelect = document.getElementById('boxGeneratorMediaField');
+                targetSelect.innerHTML = '';
                 
                 Object.keys(mediaFields).forEach(field => {
                     const option = document.createElement('option');
@@ -11685,8 +11691,28 @@ class GameCollectionManager {
                     if (field === currentField) {
                         option.selected = true;
                     }
-                    select.appendChild(option);
+                    targetSelect.appendChild(option);
                 });
+                
+                // Populate the source field comboboxes
+                const populateSourceField = (selectId, currentValue) => {
+                    const select = document.getElementById(selectId);
+                    select.innerHTML = '';
+                    
+                    Object.keys(mediaFields).forEach(field => {
+                        const option = document.createElement('option');
+                        option.value = field;
+                        option.textContent = field;
+                        if (field === currentValue) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                };
+                
+                populateSourceField('boxGeneratorTitlescreenField', sourceFields.titlescreen);
+                populateSourceField('boxGeneratorGameplayField', sourceFields.gameplay);
+                populateSourceField('boxGeneratorLogoField', sourceFields.logo);
                 
                 // Update current setting display
                 const currentFieldDisplay = document.getElementById('currentBoxGeneratorField');
@@ -11704,9 +11730,17 @@ class GameCollectionManager {
     async save2DBoxGeneratorConfig() {
         try {
             const selectedField = document.getElementById('boxGeneratorMediaField').value;
+            const titlescreenField = document.getElementById('boxGeneratorTitlescreenField').value;
+            const gameplayField = document.getElementById('boxGeneratorGameplayField').value;
+            const logoField = document.getElementById('boxGeneratorLogoField').value;
             
             if (!selectedField) {
-                this.showAlert('Please select a media field', 'warning');
+                this.showAlert('Please select a target media field', 'warning');
+                return;
+            }
+            
+            if (!titlescreenField || !gameplayField || !logoField) {
+                this.showAlert('Please select all source media fields', 'warning');
                 return;
             }
             
@@ -11717,7 +11751,12 @@ class GameCollectionManager {
                 },
                 body: JSON.stringify({
                     '2dboxgenerator': {
-                        'media_field': selectedField
+                        'media_field': selectedField,
+                        'source_fields': {
+                            'titlescreen': titlescreenField,
+                            'gameplay': gameplayField,
+                            'logo': logoField
+                        }
                     }
                 })
             });
