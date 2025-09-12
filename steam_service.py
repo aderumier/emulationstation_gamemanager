@@ -422,7 +422,7 @@ class SteamService:
                 
                 if should_convert and needs_conversion(file_path, target_extension):
                     converted_path, status = convert_image_replace(file_path, target_extension)
-                    if converted_path and status == 'success':
+                    if converted_path and status in ['success', 'converted']:
                         file_path = converted_path
                         logger.info(f"🔧 DEBUG: Converted {target_field} to {target_extension}: {file_path}")
                     else:
