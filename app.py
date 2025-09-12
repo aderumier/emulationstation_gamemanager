@@ -12648,6 +12648,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
             print(f"🔧 DEBUG: Starting batch processing for {len(games_to_process)} games")
             updated_count = 0
             media_downloaded_count = 0
+            total_images_downloaded = 0
             skipped_count = 0
             
             # Prepare games data for batch processing
@@ -12671,10 +12672,10 @@ def run_steam_task(system_name, task_id, selected_games=None):
                         # Notify clients of gamelist update
                         notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
                         
-                        print(f"✅ Partial changes saved: {updated_count} Steam IDs, {media_downloaded_count} games with media downloaded, {skipped_count} games skipped")
+                        print(f"✅ Partial changes saved: {updated_count} Steam IDs, {media_downloaded_count} games with media downloaded, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
                         t = get_task(task_id)
                         if t:
-                            t.complete(True, f"Steam task cancelled - partial changes saved: {updated_count} Steam IDs, {media_downloaded_count} games with media downloaded, {skipped_count} games skipped")
+                            t.complete(True, f"Steam task cancelled - partial changes saved: {updated_count} Steam IDs, {media_downloaded_count} games with media downloaded, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
                     else:
                         print("ℹ️ No changes to save before cancellation")
                         t = get_task(task_id)
@@ -12720,12 +12721,13 @@ def run_steam_task(system_name, task_id, selected_games=None):
                     # Define progress callback for individual game completion
                     def steam_progress_callback(game_name, downloaded_media):
                         """Handle progress for each completed game"""
-                        nonlocal completed_games, total_completed_games
+                        nonlocal completed_games, total_completed_games, total_images_downloaded
                         completed_games += 1
                         total_completed_games += 1
                         
                         if downloaded_media:
                             media_count = len(downloaded_media)
+                            total_images_downloaded += media_count
                             print(f"🎨 Successfully downloaded {media_count} media files for '{game_name}'")
                             t = get_task(task_id)
                             if t:
@@ -12871,9 +12873,6 @@ def run_steam_task(system_name, task_id, selected_games=None):
                                 for all_game in all_games:
                                     if all_game['path'] == game['path']:
                                         all_game['steamid'] = str(steam_id)
-                                        break
-                                
-                                updated_count += 1
                                 
                                 # Add to games with Steam IDs for media download
                                 games_with_steam_ids.append({
@@ -12881,6 +12880,8 @@ def run_steam_task(system_name, task_id, selected_games=None):
                                     'steam_id': steam_id,
                                     'name': game_name
                                 })
+                                
+                                updated_count += 1
                             else:
                                 print(f"❌ No Steam ID found for '{game_name}'")
                                 t = get_task(task_id)
@@ -12928,12 +12929,13 @@ def run_steam_task(system_name, task_id, selected_games=None):
                         # Define progress callback for individual game completion
                         def steam_progress_callback(game_name, downloaded_media):
                             """Handle progress for each completed game"""
-                            nonlocal completed_games, total_completed_games
+                            nonlocal completed_games, total_completed_games, total_images_downloaded
                             completed_games += 1
                             total_completed_games += 1
                             
                             if downloaded_media:
                                 media_count = len(downloaded_media)
+                                total_images_downloaded += media_count
                                 print(f"🎨 Successfully downloaded {media_count} media files for '{game_name}'")
                                 t = get_task(task_id)
                                 if t:
@@ -13004,34 +13006,77 @@ def run_steam_task(system_name, task_id, selected_games=None):
                 t = get_task(task_id)
                 if t:
                     t.update_progress(95, None)
-                    t.log_message(f"Saving updated gamelist with {updated_count} Steam IDs...")
+                    t.log_message(f"💾 Saving updated gamelist with {updated_count} Steam IDs...")
                 
-                # Gamelist saving is now handled in the finally block
-                # notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+                # Save gamelist and notify
+                try:
+                    save_gamelist_xml(gamelist_path, all_games)
+                    notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+                    print(f"✅ Gamelist saved successfully for {system_name}")
+                    if t:
+                        t.log_message(f"✅ Gamelist saved successfully for {system_name}")
+                except Exception as e:
+                    print(f"❌ Error saving gamelist: {e}")
+                    if t:
+                        t.log_message(f"❌ Error saving gamelist: {e}")
                 
-                print(f"✅ Steam task completed: {updated_count} games updated with Steam IDs, {media_downloaded_count} games with media downloaded, {skipped_count} games skipped")
+                print(f"✅ Steam task completed: {updated_count} games updated with Steam IDs, {media_downloaded_count} games with media downloaded, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
                 print(f"📊 Task Summary:")
                 print(f"  - Games processed: {len(games_to_process)}")
                 print(f"  - Steam matches found: {updated_count}")
                 print(f"  - Games with media downloaded: {media_downloaded_count}")
+                print(f"  - Total images downloaded: {total_images_downloaded}")
                 print(f"  - Games skipped (already had IDs): {skipped_count}")
                 print(f"  - Success rate: {((updated_count + skipped_count)/len(games_to_process)*100):.1f}%")
                 
                 t = get_task(task_id)
                 if t:
-                    t.complete(True, f"Steam task completed: {updated_count} games updated with Steam IDs, {media_downloaded_count} games with media downloaded, {skipped_count} games skipped")
+                    t.log_message(f"📊 Task Summary:")
+                    t.log_message(f"  - Games processed: {len(games_to_process)}")
+                    t.log_message(f"  - Steam matches found: {updated_count}")
+                    t.log_message(f"  - Games with media downloaded: {media_downloaded_count}")
+                    t.log_message(f"  - Total images downloaded: {total_images_downloaded}")
+                    t.log_message(f"  - Games skipped (already had IDs): {skipped_count}")
+                    t.log_message(f"  - Success rate: {((updated_count + skipped_count)/len(games_to_process)*100):.1f}%")
+                    t.complete(True, f"Steam task completed: {updated_count} games updated with Steam IDs, {media_downloaded_count} games with media downloaded, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
             else:
                 print("ℹ️ Steam task completed: No Steam matches found")
                 print(f"📊 Task Summary:")
                 print(f"  - Games processed: {len(games_to_process)}")
                 print(f"  - Steam matches found: 0")
                 print(f"  - Games with media downloaded: 0")
+                print(f"  - Total images downloaded: {total_images_downloaded}")
                 print(f"  - Games skipped (already had IDs): {skipped_count}")
                 print(f"  - Success rate: {(skipped_count/len(games_to_process)*100):.1f}%")
                 
+                # Save gamelist even if no matches found (in case there were some media downloads)
+                if total_images_downloaded > 0:
+                    print(f"💾 Saving updated gamelist for {system_name}...")
+                    t = get_task(task_id)
+                    if t:
+                        t.log_message(f"💾 Saving updated gamelist for {system_name}...")
+                    
+                    try:
+                        save_gamelist_xml(gamelist_path, all_games)
+                        notify_gamelist_updated(system_name, len(all_games), updated_count=0)
+                        print(f"✅ Gamelist saved successfully for {system_name}")
+                        if t:
+                            t.log_message(f"✅ Gamelist saved successfully for {system_name}")
+                    except Exception as e:
+                        print(f"❌ Error saving gamelist: {e}")
+                        if t:
+                            t.log_message(f"❌ Error saving gamelist: {e}")
+                
                 t = get_task(task_id)
                 if t:
-                    t.complete(True, f"Steam task completed: No Steam matches found, {skipped_count} games skipped")
+                    t.log_message(f"📊 Task Summary:")
+                    t.log_message(f"  - Games processed: {len(games_to_process)}")
+                    t.log_message(f"  - Steam matches found: 0")
+                    t.log_message(f"  - Games with media downloaded: 0")
+                    t.log_message(f"  - Total images downloaded: {total_images_downloaded}")
+                    t.log_message(f"  - Games skipped (already had IDs): {skipped_count}")
+                    t.log_message(f"  - Success rate: {(skipped_count/len(games_to_process)*100):.1f}%")
+                    t.complete(True, f"Steam task completed: No Steam matches found, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
                 
         except Exception as e:
             print(f"🔧 DEBUG: Exception caught in Steam task {task_id}: {e}")
@@ -13062,23 +13107,37 @@ def run_steam_task(system_name, task_id, selected_games=None):
             except Exception as e:
                 print(f"🔧 DEBUG: Error cleaning up cancellation event for task {task_id}: {e}")
             
-            # Save gamelist only if task was not cancelled
-            if not is_cancelled():
-                try:
-                    print(f"💾 Saving updated gamelist for {system_name}...")
-                    save_gamelist_xml(gamelist_path, all_games)
-                    
-                    # Notify clients of gamelist update
-                    notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
-                    
-                    print(f"✅ Gamelist saved successfully for {system_name}")
-                except Exception as e:
-                    print(f"❌ Error saving gamelist: {e}")
+            # Save gamelist regardless of cancellation status (user might have downloaded some media)
+            try:
+                if is_cancelled():
+                    print(f"💾 Saving updated gamelist for {system_name} (task was cancelled but saving progress)...")
                     t = get_task(task_id)
                     if t:
-                        t.log_message(f"Error saving gamelist: {e}")
-            else:
-                print(f"🔧 DEBUG: Skipping gamelist save due to task cancellation for {task_id}")
+                        t.log_message(f"💾 Saving updated gamelist for {system_name} (task was cancelled but saving progress)...")
+                else:
+                    print(f"💾 Saving updated gamelist for {system_name}...")
+                    t = get_task(task_id)
+                    if t:
+                        t.log_message(f"💾 Saving updated gamelist for {system_name}...")
+                
+                save_gamelist_xml(gamelist_path, all_games)
+                
+                # Notify clients of gamelist update
+                notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+                
+                if is_cancelled():
+                    print(f"✅ Gamelist saved successfully for {system_name} (cancelled task progress saved)")
+                    if t:
+                        t.log_message(f"✅ Gamelist saved successfully for {system_name} (cancelled task progress saved)")
+                else:
+                    print(f"✅ Gamelist saved successfully for {system_name}")
+                    if t:
+                        t.log_message(f"✅ Gamelist saved successfully for {system_name}")
+            except Exception as e:
+                print(f"❌ Error saving gamelist: {e}")
+                t = get_task(task_id)
+                if t:
+                    t.log_message(f"❌ Error saving gamelist: {e}")
     
     # Run the async function in a new thread
     def run_async():
@@ -13342,7 +13401,6 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None):
                             t = get_task(task_id)
                             if t:
                                 t.log_message(f"No media files found for '{game_name}' on SteamGridDB")
-                            
                     except Exception as e:
                         print(f"❌ Failed to download SteamGridDB media for '{game_name}': {e}")
                         t = get_task(task_id)
