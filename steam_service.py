@@ -189,6 +189,7 @@ class SteamService:
                                  roms_root: str, system_name: str,
                                  selected_fields: List[str] = None,
                                  image_type_mappings: Dict[str, str] = None,
+                                 overwrite_media_fields: bool = False,
                                  cancellation_event=None) -> Dict[str, str]:
         """Download media from Steam CDN"""
         if not steam_id or not game_name:
@@ -244,7 +245,7 @@ class SteamService:
                 target_field = image_type_mappings.get(media_type, media_type)
                 download_tasks.append(self._download_single_media(
                     client, url, media_type, target_field, game_name, 
-                    steam_id, roms_root, system_name, cancellation_event
+                    steam_id, roms_root, system_name, overwrite_media_fields, cancellation_event
                 ))
             
             # Execute all downloads in parallel
@@ -269,6 +270,7 @@ class SteamService:
                                        image_type_mappings: Dict[str, str] = None,
                                        max_concurrent: int = 10,
                                        progress_callback=None,
+                                       overwrite_media_fields: bool = False,
                                        cancellation_event=None) -> Dict[str, Dict[str, str]]:
         """Download Steam media for multiple games in parallel"""
         if not games_data:
@@ -312,7 +314,7 @@ class SteamService:
                     if steam_id:
                         batch_tasks.append(self.download_steam_media(
                             steam_id, game_name, roms_root, system_name,
-                            selected_fields, image_type_mappings
+                            selected_fields, image_type_mappings, overwrite_media_fields
                         ))
                     else:
                         logger.warning(f"🔧 DEBUG: No Steam ID for game: {game_name}")
@@ -356,6 +358,7 @@ class SteamService:
                                    media_type: str, target_field: str, 
                                    game_name: str, steam_id: int, 
                                    roms_root: str, system_name: str,
+                                   overwrite_media_fields: bool = False,
                                    cancellation_event=None) -> Optional[Dict[str, str]]:
         """Download a single media file"""
         try:
@@ -363,6 +366,23 @@ class SteamService:
             if cancellation_event and cancellation_event.is_set():
                 logger.info(f"🔧 DEBUG: Steam {media_type} download cancelled for {game_name}")
                 return None
+            
+            # Check if media already exists and we're not overwriting
+            if not overwrite_media_fields:
+                # Get media directory and extensions
+                media_dir, extensions = get_media_directory_and_extensions(target_field)
+                if media_dir and extensions:
+                    full_media_dir = os.path.join(roms_root, system_name, "media", media_dir)
+                    safe_filename = re.sub(r'[<>:"/\\|?*]', '_', game_name)
+                    safe_filename = safe_filename.strip()
+                    
+                    # Check if any of the possible files exist
+                    for ext in extensions:
+                        potential_file = os.path.join(full_media_dir, f"{safe_filename}.{ext}")
+                        if os.path.exists(potential_file):
+                            print(f"🔧 DEBUG: Media already exists for {game_name} ({target_field}), skipping download")
+                            logger.info(f"🔧 DEBUG: Media already exists for {game_name} ({target_field}), skipping download")
+                            return None
             
             print(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")
             logger.info(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")

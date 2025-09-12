@@ -12486,7 +12486,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
 # IGDB Scraper API Routes
 # =============================================================================
 
-def run_steam_task(system_name, task_id, selected_games=None):
+def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fields=False):
     """Run Steam task for a specific system (Steam CDN only)"""
     import asyncio
     import threading
@@ -12514,7 +12514,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
             t.update_progress(progress, None, current_step=completed, total_steps=total)
             print(f"🔄 Steam Progress: {completed}/{total} ({progress}%)")
     
-    async def async_steam():
+    async def async_steam(overwrite_media_fields=False):
         service = None
         cancellation_event = None
         global _steam_cancel_events
@@ -12522,6 +12522,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
         try:
             print(f"🔧 DEBUG: Entering async_steam function for task {task_id}")
             print(f"Starting Steam task for system: {system_name}")
+            print(f"🔧 DEBUG: Overwrite media fields: {overwrite_media_fields}")
             
             # Create cancellation event and store it globally
             import multiprocessing
@@ -12760,6 +12761,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
                         system_name=system_name,
                         selected_fields=selected_fields,
                         image_type_mappings=image_type_mappings,
+                        overwrite_media_fields=overwrite_media_fields,
                         max_concurrent=10,
                         progress_callback=steam_progress_callback,
                         cancellation_event=cancellation_event
@@ -12983,6 +12985,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
                             system_name=system_name,
                             selected_fields=selected_fields,
                             image_type_mappings=image_type_mappings,
+                            overwrite_media_fields=overwrite_media_fields,
                             max_concurrent=10,
                             progress_callback=steam_progress_callback,
                             cancellation_event=cancellation_event
@@ -13164,7 +13167,7 @@ def run_steam_task(system_name, task_id, selected_games=None):
         asyncio.set_event_loop(loop)
         try:
             print(f"🔧 DEBUG: Running async_steam in thread for task {task_id}")
-            loop.run_until_complete(async_steam())
+            loop.run_until_complete(async_steam(overwrite_media_fields))
             print(f"🔧 DEBUG: async_steam completed successfully for task {task_id}")
         except Exception as e:
             print(f"🔧 DEBUG: Exception in async thread for task {task_id}: {e}")
@@ -13804,11 +13807,24 @@ def scrap_steam_system(system_name):
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
         
+        # Get Steam preferences from cookies
+        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteam', 'false').lower() == 'true'
+        
+        # Get selected media fields from cookies if not provided
+        if not selected_fields:
+            selected_fields = []
+            steam_fields = ['capsule', 'logo', 'hero']
+            for field in steam_fields:
+                cookie_name = f'steamField_{field}'
+                if request.cookies.get(cookie_name, 'true').lower() == 'true':
+                    selected_fields.append(field)
+        
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
-            'selected_fields': selected_fields
+            'selected_fields': selected_fields,
+            'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
@@ -13828,7 +13844,7 @@ def scrap_steam_system(system_name):
         import threading
         scraper_thread = threading.Thread(
             target=run_steam_task,
-            args=(system_name, task.id, selected_games),
+            args=(system_name, task.id, selected_games, overwrite_media_fields),
             daemon=True
         )
         scraper_thread.start()

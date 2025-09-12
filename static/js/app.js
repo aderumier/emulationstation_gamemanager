@@ -1385,6 +1385,11 @@ class GameCollectionManager {
             this.setCookie('overwriteMediaFields', e.target.checked);
         });
 
+        // Steam overwrite media fields toggle (in Steam Configuration modal)
+        document.getElementById('overwriteMediaFieldsSteamModal').addEventListener('change', (e) => {
+            this.setCookie('overwriteMediaFieldsSteam', e.target.checked);
+        });
+
         // ScreenScraper overwrite text fields toggle (in ScreenScraper Configuration modal)
         document.getElementById('overwriteTextFieldsScreenscraperModal').addEventListener('change', (e) => {
             this.setCookie('overwriteTextFieldsScreenscraper', e.target.checked);
@@ -1402,6 +1407,13 @@ class GameCollectionManager {
             });
         });
 
+        // Steam field selection checkboxes
+        document.querySelectorAll('.steam-field-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', async () => {
+                await this.saveSteamFieldSettings();
+            });
+        });
+
         // IGDB field selection quick actions
         document.getElementById('selectAllFields').addEventListener('click', async () => {
             document.querySelectorAll('.igdb-field-checkbox').forEach(checkbox => {
@@ -1415,6 +1427,21 @@ class GameCollectionManager {
                 checkbox.checked = false;
             });
             await this.saveIgdbFieldSettings();
+        });
+
+        // Steam field selection quick actions
+        document.getElementById('selectAllSteamFields').addEventListener('click', async () => {
+            document.querySelectorAll('.steam-field-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            await this.saveSteamFieldSettings();
+        });
+
+        document.getElementById('deselectAllSteamFields').addEventListener('click', async () => {
+            document.querySelectorAll('.steam-field-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            await this.saveSteamFieldSettings();
         });
 
         // ScreenScraper field selection checkboxes
@@ -6180,6 +6207,19 @@ class GameCollectionManager {
             console.warn('openIgdbModal element not found');
         }
 
+        // Add event listener for opening Steam modal
+        const openSteamModal = document.getElementById('openSteamModal');
+        if (openSteamModal) {
+            console.log('Found openSteamModal element, adding click listener');
+            openSteamModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('Steam Scrap Preferences modal link clicked');
+                this.openSteamScrapPreferencesModal();
+            });
+        } else {
+            console.warn('openSteamModal element not found');
+        }
+
         // Add event listener for opening ScreenScraper modal
         const openScreenscraperModal = document.getElementById('openScreenscraperModal');
         if (openScreenscraperModal) {
@@ -6438,6 +6478,81 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error saving IGDB credentials:', error);
             alert('Error saving credentials. Please try again.');
+        }
+    }
+
+    // Steam Configuration Functions
+    openSteamScrapPreferencesModal() {
+        // Load current settings before opening modal
+        this.loadSteamSettings();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('steamConfigurationModal'));
+        modal.show();
+    }
+    
+    loadSteamSettings() {
+        // Load saved settings from cookies
+        const savedOverwriteMediaFields = this.getCookie('overwriteMediaFieldsSteam');
+        
+        // Update modal checkboxes with saved values
+        const overwriteMediaCheckbox = document.getElementById('overwriteMediaFieldsSteamModal');
+        
+        if (overwriteMediaCheckbox) {
+            overwriteMediaCheckbox.checked = savedOverwriteMediaFields === 'true';
+        }
+        
+        // Load field selection settings
+        this.loadSteamFieldSettings();
+    }
+    
+    loadSteamFieldSettings() {
+        // Load saved field selections from cookies
+        const steamFields = ['capsule', 'logo', 'hero'];
+        
+        steamFields.forEach(field => {
+            const cookieName = `steamField_${field}`;
+            const savedValue = this.getCookie(cookieName);
+            // Convert field name to checkbox ID format: field -> Field
+            const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+            const checkboxId = `steamField${fieldId}`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            if (checkbox) {
+                if (savedValue !== null) {
+                    checkbox.checked = savedValue === 'true';
+                } else {
+                    // Default to checked if no saved value
+                    checkbox.checked = true;
+                }
+                console.log(`🔧 DEBUG: Loaded Steam field "${field}" (${cookieName}):`, checkbox.checked);
+            } else {
+                console.log(`🔧 DEBUG: Checkbox not found for Steam field "${field}" (${checkboxId})`);
+            }
+        });
+    }
+    
+    async saveSteamFieldSettings() {
+        try {
+            // Save field selections to cookies
+            const steamFields = ['capsule', 'logo', 'hero'];
+            
+            steamFields.forEach(field => {
+                // Convert field name to checkbox ID format: field -> Field
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                const checkboxId = `steamField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                const cookieName = `steamField_${field}`;
+                
+                if (checkbox) {
+                    this.setCookie(cookieName, checkbox.checked);
+                    console.log(`🔧 DEBUG: Saved Steam cookie for field "${field}" (${cookieName}):`, checkbox.checked);
+                } else {
+                    console.log(`🔧 DEBUG: Checkbox not found for Steam field "${field}" (${checkboxId})`);
+                }
+            });
+        } catch (error) {
+            console.error('Error saving Steam field settings:', error);
         }
     }
 
