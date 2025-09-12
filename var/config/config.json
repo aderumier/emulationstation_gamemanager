@@ -195,7 +195,7 @@
         "media_field": "boxart",
         "source_fields": {
             "titlescreen": "titleshot",
-            "gameplay": "image", 
+            "gameplay": "image",
             "logo": "marquee"
         }
     },
