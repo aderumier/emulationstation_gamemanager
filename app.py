@@ -775,46 +775,73 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         'progress_percentage': 0,
         'stats': stats,
     })
-    metadata_path = get_launchbox_metadata_path()
-    os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
-    if not os.path.exists(metadata_path):
-        return {'success': False, 'error': 'Metadata.xml not found'}
+    try:
+        print(f"🔧 DEBUG: Loading LaunchBox metadata...")
+        metadata_path = get_launchbox_metadata_path()
+        print(f"🔧 DEBUG: Metadata path: {metadata_path}")
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        if not os.path.exists(metadata_path):
+            error_msg = f'Metadata.xml not found at {metadata_path}'
+            print(f"❌ ERROR: {error_msg}")
+            return {'success': False, 'error': error_msg}
+    except Exception as e:
+        error_msg = f'Error loading metadata: {str(e)}'
+        print(f"❌ ERROR: {error_msg}")
+        return {'success': False, 'error': error_msg}
     
-    # Load only platform-specific metadata cache (games + alternate names, no images)
-    platform_cache = load_platform_metadata_cache(current_system_platform, mapping_config=mapping_config)
-    games_cache = platform_cache['games_cache']
-    alternate_names_cache = platform_cache['alternate_names_cache']
+    try:
+        print(f"🔧 DEBUG: Loading platform metadata cache for {current_system_platform}...")
+        # Load only platform-specific metadata cache (games + alternate names, no images)
+        platform_cache = load_platform_metadata_cache(current_system_platform, mapping_config=mapping_config)
+        games_cache = platform_cache['games_cache']
+        alternate_names_cache = platform_cache['alternate_names_cache']
+        print(f"🔧 DEBUG: Loaded {len(games_cache)} games and {len(alternate_names_cache)} alternate names")
+        
+        if not games_cache:
+            error_msg = f'No metadata for platform {current_system_platform}'
+            print(f"❌ ERROR: {error_msg}")
+            return {'success': False, 'error': error_msg}
+    except Exception as e:
+        error_msg = f'Error loading platform cache: {str(e)}'
+        print(f"❌ ERROR: {error_msg}")
+        return {'success': False, 'error': error_msg}
     
-    if not games_cache:
-        return {'success': False, 'error': f'No metadata for platform {current_system_platform}'}
-    
-    # Convert platform cache to metadata_games format for compatibility
-    metadata_games = []
-    
-    # Get the fields to load from mapping configuration
-    fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
-    if mapping_config:
-        # Add all LaunchBox fields from the mapping configuration
-        fields_to_load.update(mapping_config.keys())
-    
-    for db_id, game_elem in games_cache.items():
-        if game_elem is not None:
-            game_data = {}
-            for child in game_elem:
-                tag = child.tag
-                text = child.text.strip() if child.text else ''
-                if tag in fields_to_load:
-                    game_data[tag] = text
-            
-            # Add alternate names
-            alt_names = []
-            for alt_elem in alternate_names_cache.get(db_id, []):
-                alt_name = alt_elem.find('AlternateName')
-                if alt_name is not None and alt_name.text:
-                    alt_names.append(alt_name.text.strip())
-            game_data['AlternateNames'] = alt_names
-            
-            metadata_games.append(game_data)
+    try:
+        print(f"🔧 DEBUG: Converting platform cache to metadata_games format...")
+        # Convert platform cache to metadata_games format for compatibility
+        metadata_games = []
+        
+        # Get the fields to load from mapping configuration
+        fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
+        if mapping_config:
+            # Add all LaunchBox fields from the mapping configuration
+            fields_to_load.update(mapping_config.keys())
+        print(f"🔧 DEBUG: Fields to load: {fields_to_load}")
+        
+        for db_id, game_elem in games_cache.items():
+            if game_elem is not None:
+                game_data = {}
+                for child in game_elem:
+                    tag = child.tag
+                    text = child.text.strip() if child.text else ''
+                    if tag in fields_to_load:
+                        game_data[tag] = text
+                
+                # Add alternate names
+                alt_names = []
+                for alt_elem in alternate_names_cache.get(db_id, []):
+                    alt_name = alt_elem.find('AlternateName')
+                    if alt_name is not None and alt_name.text:
+                        alt_names.append(alt_name.text.strip())
+                game_data['AlternateNames'] = alt_names
+                
+                metadata_games.append(game_data)
+        
+        print(f"🔧 DEBUG: Converted to {len(metadata_games)} metadata games")
+    except Exception as e:
+        error_msg = f'Error converting metadata: {str(e)}'
+        print(f"❌ ERROR: {error_msg}")
+        return {'success': False, 'error': error_msg}
 
     original_games = all_games.copy()
     matched_rom_paths = []
