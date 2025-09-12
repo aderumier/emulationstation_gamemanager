@@ -368,21 +368,34 @@ class SteamService:
                 return None
             
             # Check if media already exists and we're not overwriting
+            print(f"🔧 DEBUG: Checking overwrite_media_fields: {overwrite_media_fields}")
             if not overwrite_media_fields:
-                # Get media directory and extensions
-                media_dir, extensions = get_media_directory_and_extensions(target_field)
-                if media_dir and extensions:
-                    full_media_dir = os.path.join(roms_root, system_name, "media", media_dir)
-                    safe_filename = re.sub(r'[<>:"/\\|?*]', '_', game_name)
-                    safe_filename = safe_filename.strip()
-                    
-                    # Check if any of the possible files exist
-                    for ext in extensions:
-                        potential_file = os.path.join(full_media_dir, f"{safe_filename}.{ext}")
-                        if os.path.exists(potential_file):
-                            print(f"🔧 DEBUG: Media already exists for {game_name} ({target_field}), skipping download")
-                            logger.info(f"🔧 DEBUG: Media already exists for {game_name} ({target_field}), skipping download")
-                            return None
+                # Check if media already exists in gamelist.xml
+                gamelist_path = os.path.join(roms_root, system_name, "gamelist.xml")
+                if os.path.exists(gamelist_path):
+                    import xml.etree.ElementTree as ET
+                    try:
+                        tree = ET.parse(gamelist_path)
+                        root = tree.getroot()
+                        
+                        # Find the game entry
+                        print(f"🔧 DEBUG: Looking for game '{game_name}' in gamelist.xml")
+                        for game in root.findall('game'):
+                            game_name_elem = game.find('name')
+                            if game_name_elem is not None and game_name_elem.text == game_name:
+                                print(f"🔧 DEBUG: Found game '{game_name}' in gamelist, checking {target_field}")
+                                # Check if this media field already has a value (not empty)
+                                media_elem = game.find(target_field)
+                                if media_elem is not None and media_elem.text and media_elem.text.strip():
+                                    print(f"🔧 DEBUG: Media field {target_field} is not empty for {game_name}, skipping download")
+                                    logger.info(f"🔧 DEBUG: Media field {target_field} is not empty for {game_name}, skipping download")
+                                    return None
+                                else:
+                                    print(f"🔧 DEBUG: Media field {target_field} is empty for {game_name}, proceeding with download")
+                                break
+                    except Exception as e:
+                        print(f"🔧 DEBUG: Error reading gamelist.xml: {e}")
+                        logger.warning(f"🔧 DEBUG: Error reading gamelist.xml: {e}")
             
             print(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")
             logger.info(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")
