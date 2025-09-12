@@ -190,6 +190,7 @@ class SteamService:
                                  selected_fields: List[str] = None,
                                  image_type_mappings: Dict[str, str] = None,
                                  overwrite_media_fields: bool = False,
+                                 gamelist_path: str = None,
                                  cancellation_event=None) -> Dict[str, str]:
         """Download media from Steam CDN"""
         if not steam_id or not game_name:

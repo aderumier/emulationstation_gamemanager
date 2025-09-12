@@ -12779,11 +12779,13 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                             # Update game with downloaded media paths
                             for media_field, media_path in downloaded_media.items():
                                 game[media_field] = media_path
-                    # Also update the corresponding game in all_games
-                    for all_game in all_games:
-                        if all_game['path'] == game['path']:
+                            
+                            # Also update the corresponding game in all_games
+                            for all_game in all_games:
+                                if all_game['path'] == game['path']:
+                                    for media_field, media_path in downloaded_media.items():
                                         all_game[media_field] = media_path
-                                        break
+                                    break
                             
                             # Media download progress is now handled by the progress callback
                 
