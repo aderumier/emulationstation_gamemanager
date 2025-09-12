@@ -122,6 +122,9 @@ class GameCollectionManager {
         // Initialize ScreenScraper configuration modal
         this.initializeScreenscraperConfigModal();
         
+        // Initialize SteamGridDB configuration modal
+        this.initializeSteamgriddbConfigModal();
+        
         // Initialize application configuration modal
         this.initializeAppConfigurationModal();
         
@@ -471,6 +474,7 @@ class GameCollectionManager {
         if (!this.gridApi || newGames === null || newGames === undefined) return;
         
         console.log('updateGameGridData called with:', newGames.length, 'games');
+        
         
         // Deduplicate input by path to avoid duplicate node ids
         const newDataMap = new Map();
@@ -2031,6 +2035,7 @@ class GameCollectionManager {
                 console.log('Loaded games:', this.games.length);
                 console.log('First game sample:', this.games[0]);
                 
+                
                 // Only initialize grid if it doesn't exist yet
                 if (!this.gridApi) {
                     await this.initializeGrid();
@@ -2173,6 +2178,21 @@ class GameCollectionManager {
                     headerTooltip: 'Steam App ID for exact matching. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#d1ecf1',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em'
+                    }
+                },
+                { 
+                    field: 'steamgridid', 
+                    headerName: 'SteamGridDB ID', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    flex: 1,
+                    headerTooltip: 'SteamGridDB Game ID for media downloads. Auto-populated when scraping.',
+                    cellStyle: { 
+                        backgroundColor: '#e2e3e5',
                         fontFamily: 'monospace',
                         fontSize: '0.9em'
                     }
@@ -2699,6 +2719,7 @@ class GameCollectionManager {
         document.getElementById('editIgdbId').value = '';
         document.getElementById('editScreenscraperId').value = '';
         document.getElementById('editSteamId').value = '';
+        document.getElementById('editSteamgridid').value = '';
         document.getElementById('editYoutubeurl').value = '';
         
         // Now populate with game data
@@ -2714,6 +2735,7 @@ class GameCollectionManager {
         document.getElementById('editIgdbId').value = game.igdbid || '';
         document.getElementById('editScreenscraperId').value = game.screenscraperid || '';
         document.getElementById('editSteamId').value = game.steamid || '';
+        document.getElementById('editSteamgridid').value = game.steamgridid || '';
         document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
         // Populate the media tab with the same media display as the preview panel
@@ -3617,6 +3639,7 @@ class GameCollectionManager {
         game.igdbid = document.getElementById('editIgdbId').value;
         game.screenscraperid = document.getElementById('editScreenscraperId').value;
         game.steamid = document.getElementById('editSteamId').value;
+        game.steamgridid = document.getElementById('editSteamgridid').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
 
         console.log('Updated game object:', game);
@@ -3630,6 +3653,7 @@ class GameCollectionManager {
         if (originalGame.publisher !== game.publisher) changedFields.push('publisher');
         if (originalGame.rating !== game.rating) changedFields.push('rating');
         if (originalGame.players !== game.players) changedFields.push('players');
+        if (originalGame.steamgridid !== game.steamgridid) changedFields.push('steamgridid');
         if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
         
         console.log('Changed fields:', changedFields);
@@ -6242,6 +6266,19 @@ class GameCollectionManager {
             console.warn('openScreenscraperConfigModal element not found');
         }
 
+        // Add event listener for SteamGridDB config modal
+        const openSteamgriddbConfigModal = document.getElementById('openSteamgriddbConfigModal');
+        if (openSteamgriddbConfigModal) {
+            console.log('Found openSteamgriddbConfigModal element, adding click listener');
+            openSteamgriddbConfigModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('SteamGridDB config modal link clicked');
+                this.openSteamgriddbConfigurationModal();
+            });
+        } else {
+            console.warn('openSteamgriddbConfigModal element not found');
+        }
+
         
         // Add event listener for update metadata button
         const updateMetadataBtn = document.getElementById('updateMetadataBtn');
@@ -6803,7 +6840,7 @@ class GameCollectionManager {
             // If we have some unchecked fields, return only the selected ones
             if (hasUncheckedInCookies) {
                 console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
-                return selectedFields;
+            return selectedFields;
             }
             
             // If all fields are selected (no unchecked fields), return all fields
@@ -6975,9 +7012,9 @@ class GameCollectionManager {
             
             if (cookieValue !== null) {
                 if (cookieValue === 'true') {
-                    selectedFields.push(field);
+                selectedFields.push(field);
                     console.log(`🔧 DEBUG: Added field "${field}" to selectedFields`);
-                } else {
+            } else {
                     hasUncheckedInCookies = true;
                     console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                 }
@@ -6993,7 +7030,7 @@ class GameCollectionManager {
         // If we have some unchecked fields, return only the selected ones
         if (hasUncheckedInCookies) {
             console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
-            return selectedFields;
+        return selectedFields;
         }
         
         // If all fields are selected (no unchecked fields), return all fields
@@ -7141,7 +7178,7 @@ class GameCollectionManager {
             // If we have some unchecked fields, return only the selected ones
             if (hasUncheckedInCookies) {
                 console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
-                return selectedFields;
+            return selectedFields;
             }
             
             // If all fields are selected (no unchecked fields), return all fields
@@ -8171,6 +8208,235 @@ class GameCollectionManager {
         }
     }
     
+    openSteamgriddbConfigurationModal() {
+        // Load SteamGridDB mappings data before opening modal
+        this.loadSteamgriddbMappingsData();
+        
+        // Load SteamGridDB credentials
+        this.loadSteamgriddbCredentialsStatus();
+        this.loadSteamgriddbCredentialsValues();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('steamgriddbConfigModal'));
+        modal.show();
+    }
+    
+    async loadSteamgriddbMappingsData() {
+        try {
+            const response = await fetch('/api/steamgriddb-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.populateSteamgriddbMappingsTable(data.steamgriddb_mappings, data.media_fields);
+            } else {
+                console.error('Failed to load SteamGridDB mappings:', data.error);
+                this.showAlert('Failed to load SteamGridDB mappings data', 'danger');
+            }
+        } catch (error) {
+            console.error('Error loading SteamGridDB mappings:', error);
+            this.showAlert('Error loading SteamGridDB mappings data', 'danger');
+        }
+    }
+    
+    async populateSteamgriddbMappingsTable(steamgriddbMappings, mediaFields) {
+        const tbody = document.getElementById('steamgriddbMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        Object.entries(steamgriddbMappings).forEach(([steamgriddbType, mediaField]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="steamgriddb-type-display">${steamgriddbType}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" 
+                            data-steamgriddb-type="${steamgriddbType}" 
+                            onchange="gameManager.updateSteamgriddbMapping('${steamgriddbType}', this.value)">
+                        <option value="">-- Select Media Field --</option>
+                        ${Object.keys(mediaFields).map(field => 
+                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="gameManager.resetSteamgriddbMapping('${steamgriddbType}')"
+                            title="Reset to default">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    async updateSteamgriddbMapping(steamgriddbType, mediaField) {
+        try {
+            const response = await fetch('/api/steamgriddb-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    steamgriddb_type: steamgriddbType,
+                    media_field: mediaField
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log(`Successfully updated SteamGridDB mapping: ${steamgriddbType} -> ${mediaField}`);
+                this.showAlert(`SteamGridDB mapping updated: ${steamgriddbType} → ${mediaField}`, 'success');
+            } else {
+                this.showAlert(`Failed to update SteamGridDB mapping: ${data.error}`, 'danger');
+                // Reload data to revert changes
+                this.loadSteamgriddbMappingsData();
+            }
+        } catch (error) {
+            console.error('Error updating SteamGridDB mapping:', error);
+            this.showAlert('Error updating SteamGridDB mapping', 'danger');
+            // Reload data to revert changes
+            this.loadSteamgriddbMappingsData();
+        }
+    }
+    
+    async resetSteamgriddbMapping(steamgriddbType) {
+        if (!confirm(`Reset SteamGridDB mapping for "${steamgriddbType}" to default?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/steamgriddb-mappings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    steamgriddb_type: steamgriddbType,
+                    reset: true
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`SteamGridDB mapping reset for "${steamgriddbType}"`, 'success');
+                this.loadSteamgriddbMappingsData(); // Reload the table
+            } else {
+                this.showAlert(`Failed to reset SteamGridDB mapping: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error resetting SteamGridDB mapping:', error);
+            this.showAlert('Error resetting SteamGridDB mapping', 'danger');
+        }
+    }
+    
+    async loadSteamgriddbCredentialsStatus() {
+        try {
+            const response = await fetch('/api/steamgriddb-credentials');
+            const data = await response.json();
+            
+            if (data.success) {
+                const statusElement = document.getElementById('steamgriddbCredentialsStatus');
+                if (statusElement) {
+                    if (data.has_credentials) {
+                        statusElement.innerHTML = `<span class="badge bg-success">API Key Configured (${data.api_key_length} chars)</span>`;
+                    } else {
+                        statusElement.innerHTML = '<span class="badge bg-warning">No API Key</span>';
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading SteamGridDB credentials status:', error);
+        }
+    }
+    
+    async loadSteamgriddbCredentialsValues() {
+        try {
+            const response = await fetch('/api/steamgriddb-credentials');
+            const data = await response.json();
+            
+            if (data.success) {
+                const apiKeyInput = document.getElementById('steamgriddbApiKey');
+                const helpText = document.getElementById('steamgriddbApiKeyHelp');
+                
+                if (apiKeyInput) {
+                    if (data.has_credentials) {
+                        // Fill with dots to show that credentials exist
+                        const dots = '•'.repeat(Math.min(data.api_key_length, 20)); // Max 20 dots for display
+                        apiKeyInput.value = dots;
+                        apiKeyInput.placeholder = `API Key configured (${data.api_key_length} characters)`;
+                        
+                        // Show help text
+                        if (helpText) {
+                            helpText.style.display = 'block';
+                        }
+                    } else {
+                        apiKeyInput.value = '';
+                        apiKeyInput.placeholder = 'Enter your SteamGridDB API key';
+                        
+                        // Hide help text
+                        if (helpText) {
+                            helpText.style.display = 'none';
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading SteamGridDB credentials values:', error);
+        }
+    }
+    
+    async saveSteamgriddbCredentials() {
+        const apiKeyInput = document.getElementById('steamgriddbApiKey');
+        if (!apiKeyInput) {
+            this.showAlert('API key input not found', 'danger');
+            return;
+        }
+        
+        let apiKey = apiKeyInput.value.trim();
+        
+        // If the field contains only dots, it means the user hasn't entered a new key
+        if (apiKey && apiKey.match(/^•+$/)) {
+            this.showAlert('Please enter a new API key to update credentials', 'info');
+            return;
+        }
+        
+        if (!apiKey) {
+            this.showAlert('Please enter an API key', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/steamgriddb-credentials', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    api_key: apiKey
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('SteamGridDB credentials saved successfully', 'success');
+                // Reload status and values to show dots
+                this.loadSteamgriddbCredentialsStatus();
+                this.loadSteamgriddbCredentialsValues();
+            } else {
+                this.showAlert(`Failed to save SteamGridDB credentials: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error saving SteamGridDB credentials:', error);
+            this.showAlert('Error saving SteamGridDB credentials', 'danger');
+        }
+    }
+    
     initializeIgdbConfigModal() {
         // Refresh button
         const refreshIgdbMappingsBtn = document.getElementById('refreshIgdbMappingsBtn');
@@ -8203,6 +8469,34 @@ class GameCollectionManager {
         if (saveScreenscraperCredentialsBtn) {
             saveScreenscraperCredentialsBtn.addEventListener('click', () => {
                 this.saveScreenscraperCredentials();
+            });
+        }
+    }
+    
+    initializeSteamgriddbConfigModal() {
+        // Refresh button
+        const refreshSteamgriddbMappingsBtn = document.getElementById('refreshSteamgriddbMappingsBtn');
+        if (refreshSteamgriddbMappingsBtn) {
+            refreshSteamgriddbMappingsBtn.addEventListener('click', () => {
+                this.loadSteamgriddbMappingsData();
+            });
+        }
+        
+        // SteamGridDB credentials save button
+        const saveSteamgriddbCredentialsBtn = document.getElementById('saveSteamgriddbCredentialsBtn');
+        if (saveSteamgriddbCredentialsBtn) {
+            saveSteamgriddbCredentialsBtn.addEventListener('click', () => {
+                this.saveSteamgriddbCredentials();
+            });
+        }
+        
+        // Clear dots when user focuses on API key input
+        const steamgriddbApiKeyInput = document.getElementById('steamgriddbApiKey');
+        if (steamgriddbApiKeyInput) {
+            steamgriddbApiKeyInput.addEventListener('focus', () => {
+                if (steamgriddbApiKeyInput.value && steamgriddbApiKeyInput.value.match(/^•+$/)) {
+                    steamgriddbApiKeyInput.value = '';
+                }
             });
         }
     }

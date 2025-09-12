@@ -153,6 +153,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openScreenscraperConfigModal">
                             <i class="bi bi-image me-2"></i>ScreenScraper Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openSteamgriddbConfigModal">
+                            <i class="bi bi-steam me-2"></i>SteamGridDB Configuration
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -524,6 +527,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <input type="text" class="form-control" id="editSteamId" readonly>
                                                 <button type="button" class="btn btn-outline-success" id="modalFindSteamMatchBtn" title="Search for the best matching game in the Steam database">
                                                     <i class="bi bi-steam"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editSteamgridid" class="form-label">SteamGridDB ID</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="editSteamgridid" readonly>
+                                                <button type="button" class="btn btn-outline-secondary" id="modalFindSteamgridMatchBtn" title="Search for the best matching game in the SteamGridDB database">
+                                                    <i class="bi bi-grid-3x3-gap"></i>
                                                 </button>
                                             </div>
                                         </div>
@@ -1879,6 +1891,87 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshScreenscraperMappingsBtn">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SteamGridDB Configuration Modal -->
+    <div class="modal fade" id="steamgriddbConfigModal" tabindex="-1" aria-labelledby="steamgriddbConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="steamgriddbConfigModalLabel">
+                        <i class="bi bi-steam me-2"></i>SteamGridDB Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>SteamGridDB Image Type Mappings</h6>
+                        <p class="text-muted small">Configure which media fields each SteamGridDB image type maps to. These mappings determine how SteamGridDB images are categorized in your gamelist.</p>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover compact-table" id="steamgriddbMappingsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%">SteamGridDB Image Type</th>
+                                    <th style="width: 40%">Media Field</th>
+                                    <th style="width: 20%">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="steamgriddbMappingsTableBody">
+                                <!-- Mappings will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Note:</strong> Changes are saved automatically when you select a different media field from the dropdown.
+                    </div>
+                    
+                    <!-- SteamGridDB API Credentials -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6><i class="bi bi-key-fill me-2"></i>SteamGridDB API Credentials</h6>
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <div class="mb-3">
+                                                <label for="steamgriddbApiKey" class="form-label">API Key</label>
+                                                <input type="password" class="form-control" id="steamgriddbApiKey" placeholder="Enter your SteamGridDB API key">
+                                                <div class="form-text">Your SteamGridDB API key for authentication. Get one at <a href="https://www.steamgriddb.com/profile/preferences" target="_blank">SteamGridDB</a></div>
+                                                <div class="form-text text-muted" id="steamgriddbApiKeyHelp" style="display: none;">
+                                                    <i class="bi bi-info-circle me-1"></i>Field shows dots when credentials are configured. Clear and enter new key to update.
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">&nbsp;</label>
+                                                <div class="d-grid">
+                                                    <button type="button" class="btn btn-primary" id="saveSteamgriddbCredentialsBtn">
+                                                        <i class="bi bi-save me-1"></i>Save Credentials
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-info" role="alert">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        <strong>API Key Required:</strong> SteamGridDB requires an API key for media downloads. Without a valid API key, the SteamGridDB task will not be able to download media files.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSteamgriddbMappingsBtn">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

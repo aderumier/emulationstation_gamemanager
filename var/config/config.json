@@ -177,6 +177,13 @@
             "support-2D": "cartridge"
         }
     },
+    "steamgriddb": {
+        "image_type_mappings": {
+            "grids": "boxart",
+            "logos": "marquee",
+            "heroes": "fanart"
+        }
+    },
     "systems": {
         "mame": {
             "extensions": [
