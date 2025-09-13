@@ -34,6 +34,7 @@ from lxml import etree as ET
 import threading
 import re
 import difflib
+import jarowinkler
 import shutil
 import subprocess
 import requests
@@ -796,7 +797,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         games_cache = platform_cache['games_cache']
         alternate_names_cache = platform_cache['alternate_names_cache']
         print(f"🔧 DEBUG: Loaded {len(games_cache)} games and {len(alternate_names_cache)} alternate names")
-        
+    
         if not games_cache:
             error_msg = f'No metadata for platform {current_system_platform}'
             print(f"❌ ERROR: {error_msg}")
@@ -816,7 +817,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         if mapping_config:
             # Add all LaunchBox fields from the mapping configuration
             fields_to_load.update(mapping_config.keys())
-        print(f"🔧 DEBUG: Fields to load: {fields_to_load}")
+            print(f"🔧 DEBUG: Fields to load: {fields_to_load}")
         
         for db_id, game_elem in games_cache.items():
             if game_elem is not None:
@@ -4139,7 +4140,7 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
     normalized_search = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
     
     # Fallback version removes parentheses and brackets after normalization (including nested)
-
+    
     normalized_search_no_parens = normalize_game_name(game_name)
     
     # Build two unified indexes on first call or when metadata_games changes (cached for subsequent calls)
@@ -4186,7 +4187,7 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
         print(f"DEBUG: Indexed {main_name_count} main names and {alt_name_count} alternate names")
         print(f"DEBUG: With parentheses index: {len(find_best_match._unified_index)} entries")
         print(f"DEBUG: No parentheses index: {len(find_best_match._unified_index_no_parens)} entries")
-
+    
 
     # If no match found with no_parens version, try with parentheses and articles index
     if normalized_search in find_best_match._unified_index:
@@ -4233,107 +4234,120 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
 
 
 def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mapping_config=None):
-    """Get top N matches for a game name, sorted by similarity score"""
+    """Get top N matches for a game name using partitioned index and Jaro-Winkler similarity"""
+    print(f"🔍 DEBUG: get_top_matches called for '{game_name}' (platform: {target_platform}, top_n: {top_n})")
+    
     if not metadata_games:
+        print(f"🔍 DEBUG: No metadata games provided, returning empty list")
         return []
     
-    # Clean the game name for better matching
-    cleaned_name = re.sub(r'\s*\([^)]*\)', '', game_name)  # Remove text in parentheses
-    cleaned_name = normalize_game_name(cleaned_name)
+    normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+    print(f"🔍 DEBUG: Normalized name: '{normalized_name}'")
     
-    # Also try matching with parentheses removed from both sides
-    game_name_no_parens = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+    if not normalized_name:
+        print(f"🔍 DEBUG: Normalized name is empty, returning empty list")
+        return []
+    
+    # Build partitioned similarity index if not exists
+    if not hasattr(get_top_matches, '_similarity_index') or get_top_matches._metadata_games is not metadata_games:
+        print(f"DEBUG: Building partitioned similarity index for {len(metadata_games)} games...")
+        get_top_matches._similarity_index = {}
+        get_top_matches._metadata_games = metadata_games
+    
+        main_count = 0
+        alt_count = 0
+        for game in metadata_games:
+            # Index main name
+            main_name = game.get('Name', '')
+            if main_name:
+                normalized_main = normalize_game_name(main_name, remove_paranthesis=True, remove_articles=True)
+                if normalized_main:
+                    first_char = normalized_main[0] if normalized_main else 'other'
+                    if first_char not in get_top_matches._similarity_index:
+                        get_top_matches._similarity_index[first_char] = []
+                    get_top_matches._similarity_index[first_char].append({
+                        'name': main_name,
+                        'normalized': normalized_main,
+                        'type': 'main',
+                        'game': game
+                    })
+                    main_count += 1
+            
+            # Index alternate names
+            alternate_names = game.get('AlternateNames', [])
+            for alt_name in alternate_names:
+                normalized_alt = normalize_game_name(alt_name, remove_paranthesis=True, remove_articles=True)
+                if normalized_alt:
+                    first_char = normalized_alt[0] if normalized_alt else 'other'
+                    if first_char not in get_top_matches._similarity_index:
+                        get_top_matches._similarity_index[first_char] = []
+                    get_top_matches._similarity_index[first_char].append({
+                        'name': alt_name,
+                        'normalized': normalized_alt,
+                        'type': 'alternate',
+                        'game': game
+                    })
+                    alt_count += 1
+        
+        print(f"🔍 DEBUG: Indexed {main_count} main names and {alt_count} alternate names")
+        
+        # Log partition distribution
+        total_entries = sum(len(items) for items in get_top_matches._similarity_index.values())
+        print(f"🔍 DEBUG: Built partitioned similarity index with {total_entries} entries")
+        print(f"🔍 DEBUG: Partition distribution:")
+        for char, items in sorted(get_top_matches._similarity_index.items()):
+            print(f"🔍 DEBUG:   '{char}': {len(items)} items")
+    
+    # Get the first character to search in the right partition
+    first_char = normalized_name[0]
+    print(f"🔍 DEBUG: Searching in partition '{first_char}'")
     
     matches = []
     
-    for game in metadata_games:
-        metadata_name = game.get('Name', '')
-        if not metadata_name:
-            continue
+    # Search only in the matching partition
+    if first_char in get_top_matches._similarity_index:
+        partition_items = get_top_matches._similarity_index[first_char]
+        print(f"🔍 DEBUG: Found {len(partition_items)} items in partition '{first_char}'")
         
-        # Calculate similarity score for main name (with and without parentheses)
-        main_similarity = difflib.SequenceMatcher(None, cleaned_name.lower(), metadata_name.lower()).ratio()
-        main_similarity_no_parens = difflib.SequenceMatcher(None, game_name_no_parens.lower(), metadata_name.lower()).ratio()
-        main_similarity = max(main_similarity, main_similarity_no_parens)
+        for i, item in enumerate(partition_items):
+            # Calculate Jaro-Winkler similarity
+            similarity = jarowinkler.jarowinkler_similarity(normalized_name, item['normalized'])
+            print(f"🔍 DEBUG: Item {i+1}: '{item['name']}' -> similarity: {similarity:.4f}")
         
-        # Check alternate names for better matches
-        alternate_names = game.get('AlternateNames', [])
-        best_alt_similarity = 0
-        best_alt_name = None
-        
-        for alt_name in alternate_names:
-            # Check both cleaned and no-parentheses versions
-            alt_similarity = difflib.SequenceMatcher(None, cleaned_name.lower(), alt_name.lower()).ratio()
-            alt_similarity_no_parens = difflib.SequenceMatcher(None, game_name_no_parens.lower(), alt_name.lower()).ratio()
-            alt_similarity = max(alt_similarity, alt_similarity_no_parens)
+            # Create match info
+            match_info = {
+                'game': item['game'],
+                'score': similarity,
+                'match_type': item['type'],
+                'matched_name': item['name'],
+                'database_id': item['game'].get('DatabaseID', ''),
+                'name': item['game'].get('Name', ''),
+                'overview': item['game'].get('Overview', ''),
+                'developer': item['game'].get('Developer', ''),
+                'publisher': item['game'].get('Publisher', '')
+            }
             
-            if alt_similarity > best_alt_similarity:
-                best_alt_similarity = alt_similarity
-                best_alt_name = alt_name
+            # Add mapped fields dynamically based on mapping configuration
+            if mapping_config:
+                for launchbox_field, gamelist_field in mapping_config.items():
+                    match_info[gamelist_field] = item['game'].get(launchbox_field, '')
         
-        # Use the best similarity score (main name or alternate name)
-        if best_alt_similarity > main_similarity:
-            similarity = best_alt_similarity
-            match_type = 'alternate'
-            matched_name = best_alt_name
-        else:
-            similarity = main_similarity
-            match_type = 'main'
-            matched_name = metadata_name
-        
-        # Bonus for platform match
-        if game.get('Platform') == target_platform:
-            similarity += 0.1
-        
-        # Bonus for publisher match (if we have publisher info)
-        metadata_publisher = game.get('Publisher', '').lower().strip()
-        if metadata_publisher:
-            # Check if any search variation matches publisher
-            if cleaned_name.lower().strip() == metadata_publisher:
-                similarity += 0.15  # Significant bonus for publisher match
-            elif cleaned_name.lower().strip() in metadata_publisher or metadata_publisher in cleaned_name.lower().strip():
-                similarity += 0.08  # Partial publisher match bonus
-            elif game_name_no_parens.lower().strip() == metadata_publisher:
-                similarity += 0.15  # Significant bonus for publisher match
-            elif game_name_no_parens.lower().strip() in metadata_publisher or metadata_publisher in game_name_no_parens.lower().strip():
-                similarity += 0.08  # Partial publisher match bonus
-        
-        # Bonus for developer match (if we have developer info)
-        metadata_developer = game.get('Developer', '').lower().strip()
-        if metadata_developer:
-            # Check if any search variation matches developer
-            if cleaned_name.lower().strip() == metadata_developer:
-                similarity += 0.12  # Bonus for developer match
-            elif cleaned_name.lower().strip() in metadata_developer or metadata_developer in cleaned_name.lower().strip():
-                similarity += 0.06  # Partial developer match bonus
-            elif game_name_no_parens.lower().strip() == metadata_developer:
-                similarity += 0.12  # Bonus for developer match
-            elif game_name_no_parens.lower().strip() in metadata_developer or metadata_developer in game_name_no_parens.lower().strip():
-                similarity += 0.06  # Partial developer match bonus
-        
-        # Create match info
-        match_info = {
-            'game': game,
-            'score': similarity,
-            'match_type': match_type,
-            'matched_name': matched_name,
-            'database_id': game.get('DatabaseID', ''),
-            'name': game.get('Name', ''),
-            'overview': game.get('Overview', ''),
-            'developer': game.get('Developer', ''),
-            'publisher': game.get('Publisher', '')
-        }
-        
-        # Add mapped fields dynamically based on mapping configuration
-        if mapping_config:
-            for launchbox_field, gamelist_field in mapping_config.items():
-                match_info[gamelist_field] = game.get(launchbox_field, '')
-        
-        matches.append(match_info)
+            matches.append(match_info)
+    else:
+        print(f"🔍 DEBUG: No partition found for character '{first_char}'")
+    
+    print(f"🔍 DEBUG: Found {len(matches)} total matches before sorting")
     
     # Sort by score (highest first) and return top N
     matches.sort(key=lambda x: x['score'], reverse=True)
-    return matches[:top_n]
+    result = matches[:top_n]
+    print(f"🔍 DEBUG: Returning {len(result)} matches (requested: {top_n})")
+    
+    # Log the top matches for debugging
+    for i, match in enumerate(result[:5]):  # Log top 5 matches
+        print(f"🔍 DEBUG: Match {i+1}: '{match['matched_name']}' (score: {match['score']:.4f}, type: {match['match_type']})")
+    
+    return result
 
 def _dedupe_games_by_path(games):
     """Return a new list with duplicates removed by 'path' (first occurrence wins)."""
@@ -13033,23 +13047,23 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                     'name': game_name
                                 })
                     
-                                updated_count += 1
-                            else:
-                                print(f"❌ No Steam ID found for '{game_name}' - skipping media download")
-                                t = get_task(task_id)
-                                if t:
-                                    t.log_message(f"No Steam ID found for '{game_name}' - skipping media download")
-                                skipped_count += 1
-                            
-                            # Update progress for Steam ID lookup completion
-                            steam_lookup_completed += 1
-                            
-                            # Calculate dynamic progress percentage
-                            progress_percent = int((steam_lookup_completed / len(games_to_process)) * 100)
+                    updated_count += 1
+                else:
+                    print(f"❌ No Steam ID found for '{game_name}' - skipping media download")
                     t = get_task(task_id)
                     if t:
-                                t.update_progress(f"Progress: {progress_percent}% ({steam_lookup_completed}/{len(games_to_process)})", 
-                                                progress_percentage=progress_percent, current_step=steam_lookup_completed, total_steps=len(games_to_process))
+                        t.log_message(f"No Steam ID found for '{game_name}' - skipping media download")
+                    skipped_count += 1
+                
+                # Update progress for Steam ID lookup completion
+                steam_lookup_completed += 1
+                
+                # Calculate dynamic progress percentage
+                progress_percent = int((steam_lookup_completed / len(games_to_process)) * 100)
+                t = get_task(task_id)
+                if t:
+                    t.update_progress(f"Progress: {progress_percent}% ({steam_lookup_completed}/{len(games_to_process)})", 
+                                    progress_percentage=progress_percent, current_step=steam_lookup_completed, total_steps=len(games_to_process))
                     
                     # Small delay between batches
                     if i + batch_size < len(games_needing_steam_lookup):
