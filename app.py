@@ -4136,80 +4136,98 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
     # Create indexed lookups for O(1) exact matches instead of O(n) linear searches
     # Apply the same normalization as used later in the function
     
-    normalized_search = normalize_game_name(game_name)
+    normalized_search = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
     
     # Fallback version removes parentheses and brackets after normalization (including nested)
-    normalized_search_no_parens = re.sub(r'\s*[\(\[][^()\[\]]*(?:[\(\[][^()\[\]]*[\)\]][^()\[\]]*)*[\)\]]', '', game_name)
-    normalized_search_no_parens = normalize_game_name(normalized_search_no_parens)
+
+    normalized_search_no_parens = normalize_game_name(game_name)
     
-    # Build unified index on first call or when metadata_games changes (cached for subsequent calls)
+    # Build two unified indexes on first call or when metadata_games changes (cached for subsequent calls)
     if not hasattr(find_best_match, '_unified_index') or find_best_match._metadata_games is not metadata_games:
-        print(f"DEBUG: Building unified index for {len(metadata_games)} games...")
-        find_best_match._unified_index = {}
+        print(f"DEBUG: Building unified indexes for {len(metadata_games)} games...")
+        find_best_match._unified_index = {}  # With parentheses and articles
+        find_best_match._unified_index_no_parens = {}  # Without parentheses
         find_best_match._metadata_games = metadata_games
         
-        # Build unified index for both main names and alternate names
+        # Build two simplified unified indexes for both main names and alternate names
         main_name_count = 0
         alt_name_count = 0
         for i, game in enumerate(metadata_games):
-            # Index main name with consistent normalization
-            name = normalize_game_name(game.get('Name', ''))
+            # Index main name with both normalization methods
+            name = game.get('Name', '')
             if name:
-                if name not in find_best_match._unified_index:
-                    find_best_match._unified_index[name] = []
-                find_best_match._unified_index[name].append(('main', i))
+                # Index with parentheses and articles
+                name_with_parens = normalize_game_name(name, remove_paranthesis=False, remove_articles=False)
+                if name_with_parens:
+                    find_best_match._unified_index[name_with_parens] = name
+                
+                # Index without parentheses
+                name_no_parens = normalize_game_name(name, remove_paranthesis=True, remove_articles=True)
+                if name_no_parens:
+                    find_best_match._unified_index_no_parens[name_no_parens] = name
+                
                 main_name_count += 1
             
-            # Index alternate names with consistent normalization
+            # Index alternate names with both normalization methods
             alternate_names = game.get('AlternateNames', [])
             for alt_name in alternate_names:
-                alt_name_normalized = normalize_game_name(alt_name)
-                if alt_name_normalized not in find_best_match._unified_index:
-                    find_best_match._unified_index[alt_name_normalized] = []
-                find_best_match._unified_index[alt_name_normalized].append(('alternate', i))
+                # Index with parentheses and articles
+                alt_name_with_parens = normalize_game_name(alt_name, remove_paranthesis=False, remove_articles=False)
+                if alt_name_with_parens:
+                    find_best_match._unified_index[alt_name_with_parens] = alt_name
+                
+                # Index without parentheses
+                alt_name_no_parens = normalize_game_name(alt_name, remove_paranthesis=True, remove_articles=True)
+                if alt_name_no_parens:
+                    find_best_match._unified_index_no_parens[alt_name_no_parens] = alt_name
+                
                 alt_name_count += 1
         
         print(f"DEBUG: Indexed {main_name_count} main names and {alt_name_count} alternate names")
-    
-    # Try exact match using unified index (O(1) lookup)
-    # First try with normalized search (with parentheses removed)
+        print(f"DEBUG: With parentheses index: {len(find_best_match._unified_index)} entries")
+        print(f"DEBUG: No parentheses index: {len(find_best_match._unified_index_no_parens)} entries")
+
+
+    # If no match found with no_parens version, try with parentheses and articles index
     if normalized_search in find_best_match._unified_index:
-        for match_type, game_idx in find_best_match._unified_index[normalized_search]:
-            game = metadata_games[game_idx]
-            if match_type == 'main':
+        matched_name = find_best_match._unified_index[normalized_search]
+        # Find the game that contains this name (main or alternate)
+        for game in metadata_games:
+            if game.get('Name', '') == matched_name:
                 game['_match_type'] = 'main'
-                game['_matched_name'] = game.get('Name', '')
+                game['_matched_name'] = matched_name
                 return game, 1.0
-            elif match_type == 'alternate':
-                # Find the exact alternate name that matched
-                for alt_name in game.get('AlternateNames', []):
-                    if normalize_game_name(alt_name) == normalized_search:
-                        game['_match_type'] = 'alternate'
-                        game['_matched_name'] = alt_name
-                        print(f"DEBUG: Found alternate name match for '{game_name}' → '{alt_name}' (via unified index)")
-                        return game, 1.0
-    # If no match found with normalized search, try with no_parens version
-    if normalized_search != normalized_search_no_parens and normalized_search_no_parens in find_best_match._unified_index:
-        for match_type, game_idx in find_best_match._unified_index[normalized_search_no_parens]:
-            game = metadata_games[game_idx]
-            if match_type == 'main':
+            # Check if it's an alternate name
+            for alt_name in game.get('AlternateNames', []):
+                if alt_name == matched_name:
+                    game['_match_type'] = 'alternate'
+                    game['_matched_name'] = matched_name
+                    print(f"DEBUG: Found alternate name match for '{game_name}' → '{matched_name}' (via with_parens index)")
+                    return game, 1.0
+
+
+    # Try exact match using simplified unified indexes (O(1) lookup)
+    # First try with normalized search (with parentheses removed) using no_parens index
+    if normalized_search_no_parens in find_best_match._unified_index_no_parens:
+        matched_name = find_best_match._unified_index_no_parens[normalized_search_no_parens]
+        # Find the game that contains this name (main or alternate)
+        for game in metadata_games:
+            if game.get('Name', '') == matched_name:
                 game['_match_type'] = 'main'
-                game['_matched_name'] = game.get('Name', '')
+                game['_matched_name'] = matched_name
                 return game, 1.0
-            elif match_type == 'alternate':
-                # Find the exact alternate name that matched
-                for alt_name in game.get('AlternateNames', []):
-                    if normalize_game_name(alt_name) == normalized_search_no_parens:
-                        game['_match_type'] = 'alternate'
-                        game['_matched_name'] = alt_name
-                        print(f"DEBUG: Found alternate name match for '{game_name}' → '{alt_name}' (via unified index, no parens)")
-                        return game, 1.0
+            # Check if it's an alternate name
+            for alt_name in game.get('AlternateNames', []):
+                if alt_name == matched_name:
+                    game['_match_type'] = 'alternate'
+                    game['_matched_name'] = matched_name
+                    print(f"DEBUG: Found alternate name match for '{game_name}' → '{matched_name}' (via no_parens index)")
+                    return game, 1.0
+    
     
     # No similarity matching - only exact matches are accepted
     best_match = None
     best_score = 0
-    
-    
     
     return best_match, best_score
 

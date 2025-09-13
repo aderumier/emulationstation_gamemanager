@@ -8,25 +8,83 @@ import subprocess
 import json
 import re
 import unicodedata
+from functools import lru_cache
 
-def normalize_game_name(name):
-    """Normalize game name for consistent matching across the application"""
+import jarowinkler
+
+ARTICLE_PATTERN_BEGIN = re.compile(r"^\b(|a|an|the|le|la|l'|un|une|el|los|las|de|der|die|das)\b")
+ARTICLE_PATTERN_END = re.compile(r",\s?(the|a|an|le|la|l'|un|une|el|los|las|de|der|die|das)(?=$|:)")
+NON_WORD_SPACE_PATTERN = re.compile(r"[^\w\s]")
+MULTIPLE_SPACE_PATTERN = re.compile(r"\s+")
+WORD_TOKEN_PATTERN = re.compile(r"\b\w+\b")
+
+# This caches results to avoid repeated normalization of the same search term
+@lru_cache(maxsize=1024)
+
+def remove_parentheses(text):
+    """Remove text between parentheses including the parentheses"""
+     # Remove text between parentheses (including nested parentheses)
+    return re.sub(r'\s*\([^()]*(?:\([^()]*\)[^()]*)*\)', '', text).strip()
+
+def remove_brackets(text):
+    """Remove text between square brackets including the brackets"""
+    
+    # Remove text between square brackets
+    return re.sub(r'\s*\[[^\[\]]*\]', '', text).strip()
+
+def romain_vers_arabe_1_9(texte: str) -> str:
+    mapping = {
+        "I": "1",
+        "II": "2",
+        "III": "3",
+        "IV": "4",
+        "V": "5",
+        "VI": "6",
+        "VII": "7",
+        "VIII": "8",
+        "IX": "9"
+    }
+
+    # Regex : capture uniquement I–IX, isolés, insensible à la casse
+    pattern = r'(?<![A-Za-z])\b(?:IX|VIII|VII|VI|V|IV|III|II|I)\b(?![A-Za-z])'
+
+    def remplacement(match):
+        romain = match.group(0).upper()  # normalisation
+        return mapping[romain]
+
+    return re.sub(pattern, remplacement, texte, flags=re.IGNORECASE)
+
+def normalize_game_name(name, remove_paranthesis=True, remove_articles=True):
+    """Normalize game name for consistent matching across the application (OLD VERSION)"""
     if not name:
         return ""
 
     # Remove non-Latin characters and normalize accented characters
     # First, normalize accented characters to their base forms
     normalized = unicodedata.normalize('NFD', name)
+    name = "".join(c for c in normalized if not unicodedata.combining(c))
+
+    if remove_paranthesis:
+        normalized = remove_parentheses(normalized)
+        
+    normalized = remove_brackets(normalized)
 
     # Remove roman numerals and convert to numbers
-    normalized = normalized.replace(' III','3').replace(' II', ' 2').replace(" IV", '4').lower()
+    normalized = romain_vers_arabe_1_9(normalized).lower()
 
+    # remove 1 number
+    normalized = re.sub(r"\b1\b", "", normalized)
+
+    # remove articles (the, a, an, le , )
+    if remove_articles:
+        normalized = ARTICLE_PATTERN_BEGIN.sub("", normalized)
+        normalized = ARTICLE_PATTERN_END.sub("", normalized)    
+
+    normalized = normalized.replace("&", "and")
+    
     # Then keep only ASCII letters, numbers, and parentheses (removes accented chars and special chars)
     normalized = re.sub(r'[^a-zA-Z0-9()]', '', normalized)
 
-#    # Remove specific characters: dash, colon, underscore, apostrophe
-#    for char in ['-', ':', '_', '/', '\\', '|', '!', '*', "'", '"', ',', '.',' ']:
-#        normalized = normalized.replace(char, '')
     return normalized
 
 def convert_image_to_png(input_path: str, output_path: str) -> bool:

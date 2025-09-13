@@ -1,0 +1,11 @@
+Docker Hub Repository Information
+===============================
+
+Correct Docker Hub Repository: aderumier/emulationstation_gamemanager
+
+Tags:
+- aderumier/emulationstation_gamemanager:2.0
+- aderumier/emulationstation_gamemanager:latest
+
+This file serves as a reminder to always use the correct repository name when pushing Docker images.
+
