@@ -2951,7 +2951,15 @@ class GameCollectionManager {
         // Fetch from API
         try {
             const response = await fetch('/api/media-fields');
+            console.log('Media fields response status:', response.status);
+            
+            if (!response.ok) {
+                console.error('Media fields API call failed with status:', response.status);
+                throw new Error(`API call failed with status: ${response.status}`);
+            }
+            
             const data = await response.json();
+            console.log('Media fields response data:', data);
             
             if (data.success && Array.isArray(data.fields)) {
                 this.mediaFieldsCache = data.fields;
@@ -2962,7 +2970,11 @@ class GameCollectionManager {
             }
         } catch (error) {
             console.error('Error fetching media fields:', error);
-            throw error;
+            // Fallback to default media fields if API call fails
+            console.log('Using fallback media fields');
+            const fallbackFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'boxback', 'thumbnail'];
+            this.mediaFieldsCache = fallbackFields;
+            return this.mediaFieldsCache;
         }
     }
     
@@ -9844,35 +9856,6 @@ class GameCollectionManager {
         this.updateThumbnailSelectionDisplay();
     }
     
-    selectAllThumbnails() {
-        // Clear current selection first
-        this.clearThumbnailSelection();
-        
-        // Select all visible thumbnails
-        document.querySelectorAll('.thumbnail-image').forEach(thumb => {
-            const thumbnailId = thumb.id;
-            const fieldName = thumb.dataset.field;
-            const gamePath = thumb.dataset.gamePath;
-            const mediaPath = thumb.dataset.mediaPath;
-            
-            if (thumbnailId && fieldName && gamePath && mediaPath) {
-                thumb.classList.add('selected');
-                const checkbox = thumb.querySelector('.thumbnail-checkbox-input');
-                if (checkbox) checkbox.checked = true;
-                
-                this.selectedThumbnails.push({
-                    thumbnailId,
-                    fieldName,
-                    gamePath,
-                    mediaPath,
-                    game: this.games.find(g => g.path === gamePath)
-                });
-            }
-        });
-        
-        this.updateThumbnailSelectionDisplay();
-        console.log(`Selected all thumbnails: ${this.selectedThumbnails.length}`);
-    }
     
     updateMediaSelectionDisplay() {
         // Function kept for future use but no longer displays selection info
@@ -10698,27 +10681,24 @@ class GameCollectionManager {
         }
     }
 
-    toggleThumbnailView() {
+    async toggleThumbnailView() {
         this.thumbnailViewEnabled = !this.thumbnailViewEnabled;
         const button = document.getElementById('thumbnailViewBtn');
         const gridDiv = document.getElementById('gamesGrid');
-        const selectionControls = document.getElementById('thumbnailSelectionControls');
         
         if (this.thumbnailViewEnabled) {
             // Enable thumbnail view
             button.innerHTML = '<i class="bi bi-list"></i>';
             button.className = 'btn btn-primary btn-sm';
             gridDiv.classList.add('thumbnail-view');
-            selectionControls.style.display = 'flex';
             this.refreshGridWithThumbnailView();
         } else {
             // Disable thumbnail view
             button.innerHTML = '<i class="bi bi-grid-3x3-gap"></i>';
             button.className = 'btn btn-outline-primary btn-sm';
             gridDiv.classList.remove('thumbnail-view');
-            selectionControls.style.display = 'none';
             this.clearThumbnailSelection(); // Clear any existing selection
-            this.refreshGridWithNormalView();
+            await this.refreshGridWithNormalView();
         }
     }
 
@@ -10800,14 +10780,19 @@ class GameCollectionManager {
         }, 1000);
     }
 
-    refreshGridWithNormalView() {
+    async refreshGridWithNormalView() {
         if (!this.gridApi) return;
         
         // Reset row height to default
         this.gridApi.setGridOption('rowHeight', 25);
         
         // Restore original column definitions by reinitializing the grid
-        this.initializeGrid();
+        await this.initializeGrid();
+        
+        // Ensure the grid has the current game data after reinitialization
+        if (this.games && this.games.length > 0) {
+            this.gridApi.setRowData(this.games);
+        }
     }
 
     createThumbnailRenderer(fieldName) {
@@ -11039,17 +11024,9 @@ class GameCollectionManager {
     }
     
     updateThumbnailSelectionDisplay() {
-        // Update delete button state
+        // Update any selection counter or UI elements
         const selectionCount = this.selectedThumbnails.length;
-        const deleteBtn = document.getElementById('deleteSelectedThumbnailsBtn');
-        if (deleteBtn) {
-            deleteBtn.disabled = selectionCount === 0;
-            if (selectionCount > 0) {
-                deleteBtn.innerHTML = `<i class="bi bi-trash"></i> Delete (${selectionCount})`;
-            } else {
-                deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete Selected';
-            }
-        }
+        // No UI elements to update since buttons were removed
     }
 
     generateColumnCheckboxes() {
