@@ -6840,7 +6840,7 @@ class GameCollectionManager {
     
     loadSteamFieldSettings() {
         // Load saved field selections from cookies
-        const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl'];
+        const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl', 'screenshot'];
         
         steamFields.forEach(field => {
             const cookieName = `steamField_${field}`;
@@ -6872,7 +6872,7 @@ class GameCollectionManager {
     async saveSteamFieldSettings() {
         try {
             // Save field selections to cookies
-            const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl'];
+            const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl', 'screenshot'];
             
             steamFields.forEach(field => {
                 // Convert field name to checkbox ID format: field -> Field
@@ -7565,7 +7565,7 @@ class GameCollectionManager {
     async getSelectedSteamFields() {
         // For now, return all available fields
         // In the future, this could be made configurable
-        return ['capsule', 'logo', 'hero'];
+        return ['capsule', 'logo', 'hero', 'screenshot'];
     }
 
     async getSelectedSteamgriddbFields() {
@@ -9110,7 +9110,7 @@ class GameCollectionManager {
         
         tbody.innerHTML = '';
         
-        const steamTypes = ['capsule', 'logo', 'hero'];
+        const steamTypes = ['capsule', 'logo', 'hero', 'screenshot'];
         
         steamTypes.forEach(steamType => {
             const row = document.createElement('tr');

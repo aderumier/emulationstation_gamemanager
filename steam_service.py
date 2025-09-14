@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import logging
 from game_utils import normalize_game_name, convert_image_replace, should_convert_field, needs_conversion
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +192,8 @@ class SteamService:
                                  image_type_mappings: Dict[str, str] = None,
                                  overwrite_media_fields: bool = False,
                                  gamelist_path: str = None,
-                                 cancellation_event=None) -> Dict[str, str]:
+                                 cancellation_event=None,
+                                 rom_path: str = None) -> Dict[str, str]:
         """Download media from Steam CDN"""
         if not steam_id or not game_name:
             return {}
@@ -217,7 +219,8 @@ class SteamService:
         steam_urls = {
             'capsule': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg",
             'logo': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png",
-            'hero': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
+            'hero': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg",
+            'screenshot': f"https://store.steampowered.com/app/{steam_id}"
         }
         
         logger.info(f"🔧 DEBUG: Steam URLs for {game_name} (Steam ID: {steam_id}):")
@@ -246,7 +249,7 @@ class SteamService:
                 target_field = image_type_mappings.get(media_type, media_type)
                 download_tasks.append(self._download_single_media(
                     client, url, media_type, target_field, game_name, 
-                    steam_id, roms_root, system_name, overwrite_media_fields, gamelist_path, cancellation_event
+                    steam_id, roms_root, system_name, overwrite_media_fields, gamelist_path, cancellation_event, rom_path
                 ))
             
             # Execute all downloads in parallel
@@ -312,11 +315,13 @@ class SteamService:
                 for game_data in batch:
                     steam_id = game_data.get('steam_id')
                     game_name = game_data.get('name', 'Unknown')
+                    game = game_data.get('game', {})
+                    rom_path = game.get('path', '')
                     
                     if steam_id:
                         batch_tasks.append(self.download_steam_media(
                             steam_id, game_name, roms_root, system_name,
-                            selected_fields, image_type_mappings, overwrite_media_fields, gamelist_path
+                            selected_fields, image_type_mappings, overwrite_media_fields, gamelist_path, None, rom_path
                         ))
                     else:
                         logger.warning(f"🔧 DEBUG: No Steam ID for game: {game_name}")
@@ -362,7 +367,8 @@ class SteamService:
                                    roms_root: str, system_name: str,
                                    overwrite_media_fields: bool = False,
                                    gamelist_path: str = None,
-                                   cancellation_event=None) -> Optional[Dict[str, str]]:
+                                   cancellation_event=None,
+                                   rom_path: str = None) -> Optional[Dict[str, str]]:
         """Download a single media file"""
         try:
             # Check for cancellation before starting download
@@ -404,8 +410,28 @@ class SteamService:
             print(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")
             logger.info(f"🔧 DEBUG: Downloading Steam {media_type} for {game_name}: {url}")
             
-
-            response = await client.get(url)
+            # Handle screenshots differently - need to parse HTML and extract image URL
+            if media_type == 'screenshot':
+                print(f"🔧 DEBUG: Processing screenshot for {game_name} (Steam ID: {steam_id})")
+                logger.info(f"🔧 DEBUG: Processing screenshot for {game_name} (Steam ID: {steam_id})")
+                
+                screenshot_url = await self._extract_screenshot_url(client, url, steam_id)
+                if not screenshot_url:
+                    print(f"🔧 DEBUG: No screenshot found for {game_name} (Steam ID: {steam_id})")
+                    logger.warning(f"🔧 DEBUG: No screenshot found for {game_name} (Steam ID: {steam_id})")
+                    return None
+                
+                print(f"🔧 DEBUG: Found screenshot URL: {screenshot_url}")
+                logger.info(f"🔧 DEBUG: Found screenshot URL: {screenshot_url}")
+                
+                # Download the actual screenshot image
+                print(f"🔧 DEBUG: Downloading screenshot image from: {screenshot_url}")
+                logger.info(f"🔧 DEBUG: Downloading screenshot image from: {screenshot_url}")
+                response = await client.get(screenshot_url)
+            else:
+                print(f"🔧 DEBUG: Downloading standard Steam media: {url}")
+                logger.info(f"🔧 DEBUG: Downloading standard Steam media: {url}")
+                response = await client.get(url)
             
             # If logo gets 404, try fallback URL
             if response.status_code == 404 and media_type == 'logo':
@@ -422,21 +448,33 @@ class SteamService:
                 logger.info(f"🔧 DEBUG: Successfully downloaded {content_length} bytes from {actual_url}")
                 
                 # Get media directory and extensions
+                print(f"🔧 DEBUG: Getting media directory for target_field: {target_field}")
+                logger.info(f"🔧 DEBUG: Getting media directory for target_field: {target_field}")
                 media_dir, extensions = get_media_directory_and_extensions(target_field)
                 if not media_dir or not extensions:
+                    print(f"🔧 DEBUG: No media directory configured for {target_field}")
                     logger.warning(f"No media directory configured for {target_field}")
                     return None
                 
+                print(f"🔧 DEBUG: Media directory: {media_dir}, Extensions: {extensions}")
+                logger.info(f"🔧 DEBUG: Media directory: {media_dir}, Extensions: {extensions}")
+                
                 # Create full path
                 full_media_dir = os.path.join(roms_root, system_name, "media", media_dir)
+                print(f"🔧 DEBUG: Creating media directory: {full_media_dir}")
+                logger.info(f"🔧 DEBUG: Creating media directory: {full_media_dir}")
                 os.makedirs(full_media_dir, exist_ok=True)
                 
-                # Generate filename
-                safe_filename = re.sub(r'[<>:"/\\|?*]', '_', game_name)
-                safe_filename = safe_filename.strip()
+                # Generate filename from ROM path (always available as it's the game key)
+                rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+                print(f"🔧 DEBUG: Using ROM filename: {rom_filename}")
+                logger.info(f"🔧 DEBUG: Using ROM filename: {rom_filename}")
                 
                 # Determine file extension from content type
                 content_type = response.headers.get('content-type', '')
+                print(f"🔧 DEBUG: Content-Type: {content_type}")
+                logger.info(f"🔧 DEBUG: Content-Type: {content_type}")
+                
                 if 'jpeg' in content_type or 'jpg' in content_type:
                     ext = '.jpg'
                 elif 'png' in content_type:
@@ -444,42 +482,66 @@ class SteamService:
                 else:
                     ext = '.jpg'  # Default to jpg for Steam images
                 
-                filename = f"{safe_filename}{ext}"
+                filename = f"{rom_filename}{ext}"
                 file_path = os.path.join(full_media_dir, filename)
+                print(f"🔧 DEBUG: Full file path: {file_path}")
+                logger.info(f"🔧 DEBUG: Full file path: {file_path}")
                 
                 # Write file
+                print(f"🔧 DEBUG: Writing {content_length} bytes to file: {file_path}")
+                logger.info(f"🔧 DEBUG: Writing {content_length} bytes to file: {file_path}")
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
+                
+                print(f"🔧 DEBUG: File written successfully: {file_path}")
+                logger.info(f"🔧 DEBUG: File written successfully: {file_path}")
                 
                 # Convert image if needed using config-based target extension
                 from game_utils import should_convert_field
                 import json
                 
+                print(f"🔧 DEBUG: Checking if image conversion is needed for field: {target_field}")
+                logger.info(f"🔧 DEBUG: Checking if image conversion is needed for field: {target_field}")
+                
                 # Load config to get target_extension for this field
                 try:
                     with open('var/config/config.json', 'r') as f:
                         config = json.load(f)
+                    print(f"🔧 DEBUG: Config loaded successfully")
+                    logger.info(f"🔧 DEBUG: Config loaded successfully")
                 except Exception as e:
+                    print(f"🔧 DEBUG: Failed to load config for image conversion: {e}")
                     logger.warning(f"🔧 DEBUG: Failed to load config for image conversion: {e}")
                     config = {}
                 
                 should_convert, target_extension = should_convert_field(target_field, config)
+                print(f"🔧 DEBUG: Should convert: {should_convert}, Target extension: {target_extension}")
+                logger.info(f"🔧 DEBUG: Should convert: {should_convert}, Target extension: {target_extension}")
                 
                 if should_convert and needs_conversion(file_path, target_extension):
+                    print(f"🔧 DEBUG: Converting {target_field} to {target_extension}")
+                    logger.info(f"🔧 DEBUG: Converting {target_field} to {target_extension}")
                     converted_path, status = convert_image_replace(file_path, target_extension)
                     if converted_path and status in ['success', 'converted']:
                         file_path = converted_path
+                        print(f"🔧 DEBUG: Converted {target_field} to {target_extension}: {file_path}")
                         logger.info(f"🔧 DEBUG: Converted {target_field} to {target_extension}: {file_path}")
                     else:
+                        print(f"🔧 DEBUG: Failed to convert {target_field} to {target_extension}: {status}")
                         logger.warning(f"🔧 DEBUG: Failed to convert {target_field} to {target_extension}: {status}")
                 elif should_convert:
+                    print(f"🔧 DEBUG: Already {target_extension} format for {target_field}: {file_path}")
                     logger.info(f"🔧 DEBUG: Already {target_extension} format for {target_field}: {file_path}")
                 else:
+                    print(f"🔧 DEBUG: No conversion needed for field: {target_field}")
                     logger.info(f"🔧 DEBUG: No conversion needed for field: {target_field}")
                 
                 # Store relative path
                 relative_path = os.path.join('.', 'media', media_dir, os.path.basename(file_path))
+                print(f"🔧 DEBUG: Final relative path: {relative_path}")
+                logger.info(f"🔧 DEBUG: Final relative path: {relative_path}")
                 
+                print(f"🔧 DEBUG: Successfully downloaded Steam {media_type} for {game_name}: {relative_path}")
                 logger.info(f"Downloaded Steam {media_type} for {game_name}: {relative_path}")
                 
                 return {
@@ -494,6 +556,80 @@ class SteamService:
         except Exception as e:
             print(f"🔧 DEBUG: Error downloading Steam {media_type} for {game_name}: {e} - URL: {url}")
             logger.error(f"🔧 DEBUG: Error downloading Steam {media_type} for {game_name}: {e} - URL: {url}")
+            return None
+
+    async def _extract_screenshot_url(self, client: httpx.AsyncClient, store_page_url: str, steam_id: int) -> Optional[str]:
+        """Extract the first screenshot image URL from Steam Store page using BeautifulSoup"""
+        try:
+            print(f"🔧 DEBUG: Fetching Steam Store page: {store_page_url}")
+            logger.info(f"🔧 DEBUG: Fetching Steam Store page: {store_page_url}")
+            
+            # Set headers with Accept-Language as requested
+            headers = {
+                'Accept-Language': 'en-US,en;q=0.5'
+            }
+            
+            # Fetch the Steam Store page
+            response = await client.get(store_page_url, headers=headers)
+            if response.status_code != 200:
+                print(f"🔧 DEBUG: Failed to fetch Steam Store page: HTTP {response.status_code}")
+                logger.warning(f"🔧 DEBUG: Failed to fetch Steam Store page: HTTP {response.status_code}")
+                return None
+            
+            html_content = response.text
+            print(f"🔧 DEBUG: Steam Store page fetched, content length: {len(html_content)}")
+            logger.info(f"🔧 DEBUG: Steam Store page fetched, content length: {len(html_content)}")
+            
+            # Parse HTML with BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+            print(f"🔧 DEBUG: HTML parsed with BeautifulSoup")
+            logger.info(f"🔧 DEBUG: HTML parsed with BeautifulSoup")
+            
+            # Look for image with alt="Screenshot #1" attribute
+            print(f"🔧 DEBUG: Searching for img with alt='Screenshot #1'")
+            logger.info(f"🔧 DEBUG: Searching for img with alt='Screenshot #1'")
+            screenshot_img = soup.find('img', alt='Screenshot #1')
+            
+            if screenshot_img:
+                screenshot_url = screenshot_img.get('src')
+                print(f"🔧 DEBUG: Found img element with alt='Screenshot #1', src: {screenshot_url}")
+                logger.info(f"🔧 DEBUG: Found img element with alt='Screenshot #1', src: {screenshot_url}")
+                if screenshot_url:
+                    print(f"🔧 DEBUG: Found screenshot URL with alt='Screenshot #1': {screenshot_url}")
+                    logger.info(f"🔧 DEBUG: Found screenshot URL with alt='Screenshot #1': {screenshot_url}")
+                    return screenshot_url
+                else:
+                    print(f"🔧 DEBUG: img element found but no src attribute")
+                    logger.warning(f"🔧 DEBUG: img element found but no src attribute")
+            else:
+                print(f"🔧 DEBUG: No image with alt='Screenshot #1' found in Steam Store page")
+                logger.warning(f"🔧 DEBUG: No image with alt='Screenshot #1' found in Steam Store page")
+            
+            # Try alternative approach - look for any image with steamstatic in src that might be a screenshot
+            print(f"🔧 DEBUG: Trying alternative approach - searching all images")
+            logger.info(f"🔧 DEBUG: Trying alternative approach - searching all images")
+            all_imgs = soup.find_all('img')
+            print(f"🔧 DEBUG: Found {len(all_imgs)} total images on the page")
+            logger.info(f"🔧 DEBUG: Found {len(all_imgs)} total images on the page")
+            
+            for i, img in enumerate(all_imgs):
+                src = img.get('src', '')
+                alt = img.get('alt', '')
+                print(f"🔧 DEBUG: Image {i+1}: src='{src}', alt='{alt}'")
+                logger.info(f"🔧 DEBUG: Image {i+1}: src='{src}', alt='{alt}'")
+                
+                if 'steamstatic' in src and ('screenshot' in alt.lower() or 'ss_' in src):
+                    print(f"🔧 DEBUG: Found alternative screenshot URL: {src} (alt: {alt})")
+                    logger.info(f"🔧 DEBUG: Found alternative screenshot URL: {src} (alt: {alt})")
+                    return src
+            
+            print(f"🔧 DEBUG: No screenshot images found in Steam Store page")
+            logger.warning(f"🔧 DEBUG: No screenshot images found in Steam Store page")
+            return None
+                
+        except Exception as e:
+            print(f"🔧 DEBUG: Error extracting screenshot URL: {e}")
+            logger.error(f"🔧 DEBUG: Error extracting screenshot URL: {e}")
             return None
 
 

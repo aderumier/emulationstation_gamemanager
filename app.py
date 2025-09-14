@@ -519,6 +519,8 @@ def log_request_info():
 
 # Disable Flask's default HTTP request logging to reduce console spam
 import logging
+
+logger = logging.getLogger(__name__)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
@@ -12920,6 +12922,13 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                             progress_percentage=progress_percent, current_step=total_completed_games, total_steps=len(games_to_process))
                     
                     # Use batch processing for media downloads
+                    print(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
+                    print(f"🔧 DEBUG: Selected fields: {selected_fields}")
+                    print(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
+                    logger.info(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
+                    logger.info(f"🔧 DEBUG: Selected fields: {selected_fields}")
+                    logger.info(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
+                    
                     batch_results = await service.download_steam_media_batch(
                         games_data=games_with_steam_ids,
                         roms_root=roms_root,
@@ -13193,6 +13202,13 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                 t.log_message(f"Starting media download for '{game_name}'")
                         
                         # Use batch processing for media downloads
+                        print(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
+                        print(f"🔧 DEBUG: Selected fields: {selected_fields}")
+                        print(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
+                        logger.info(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
+                        logger.info(f"🔧 DEBUG: Selected fields: {selected_fields}")
+                        logger.info(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
+                        
                         batch_results = await service.download_steam_media_batch(
                             games_data=games_with_steam_ids,
                             roms_root=roms_root,
@@ -14111,7 +14127,7 @@ def scrap_steam_system(system_name):
         
         # Get selected media fields from cookies (always use cookies for Steam)
         selected_fields = []
-        steam_fields = ['capsule', 'logo', 'hero', 'youtubeurl']
+        steam_fields = ['capsule', 'logo', 'hero', 'youtubeurl', 'screenshot']
         for field in steam_fields:
             cookie_name = f'steamField_{field}'
             cookie_value = request.cookies.get(cookie_name, 'true').lower() == 'true'

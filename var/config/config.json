@@ -188,7 +188,8 @@
         "image_type_mappings": {
             "capsule": "boxart",
             "logo": "marquee",
-            "hero": "fanart"
+            "hero": "fanart",
+            "screenshot": "image"
         }
     },
     "2dboxgenerator": {
