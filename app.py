@@ -6840,7 +6840,6 @@ def stop_task_endpoint(task_id):
                 global _steam_cancel_events
                 if '_steam_cancel_events' in globals() and task_id in _steam_cancel_events:
                     _steam_cancel_events[task_id].set()
-                    print(f"🔧 DEBUG: Set cancellation event for Steam task {task_id}")
             except Exception as e:
                 print(f"Warning: could not set Steam cancellation event: {e}")
         
@@ -12659,14 +12658,11 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
     import threading
     from steam_service import SteamService
     
-    print(f"🔧 DEBUG: Starting Steam task - system_name: {system_name}, task_id: {task_id}, selected_games: {selected_games}")
-    
     # Add task to cancel map
     global _steam_cancel_maps
     if '_steam_cancel_maps' not in globals():
         _steam_cancel_maps = {}
     _steam_cancel_maps[task_id] = False
-    print(f"🔧 DEBUG: Steam cancel map initialized for task {task_id}")
     
     def is_cancelled():
         """Check if the Steam task should be cancelled"""
@@ -12687,9 +12683,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
         global _steam_cancel_events
         
         try:
-            print(f"🔧 DEBUG: Entering async_steam function for task {task_id}")
             print(f"Starting Steam task for system: {system_name}")
-            print(f"🔧 DEBUG: Overwrite media fields: {overwrite_media_fields}")
             
             # Create cancellation event and store it globally
             import multiprocessing
@@ -12702,7 +12696,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
             
             # Check if task was cancelled before starting
             if is_cancelled():
-                print(f"🔧 DEBUG: Task {task_id} was cancelled before starting")
                 print(f"Steam task {task_id} was cancelled before starting")
                 t = get_task(task_id)
                 if t:
@@ -12710,28 +12703,20 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 return
             
             # Initialize Steam service
-            print(f"🔧 DEBUG: Initializing SteamService for task {task_id}")
             service = SteamService()
-            print(f"🔧 DEBUG: SteamService initialized successfully for task {task_id}")
             
             # Load games for the system
-            print(f"🔧 DEBUG: Loading gamelist for system: {system_name}")
             gamelist_path = get_gamelist_path(system_name)
-            print(f"🔧 DEBUG: Gamelist path: {gamelist_path}")
             
             if not os.path.exists(gamelist_path):
-                print(f"🔧 DEBUG: Gamelist not found at path: {gamelist_path}")
                 t = get_task(task_id)
                 if t:
                     t.complete(False, f"Gamelist not found for system: {system_name}")
                 return
             
-            print(f"🔧 DEBUG: Parsing gamelist XML from: {gamelist_path}")
             all_games = parse_gamelist_xml(gamelist_path)
-            print(f"🔧 DEBUG: Parsed {len(all_games) if all_games else 0} games from gamelist")
             
             if not all_games:
-                print(f"🔧 DEBUG: No games found in gamelist")
                 t = get_task(task_id)
                 if t:
                     t.complete(False, f"No games found for system: {system_name}")
@@ -12763,7 +12748,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 t.log_message(f"Starting Steam processing for {len(games_to_process)} games")
             
             # Get Steam app index
-            print(f"🔧 DEBUG: Loading Steam app index for task {task_id}")
             t = get_task(task_id)
             if t:
                 t.update_progress(10, None)
@@ -12771,15 +12755,12 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
             
             try:
                 app_index = await service.get_app_index()
-                print(f"🔧 DEBUG: Steam app index loaded - {len(app_index) if app_index else 0} apps")
             except Exception as e:
-                print(f"🔧 DEBUG: Error loading Steam app index: {e}")
                 import traceback
                 traceback.print_exc()
                 raise e
             
             if not app_index:
-                print(f"🔧 DEBUG: Steam app index is empty or None")
                 t = get_task(task_id)
                 if t:
                     t.complete(False, "Failed to load Steam app index")
@@ -12804,7 +12785,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 'logo': 'marquee',
                 'hero': 'fanart'
             })
-            print(f"🔧 DEBUG: Configuration - roms_root: {roms_root}, steam_config: {steam_config}, image_type_mappings: {image_type_mappings}")
             
             # Get selected fields from task data
             selected_fields = None
@@ -12922,12 +12902,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                             progress_percentage=progress_percent, current_step=total_completed_games, total_steps=len(games_to_process))
                     
                     # Use batch processing for media downloads
-                    print(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
-                    print(f"🔧 DEBUG: Selected fields: {selected_fields}")
-                    print(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
-                    logger.info(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
-                    logger.info(f"🔧 DEBUG: Selected fields: {selected_fields}")
-                    logger.info(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
                     
                     batch_results = await service.download_steam_media_batch(
                         games_data=games_with_steam_ids,
@@ -12997,7 +12971,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
             if games_needing_steam_lookup:
                 # Check for cancellation before Steam ID lookup
                 if is_cancelled():
-                    print(f"🔧 DEBUG: Steam ID lookup cancelled for task {task_id}")
                     t = get_task(task_id)
                     if t:
                         t.complete(True, "Task cancelled during Steam ID lookup")
@@ -13019,14 +12992,12 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 for i in range(0, len(games_needing_steam_lookup), batch_size):
                     # Check for cancellation before each batch
                     if is_cancelled():
-                        print(f"🔧 DEBUG: Steam ID lookup batch cancelled at batch {i//batch_size + 1}")
                         t = get_task(task_id)
                         if t:
                             t.complete(True, "Task cancelled during Steam ID lookup")
                         return
                     
                     batch = games_needing_steam_lookup[i:i + batch_size]
-                    print(f"🔧 DEBUG: Processing Steam ID lookup batch {i//batch_size + 1} with {len(batch)} games")
                     
                     # Process batch in parallel
                     lookup_tasks = []
@@ -13202,12 +13173,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                 t.log_message(f"Starting media download for '{game_name}'")
                         
                         # Use batch processing for media downloads
-                        print(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
-                        print(f"🔧 DEBUG: Selected fields: {selected_fields}")
-                        print(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
-                        logger.info(f"🔧 DEBUG: Starting Steam media download batch for {len(games_with_steam_ids)} games")
-                        logger.info(f"🔧 DEBUG: Selected fields: {selected_fields}")
-                        logger.info(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
                         
                         batch_results = await service.download_steam_media_batch(
                             games_data=games_with_steam_ids,
@@ -13331,7 +13296,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                     t.complete(True, f"Steam task completed: No Steam matches found, {total_images_downloaded} total images downloaded, {skipped_count} games skipped")
                 
         except Exception as e:
-            print(f"🔧 DEBUG: Exception caught in Steam task {task_id}: {e}")
             print(f"❌ Error in Steam task: {e}")
             import traceback
             traceback.print_exc()
@@ -13339,25 +13303,19 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
             if t:
                 t.complete(False, f"Steam task failed: {str(e)}")
         finally:
-            print(f"🔧 DEBUG: Cleaning up Steam service for task {task_id}")
             # Clean up the service
             try:
                 if service:
                     service.close()
-                    print(f"🔧 DEBUG: Steam service closed successfully for task {task_id}")
-                else:
-                    print(f"🔧 DEBUG: No service to close for task {task_id}")
             except Exception as e:
-                print(f"🔧 DEBUG: Error closing Steam service for task {task_id}: {e}")
                 print(f"Warning: Error closing Steam service: {e}")
             
             # Clean up cancellation event
             try:
                 if '_steam_cancel_events' in globals() and task_id in _steam_cancel_events:
                     del _steam_cancel_events[task_id]
-                    print(f"🔧 DEBUG: Cleaned up cancellation event for Steam task {task_id}")
             except Exception as e:
-                print(f"🔧 DEBUG: Error cleaning up cancellation event for task {task_id}: {e}")
+                pass
             
             # Save gamelist regardless of cancellation status (user might have downloaded some media)
             try:
@@ -13393,27 +13351,19 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
     
     # Run the async function in a new thread
     def run_async():
-        print(f"🔧 DEBUG: Starting async thread for Steam task {task_id}")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            print(f"🔧 DEBUG: Running async_steam in thread for task {task_id}")
             loop.run_until_complete(async_steam(overwrite_media_fields, overwrite_text_fields))
-            print(f"🔧 DEBUG: async_steam completed successfully for task {task_id}")
         except Exception as e:
-            print(f"🔧 DEBUG: Exception in async thread for task {task_id}: {e}")
             import traceback
             traceback.print_exc()
         finally:
-            print(f"🔧 DEBUG: Closing event loop for task {task_id}")
             loop.close()
-            print(f"🔧 DEBUG: Event loop closed for task {task_id}")
     
-    print(f"🔧 DEBUG: Creating thread for Steam task {task_id}")
     thread = threading.Thread(target=run_async)
     thread.daemon = True
     thread.start()
-    print(f"🔧 DEBUG: Thread started for Steam task {task_id}")
 
 def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_media_fields=False):
     """Run SteamGridDB task for a specific system (SteamGridDB API only)"""
@@ -14133,10 +14083,7 @@ def scrap_steam_system(system_name):
             cookie_value = request.cookies.get(cookie_name, 'true').lower() == 'true'
             if cookie_value:
                 selected_fields.append(field)
-            print(f"🔧 DEBUG: Steam field {field} (cookie {cookie_name}): {cookie_value}")
         
-        print(f"🔧 DEBUG: Final selected_fields from cookies: {selected_fields}")
-        print(f"🔧 DEBUG: Overwrite text fields: {overwrite_text_fields}")
         
         # Create task object
         task_data = {

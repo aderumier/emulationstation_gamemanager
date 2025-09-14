@@ -6408,6 +6408,58 @@ class GameCollectionManager {
                 this.showAlert(data.message || 'ScreenScraper scraping failed', 'error');
             }
         }
+        
+        // Check if this is a Steam scraping task completion
+        if (data.task_type === 'steam_scraping') {
+            console.log('Steam scraping task completed:', data);
+            console.log('Current system:', this.currentSystem);
+            console.log('Task system name:', data.system_name);
+            console.log('Task success:', data.success);
+            console.log('Task stopped:', data.stopped);
+            
+            // Refresh the task grid to show updated task status
+            this.refreshTaskGrid();
+            
+            // Refresh the gamelist grid if we're viewing the same system that was scraped
+            if (data.system_name && data.system_name === this.currentSystem) {
+                console.log('✅ System names match - refreshing gamelist grid for system:', data.system_name);
+                console.log('🔄 About to call loadRomSystem...');
+                
+                // Add a delay to ensure gamelist.xml file write has completed
+                setTimeout(() => {
+                    this.loadRomSystem(this.currentSystem).then(() => {
+                        console.log('✅ Gamelist grid refreshed after Steam task completion');
+                        
+                        // Refresh media preview if it's currently showing
+                        if (this.mediaPreviewEnabled && this.currentMediaPreviewGame) {
+                            console.log('🔄 Refreshing media preview after Steam task completion');
+                            const freshGame = this.games.find(g => g.path === this.currentMediaPreviewGame.path);
+                            if (freshGame) {
+                                this.currentMediaPreviewGame = freshGame;
+                                this.showMediaPreview(this.currentMediaPreviewGame);
+                            }
+                        }
+                    }).catch((error) => {
+                        console.error('❌ Error refreshing gamelist grid:', error);
+                    });
+                }, 1000); // 1000ms delay to ensure file write is complete
+            } else {
+                console.log('❌ System names do not match - skipping gamelist refresh');
+                console.log('  - Current system:', this.currentSystem);
+                console.log('  - Task system:', data.system_name);
+            }
+            
+            // Show appropriate message based on success/stopped status
+            if (data.success) {
+                if (data.stopped) {
+                    this.showAlert(data.message || 'Steam scraping stopped by user (data saved)', 'success');
+                } else {
+                    this.showAlert(data.message || 'Steam scraping completed successfully', 'success');
+                }
+            } else {
+                this.showAlert(data.message || 'Steam scraping failed', 'error');
+            }
+        }
     }
     
     async refreshTaskGrid() {
