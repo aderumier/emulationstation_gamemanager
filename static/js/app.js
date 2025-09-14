@@ -4373,23 +4373,26 @@ class GameCollectionManager {
             const startTime = parseInt(document.getElementById('youtubeStartTime').value) || 0;
             const autoCrop = document.getElementById('youtubeAutoCrop').checked;
             const overwriteExisting = document.getElementById('youtubeOverwriteExisting').checked;
+            const playlistIndex = parseInt(document.getElementById('youtubePlaylistIndex').value) || 1;
 
             // Determine which games to process
             const gamesToProcess = this.selectedGames.length > 0 ? this.selectedGames : this.games;
             
-            // Filter games that have YouTube URLs
+            // Filter games that have YouTube URLs or Steam Store URLs
             const gamesWithYoutube = gamesToProcess.filter(game => {
                 const youtubeUrl = game.youtubeurl || '';
                 const hasYoutube = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('youtube');
-                console.log('🎥 DEBUG: Checking game:', game.name, 'Path:', game.path, 'YouTube URL:', youtubeUrl, 'Has YouTube:', hasYoutube);
-                return hasYoutube;
+                const hasSteamStore = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('store.steampowered.com');
+                const hasValidUrl = hasYoutube || hasSteamStore;
+                console.log('🎥 DEBUG: Checking game:', game.name, 'Path:', game.path, 'YouTube URL:', youtubeUrl, 'Has YouTube:', hasYoutube, 'Has Steam Store:', hasSteamStore, 'Has Valid URL:', hasValidUrl);
+                return hasValidUrl;
             });
 
             console.log('🎥 DEBUG: Games with YouTube URLs found:', gamesWithYoutube.length);
             console.log('🎥 DEBUG: Games with YouTube:', gamesWithYoutube.map(g => ({ name: g.name, path: g.path, youtubeurl: g.youtubeurl })));
 
             if (gamesWithYoutube.length === 0) {
-                this.showAlert('No games with YouTube URLs found to download', 'warning');
+                this.showAlert('No games with YouTube or Steam Store URLs found to download', 'warning');
                 return;
             }
 
@@ -4407,7 +4410,8 @@ class GameCollectionManager {
                 selected_games: gamesWithYoutube.map(game => game.path),
                 start_time: startTime,
                 auto_crop: autoCrop,
-                overwrite_existing: overwriteExisting
+                overwrite_existing: overwriteExisting,
+                playlist_index: playlistIndex
             };
 
             console.log('Starting YouTube download batch task:', requestBody);

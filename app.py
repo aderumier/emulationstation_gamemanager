@@ -7603,6 +7603,7 @@ def youtube_download_batch(system_name):
         start_time = data.get('start_time', 0)
         auto_crop = data.get('auto_crop', False)
         overwrite_existing = data.get('overwrite_existing', False)
+        playlist_index = data.get('playlist_index', 1)
         
         if not selected_games:
             return jsonify({'error': 'No games selected for download'}), 400
@@ -7625,7 +7626,8 @@ def youtube_download_batch(system_name):
             'selected_games': selected_games,
             'start_time': start_time,
             'auto_crop': auto_crop,
-            'overwrite_existing': overwrite_existing
+            'overwrite_existing': overwrite_existing,
+            'playlist_index': playlist_index
         }
         
         task = create_task('youtube_download_batch', task_data)
@@ -7633,7 +7635,7 @@ def youtube_download_batch(system_name):
         task.start()
         
         # Start task in background thread
-        thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing))
+        thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index))
         thread.daemon = True
         thread.start()
         
@@ -8584,7 +8586,7 @@ def run_youtube_download_task(task_id, data):
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
 
-def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, overwrite_existing):
+def run_youtube_download_batch_task(system_name, task_id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index=1):
     """Run batch YouTube download task in background thread"""
     global current_task_id
     
@@ -8602,6 +8604,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         task.update_progress(f"  Start time: {start_time} seconds")
         task.update_progress(f"  Auto crop: {auto_crop}")
         task.update_progress(f"  Overwrite existing: {overwrite_existing}")
+        task.update_progress(f"  Playlist index: {playlist_index}")
         
         # Validate system exists
         system_path = os.path.join(ROMS_FOLDER, system_name)
@@ -8620,7 +8623,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
             task.complete(False, 'No games found in gamelist.xml')
             return
         
-        # Filter games to process (only those with YouTube URLs)
+        # Filter games to process (those with YouTube URLs or Steam Store URLs)
         games_to_process = []
         print(f"🎥 DEBUG: Total games in gamelist: {len(all_games)}")
         print(f"🎥 DEBUG: Selected games to process: {len(selected_games)}")
@@ -8629,25 +8632,31 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         for game in all_games:
             game_path = game.get('path', '')
             youtube_url = game.get('youtubeurl', '')
+            has_youtube = youtube_url and 'youtube' in youtube_url.lower()
+            has_steam_store = youtube_url and 'store.steampowered.com' in youtube_url.lower()
+            has_valid_url = has_youtube or has_steam_store
+            
             print(f"🎥 DEBUG: Checking game: {game_path}")
             print(f"🎥 DEBUG:  - In selected_games: {game_path in selected_games}")
             print(f"🎥 DEBUG:  - YouTube URL: {youtube_url}")
-            print(f"🎥 DEBUG:  - Has YouTube: {youtube_url and 'youtube' in youtube_url.lower()}")
+            print(f"🎥 DEBUG:  - Has YouTube: {has_youtube}")
+            print(f"🎥 DEBUG:  - Has Steam Store: {has_steam_store}")
+            print(f"🎥 DEBUG:  - Has Valid URL: {has_valid_url}")
             
             if game_path in selected_games:
-                if youtube_url and 'youtube' in youtube_url.lower():
+                if has_valid_url:
                     games_to_process.append(game)
                     print(f"🎥 DEBUG:  - ✅ Added to process list")
                 else:
-                    print(f"🎥 DEBUG:  - ❌ No YouTube URL")
+                    print(f"🎥 DEBUG:  - ❌ No valid URL (YouTube or Steam Store)")
             else:
                 print(f"🎥 DEBUG:  - ❌ Not in selected games")
         
         if not games_to_process:
-            task.complete(False, 'No games with YouTube URLs found to process')
+            task.complete(False, 'No games with YouTube or Steam Store URLs found to process')
             return
         
-        task.update_progress(f"Found {len(games_to_process)} games with YouTube URLs to process")
+        task.update_progress(f"Found {len(games_to_process)} games with YouTube or Steam Store URLs to process")
         
         # Create media/videos directory if it doesn't exist
         videos_dir = os.path.join(system_path, 'media', 'videos')
@@ -8700,7 +8709,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 # Download the video using the existing YouTube download logic
                 success = download_youtube_video_for_game(
                     task, youtube_url, start_time, auto_crop, 
-                    output_path, videos_dir, game_name
+                    output_path, videos_dir, game_name, playlist_index
                 )
                 
                 if success:
@@ -8739,7 +8748,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
 
-def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name):
+def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1):
     """Download a single YouTube video for a game (helper function)"""
     try:
         # Check if yt-dlp is available
@@ -8754,6 +8763,9 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Calculate end time for the 30-second section
         end_time = start_time + 30
         
+        # Check if this is a Steam Store URL
+        is_steam_store = 'store.steampowered.com' in video_url.lower()
+        
         # Download command
         download_cmd = [
             yt_dlp_path,
@@ -8762,9 +8774,15 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             '--download-sections', f'*{start_time}-{end_time}',
             '--force-keyframes-at-cuts',
             '--progress',
-            '--newline',
-            video_url
+            '--newline'
         ]
+        
+        # Add playlist index parameter for Steam Store URLs
+        if is_steam_store:
+            download_cmd.extend(['--playlist-items', str(playlist_index)])
+            task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
+        
+        download_cmd.append(video_url)
         
         # Log the yt-dlp command
         task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
