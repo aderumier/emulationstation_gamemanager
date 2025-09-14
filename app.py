@@ -6167,7 +6167,7 @@ def upload_game_media(system_name):
             print(f"✅ No conversion needed for uploaded field: {media_field}")
         
         # Update the game object in memory with relative path
-        relative_path = os.path.relpath(file_path, system_path)
+        relative_path = f"./media/{media_directory}/{new_filename}"
         game[media_field] = relative_path
         
         # Update the gamelist.xml file

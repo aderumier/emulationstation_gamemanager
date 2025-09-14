@@ -3975,6 +3975,9 @@ class GameCollectionManager {
             
             console.log('Finding best matches for selected games:', this.selectedGames.length);
             
+            // Show the modal with loading state
+            this.showGlobalMatchModal();
+            
             // Get the paths of selected games
             const selectedGamePaths = this.selectedGames.map(game => game.path);
             
@@ -3996,20 +3999,18 @@ class GameCollectionManager {
             if (data.success && data.results && data.results.length > 0) {
                 console.log('Found matches for games:', data.results.length);
                 
-                // Store the results for processing
-                this.pendingBestMatchResults = data.results;
-                this.currentBestMatchIndex = 0;
-                this.currentModalContext = 'global';
-                
-                // Show the first game's matches
-                this.showNextBestMatchModal();
+                // Store the results and populate the table
+                this.globalMatchResults = data.results;
+                this.populateGlobalMatchTable();
             } else {
+                this.showGlobalMatchEmpty();
                 this.showAlert('No matches found for the selected games', 'info');
             }
             
         } catch (error) {
             console.error('Error finding best matches:', error);
             this.showAlert('Error finding best matches: ' + error.message, 'danger');
+            this.hideGlobalMatchModal();
         } finally {
             // Reset button state
             const button = document.getElementById('globalFindBestMatchBtn');
@@ -4019,6 +4020,277 @@ class GameCollectionManager {
             }
         }
     }
+
+    showGlobalMatchModal() {
+        const modal = new bootstrap.Modal(document.getElementById('globalMatchModal'));
+        const progressDiv = document.getElementById('globalMatchProgress');
+        const tableDiv = document.getElementById('globalMatchTable');
+        const emptyDiv = document.getElementById('globalMatchEmpty');
+        
+        // Show loading state
+        if (progressDiv) progressDiv.style.display = 'block';
+        if (tableDiv) tableDiv.style.display = 'none';
+        if (emptyDiv) emptyDiv.style.display = 'none';
+        
+        modal.show();
+    }
+
+    hideGlobalMatchModal() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('globalMatchModal'));
+        if (modal) {
+            modal.hide();
+        }
+    }
+
+    showGlobalMatchEmpty() {
+        const progressDiv = document.getElementById('globalMatchProgress');
+        const tableDiv = document.getElementById('globalMatchTable');
+        const emptyDiv = document.getElementById('globalMatchEmpty');
+        
+        if (progressDiv) progressDiv.style.display = 'none';
+        if (tableDiv) tableDiv.style.display = 'none';
+        if (emptyDiv) emptyDiv.style.display = 'block';
+    }
+
+    populateGlobalMatchTable() {
+        const progressDiv = document.getElementById('globalMatchProgress');
+        const tableDiv = document.getElementById('globalMatchTable');
+        const emptyDiv = document.getElementById('globalMatchEmpty');
+        const tbody = document.getElementById('globalMatchTableBody');
+        
+        if (!this.globalMatchResults || this.globalMatchResults.length === 0) {
+            this.showGlobalMatchEmpty();
+            return;
+        }
+        
+        // Hide loading, show table
+        if (progressDiv) progressDiv.style.display = 'none';
+        if (tableDiv) tableDiv.style.display = 'block';
+        if (emptyDiv) emptyDiv.style.display = 'none';
+        
+        // Clear existing rows
+        if (tbody) {
+            tbody.innerHTML = '';
+        }
+        
+        // Sort results by highest matching score (first match in top_matches array)
+        const sortedResults = [...this.globalMatchResults].map((result, originalIndex) => ({
+            ...result,
+            originalIndex
+        })).sort((a, b) => {
+            const scoreA = a.top_matches && a.top_matches.length > 0 ? a.top_matches[0].score : 0;
+            const scoreB = b.top_matches && b.top_matches.length > 0 ? b.top_matches[0].score : 0;
+            return scoreB - scoreA; // Sort descending (highest first)
+        });
+        
+        // Create rows for each game (now sorted by score)
+        sortedResults.forEach((result, index) => {
+            const row = this.createGlobalMatchRow(result, index, result.originalIndex);
+            if (tbody) {
+                tbody.appendChild(row);
+            }
+        });
+    }
+
+    createGlobalMatchRow(result, index, originalIndex) {
+        const row = document.createElement('tr');
+        row.id = `globalMatchRow_${index}`;
+        row.dataset.gamePath = result.game_data.path; // Store game path as data attribute
+        row.dataset.originalIndex = originalIndex; // Store original index
+        row.style.height = '40px'; // Compact row height
+        
+        const gameName = result.game_name || 'Unknown';
+        const currentId = result.existing_launchboxid || 'None';
+        const topMatches = result.top_matches || [];
+        
+        // Get publisher or developer from game data if available
+        const gameData = result.game_data || {};
+        const publisher = gameData.publisher || '';
+        const developer = gameData.developer || '';
+        
+        // Format game name with publisher or developer if available
+        let displayName = gameName;
+        if (publisher && publisher.trim()) {
+            displayName = `${gameName} (${publisher})`;
+        } else if (developer && developer.trim()) {
+            displayName = `${gameName} (${developer})`;
+        }
+        
+        // Game name cell
+        const nameCell = document.createElement('td');
+        nameCell.style.padding = '6px 8px';
+        nameCell.style.verticalAlign = 'middle';
+        nameCell.style.fontSize = '0.75rem';
+        nameCell.textContent = displayName;
+        row.appendChild(nameCell);
+        
+        // Current ID cell
+        const idCell = document.createElement('td');
+        idCell.style.padding = '6px 8px';
+        idCell.style.verticalAlign = 'middle';
+        idCell.style.fontSize = '0.8rem';
+        idCell.textContent = currentId;
+        row.appendChild(idCell);
+        
+        // Best match dropdown cell
+        const matchCell = document.createElement('td');
+        matchCell.style.padding = '6px 8px';
+        matchCell.style.verticalAlign = 'middle';
+        const select = document.createElement('select');
+        select.className = 'form-select form-select-sm';
+        select.style.fontSize = '0.8rem';
+        select.style.padding = '4px 6px';
+        select.id = `globalMatchSelect_${index}`;
+        
+        // Add match options (already sorted by score, highest first)
+        topMatches.forEach((match, matchIndex) => {
+            const option = document.createElement('option');
+            option.value = matchIndex;
+            const score = (match.score * 100).toFixed(1);
+            const publisher = match.publisher || 'Unknown Publisher';
+            let optionText = `${score}%: ${match.matched_name} (${publisher})`;
+            
+            // Limit text to 70 characters and add ... if truncated
+            if (optionText.length > 70) {
+                optionText = optionText.substring(0, 67) + '...';
+            }
+            
+            option.textContent = optionText;
+            option.dataset.score = match.score;
+            option.dataset.launchboxId = match.database_id;
+            select.appendChild(option);
+        });
+        
+        // Auto-select the first (highest scoring) match
+        if (topMatches.length > 0) {
+            select.value = '0'; // Select the first option (highest score)
+        }
+        
+        matchCell.appendChild(select);
+        row.appendChild(matchCell);
+        
+        // Actions cell
+        const actionsCell = document.createElement('td');
+        actionsCell.style.padding = '6px 8px';
+        actionsCell.style.verticalAlign = 'middle';
+        const validateBtn = document.createElement('button');
+        validateBtn.className = 'btn btn-success btn-sm';
+        validateBtn.style.fontSize = '0.75rem';
+        validateBtn.style.padding = '4px 8px';
+        validateBtn.innerHTML = '<i class="bi bi-check-lg"></i> Validate';
+        validateBtn.disabled = false; // Always enabled since we auto-select
+        validateBtn.onclick = () => this.validateGlobalMatch(index);
+        
+        actionsCell.appendChild(validateBtn);
+        row.appendChild(actionsCell);
+        
+        // No change listener needed since validate button is always enabled
+        
+        return row;
+    }
+
+    async validateGlobalMatch(index) {
+        try {
+            const select = document.getElementById(`globalMatchSelect_${index}`);
+            if (!select || !select.value) {
+                this.showAlert('Please select a match first', 'warning');
+                return;
+            }
+            
+            // Get the game path from the row data attribute
+            const row = select.closest('tr');
+            const gamePath = row.dataset.gamePath;
+            const originalIndex = parseInt(row.dataset.originalIndex);
+            
+            // Find the result using the original index
+            const result = this.globalMatchResults[originalIndex];
+            
+            if (!result) {
+                this.showAlert('Game not found in results', 'error');
+                return;
+            }
+            
+            const matchIndex = parseInt(select.value);
+            const match = result.top_matches[matchIndex];
+            
+            if (!match) {
+                this.showAlert('Invalid match selected', 'error');
+                return;
+            }
+            
+            // Update the game in the gamelist
+            const gameData = result.game_data;
+            const gameFilePath = gameData.path;
+            
+            // Find the game in our local games array
+            const gameIndex = this.games.findIndex(g => g.path === gameFilePath);
+            if (gameIndex === -1) {
+                this.showAlert('Game not found in current collection', 'error');
+                return;
+            }
+            
+            // Update the game
+            this.games[gameIndex].launchboxid = match.database_id;
+            this.modifiedGames.add(this.games[gameIndex].id);
+            
+            // Save the gamelist directly to var directory without confirmation
+            await this.saveGamelistDirect();
+            
+            // Remove the row from the table
+            const tableRow = document.getElementById(`globalMatchRow_${index}`);
+            if (tableRow) {
+                tableRow.remove();
+            }
+            
+            // Remove from results array using original index
+            this.globalMatchResults.splice(originalIndex, 1);
+            
+            // Re-populate the table with updated results
+            this.populateGlobalMatchTable();
+            
+            // Check if all games are processed
+            if (this.globalMatchResults.length === 0) {
+                this.showGlobalMatchEmpty();
+            }
+            
+            this.showAlert(`Successfully updated ${gameData.name} with LaunchBox ID: ${match.database_id}`, 'success');
+            
+        } catch (error) {
+            console.error('Error validating global match:', error);
+            this.showAlert('Error validating match: ' + error.message, 'danger');
+        }
+    }
+
+    async saveGamelistDirect() {
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    games: this.games,
+                    delete_rom_paths: [],
+                    changed_games: []
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to save gamelist');
+            }
+            
+            console.log('Gamelist saved successfully to var directory');
+            
+        } catch (error) {
+            console.error('Error saving gamelist:', error);
+            this.showAlert('Error saving gamelist: ' + error.message, 'danger');
+            throw error; // Re-throw to allow calling function to handle
+        }
+    }
+
     
     async generate2DBoxForSelected() {
         try {
