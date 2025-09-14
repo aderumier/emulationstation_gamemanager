@@ -1149,12 +1149,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                         <div class="card-body">
                             <!-- Overwrite Media Fields Option -->
-                            <div class="form-check">
+                            <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="overwriteMediaFieldsSteamModal">
                                 <label class="form-check-label" for="overwriteMediaFieldsSteamModal">
                                     <i class="bi bi-image me-2"></i>Overwrite Media Fields
                                 </label>
                                 <div class="form-text">Always overwrite media fields (boxart, marquee, fanart) during Steam scraping, even if they already have values</div>
+                            </div>
+                            
+                            <!-- Overwrite Text Fields Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="overwriteTextFieldsSteamModal">
+                                <label class="form-check-label" for="overwriteTextFieldsSteamModal">
+                                    <i class="bi bi-file-text me-2"></i>Overwrite Text Fields
+                                </label>
+                                <div class="form-text">Always overwrite text fields (name, description, developer, etc.) during Steam scraping, even if they already have values</div>
                             </div>
                         </div>
                     </div>
@@ -1167,7 +1176,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <div class="card-body">
                             <div class="row">
                                 <!-- Media Fields -->
-                                <div class="col-md-12">
+                                <div class="col-md-6">
                                     <h6 class="text-muted mb-3"><i class="bi bi-image me-2"></i>Media Fields</h6>
                                     <div class="form-check mb-2">
                                         <input class="form-check-input steam-field-checkbox" type="checkbox" id="steamFieldCapsule" data-field="capsule" checked>
@@ -1180,6 +1189,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <div class="form-check mb-2">
                                         <input class="form-check-input steam-field-checkbox" type="checkbox" id="steamFieldHero" data-field="hero" checked>
                                         <label class="form-check-label" for="steamFieldHero">Fanart (Hero)</label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Text Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-file-text me-2"></i>Text Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input steam-field-checkbox" type="checkbox" id="steamFieldYoutubeUrl" data-field="youtubeurl" checked>
+                                        <label class="form-check-label" for="steamFieldYoutubeUrl">YouTube URL</label>
                                     </div>
                                 </div>
                             </div>

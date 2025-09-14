@@ -1390,6 +1390,11 @@ class GameCollectionManager {
             this.setCookie('overwriteMediaFieldsSteam', e.target.checked);
         });
 
+        // Steam overwrite text fields toggle (in Steam Configuration modal)
+        document.getElementById('overwriteTextFieldsSteamModal').addEventListener('change', (e) => {
+            this.setCookie('overwriteTextFieldsSteam', e.target.checked);
+        });
+
         // SteamGridDB overwrite media fields toggle (in SteamGridDB Configuration modal)
         document.getElementById('overwriteMediaFieldsSteamGridDBModal').addEventListener('change', (e) => {
             this.setCookie('overwriteMediaFieldsSteamGridDB', e.target.checked);
@@ -6811,12 +6816,18 @@ class GameCollectionManager {
     loadSteamSettings() {
         // Load saved settings from cookies
         const savedOverwriteMediaFields = this.getCookie('overwriteMediaFieldsSteam');
+        const savedOverwriteTextFields = this.getCookie('overwriteTextFieldsSteam');
         
         // Update modal checkboxes with saved values
         const overwriteMediaCheckbox = document.getElementById('overwriteMediaFieldsSteamModal');
+        const overwriteTextCheckbox = document.getElementById('overwriteTextFieldsSteamModal');
         
         if (overwriteMediaCheckbox) {
             overwriteMediaCheckbox.checked = savedOverwriteMediaFields === 'true';
+        }
+        
+        if (overwriteTextCheckbox) {
+            overwriteTextCheckbox.checked = savedOverwriteTextFields === 'true';
         }
         
         // Load field selection settings
@@ -6825,13 +6836,18 @@ class GameCollectionManager {
     
     loadSteamFieldSettings() {
         // Load saved field selections from cookies
-        const steamFields = ['capsule', 'logo', 'hero'];
+        const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl'];
         
         steamFields.forEach(field => {
             const cookieName = `steamField_${field}`;
             const savedValue = this.getCookie(cookieName);
             // Convert field name to checkbox ID format: field -> Field
-            const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+            let fieldId;
+            if (field === 'youtubeurl') {
+                fieldId = 'YoutubeUrl'; // Special case for YouTube URL
+            } else {
+                fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+            }
             const checkboxId = `steamField${fieldId}`;
             const checkbox = document.getElementById(checkboxId);
             
@@ -6852,11 +6868,16 @@ class GameCollectionManager {
     async saveSteamFieldSettings() {
         try {
             // Save field selections to cookies
-            const steamFields = ['capsule', 'logo', 'hero'];
+            const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl'];
             
             steamFields.forEach(field => {
                 // Convert field name to checkbox ID format: field -> Field
-                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                let fieldId;
+                if (field === 'youtubeurl') {
+                    fieldId = 'YoutubeUrl'; // Special case for YouTube URL
+                } else {
+                    fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                }
                 const checkboxId = `steamField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 const cookieName = `steamField_${field}`;

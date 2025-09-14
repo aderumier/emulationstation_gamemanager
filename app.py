@@ -12633,7 +12633,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
 # IGDB Scraper API Routes
 # =============================================================================
 
-def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fields=False):
+def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fields=False, overwrite_text_fields=False):
     """Run Steam task for a specific system (Steam CDN only)"""
     import asyncio
     import threading
@@ -12661,7 +12661,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
             t.update_progress(progress, None, current_step=completed, total_steps=total)
             print(f"🔄 Steam Progress: {completed}/{total} ({progress}%)")
     
-    async def async_steam(overwrite_media_fields=False):
+    async def async_steam(overwrite_media_fields=False, overwrite_text_fields=False):
         service = None
         cancellation_event = None
         global _steam_cancel_events
@@ -12926,12 +12926,34 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                             # Update game with downloaded media paths
                             for media_field, media_path in downloaded_media.items():
                                 game[media_field] = media_path
+                            
+                            # Handle YouTube URL for games that already had Steam IDs
+                            if 'youtubeurl' in selected_fields:
+                                steam_id = game_data['steam_id']
+                                existing_youtube_url = game.get('youtubeurl', '')
+                                print(f"🎥 DEBUG: Processing YouTube URL for existing Steam ID game '{game_name}' (Steam ID: {steam_id})")
+                                print(f"🎥 DEBUG: Existing YouTube URL: '{existing_youtube_url}'")
+                                print(f"🎥 DEBUG: Overwrite text fields: {overwrite_text_fields}")
+                                
+                                # Only set YouTube URL if it doesn't exist or if overwrite is enabled
+                                if not existing_youtube_url or overwrite_text_fields:
+                                    youtube_url = f"https://store.steampowered.com/app/{steam_id}"
+                                    game['youtubeurl'] = youtube_url
+                                    print(f"✅ Set YouTube URL for '{game_name}': {youtube_url}")
+                                    t = get_task(task_id)
+                                    if t:
+                                        t.log_message(f"Set YouTube URL for '{game_name}': {youtube_url}")
+                                else:
+                                    print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
                     
                     # Also update the corresponding game in all_games
                     for all_game in all_games:
                         if all_game['path'] == game['path']:
                             for media_field, media_path in downloaded_media.items():
                                 all_game[media_field] = media_path
+                            # Also update YouTube URL if it was set
+                            if 'youtubeurl' in game and game['youtubeurl']:
+                                all_game['youtubeurl'] = game['youtubeurl']
                             break
                             
                             # Media download progress is now handled by the progress callback
@@ -13039,6 +13061,30 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                 for all_game in all_games:
                                     if all_game['path'] == game['path']:
                                         all_game['steamid'] = steam_id
+                                
+                                # Handle YouTube URL if selected and conditions are met
+                                if 'youtubeurl' in selected_fields:
+                                    print(f"🎥 DEBUG: YouTube URL field is selected for '{game_name}'")
+                                    existing_youtube_url = game.get('youtubeurl', '')
+                                    print(f"🎥 DEBUG: Existing YouTube URL: '{existing_youtube_url}'")
+                                    print(f"🎥 DEBUG: Overwrite text fields: {overwrite_text_fields}")
+                                    
+                                    # Only set YouTube URL if it doesn't exist or if overwrite is enabled
+                                    if not existing_youtube_url or overwrite_text_fields:
+                                        youtube_url = f"https://store.steampowered.com/app/{steam_id}"
+                                        game['youtubeurl'] = youtube_url
+                                        # Also update the corresponding game in all_games
+                                        for all_game in all_games:
+                                            if all_game['path'] == game['path']:
+                                                all_game['youtubeurl'] = youtube_url
+                                        print(f"✅ Set YouTube URL for '{game_name}': {youtube_url}")
+                                        t = get_task(task_id)
+                                        if t:
+                                            t.log_message(f"Set YouTube URL for '{game_name}': {youtube_url}")
+                                    else:
+                                        print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
+                                else:
+                                    print(f"🎥 DEBUG: YouTube URL field not selected, skipping")
                                 
                                 # Add to games with Steam IDs for media download
                                 games_with_steam_ids.append({
@@ -13318,7 +13364,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
         asyncio.set_event_loop(loop)
         try:
             print(f"🔧 DEBUG: Running async_steam in thread for task {task_id}")
-            loop.run_until_complete(async_steam(overwrite_media_fields))
+            loop.run_until_complete(async_steam(overwrite_media_fields, overwrite_text_fields))
             print(f"🔧 DEBUG: async_steam completed successfully for task {task_id}")
         except Exception as e:
             print(f"🔧 DEBUG: Exception in async thread for task {task_id}: {e}")
@@ -14043,10 +14089,11 @@ def scrap_steam_system(system_name):
         
         # Get Steam preferences from cookies
         overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteam', 'false').lower() == 'true'
+        overwrite_text_fields = request.cookies.get('overwriteTextFieldsSteam', 'false').lower() == 'true'
         
         # Get selected media fields from cookies (always use cookies for Steam)
         selected_fields = []
-        steam_fields = ['capsule', 'logo', 'hero']
+        steam_fields = ['capsule', 'logo', 'hero', 'youtubeurl']
         for field in steam_fields:
             cookie_name = f'steamField_{field}'
             cookie_value = request.cookies.get(cookie_name, 'true').lower() == 'true'
@@ -14055,13 +14102,15 @@ def scrap_steam_system(system_name):
             print(f"🔧 DEBUG: Steam field {field} (cookie {cookie_name}): {cookie_value}")
         
         print(f"🔧 DEBUG: Final selected_fields from cookies: {selected_fields}")
+        print(f"🔧 DEBUG: Overwrite text fields: {overwrite_text_fields}")
         
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
             'selected_fields': selected_fields,
-            'overwrite_media_fields': overwrite_media_fields
+            'overwrite_media_fields': overwrite_media_fields,
+            'overwrite_text_fields': overwrite_text_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
@@ -14081,7 +14130,7 @@ def scrap_steam_system(system_name):
         import threading
         scraper_thread = threading.Thread(
             target=run_steam_task,
-            args=(system_name, task.id, selected_games, overwrite_media_fields),
+            args=(system_name, task.id, selected_games, overwrite_media_fields, overwrite_text_fields),
             daemon=True
         )
         scraper_thread.start()
