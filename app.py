@@ -6066,6 +6066,86 @@ def delete_file():
         app.logger.error(f'Error deleting file: {str(e)}')
         return jsonify({'error': f'Failed to delete file: {str(e)}'}), 500
 
+@app.route('/api/delete-files', methods=['POST'])
+@login_required
+def delete_files_batch():
+    """Delete multiple files from the filesystem in a single request"""
+    app.logger.info(f'Delete files batch endpoint called with data: {request.get_json()}')
+    try:
+        data = request.get_json()
+        if not data or 'file_paths' not in data:
+            return jsonify({'error': 'file_paths is required'}), 400
+        
+        file_paths = data['file_paths']
+        if not isinstance(file_paths, list):
+            return jsonify({'error': 'file_paths must be a list'}), 400
+        
+        if not file_paths:
+            return jsonify({'error': 'file_paths cannot be empty'}), 400
+        
+        # Security check: ensure all file paths are within allowed directories
+        allowed_dirs = [
+            os.path.abspath(os.path.join(app.root_path, 'roms')),
+            os.path.abspath(os.path.join(app.root_path, 'media'))
+        ]
+        
+        deleted_files = []
+        failed_deletions = []
+        
+        for file_path in file_paths:
+            try:
+                # Convert relative path to absolute path relative to app root
+                if not os.path.isabs(file_path):
+                    file_path = os.path.join(app.root_path, file_path)
+                
+                file_abs_path = os.path.abspath(file_path)
+                is_allowed = False
+                
+                for allowed_dir in allowed_dirs:
+                    if file_abs_path.startswith(allowed_dir):
+                        is_allowed = True
+                        break
+                
+                if not is_allowed:
+                    failed_deletions.append({'file_path': file_path, 'error': 'Access denied: file path not in allowed directories'})
+                    continue
+                
+                # Check if file exists using the absolute path
+                if not os.path.exists(file_abs_path):
+                    failed_deletions.append({'file_path': file_path, 'error': f'File not found: {file_abs_path}'})
+                    continue
+                
+                # Delete the file using the absolute path
+                os.remove(file_abs_path)
+                deleted_files.append(file_abs_path)
+                
+                # Log the deletion
+                app.logger.info(f'Deleted file: {file_abs_path}')
+                
+            except Exception as e:
+                failed_deletions.append({'file_path': file_path, 'error': f'Failed to delete: {str(e)}'})
+                app.logger.error(f'Error deleting file {file_path}: {str(e)}')
+        
+        # Return results
+        result = {
+            'success': len(failed_deletions) == 0,
+            'deleted_count': len(deleted_files),
+            'failed_count': len(failed_deletions),
+            'deleted_files': deleted_files
+        }
+        
+        if failed_deletions:
+            result['failed_deletions'] = failed_deletions
+        
+        if len(failed_deletions) == 0:
+            return jsonify(result)
+        else:
+            return jsonify(result), 207  # Multi-status response
+        
+    except Exception as e:
+        app.logger.error(f'Error in batch delete: {str(e)}')
+        return jsonify({'error': f'Failed to delete files: {str(e)}'}), 500
+
 
 
 @app.route('/api/rom-system/<system_name>/game/upload-media', methods=['POST'])
@@ -9558,6 +9638,24 @@ def get_media_mappings():
         return jsonify({
             'success': True,
             'mappings': mappings
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/media-fields')
+def get_media_fields():
+    """Get all media fields from config.json (excluding video)"""
+    try:
+        media_fields = config.get('media_fields', {})
+        # Get all field names, excluding video
+        field_names = [field for field in media_fields.keys() if field != 'video']
+        
+        return jsonify({
+            'success': True,
+            'fields': field_names
         })
     except Exception as e:
         return jsonify({

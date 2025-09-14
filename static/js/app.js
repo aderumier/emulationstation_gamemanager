@@ -29,6 +29,10 @@ class GameCollectionManager {
         this.uploadInProgress = false; // Track if upload is in progress
         this.selectedGames = [];
         this.selectedMedia = []; // Track selected media for deletion (array for multiple selection)
+        this.selectedThumbnails = []; // Track selected thumbnails for deletion
+        this.thumbnailViewEnabled = false; // Track thumbnail view state
+        this.lazyLoadingObserver = null; // Track lazy loading observer
+        this.mediaFieldsCache = null; // Cache for media fields from config
         this.pendingBestMatchResults = null;
         this.currentBestMatchIndex = 0;
         this.duplicatesFilterActive = false; // Track duplicates filter state
@@ -501,6 +505,13 @@ class GameCollectionManager {
             dedupedGames.forEach(game => {
                 this.currentGameData.set(game.path, game);
             });
+            
+            // Setup lazy loading for thumbnail view if enabled
+            if (this.thumbnailViewEnabled) {
+                setTimeout(() => {
+                    this.setupLazyLoading();
+                }, 100);
+            }
             return;
         }
         
@@ -551,6 +562,13 @@ class GameCollectionManager {
             this.gridApi.refreshCells({
                 force: true // Force refresh to ensure all changes are visible
             });
+        }
+        
+        // Setup lazy loading for thumbnail view if enabled
+        if (this.thumbnailViewEnabled) {
+            setTimeout(() => {
+                this.setupLazyLoading();
+            }, 100);
         }
     }
 
@@ -1362,6 +1380,7 @@ class GameCollectionManager {
         document.getElementById('saveGameChanges').addEventListener('click', async () => await this.saveGameChangesFromModal());
 
         document.getElementById('clearFiltersBtn').addEventListener('click', async () => await this.clearAllFilters());
+        document.getElementById('thumbnailViewBtn').addEventListener('click', () => this.toggleThumbnailView());
         document.getElementById('toggleColumnsPanelBtn').addEventListener('click', () => this.toggleColumnsPanel());
         document.getElementById('showAllColumnsBtn').addEventListener('click', () => this.showAllColumns());
         document.getElementById('hideAllColumnsBtn').addEventListener('click', () => this.hideAllColumns());
@@ -1547,9 +1566,16 @@ class GameCollectionManager {
         
         // Add global keyboard event listener for delete key and arrow navigation
         document.addEventListener('keydown', (event) => {
-            // Handle Delete key with priority: media deletion first, then game deletion
+            // Handle Delete key with priority: thumbnails first, then media, then games
             if (event.key === 'Delete') {
-                // If media is selected, delete media (regardless of focus)
+                // If thumbnails are selected, delete thumbnails (highest priority)
+                if (this.selectedThumbnails && this.selectedThumbnails.length > 0) {
+                    event.preventDefault();
+                    this.deleteSelectedThumbnails();
+                    return; // Exit early, don't process other deletions
+                }
+                
+                // If media is selected, delete media (second priority)
                 if (this.selectedMedia && this.selectedMedia.length > 0) {
                     event.preventDefault();
                     this.deleteSelectedMedia();
@@ -2420,6 +2446,11 @@ class GameCollectionManager {
         // Apply custom CSS class to prevent theme conflicts with popups
         gridDiv.classList.add('game-grid-container');
         
+        // Setup lazy loading for thumbnail view
+        setTimeout(() => {
+            this.setupLazyLoading();
+        }, 100);
+        
         // Focus on first row when grid is first loaded
         this.focusFirstRow();
 
@@ -2565,6 +2596,15 @@ class GameCollectionManager {
 
         this.gridApi.addEventListener('filterClosed', () => {
             this.ensureGridVisibility();
+        });
+
+        // Add grid refresh event listener for lazy loading
+        this.gridApi.addEventListener('gridReady', () => {
+            if (this.thumbnailViewEnabled) {
+                setTimeout(() => {
+                    this.setupLazyLoading();
+                }, 100);
+            }
         });
     }
 
@@ -2903,29 +2943,25 @@ class GameCollectionManager {
     }
 
     async getMediaFieldsFromConfig() {
-        // Use cached mappings if available
-        if (this.mediaMappingsCache) {
-            // Get unique gamelist field names from mappings, excluding video
-            const mediaFields = [...new Set(Object.values(this.mediaMappingsCache))];
-            return mediaFields.filter(field => field !== 'video');
+        // Use cached fields if available
+        if (this.mediaFieldsCache && Array.isArray(this.mediaFieldsCache)) {
+            return this.mediaFieldsCache;
         }
         
-        // If not cached, fetch from API
-        console.warn('Media mappings not cached yet, fetching from API...');
+        // Fetch from API
         try {
-            const response = await fetch('/api/media-mappings');
+            const response = await fetch('/api/media-fields');
             const data = await response.json();
             
-            if (data.success) {
-                this.mediaMappingsCache = data.mappings;
-                const mediaFields = [...new Set(Object.values(this.mediaMappingsCache))];
-                return mediaFields.filter(field => field !== 'video');
+            if (data.success && Array.isArray(data.fields)) {
+                this.mediaFieldsCache = data.fields;
+                return this.mediaFieldsCache;
             } else {
-                console.error('Failed to fetch media mappings:', data.error);
-                throw new Error(data.error);
+                console.error('Failed to fetch media fields:', data.error || 'Invalid response format');
+                throw new Error(data.error || 'Invalid response format');
             }
         } catch (error) {
-            console.error('Error fetching media mappings:', error);
+            console.error('Error fetching media fields:', error);
             throw error;
         }
     }
@@ -2978,20 +3014,28 @@ class GameCollectionManager {
     }
     
     async generateDynamicMediaColumns() {
-        // Get media mappings from cache
-        const mediaMappings = await this.getMediaMappings();
+        // Get media fields dynamically from config.json (excluding video as requested)
+        let mediaFields;
+        try {
+            mediaFields = await this.getMediaFieldsFromConfig();
+        } catch (error) {
+            console.error('Error getting media fields from config:', error);
+            // Fallback to default media fields if API fails
+            mediaFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'thumbnail'];
+        }
+        
+        // Ensure mediaFields is an array
+        if (!Array.isArray(mediaFields)) {
+            console.warn('Media fields is not an array, using fallback:', mediaFields);
+            mediaFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'thumbnail'];
+        }
         
         // Generate column definitions for each media type
         const mediaColumns = [];
         
-        for (const [mediaType, fieldName] of Object.entries(mediaMappings)) {
-            // Skip 'videos' since we already have a static 'video' column
-            if (mediaType === 'videos') {
-                continue;
-            }
-            
-            // Use the media field name as header instead of directory name
-            const headerName = fieldName;
+        for (const fieldName of mediaFields) {
+            // Use the media field name as header
+            const headerName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
             
             mediaColumns.push({
                 field: fieldName,
@@ -9690,6 +9734,97 @@ class GameCollectionManager {
         }
     }
     
+    async deleteSelectedThumbnails() {
+        if (!this.selectedThumbnails || this.selectedThumbnails.length === 0) {
+            this.showAlert('No thumbnails selected for deletion', 'warning');
+            return;
+        }
+        
+        const count = this.selectedThumbnails.length;
+        const confirmMessage = `Are you sure you want to delete ${count} selected thumbnail${count > 1 ? 's' : ''}?`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        try {
+            // Prepare file paths for batch deletion
+            const filePaths = this.selectedThumbnails.map(thumb => 
+                `roms/${this.currentSystem}/${thumb.mediaPath}`
+            );
+            
+            // Make single batch delete call
+            const deleteResponse = await fetch('/api/delete-files', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    file_paths: filePaths
+                })
+            });
+            
+            if (!deleteResponse.ok) {
+                const error = await deleteResponse.json();
+                this.showAlert(`Failed to delete thumbnails: ${error.error}`, 'error');
+                return;
+            }
+            
+            const result = await deleteResponse.json();
+            
+            if (!result.success) {
+                this.showAlert(`Failed to delete ${result.failed_count} thumbnail${result.failed_count > 1 ? 's' : ''}`, 'error');
+                return;
+            }
+            
+            // Group thumbnails by game for updating game objects
+            const thumbnailsByGame = {};
+            this.selectedThumbnails.forEach(thumb => {
+                if (!thumbnailsByGame[thumb.gamePath]) {
+                    thumbnailsByGame[thumb.gamePath] = [];
+                }
+                thumbnailsByGame[thumb.gamePath].push(thumb);
+            });
+            
+            // Update game objects and remove thumbnail elements
+            for (const gamePath in thumbnailsByGame) {
+                const game = this.games.find(g => g.path === gamePath);
+                if (!game) continue;
+                
+                const gameThumbnails = thumbnailsByGame[gamePath];
+                
+                for (const thumb of gameThumbnails) {
+                    // Clear the media field
+                    game[thumb.fieldName] = '';
+                    
+                    // Mark the game as modified
+                    this.markGameAsModified(game);
+                    
+                    // Remove the thumbnail element
+                    const thumbnailElement = document.getElementById(thumb.thumbnailId);
+                    if (thumbnailElement) {
+                        thumbnailElement.remove();
+                    }
+                }
+                
+                // Update gamelist for this game
+                await this.updateGamelistAfterMediaDeletion(game);
+            }
+            
+            // Clear selection
+            this.selectedThumbnails = [];
+            
+            // Refresh the grid
+            this.gridApi.refreshCells();
+            
+            this.showAlert(`${count} thumbnail${count > 1 ? 's' : ''} deleted successfully`, 'success');
+            
+        } catch (error) {
+            console.error('Error deleting thumbnails:', error);
+            this.showAlert('Error deleting thumbnails', 'error');
+        }
+    }
+    
     clearMediaSelection() {
         this.selectedMedia = [];
         document.querySelectorAll('.media-preview-item').forEach(item => {
@@ -9697,6 +9832,46 @@ class GameCollectionManager {
         });
         this.updateMediaSelectionDisplay();
         this.updateEditModalDeleteButtonState();
+    }
+    
+    clearThumbnailSelection() {
+        this.selectedThumbnails = [];
+        document.querySelectorAll('.thumbnail-image').forEach(thumb => {
+            thumb.classList.remove('selected');
+            const checkbox = thumb.querySelector('.thumbnail-checkbox-input');
+            if (checkbox) checkbox.checked = false;
+        });
+        this.updateThumbnailSelectionDisplay();
+    }
+    
+    selectAllThumbnails() {
+        // Clear current selection first
+        this.clearThumbnailSelection();
+        
+        // Select all visible thumbnails
+        document.querySelectorAll('.thumbnail-image').forEach(thumb => {
+            const thumbnailId = thumb.id;
+            const fieldName = thumb.dataset.field;
+            const gamePath = thumb.dataset.gamePath;
+            const mediaPath = thumb.dataset.mediaPath;
+            
+            if (thumbnailId && fieldName && gamePath && mediaPath) {
+                thumb.classList.add('selected');
+                const checkbox = thumb.querySelector('.thumbnail-checkbox-input');
+                if (checkbox) checkbox.checked = true;
+                
+                this.selectedThumbnails.push({
+                    thumbnailId,
+                    fieldName,
+                    gamePath,
+                    mediaPath,
+                    game: this.games.find(g => g.path === gamePath)
+                });
+            }
+        });
+        
+        this.updateThumbnailSelectionDisplay();
+        console.log(`Selected all thumbnails: ${this.selectedThumbnails.length}`);
     }
     
     updateMediaSelectionDisplay() {
@@ -10520,6 +10695,360 @@ class GameCollectionManager {
             panel.style.display = 'none';
             button.innerHTML = '<i class="bi bi-columns-gap"></i>';
             button.className = 'btn btn-outline-primary btn-sm';
+        }
+    }
+
+    toggleThumbnailView() {
+        this.thumbnailViewEnabled = !this.thumbnailViewEnabled;
+        const button = document.getElementById('thumbnailViewBtn');
+        const gridDiv = document.getElementById('gamesGrid');
+        const selectionControls = document.getElementById('thumbnailSelectionControls');
+        
+        if (this.thumbnailViewEnabled) {
+            // Enable thumbnail view
+            button.innerHTML = '<i class="bi bi-list"></i>';
+            button.className = 'btn btn-primary btn-sm';
+            gridDiv.classList.add('thumbnail-view');
+            selectionControls.style.display = 'flex';
+            this.refreshGridWithThumbnailView();
+        } else {
+            // Disable thumbnail view
+            button.innerHTML = '<i class="bi bi-grid-3x3-gap"></i>';
+            button.className = 'btn btn-outline-primary btn-sm';
+            gridDiv.classList.remove('thumbnail-view');
+            selectionControls.style.display = 'none';
+            this.clearThumbnailSelection(); // Clear any existing selection
+            this.refreshGridWithNormalView();
+        }
+    }
+
+    getMediaFieldsForThumbnail() {
+        // Return all media fields from config (excluding video and manual as requested)
+        // Use cached fields if available, otherwise use fallback
+        if (this.mediaFieldsCache && Array.isArray(this.mediaFieldsCache)) {
+            return this.mediaFieldsCache.filter(field => field !== 'manual');
+        }
+        
+        // Fallback to default media fields (excluding manual)
+        return ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'boxback', 'thumbnail'];
+    }
+
+    refreshGridWithThumbnailView() {
+        if (!this.gridApi) return;
+        
+        // Get all media fields from config (excluding video as requested)
+        const mediaFields = this.getMediaFieldsForThumbnail();
+        
+        // Create thumbnail column definitions
+        const thumbnailColumns = [
+            { 
+                headerName: '', 
+                field: 'checkbox', 
+                width: 50, 
+                checkboxSelection: true, 
+                headerCheckboxSelection: true,
+                pinned: 'left',
+                resizable: false,
+                sortable: false,
+                filter: false
+            },
+            { 
+                field: 'name', 
+                headerName: 'Name', 
+                editable: true, 
+                sortable: true, 
+                filter: true, 
+                resizable: true, 
+                flex: 2,
+                cellStyle: { 
+                    fontWeight: 'bold',
+                    backgroundColor: '#f8f9fa'
+                }
+            }
+        ];
+        
+        // Add media columns with thumbnail renderers
+        mediaFields.forEach(fieldName => {
+            const headerName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+            thumbnailColumns.push({
+                field: fieldName,
+                headerName: headerName,
+                width: 120,
+                resizable: true,
+                sortable: false,
+                filter: false,
+                cellRenderer: this.createThumbnailRenderer(fieldName)
+            });
+        });
+        
+        // Update column definitions
+        this.gridApi.setGridOption('columnDefs', thumbnailColumns);
+        
+        // Set row height for thumbnail view (140px image + 20px padding)
+        this.gridApi.setGridOption('rowHeight', 160);
+        
+        // Setup lazy loading immediately and after delays
+        this.setupLazyLoading();
+        setTimeout(() => {
+            this.setupLazyLoading();
+        }, 100);
+        setTimeout(() => {
+            this.setupLazyLoading();
+        }, 500);
+        setTimeout(() => {
+            this.setupLazyLoading();
+        }, 1000);
+    }
+
+    refreshGridWithNormalView() {
+        if (!this.gridApi) return;
+        
+        // Reset row height to default
+        this.gridApi.setGridOption('rowHeight', 25);
+        
+        // Restore original column definitions by reinitializing the grid
+        this.initializeGrid();
+    }
+
+    createThumbnailRenderer(fieldName) {
+        return (params) => {
+            if (!params.data || !params.data[fieldName]) {
+                return '<div class="thumbnail-image">No image</div>';
+            }
+            
+            const imagePath = params.data[fieldName];
+            let imageUrl = imagePath.startsWith('./') ? imagePath.substring(2) : imagePath;
+            
+            // Add system path if not already present
+            if (this.currentSystem && !imageUrl.startsWith(`roms/${this.currentSystem}/`)) {
+                imageUrl = `roms/${this.currentSystem}/${imageUrl}`;
+            }
+            
+            // Create a unique ID for this thumbnail
+            const thumbnailId = `thumb_${fieldName}_${params.data.path || Math.random().toString(36).substr(2, 9)}`;
+            
+            // Try loading the image directly first
+            const img = new Image();
+            img.onload = () => {
+                const container = document.getElementById(thumbnailId);
+                if (container) {
+                    container.innerHTML = `
+                        <div class="thumbnail-checkbox">
+                            <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event);" />
+                        </div>
+                        <img src="${imageUrl}" alt="${fieldName}" 
+                            onmouseenter="gameManager.showThumbnailHover(event, '${imageUrl}', '${fieldName}')" 
+                            onmouseleave="gameManager.hideThumbnailHover()" />
+                    `;
+                    container.classList.remove('thumbnail-loading');
+                }
+            };
+            img.onerror = () => {
+                const container = document.getElementById(thumbnailId);
+                if (container) {
+                    container.innerHTML = 'Error';
+                    container.classList.remove('thumbnail-loading');
+                }
+            };
+            img.src = imageUrl;
+            
+            return `
+                <div id="${thumbnailId}" class="thumbnail-image thumbnail-loading" data-src="${imageUrl}" data-field="${fieldName}" 
+                     data-game-path="${params.data.path}" data-media-path="${imagePath}"
+                     onmouseenter="gameManager.showThumbnailHover(event, '${imageUrl}', '${fieldName}')" 
+                     onmouseleave="gameManager.hideThumbnailHover()"
+                     onclick="gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event)">
+                    <div class="thumbnail-checkbox">
+                        <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event);" />
+                    </div>
+                    Loading...
+                </div>
+            `;
+        };
+    }
+
+    setupLazyLoading() {
+        if (!this.gridApi) return;
+        
+        console.log('Setting up lazy loading...');
+        
+        // Clear any existing observer
+        if (this.lazyLoadingObserver) {
+            this.lazyLoadingObserver.disconnect();
+        }
+        
+        // Use a simpler approach - load all visible images immediately
+        // and use a MutationObserver to watch for new cells
+        this.loadVisibleThumbnails();
+        
+        // Watch for new cells being added to the grid
+        const gridContainer = document.getElementById('gamesGrid');
+        if (gridContainer) {
+            this.lazyLoadingObserver = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'childList') {
+                        mutation.addedNodes.forEach((node) => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                const thumbnailContainers = node.querySelectorAll ? 
+                                    node.querySelectorAll('.thumbnail-image[data-src]') : [];
+                                thumbnailContainers.forEach(container => {
+                                    this.loadThumbnailImage(container, 
+                                        container.getAttribute('data-src'), 
+                                        container.getAttribute('data-field'));
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+            
+            this.lazyLoadingObserver.observe(gridContainer, {
+                childList: true,
+                subtree: true
+            });
+        }
+    }
+    
+    loadVisibleThumbnails() {
+        console.log('Loading visible thumbnails...');
+        const thumbnailContainers = document.querySelectorAll('.thumbnail-image[data-src]');
+        console.log('Found', thumbnailContainers.length, 'thumbnail containers');
+        
+        thumbnailContainers.forEach(container => {
+            const src = container.getAttribute('data-src');
+            const field = container.getAttribute('data-field');
+            if (src && !container.querySelector('img')) {
+                this.loadThumbnailImage(container, src, field);
+            }
+        });
+    }
+
+    loadThumbnailImage(container, src, field) {
+        console.log('Loading thumbnail image:', src);
+        
+        // Check if already loaded
+        if (container.querySelector('img')) {
+            console.log('Image already loaded:', src);
+            return;
+        }
+        
+        const img = new Image();
+        img.onload = () => {
+            console.log('Image loaded successfully:', src);
+            container.innerHTML = `<img src="${src}" alt="${field}" 
+                onmouseenter="gameManager.showThumbnailHover(event, '${src}', '${field}')" 
+                onmouseleave="gameManager.hideThumbnailHover()" />`;
+            container.classList.remove('thumbnail-loading');
+        };
+        img.onerror = (error) => {
+            console.error('Error loading image:', src, error);
+            container.innerHTML = 'Error';
+            container.classList.remove('thumbnail-loading');
+        };
+        img.src = src;
+    }
+
+    showThumbnailHover(event, imageUrl, fieldName) {
+        // Remove any existing tooltip
+        this.hideThumbnailHover();
+        
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.className = 'thumbnail-hover-tooltip';
+        tooltip.id = 'thumbnail-hover-tooltip';
+        
+        // Create image element
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = fieldName;
+        img.onerror = () => {
+            tooltip.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No image available</div>`;
+        };
+        
+        tooltip.appendChild(img);
+        document.body.appendChild(tooltip);
+        
+        // Position tooltip near mouse cursor
+        const rect = event.target.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        
+        let left = rect.right + 10;
+        let top = rect.top;
+        
+        // Adjust if tooltip would go off screen
+        if (left + tooltipRect.width > window.innerWidth) {
+            left = rect.left - tooltipRect.width - 10;
+        }
+        if (top + tooltipRect.height > window.innerHeight) {
+            top = window.innerHeight - tooltipRect.height - 10;
+        }
+        if (top < 0) {
+            top = 10;
+        }
+        
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+    }
+
+    hideThumbnailHover() {
+        const tooltip = document.getElementById('thumbnail-hover-tooltip');
+        if (tooltip) {
+            tooltip.remove();
+        }
+    }
+    
+    selectThumbnail(thumbnailId, fieldName, gamePath, mediaPath, event) {
+        // Prevent row selection when clicking on thumbnails
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        const thumbnail = document.getElementById(thumbnailId);
+        if (!thumbnail) return;
+        
+        const isSelected = thumbnail.classList.contains('selected');
+        const checkbox = thumbnail.querySelector('.thumbnail-checkbox-input');
+        
+        if (isSelected) {
+            // Deselect
+            thumbnail.classList.remove('selected');
+            if (checkbox) checkbox.checked = false;
+            
+            // Remove from selectedThumbnails array
+            this.selectedThumbnails = this.selectedThumbnails.filter(item => 
+                !(item.thumbnailId === thumbnailId)
+            );
+        } else {
+            // Select
+            thumbnail.classList.add('selected');
+            if (checkbox) checkbox.checked = true;
+            
+            // Add to selectedThumbnails array
+            this.selectedThumbnails.push({
+                thumbnailId,
+                fieldName,
+                gamePath,
+                mediaPath,
+                game: this.games.find(g => g.path === gamePath)
+            });
+        }
+        
+        // Update selection display
+        this.updateThumbnailSelectionDisplay();
+    }
+    
+    updateThumbnailSelectionDisplay() {
+        // Update delete button state
+        const selectionCount = this.selectedThumbnails.length;
+        const deleteBtn = document.getElementById('deleteSelectedThumbnailsBtn');
+        if (deleteBtn) {
+            deleteBtn.disabled = selectionCount === 0;
+            if (selectionCount > 0) {
+                deleteBtn.innerHTML = `<i class="bi bi-trash"></i> Delete (${selectionCount})`;
+            } else {
+                deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete Selected';
+            }
         }
     }
 

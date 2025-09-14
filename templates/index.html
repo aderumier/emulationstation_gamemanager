@@ -109,6 +109,115 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             display: flex;
             flex-direction: column;
         }
+        
+        /* Thumbnail View Styles */
+        .thumbnail-view .ag-cell {
+            padding: 12px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .thumbnail-view .ag-cell[col-id="name"] {
+            justify-content: flex-start;
+            font-weight: 500;
+        }
+        
+        .thumbnail-image {
+            width: 100px;
+            height: 140px;
+            object-fit: contain;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        
+        .thumbnail-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .thumbnail-image img:hover {
+            transform: scale(1.1);
+            z-index: 1000;
+        }
+        
+        /* Hover tooltip for full image preview */
+        .thumbnail-hover-tooltip {
+            position: fixed;
+            background: white;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 10000;
+            pointer-events: none;
+            max-width: 600px;
+            max-height: 600px;
+        }
+        
+        .thumbnail-hover-tooltip img {
+            width: 100%;
+            height: auto;
+            max-width: 580px;
+            max-height: 580px;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        
+        .thumbnail-loading {
+            background-color: #e9ecef;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        /* Thumbnail selection styles */
+        .thumbnail-image {
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .thumbnail-checkbox {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 3px;
+            padding: 2px;
+        }
+        
+        .thumbnail-checkbox-input {
+            margin: 0;
+            cursor: pointer;
+        }
+        
+        .thumbnail-image.selected {
+            border: 3px solid #007bff;
+            border-radius: 8px;
+        }
+        
+        .thumbnail-image.selected .thumbnail-checkbox {
+            background: #007bff;
+        }
+        
+        .thumbnail-image.selected .thumbnail-checkbox-input {
+            accent-color: white;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
     </style>
     
     <!-- Socket.IO Client -->
@@ -261,7 +370,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         <div class="row mb-0">
             <div class="col d-flex align-items-center">
                 <span class="badge bg-primary me-3">Games: <span id="gamesCount">0</span></span>
-                <button id="toggleColumnsPanelBtn" class="btn btn-outline-primary btn-sm" title="Toggle Columns Panel">
+                <button id="thumbnailViewBtn" class="btn btn-outline-primary btn-sm" title="Toggle Thumbnail View">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+                <div id="thumbnailSelectionControls" class="btn-group ms-2" style="display: none;">
+                    <button id="selectAllThumbnailsBtn" class="btn btn-outline-secondary btn-sm" title="Select All Thumbnails">
+                        <i class="bi bi-check-square"></i> Select All
+                    </button>
+                    <button id="clearThumbnailSelectionBtn" class="btn btn-outline-secondary btn-sm" title="Clear Selection">
+                        <i class="bi bi-square"></i> Clear
+                    </button>
+                    <button id="deleteSelectedThumbnailsBtn" class="btn btn-outline-danger btn-sm" title="Delete Selected Thumbnails">
+                        <i class="bi bi-trash"></i> Delete Selected
+                    </button>
+                </div>
+                <button id="toggleColumnsPanelBtn" class="btn btn-outline-primary btn-sm ms-2" title="Toggle Columns Panel">
                     <i class="bi bi-columns-gap"></i>
                 </button>
                 <button id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm ms-2" title="Clear All Filters">
