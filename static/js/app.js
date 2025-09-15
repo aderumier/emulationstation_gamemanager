@@ -10155,8 +10155,8 @@ class GameCollectionManager {
             hiddenBtn.classList.add('btn-outline-info');
             hiddenBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Show Hidden';
             
-            // Restore original games data
-            this.gridApi.setRowData(this.games);
+            // Restore original games data with proper filtering
+            await this.updateGameGridData(this.games);
             this.showToast('Hidden filter disabled - showing all games', 'info');
         } else {
             // Turn on hidden filter
@@ -10364,7 +10364,7 @@ class GameCollectionManager {
             hiddenBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Show Hidden';
         }
         
-        // Restore original data efficiently
+        // Restore original data efficiently - this will now filter out hidden games
         await this.updateGameGridData(this.games);
     }
     
