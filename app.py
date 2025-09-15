@@ -4657,6 +4657,8 @@ def find_best_matches_endpoint():
         current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
         
         print(f"🔍 DEBUG: Global Find Best Match - System: {system_name}, Platform: {current_system_platform}")
+        print(f"🔍 DEBUG: System mapping for {system_name}: {system_platform_mapping.get(system_name, 'NOT_FOUND')}")
+        print(f"🔍 DEBUG: Available systems: {list(system_platform_mapping.keys())[:10]}")
         
         metadata_path = get_launchbox_metadata_path()
         os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
