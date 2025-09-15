@@ -523,19 +523,22 @@ class GameCollectionManager {
         if (currentRowCount === 0 || Math.abs(currentRowCount - newRowCount) > 5 || newRowCount === 0) {
             console.log('Using setRowData for significant change or empty grid. Current:', currentRowCount, 'New:', newRowCount);
             this.gridApi.setRowData(dedupedGames);
-            // Update our stored data
-            this.currentGameData.clear();
-            dedupedGames.forEach(game => {
-                this.currentGameData.set(game.path, game);
-            });
-            
-            // Setup lazy loading for thumbnail view if enabled
-            if (this.thumbnailViewEnabled) {
-                setTimeout(() => {
-                    this.setupLazyLoading();
-                }, 100);
-            }
-            return;
+        // Update our stored data
+        this.currentGameData.clear();
+        dedupedGames.forEach(game => {
+            this.currentGameData.set(game.path, game);
+        });
+        
+        // Update the games counter to reflect displayed rows
+        this.updateSelectionDisplay();
+        
+        // Setup lazy loading for thumbnail view if enabled
+        if (this.thumbnailViewEnabled) {
+            setTimeout(() => {
+                this.setupLazyLoading();
+            }, 100);
+        }
+        return;
         }
         
         // Find games that need to be added, updated, or removed
@@ -565,6 +568,9 @@ class GameCollectionManager {
             // If we have structural changes, fall back to setRowData
             this.gridApi.setRowData(dedupedGames);
             this.currentGameData = newDataMap;
+            
+            // Update the games counter to reflect displayed rows
+            this.updateSelectionDisplay();
             return;
         }
         
@@ -585,6 +591,9 @@ class GameCollectionManager {
             this.gridApi.refreshCells({
                 force: true // Force refresh to ensure all changes are visible
             });
+            
+            // Update the games counter to reflect displayed rows
+            this.updateSelectionDisplay();
         }
         
         // Setup lazy loading for thumbnail view if enabled
@@ -10084,21 +10093,22 @@ class GameCollectionManager {
     
     updateSelectionDisplay() {
         const selectedCount = this.selectedGames ? this.selectedGames.length : 0;
-        const totalCount = this.games ? this.games.length : 0;
+        // Use displayed row count from grid instead of total games count
+        const displayedCount = this.gridApi ? this.gridApi.getDisplayedRowCount() : (this.games ? this.games.length : 0);
         
         // Update the games count to show selection
         const gamesCountElement = document.getElementById('gamesCount');
         if (gamesCountElement) {
             const beforeText = gamesCountElement.textContent;
             if (selectedCount > 0) {
-                const newText = `${selectedCount}/${totalCount}`;
+                const newText = `${selectedCount}/${displayedCount}`;
                 gamesCountElement.textContent = newText;
                 gamesCountElement.className = 'fw-bold';
                 gamesCountElement.style.color = '#ffffff';
                 gamesCountElement.style.fontWeight = 'bold';
 
             } else {
-                gamesCountElement.textContent = totalCount;
+                gamesCountElement.textContent = displayedCount;
                 gamesCountElement.className = '';
                 gamesCountElement.style.color = '';
                 gamesCountElement.style.fontWeight = '';
