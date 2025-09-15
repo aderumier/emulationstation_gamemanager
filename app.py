@@ -34,7 +34,7 @@ from lxml import etree as ET
 import threading
 import re
 import difflib
-import jarowinkler
+import jellyfish
 import shutil
 import subprocess
 import requests
@@ -4313,7 +4313,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
         
         for i, item in enumerate(partition_items):
             # Calculate Jaro-Winkler similarity
-            similarity = jarowinkler.jarowinkler_similarity(normalized_name, item['normalized'])
+            similarity = jellyfish.jaro_winkler_similarity(normalized_name, item['normalized'])
             print(f"🔍 DEBUG: Item {i+1}: '{item['name']}' -> similarity: {similarity:.4f}")
         
             # Create match info

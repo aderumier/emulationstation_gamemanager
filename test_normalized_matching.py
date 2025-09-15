@@ -14,7 +14,7 @@ import csv
 import time
 from typing import List, Dict, Tuple
 from difflib import SequenceMatcher
-import jarowinkler
+import jellyfish
 
 ARTICLE_PATTERN_BEGIN = re.compile(r"^\b(|a|an|the|le|la|l'|un|une|el|los|las|de|der|die|das)\b")
 ARTICLE_PATTERN_END = re.compile(r",\s?(the|a|an|le|la|l'|un|une|el|los|las|de|der|die|das)(?=$|:)")
@@ -227,7 +227,7 @@ def find_similarity_matches(gamelist_name, similarity_index, threshold=0.0):
     for item in similarity_index[first_char]:
         # Calculate both similarity scores
         similarity = calculate_title_similarity(normalized_name, item['normalized'])
-        jaro_similarity = jarowinkler.jarowinkler_similarity(normalized_name, item['normalized'])
+        jaro_similarity = jellyfish.jaro_winkler_similarity(normalized_name, item['normalized'])
         
         if similarity > best_similarity:
             best_similarity = similarity

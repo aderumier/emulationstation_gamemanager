@@ -10,7 +10,7 @@ import re
 import unicodedata
 from functools import lru_cache
 
-import jarowinkler
+import jellyfish
 
 ARTICLE_PATTERN_BEGIN = re.compile(r"^\b(|a|an|the|le|la|l'|un|une|el|los|las|de|der|die|das)\b")
 ARTICLE_PATTERN_END = re.compile(r",\s?(the|a|an|le|la|l'|un|une|el|los|las|de|der|die|das)(?=$|:)")

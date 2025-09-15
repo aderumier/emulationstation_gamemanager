@@ -51,3 +51,7 @@ Wand>=0.6.0
 
 # Note: This application uses Python 3.8+ standard library features
 # No additional packages are required beyond Flask, Flask-CORS, Flask-SocketIO, and requests
+# 
+# Additional system packages required:
+# - python3-jellyfish (for Jaro-Winkler similarity calculations)
+#   Install with: sudo apt install python3-jellyfish
