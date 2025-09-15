@@ -4656,6 +4656,8 @@ def find_best_matches_endpoint():
         mapping_config, system_platform_mapping = load_launchbox_config()
         current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
         
+        print(f"🔍 DEBUG: Global Find Best Match - System: {system_name}, Platform: {current_system_platform}")
+        
         metadata_path = get_launchbox_metadata_path()
         os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
         
@@ -4671,6 +4673,17 @@ def find_best_matches_endpoint():
         platform_games = {}
         platform_alternate_names = {}
         
+        print(f"🔍 DEBUG: Filtering {len(all_games_cache)} games for platform: {current_system_platform}")
+        
+        # Debug: Check what platforms are actually in the metadata
+        platforms_found = set()
+        for db_id, game_elem in list(all_games_cache.items())[:100]:  # Check first 100 games
+            if game_elem is not None:
+                platform_elem = game_elem.find('Platform')
+                if platform_elem is not None and platform_elem.text:
+                    platforms_found.add(platform_elem.text.strip())
+        print(f"🔍 DEBUG: Sample platforms found in metadata: {sorted(list(platforms_found))[:10]}")
+        
         for db_id, game_elem in all_games_cache.items():
             if game_elem is not None:
                 # Check if this game belongs to the target platform
@@ -4680,6 +4693,8 @@ def find_best_matches_endpoint():
                     if game_platform == current_system_platform:
                         platform_games[db_id] = game_elem
                         platform_alternate_names[db_id] = all_alternate_names_cache.get(db_id, [])
+        
+        print(f"🔍 DEBUG: Found {len(platform_games)} games for platform {current_system_platform}")
         
         if not platform_games:
             return jsonify({'error': f'No metadata for platform {current_system_platform}'}), 404
