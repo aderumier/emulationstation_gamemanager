@@ -10128,7 +10128,7 @@ class GameCollectionManager {
             if (selectedCount > 0) {
                 scrapButton.title = `Scrap ${selectedCount} selected game${selectedCount > 1 ? 's' : ''}`;
             } else {
-                scrapButton.title = `Scrap entire collection (${totalCount} games)`;
+                scrapButton.title = `Scrap entire collection (${displayedCount} games)`;
             }
         }
     }
