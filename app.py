@@ -4684,6 +4684,7 @@ def find_best_matches_endpoint():
                     platforms_found.add(platform_elem.text.strip())
         print(f"🔍 DEBUG: Sample platforms found in metadata: {sorted(list(platforms_found))[:10]}")
         
+        platform_match_count = 0
         for db_id, game_elem in all_games_cache.items():
             if game_elem is not None:
                 # Check if this game belongs to the target platform
@@ -4693,6 +4694,11 @@ def find_best_matches_endpoint():
                     if game_platform == current_system_platform:
                         platform_games[db_id] = game_elem
                         platform_alternate_names[db_id] = all_alternate_names_cache.get(db_id, [])
+                        platform_match_count += 1
+                        if platform_match_count <= 5:  # Show first 5 matches for debugging
+                            name_elem = game_elem.find('Name')
+                            game_name = name_elem.text.strip() if name_elem is not None and name_elem.text else 'Unknown'
+                            print(f"🔍 DEBUG: Match {platform_match_count}: {game_name} (Platform: {game_platform})")
         
         print(f"🔍 DEBUG: Found {len(platform_games)} games for platform {current_system_platform}")
         
