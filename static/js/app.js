@@ -486,15 +486,7 @@ class GameCollectionManager {
         // Filter out hidden games by default (unless hidden filter is active)
         let filteredGames = newGames;
         if (!this.hiddenFilterActive) {
-            const beforeCount = newGames.length;
             filteredGames = newGames.filter(game => game.hidden !== 'true');
-            const afterCount = filteredGames.length;
-            const hiddenCount = beforeCount - afterCount;
-            if (hiddenCount > 0) {
-                console.log(`Filtered out ${hiddenCount} hidden games (${beforeCount} -> ${afterCount})`);
-            }
-        } else {
-            console.log('Hidden filter is active, showing all games including hidden ones');
         }
         
         // Deduplicate input by path to avoid duplicate node ids
@@ -10328,10 +10320,7 @@ class GameCollectionManager {
     }
 
     findHiddenGames() {
-        const hiddenGames = this.games.filter(game => game.hidden === 'true');
-        console.log('findHiddenGames: Found', hiddenGames.length, 'hidden games out of', this.games.length, 'total games');
-        console.log('Hidden games:', hiddenGames.map(g => ({ name: g.name, path: g.path, hidden: g.hidden })));
-        return hiddenGames;
+        return this.games.filter(game => game.hidden === 'true');
     }
 
     async resetDuplicatesFilter() {

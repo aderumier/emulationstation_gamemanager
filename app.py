@@ -8044,23 +8044,8 @@ def run_rom_scan_task(system_name):
                 for rom_file in referenced_roms:
                     # Normalize the path to match the format used in rom_files
                     normalized_rom = rom_file.lstrip('./')
-                    
-                    # Try to find matching ROM file in the scanned files
-                    # The M3U might contain just the filename, but the scanned file might be in a subdirectory
-                    matching_rom = None
-                    for scanned_rom in rom_files:
-                        scanned_normalized = scanned_rom.lstrip('./')
-                        # Check if the ROM file matches (either exact match or basename match)
-                        if (scanned_normalized == normalized_rom or 
-                            os.path.basename(scanned_normalized) == os.path.basename(normalized_rom)):
-                            matching_rom = scanned_normalized
-                            break
-                    
-                    if matching_rom:
-                        hidden_roms.add(matching_rom)
-                        task.update_progress(f"Marking as hidden: {matching_rom} (referenced in {m3u_file})")
-                    else:
-                        task.update_progress(f"Warning: Could not find matching ROM file for {normalized_rom} referenced in {m3u_file}")
+                    hidden_roms.add(normalized_rom)
+                    task.update_progress(f"Will mark as hidden: {normalized_rom} (referenced in {m3u_file})")
         
         task.update_progress(f"Found {len(hidden_roms)} ROM files referenced in M3U playlists that will be hidden")
         
