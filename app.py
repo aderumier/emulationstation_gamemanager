@@ -2849,6 +2849,8 @@ def parse_gamelist_xml(file_path):
                     game_data['steamgridid'] = int(text) if text.isdigit() else None
                 elif tag == 'youtubeurl':
                     game_data['youtubeurl'] = text
+                elif tag == 'hidden':
+                    game_data['hidden'] = text
                 else:
                     # Handle unknown tags by storing them as text
                     game_data[tag] = text
@@ -4429,6 +4431,10 @@ def write_gamelist_xml(games, file_path):
                 if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']:
                     field_elem = ET.SubElement(game_elem, field)
                     field_elem.text = str(value) if value else ''
+                elif field == 'hidden':
+                    # Always include hidden field if present
+                    field_elem = ET.SubElement(game_elem, field)
+                    field_elem.text = str(value) if value else ''
                 elif value is not None and value != '':
                     field_elem = ET.SubElement(game_elem, field)
                     # Write raw text as-is; XML writer will handle escaping (& -> &amp;)
@@ -5753,6 +5759,10 @@ def save_gamelist_xml(file_path, games):
             for field, value in game.items():
                 # Always include media-related fields, even if empty
                 if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl', 'steamgridid']:
+                    elem = ET.SubElement(game_elem, field)
+                    elem.text = html.escape(str(value), quote=False) if value else ''
+                elif field == 'hidden':
+                    # Always include hidden field if present
                     elem = ET.SubElement(game_elem, field)
                     elem.text = html.escape(str(value), quote=False) if value else ''
                 elif value:  # For non-media fields, only add if they have values
@@ -7868,6 +7878,23 @@ def scan_rom_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'ROM scan failed: {str(e)}'}), 500
 
+def parse_m3u_file(m3u_path):
+    """Parse M3U file and return list of ROM files referenced in it"""
+    try:
+        rom_files = []
+        with open(m3u_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
+                # Add the ROM file to the list
+                rom_files.append(line)
+        return rom_files
+    except Exception as e:
+        print(f"Error parsing M3U file {m3u_path}: {e}")
+        return []
+
 def run_rom_scan_task(system_name):
     """Run ROM scan task in background thread"""
     global current_task_id
@@ -7905,6 +7932,10 @@ def run_rom_scan_task(system_name):
         if not rom_extensions:
             # Default extensions if system not found in config
             rom_extensions = ['.zip', '.ZIP', '.7z', '.7Z']
+        
+        # Add M3U extension for playlist files
+        rom_extensions.append('.m3u')
+        rom_extensions.append('.M3U')
         
         task.update_progress(f"Supported ROM extensions: {', '.join(rom_extensions)}")
         
@@ -7999,6 +8030,24 @@ def run_rom_scan_task(system_name):
         task.update_progress(f"Scan complete: {scanned_dirs} directories, {scanned_files} files scanned")
         task.update_progress(f"Found {len(rom_files)} ROM files in system directory (including subdirectories)")
         
+        # Process M3U files to find ROMs that should be hidden
+        m3u_files = [f for f in rom_files if f.lower().endswith('.m3u')]
+        hidden_roms = set()
+        
+        for m3u_file in m3u_files:
+            m3u_path = os.path.join(system_path, m3u_file)
+            if os.path.exists(m3u_path):
+                referenced_roms = parse_m3u_file(m3u_path)
+                task.update_progress(f"M3U file {m3u_file} references {len(referenced_roms)} ROM files")
+                
+                # Add referenced ROMs to hidden set
+                for rom_file in referenced_roms:
+                    # Normalize the path to match the format used in rom_files
+                    normalized_rom = rom_file.lstrip('./')
+                    hidden_roms.add(normalized_rom)
+        
+        task.update_progress(f"Found {len(hidden_roms)} ROM files referenced in M3U playlists that will be hidden")
+        
         # Load existing gamelist if it exists
         existing_games = []
         if os.path.exists(gamelist_path):
@@ -8041,6 +8090,10 @@ def run_rom_scan_task(system_name):
             # Add new ROMs to gamelist
             next_id = max([game.get('id', 0) for game in existing_games] + [0]) + 1
             for rom_file in new_roms:
+                # Check if this ROM should be hidden (referenced in M3U)
+                normalized_rom = rom_file.lstrip('./')
+                is_hidden = normalized_rom in hidden_roms
+                
                 new_game = {
                     'id': next_id,
                     'path': f'./{rom_file}',
@@ -8052,9 +8105,16 @@ def run_rom_scan_task(system_name):
                     'rating': '',
                     'players': ''
                 }
+                
+                # Add hidden attribute if this ROM is referenced in an M3U file
+                if is_hidden:
+                    new_game['hidden'] = 'true'
+                    task.update_progress(f"Added hidden game (M3U referenced): {rom_file}")
+                else:
+                    task.update_progress(f"Added new game: {rom_file}")
+                
                 existing_games.append(new_game)
                 next_id += 1
-                task.update_progress(f"Added new game: {rom_file}")
             
             # Save updated gamelist
             if new_roms:

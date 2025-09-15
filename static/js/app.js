@@ -36,6 +36,7 @@ class GameCollectionManager {
         this.pendingBestMatchResults = null;
         this.currentBestMatchIndex = 0;
         this.duplicatesFilterActive = false; // Track duplicates filter state
+        this.hiddenFilterActive = false; // Track hidden filter state
         this.currentNavigationIndex = 0; // Track current navigation position
         this.eventSource = null;
         this.logHistory = [];
@@ -482,10 +483,15 @@ class GameCollectionManager {
         
         console.log('updateGameGridData called with:', newGames.length, 'games');
         
+        // Filter out hidden games by default (unless hidden filter is active)
+        let filteredGames = newGames;
+        if (!this.hiddenFilterActive) {
+            filteredGames = newGames.filter(game => game.hidden !== 'true');
+        }
         
         // Deduplicate input by path to avoid duplicate node ids
         const newDataMap = new Map();
-        newGames.forEach(game => {
+        filteredGames.forEach(game => {
             if (game && game.path) {
                 newDataMap.set(game.path, game);
             }
@@ -1559,6 +1565,9 @@ class GameCollectionManager {
         // Delete selected games button
         document.getElementById('deleteSelectedBtn').addEventListener('click', () => this.showDeleteConfirmation());
         
+        // Show hidden button
+        document.getElementById('showHiddenBtn').addEventListener('click', () => this.toggleHiddenFilter());
+        
         // Show duplicates button
         document.getElementById('showDuplicatesBtn').addEventListener('click', () => this.toggleDuplicatesFilter());
         
@@ -2100,9 +2109,12 @@ class GameCollectionManager {
         }
         this.selectedGames = [];
         
-        // Reset duplicates filter when changing systems
+        // Reset filters when changing systems
         if (this.duplicatesFilterActive) {
             await this.resetDuplicatesFilter();
+        }
+        if (this.hiddenFilterActive) {
+            await this.resetHiddenFilter();
         }
         
         this.updateSelectionDisplay();
@@ -10115,6 +10127,39 @@ class GameCollectionManager {
         }
     }
 
+    async toggleHiddenFilter() {
+        const hiddenBtn = document.getElementById('showHiddenBtn');
+        if (!hiddenBtn) return;
+
+        if (this.hiddenFilterActive) {
+            // Turn off hidden filter
+            this.hiddenFilterActive = false;
+            hiddenBtn.classList.remove('btn-info');
+            hiddenBtn.classList.add('btn-outline-info');
+            hiddenBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Show Hidden';
+            
+            // Restore original games data
+            this.gridApi.setRowData(this.games);
+            this.showToast('Hidden filter disabled - showing all games', 'info');
+        } else {
+            // Turn on hidden filter
+            this.hiddenFilterActive = true;
+            hiddenBtn.classList.remove('btn-outline-info');
+            hiddenBtn.classList.add('btn-info');
+            hiddenBtn.innerHTML = '<i class="bi bi-eye"></i> Hide Hidden';
+            
+            // Filter to show only hidden games
+            const hiddenGames = this.findHiddenGames();
+            await this.updateGameGridData(hiddenGames);
+            
+            if (hiddenGames.length > 0) {
+                this.showToast(`Found ${hiddenGames.length} hidden games`, 'info');
+            } else {
+                this.showToast('No hidden games found', 'info');
+            }
+        }
+    }
+
     async toggleDuplicatesFilter() {
         const duplicatesBtn = document.getElementById('showDuplicatesBtn');
         if (!duplicatesBtn) return;
@@ -10274,6 +10319,10 @@ class GameCollectionManager {
         return duplicates;
     }
 
+    findHiddenGames() {
+        return this.games.filter(game => game.hidden === 'true');
+    }
+
     async resetDuplicatesFilter() {
         // Reset duplicates filter state and button appearance
         this.duplicatesFilterActive = false;
@@ -10282,6 +10331,20 @@ class GameCollectionManager {
             duplicatesBtn.classList.remove('btn-warning');
             duplicatesBtn.classList.add('btn-outline-warning');
             duplicatesBtn.innerHTML = '<i class="bi bi-dup"></i> Show Duplicates';
+        }
+        
+        // Restore original data efficiently
+        await this.updateGameGridData(this.games);
+    }
+
+    async resetHiddenFilter() {
+        // Reset hidden filter state and button appearance
+        this.hiddenFilterActive = false;
+        const hiddenBtn = document.getElementById('showHiddenBtn');
+        if (hiddenBtn) {
+            hiddenBtn.classList.remove('btn-info');
+            hiddenBtn.classList.add('btn-outline-info');
+            hiddenBtn.innerHTML = '<i class="bi bi-eye-slash"></i> Show Hidden';
         }
         
         // Restore original data efficiently
