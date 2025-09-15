@@ -660,7 +660,8 @@
                 ".dsk",
                 ".tap",
                 ".DSK",
-                ".TAP"
+                ".TAP",
+                ".m3u"
             ],
             "launchbox": "Amstrad CPC",
             "igdb": 25,
