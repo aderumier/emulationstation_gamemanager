@@ -10174,7 +10174,7 @@ def download_launchbox_media():
         tree = ET.parse(gamelist_path)
         root = tree.getroot()
         
-        print(f"DEBUG: Looking for game with launchboxid: {game_id}")
+        print(f"DEBUG: Looking for game with launchboxid: {game_id} (type: {type(game_id)})")
         print(f"DEBUG: Total games in gamelist: {len(root.findall('game'))}")
         
         game_element = None
@@ -10182,8 +10182,9 @@ def download_launchbox_media():
         for game in root.findall('game'):
             launchboxid_elem = game.find('launchboxid')
             if launchboxid_elem is not None:
-                print(f"DEBUG: Found game with launchboxid: {launchboxid_elem.text}")
-                if launchboxid_elem.text == game_id:
+                print(f"DEBUG: Found game with launchboxid: '{launchboxid_elem.text}' (type: {type(launchboxid_elem.text)})")
+                # Try both string and int comparison
+                if launchboxid_elem.text == game_id or launchboxid_elem.text == str(game_id):
                     game_element = game
                     print(f"DEBUG: MATCH FOUND! Game: {game.find('name').text if game.find('name') is not None else 'Unknown'}")
                     break
