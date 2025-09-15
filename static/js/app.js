@@ -3337,7 +3337,7 @@ class GameCollectionManager {
             progressDiv.style.display = 'block';
             progressDiv.textContent = 'Downloading and replacing media...';
             
-            console.log('DEBUG: Sending game_id:', game.launchboxid, 'type:', typeof game.launchboxid);
+            console.log('DEBUG: Sending game_id:', game.launchboxid, 'rom_path:', game.path, 'type:', typeof game.launchboxid);
             
             const response = await fetch('/api/download-launchbox-media', {
                 method: 'POST',
@@ -3347,6 +3347,7 @@ class GameCollectionManager {
                 credentials: 'include',
                 body: JSON.stringify({
                     game_id: game.launchboxid,
+                    rom_path: game.path,
                     media_type: mediaType,
                     media_url: mediaData.url,
                     region: mediaData.region,

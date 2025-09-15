@@ -10138,13 +10138,14 @@ def download_launchbox_media():
     print(f"DEBUG: download_launchbox_media called with data: {request.get_json()}")
     try:
         data = request.get_json()
-        game_id = data.get('game_id')
+        game_id = data.get('game_id')  # This is actually the launchboxid for reference
+        rom_path = data.get('rom_path')  # This is the actual game identifier
         media_type = data.get('media_type')
         media_url = data.get('media_url')
         region = data.get('region', 'Unknown')
         system_name = data.get('system_name')
         
-        if not all([game_id, media_type, media_url, system_name]):
+        if not all([game_id, rom_path, media_type, media_url, system_name]):
             return jsonify({'error': 'Missing required parameters'}), 400
         
         # Load media config to get media mappings
@@ -10174,38 +10175,32 @@ def download_launchbox_media():
         tree = ET.parse(gamelist_path)
         root = tree.getroot()
         
-        print(f"DEBUG: Looking for game with launchboxid: {game_id} (type: {type(game_id)})")
+        print(f"DEBUG: Looking for game with rom_path: {rom_path}")
         print(f"DEBUG: Total games in gamelist: {len(root.findall('game'))}")
         
         game_element = None
-        # Find by launchboxid
+        # Find by rom path
         for game in root.findall('game'):
-            launchboxid_elem = game.find('launchboxid')
-            if launchboxid_elem is not None:
-                print(f"DEBUG: Found game with launchboxid: '{launchboxid_elem.text}' (type: {type(launchboxid_elem.text)})")
-                # Try both string and int comparison
-                if launchboxid_elem.text == game_id or launchboxid_elem.text == str(game_id):
+            path_elem = game.find('path')
+            if path_elem is not None:
+                print(f"DEBUG: Found game with path: '{path_elem.text}'")
+                if path_elem.text == rom_path:
                     game_element = game
                     print(f"DEBUG: MATCH FOUND! Game: {game.find('name').text if game.find('name') is not None else 'Unknown'}")
                     break
             else:
                 name_elem = game.find('name')
-                print(f"DEBUG: Game without launchboxid: {name_elem.text if name_elem is not None else 'Unknown'}")
+                print(f"DEBUG: Game without path: {name_elem.text if name_elem is not None else 'Unknown'}")
         
         if not game_element:
-            # Check if any games in this system have launchboxid fields
-            has_launchboxid = any(game.find('launchboxid') is not None for game in root.findall('game'))
-            if not has_launchboxid:
-                return jsonify({'error': f'No games in {system_name} system have LaunchBox IDs. Please scrape the games first to link them to LaunchBox.'}), 404
-            else:
-                return jsonify({'error': f'Game with LaunchBox ID {game_id} not found in {system_name} gamelist'}), 404
+            return jsonify({'error': f'Game with ROM path {rom_path} not found in {system_name} gamelist'}), 404
         
         # Get ROM filename for naming the media file
-        rom_path = game_element.find('path')
-        if rom_path is None or rom_path.text is None:
+        rom_path_elem = game_element.find('path')
+        if rom_path_elem is None or rom_path_elem.text is None:
             return jsonify({'error': 'Game path not found'}), 400
         
-        rom_filename = os.path.splitext(os.path.basename(rom_path.text))[0]
+        rom_filename = os.path.splitext(os.path.basename(rom_path_elem.text))[0]
         
         # Create media directory if it doesn't exist
         system_path = os.path.join(ROMS_FOLDER, system_name)
