@@ -2899,7 +2899,7 @@
             "jaro_winkler": "Jaro-Winkler Distance",
             "damerau_levenshtein": "Damerau-Levenshtein Distance",
             "levenshtein": "Levenshtein Distance",
-            "jaro": "Jaro Distance",
+            "jaro": "Jaro Distance"
         }
     }
 }
