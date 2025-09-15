@@ -483,10 +483,27 @@ class GameCollectionManager {
         
         console.log('updateGameGridData called with:', newGames.length, 'games');
         
+        // Debug: Check for hidden games in the input
+        const hiddenGames = newGames.filter(game => game.hidden === 'true');
+        if (hiddenGames.length > 0) {
+            console.log('Found hidden games in input:', hiddenGames.map(g => ({ name: g.name, hidden: g.hidden, path: g.path })));
+        }
+        
         // Filter out hidden games by default (unless hidden filter is active)
         let filteredGames = newGames;
         if (!this.hiddenFilterActive) {
-            filteredGames = newGames.filter(game => game.hidden !== 'true');
+            const beforeCount = newGames.length;
+            filteredGames = newGames.filter(game => {
+                const isHidden = game.hidden === 'true';
+                if (isHidden) {
+                    console.log('Filtering out hidden game:', game.name, 'hidden:', game.hidden);
+                }
+                return !isHidden;
+            });
+            const afterCount = filteredGames.length;
+            console.log(`Hidden filter: ${beforeCount} -> ${afterCount} games (filtered out ${beforeCount - afterCount} hidden games)`);
+        } else {
+            console.log('Hidden filter is active, showing all games including hidden ones');
         }
         
         // Deduplicate input by path to avoid duplicate node ids
