@@ -2412,12 +2412,13 @@ class GameCollectionManager {
                 // Use the ROM path as the unique identifier since it's unique for each game
                 return params.data.path || params.data.id || `game_${Math.random()}`;
             },
-            // Apply custom row styling based on game properties
-            getRowStyle: (params) => {
-                if (params.data && params.data.hidden === 'true') {
-                    return { backgroundColor: '#f8f9fa' }; // Light grey background for hidden games
+            // Apply custom row styling based on game properties using cellClassRules
+            defaultColDef: {
+                cellClassRules: {
+                    'hidden-game-row': (params) => {
+                        return params.data && params.data.hidden === 'true';
+                    }
                 }
-                return null; // Default styling for non-hidden games
             },
             // Ensure keyboard navigation respects current filters by resetting index
             onFilterChanged: () => {

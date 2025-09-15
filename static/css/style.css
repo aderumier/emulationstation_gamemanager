@@ -1346,3 +1346,9 @@ body {
     width: 100%;
     height: 100%;
 }
+
+/* Hidden games styling */
+.hidden-game-row {
+    background-color: #f8f9fa !important;
+    opacity: 0.7;
+}
