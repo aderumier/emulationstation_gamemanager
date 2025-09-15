@@ -487,8 +487,6 @@ class GameCollectionManager {
         const hiddenGames = newGames.filter(game => game.hidden === 'true');
         if (hiddenGames.length > 0) {
             console.log('Found hidden games in input:', hiddenGames.map(g => ({ name: g.name, hidden: g.hidden, path: g.path })));
-        } else {
-            console.log('No hidden games found in input data');
         }
         
         // Filter out hidden games by default (unless hidden filter is active)
@@ -2414,17 +2412,14 @@ class GameCollectionManager {
                 // Use the ROM path as the unique identifier since it's unique for each game
                 return params.data.path || params.data.id || `game_${Math.random()}`;
             },
-            // Apply custom row styling based on game properties
-            getRowStyle: (params) => {
-                console.log('getRowStyle called for:', params.data?.name, 'hidden:', params.data?.hidden);
-                if (params.data && params.data.hidden === 'true') {
-                    console.log('Applying hidden game style to:', params.data.name);
-                    return { 
-                        backgroundColor: '#f8f9fa',
-                        opacity: '0.7'
-                    };
+            // Apply custom row styling based on game properties using cellClass
+            defaultColDef: {
+                cellClass: (params) => {
+                    if (params.data && params.data.hidden === 'true') {
+                        return 'hidden-game-row';
+                    }
+                    return null;
                 }
-                return null;
             },
             // Ensure keyboard navigation respects current filters by resetting index
             onFilterChanged: () => {
