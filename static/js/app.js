@@ -10159,18 +10159,18 @@ class GameCollectionManager {
             await this.updateGameGridData(this.games);
             this.showToast('Hidden filter disabled - showing all games', 'info');
         } else {
-            // Turn on hidden filter
+            // Turn on hidden filter - show ALL games (including hidden ones)
             this.hiddenFilterActive = true;
             hiddenBtn.classList.remove('btn-outline-info');
             hiddenBtn.classList.add('btn-info');
             hiddenBtn.innerHTML = '<i class="bi bi-eye"></i> Hide Hidden';
             
-            // Filter to show only hidden games
-            const hiddenGames = this.findHiddenGames();
-            await this.updateGameGridData(hiddenGames);
+            // Show all games (including hidden ones)
+            await this.updateGameGridData(this.games);
             
+            const hiddenGames = this.findHiddenGames();
             if (hiddenGames.length > 0) {
-                this.showToast(`Found ${hiddenGames.length} hidden games`, 'info');
+                this.showToast(`Showing all games including ${hiddenGames.length} hidden games`, 'info');
             } else {
                 this.showToast('No hidden games found', 'info');
             }
