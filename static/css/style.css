@@ -1348,13 +1348,12 @@ body {
 }
 
 /* Hidden games styling */
-.ag-cell.hidden-game-row {
+.ag-row.hidden-game-row {
     background-color: #f8f9fa !important;
     opacity: 0.7 !important;
 }
 
-/* Alternative selector for better specificity */
-.ag-row .ag-cell.hidden-game-row {
+.ag-row.hidden-game-row .ag-cell {
     background-color: #f8f9fa !important;
     opacity: 0.7 !important;
 }

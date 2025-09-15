@@ -2412,17 +2412,13 @@ class GameCollectionManager {
                 // Use the ROM path as the unique identifier since it's unique for each game
                 return params.data.path || params.data.id || `game_${Math.random()}`;
             },
-            // Apply custom row styling based on game properties using cellClassRules
-            defaultColDef: {
-                cellClassRules: {
-                    'hidden-game-row': (params) => {
-                        if (params.data && params.data.hidden === 'true') {
-                            console.log('Applying hidden-game-row class to:', params.data.name);
-                            return true;
-                        }
-                        return false;
-                    }
+            // Apply custom row styling based on game properties using getRowClass
+            getRowClass: (params) => {
+                if (params.data && params.data.hidden === 'true') {
+                    console.log('Applying hidden-game-row class to row:', params.data.name);
+                    return 'hidden-game-row';
                 }
+                return null;
             },
             // Ensure keyboard navigation respects current filters by resetting index
             onFilterChanged: () => {
