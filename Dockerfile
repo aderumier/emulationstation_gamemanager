@@ -58,6 +58,11 @@ COPY gamemanager_2.1.1-1_all.deb .
 RUN dpkg-deb -x gamemanager_2.1.1-1_all.deb / && \
     rm gamemanager_2.1.1-1_all.deb
 
+# Install the package dependencies manually
+RUN apt-get update && apt-get install -y \
+    python3-jellyfish \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create necessary directories with proper structure first
 RUN mkdir -p \
     /opt/gamemanager/roms \
