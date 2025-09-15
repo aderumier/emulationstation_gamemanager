@@ -4061,6 +4061,9 @@ def load_launchbox_config():
     mapping_config = config.get('launchbox', {}).get('mapping', {})
     system_platform_mapping = config.get('systems', {})
     
+    print(f"🔍 DEBUG: load_launchbox_config - systems config keys: {list(system_platform_mapping.keys())[:10]}")
+    print(f"🔍 DEBUG: load_launchbox_config - vectrex config: {system_platform_mapping.get('vectrex', 'NOT_FOUND')}")
+    
     return mapping_config, system_platform_mapping
 
 
