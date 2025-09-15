@@ -1360,6 +1360,9 @@ class GameCollectionManager {
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
         document.getElementById('startYoutubeDownloadBtn').addEventListener('click', () => this.startYoutubeDownload());
         
+        // Initialize global algorithm selector
+        this.initializeGlobalAlgorithmSelector();
+        
 
         
         // Task log modal download button
@@ -3857,6 +3860,9 @@ class GameCollectionManager {
             system: systemName
         };
         
+        // Load algorithm preference before showing modal
+        this.loadGameEditAlgorithmPreference();
+        
         // Show the game edit match modal
         this.showPartialMatches(gameName, null, 'gameEdit');
     }
@@ -4092,6 +4098,9 @@ class GameCollectionManager {
         if (progressDiv) progressDiv.style.display = 'block';
         if (tableDiv) tableDiv.style.display = 'none';
         if (emptyDiv) emptyDiv.style.display = 'none';
+        
+        // Load algorithm preference before showing modal
+        this.loadGlobalAlgorithmPreference();
         
         modal.show();
     }
@@ -5710,6 +5719,160 @@ class GameCollectionManager {
                 this.showGameEditFindBestMatch();
             });
         }
+        
+        // Initialize algorithm selector and reload button
+        this.initializeGameEditAlgorithmSelector();
+    }
+    
+    initializeGameEditAlgorithmSelector() {
+        // Load current algorithm preference
+        this.loadGameEditAlgorithmPreference();
+        
+        // Add event listener for algorithm change (auto-reload)
+        const algorithmSelect = document.getElementById('gameEditSimilarityAlgorithm');
+        if (algorithmSelect) {
+            algorithmSelect.addEventListener('change', () => {
+                this.saveGameEditAlgorithmPreference();
+                // Auto-reload matches when algorithm changes
+                this.reloadGameEditMatches();
+            });
+        }
+    }
+    
+    loadGameEditAlgorithmPreference() {
+        // Load from cookie or use default
+        const algorithm = this.getCookie('similarity_algorithm') || 'jaro_winkler';
+        const algorithmSelect = document.getElementById('gameEditSimilarityAlgorithm');
+        if (algorithmSelect) {
+            algorithmSelect.value = algorithm;
+        }
+    }
+    
+    saveGameEditAlgorithmPreference() {
+        const algorithmSelect = document.getElementById('gameEditSimilarityAlgorithm');
+        if (algorithmSelect) {
+            const algorithm = algorithmSelect.value;
+            this.setCookie('similarity_algorithm', algorithm, 365); // 1 year
+            console.log('🔧 DEBUG: Saved similarity algorithm preference:', algorithm);
+        }
+    }
+    
+    async reloadGameEditMatches() {
+        // Get current game data
+        const gameName = document.getElementById('gameEditOriginalGameName').textContent;
+        const systemName = this.currentGameData?.system || this.currentSystem;
+        
+        if (!gameName || !systemName) {
+            this.showAlert('Unable to reload matches: missing game or system data', 'warning');
+            return;
+        }
+        
+        // Show loading spinner
+        const loadingSpinner = document.getElementById('gameEditLoadingSpinner');
+        const matchesList = document.getElementById('gameEditMatchesList');
+        if (loadingSpinner) loadingSpinner.style.display = 'block';
+        if (matchesList) matchesList.innerHTML = '';
+        
+        try {
+            // Fetch matches with current algorithm preference
+            const response = await fetch('/api/get-top-matches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    game_name: gameName, 
+                    system_name: systemName 
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('🔧 DEBUG: Reloaded matches with new algorithm:', data);
+            
+            // Hide loading spinner
+            if (loadingSpinner) loadingSpinner.style.display = 'none';
+            
+            // Display the matches (pass data.matches, not data)
+            if (data.success && data.matches) {
+                this.displayPartialMatchModal(gameName, data.matches, 'gameEdit');
+            } else {
+                this.showAlert('Error reloading matches: ' + (data.error || 'Unknown error'), 'danger');
+            }
+            
+            // Show success message
+            this.showAlert('Matches reloaded with new similarity algorithm!', 'success');
+            
+        } catch (error) {
+            console.error('Error reloading matches:', error);
+            this.showAlert('Failed to reload matches', 'danger');
+            if (loadingSpinner) loadingSpinner.style.display = 'none';
+        }
+    }
+    
+    // Global Find Best Match Algorithm Selector Functions
+    initializeGlobalAlgorithmSelector() {
+        // Load current algorithm preference
+        this.loadGlobalAlgorithmPreference();
+        
+        // Add event listener for algorithm change (auto-reload)
+        const algorithmSelect = document.getElementById('globalSimilarityAlgorithm');
+        if (algorithmSelect) {
+            algorithmSelect.addEventListener('change', () => {
+                this.saveGlobalAlgorithmPreference();
+                // Auto-reload matches when algorithm changes
+                this.reloadGlobalMatches();
+            });
+        }
+    }
+    
+    loadGlobalAlgorithmPreference() {
+        // Load from cookie or use default
+        const algorithm = this.getCookie('similarity_algorithm') || 'jaro_winkler';
+        const algorithmSelect = document.getElementById('globalSimilarityAlgorithm');
+        if (algorithmSelect) {
+            algorithmSelect.value = algorithm;
+        }
+    }
+    
+    saveGlobalAlgorithmPreference() {
+        const algorithmSelect = document.getElementById('globalSimilarityAlgorithm');
+        if (algorithmSelect) {
+            const algorithm = algorithmSelect.value;
+            this.setCookie('similarity_algorithm', algorithm, 365); // 1 year
+            console.log('🔧 DEBUG: Saved global similarity algorithm preference:', algorithm);
+        }
+    }
+    
+    async reloadGlobalMatches() {
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('No games selected for reloading', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        const progressDiv = document.getElementById('globalMatchProgress');
+        const tableDiv = document.getElementById('globalMatchTable');
+        const emptyDiv = document.getElementById('globalMatchEmpty');
+        
+        if (progressDiv) progressDiv.style.display = 'block';
+        if (tableDiv) tableDiv.style.display = 'none';
+        if (emptyDiv) emptyDiv.style.display = 'none';
+        
+        try {
+            console.log('Reloading global matches with new algorithm for', this.selectedGames.length, 'games');
+            
+            // Re-run the find best match process
+            await this.findBestMatchForSelected();
+            
+            // Show success message
+            this.showAlert('Global matches reloaded with new similarity algorithm!', 'success');
+            
+        } catch (error) {
+            console.error('Error reloading global matches:', error);
+            this.showAlert('Failed to reload global matches', 'danger');
+        }
     }
     
     initializeEditModalIgdbSearch() {
@@ -6667,6 +6830,7 @@ class GameCollectionManager {
             console.warn('openScreenscraperModal element not found');
         }
 
+
         // Add event listener for opening Systems modal
         const openSystemsModal = document.getElementById('openSystemsModal');
         if (openSystemsModal) {
@@ -7411,6 +7575,7 @@ class GameCollectionManager {
             console.error('Error saving ScreenScraper field settings:', error);
         }
     }
+
     
     async getSelectedIgdbFields() {
         console.log('🔧 DEBUG: getSelectedIgdbFields() called!');

@@ -19,7 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 from sys import dont_write_bytecode
-from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, Response, redirect, url_for, session, flash
+from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, Response, redirect, url_for, session, flash, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 # from flask_session import Session
 # from flask_session.sessions import FileSystemSessionInterface
@@ -2956,6 +2956,51 @@ def get_config():
         except Exception as e:
             return jsonify({'error': f'Failed to update configuration: {str(e)}'}), 500
 
+@app.route('/api/similarity-config', methods=['GET', 'PUT'])
+@login_required
+def manage_similarity_config():
+    """Get or update similarity algorithm configuration"""
+    try:
+        if request.method == 'GET':
+            # Get available algorithms from config
+            from game_utils import load_similarity_config
+            similarity_config = load_similarity_config()
+            
+            # Get user's selected algorithm from cookie
+            selected_algorithm = request.cookies.get('similarity_algorithm', similarity_config.get('algorithm', 'jaro_winkler'))
+            
+            return jsonify({
+                'algorithm': selected_algorithm,
+                'available_algorithms': similarity_config.get('available_algorithms', {})
+            })
+        elif request.method == 'PUT':
+            new_config = request.get_json()
+            if not new_config:
+                return jsonify({'error': 'No configuration data provided'}), 400
+            
+            # Get available algorithms from config for validation
+            from game_utils import load_similarity_config
+            similarity_config = load_similarity_config()
+            available_algorithms = list(similarity_config.get('available_algorithms', {}).keys())
+            
+            if 'algorithm' in new_config and new_config['algorithm'] not in available_algorithms:
+                return jsonify({'error': f'Invalid algorithm. Must be one of: {", ".join(available_algorithms)}'}), 400
+            
+            # Create response with success message
+            response_data = {
+                'success': True, 
+                'message': 'Similarity algorithm preference updated', 
+                'algorithm': new_config.get('algorithm', 'jaro_winkler')
+            }
+            
+            # Create response object to set cookie
+            response = make_response(jsonify(response_data))
+            response.set_cookie('similarity_algorithm', new_config.get('algorithm', 'jaro_winkler'), max_age=365*24*60*60)  # 1 year
+            
+            return response
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage similarity configuration: {str(e)}'}), 500
+
 @app.route('/api/igdb-credentials', methods=['GET', 'POST'])
 @login_required
 def manage_igdb_credentials():
@@ -4312,8 +4357,9 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
         print(f"🔍 DEBUG: Found {len(partition_items)} items in partition '{first_char}'")
         
         for i, item in enumerate(partition_items):
-            # Calculate Jaro-Winkler similarity
-            similarity = jellyfish.jaro_winkler_similarity(normalized_name, item['normalized'])
+            # Calculate similarity using configured algorithm
+            from game_utils import calculate_similarity
+            similarity = calculate_similarity(normalized_name, item['normalized'])
             print(f"🔍 DEBUG: Item {i+1}: '{item['name']}' -> similarity: {similarity:.4f}")
         
             # Create match info

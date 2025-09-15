@@ -227,7 +227,8 @@ def find_similarity_matches(gamelist_name, similarity_index, threshold=0.0):
     for item in similarity_index[first_char]:
         # Calculate both similarity scores
         similarity = calculate_title_similarity(normalized_name, item['normalized'])
-        jaro_similarity = jellyfish.jaro_winkler_similarity(normalized_name, item['normalized'])
+        from game_utils import calculate_similarity
+        jaro_similarity = calculate_similarity(normalized_name, item['normalized'])
         
         if similarity > best_similarity:
             best_similarity = similarity

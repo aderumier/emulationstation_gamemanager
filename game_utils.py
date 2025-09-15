@@ -222,3 +222,84 @@ def needs_conversion(file_path: str, target_extension: str) -> bool:
     current_extension = get_file_extension(file_path)
     return current_extension != target_extension.lower()
 
+def load_similarity_config():
+    """Load similarity algorithm configuration from config.json"""
+    try:
+        with open('var/config/config.json', 'r') as f:
+            config = json.load(f)
+        return config.get('similarity', {})
+    except Exception as e:
+        print(f"Error loading similarity config: {e}")
+        return {'algorithm': 'jaro_winkler'}
+
+def calculate_similarity(str1: str, str2: str, algorithm: str = None) -> float:
+    """
+    Calculate similarity between two strings using the specified algorithm.
+    
+    Args:
+        str1: First string to compare
+        str2: Second string to compare
+        algorithm: Algorithm to use (if None, uses cookie preference or config default)
+        
+    Returns:
+        Similarity score between 0.0 and 1.0 (higher is more similar)
+    """
+    if not algorithm:
+        # Try to get from cookie first, then fall back to config
+        try:
+            from flask import request
+            algorithm = request.cookies.get('similarity_algorithm', 'jaro_winkler')
+        except:
+            # Fallback to config if not in Flask context
+            config = load_similarity_config()
+            algorithm = config.get('algorithm', 'jaro_winkler')
+    
+    # Normalize strings for comparison
+    str1 = str1.lower().strip() if str1 else ""
+    str2 = str2.lower().strip() if str2 else ""
+    
+    if not str1 or not str2:
+        return 0.0
+    
+    if str1 == str2:
+        return 1.0
+    
+    try:
+        if algorithm == 'jaro_winkler':
+            return jellyfish.jaro_winkler_similarity(str1, str2)
+        elif algorithm == 'damerau_levenshtein':
+            # Convert distance to similarity (0-1 scale)
+            max_len = max(len(str1), len(str2))
+            if max_len == 0:
+                return 1.0
+            distance = jellyfish.damerau_levenshtein_distance(str1, str2)
+            return 1.0 - (distance / max_len)
+        elif algorithm == 'levenshtein':
+            # Convert distance to similarity (0-1 scale)
+            max_len = max(len(str1), len(str2))
+            if max_len == 0:
+                return 1.0
+            distance = jellyfish.levenshtein_distance(str1, str2)
+            return 1.0 - (distance / max_len)
+        elif algorithm == 'jaro':
+            # Jaro distance (without Winkler modification)
+            return jellyfish.jaro_similarity(str1, str2)
+        elif algorithm == 'hamming':
+            # Hamming distance - only works for strings of equal length
+            if len(str1) != len(str2):
+                return 0.0
+            if len(str1) == 0:
+                return 1.0
+            distance = jellyfish.hamming_distance(str1, str2)
+            return 1.0 - (distance / len(str1))
+        elif algorithm == 'match_rating':
+            # Match Rating Approach - returns 1 if codes match, 0 otherwise
+            return 1.0 if jellyfish.match_rating_comparison(str1, str2) else 0.0
+        else:
+            # Fallback to Jaro-Winkler
+            return jellyfish.jaro_winkler_similarity(str1, str2)
+    except Exception as e:
+        print(f"Error calculating similarity with {algorithm}: {e}")
+        # Fallback to Jaro-Winkler
+        return jellyfish.jaro_winkler_similarity(str1, str2)
+

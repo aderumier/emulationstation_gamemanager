@@ -764,6 +764,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <div id="gameEditModalProgress" class="text-muted mt-1" style="display: none;"></div>
                     </div>
                     
+                    <!-- Similarity Algorithm Selector -->
+                    <div class="mb-3">
+                        <div class="row align-items-center">
+                            <div class="col-md-12">
+                                <label for="gameEditSimilarityAlgorithm" class="form-label mb-1">
+                                    <i class="bi bi-cpu me-1"></i>Similarity Algorithm
+                                </label>
+                                <select class="form-select form-select-sm" id="gameEditSimilarityAlgorithm">
+                                    <option value="jaro_winkler">Jaro-Winkler Distance</option>
+                                    <option value="damerau_levenshtein">Damerau-Levenshtein Distance</option>
+                                    <option value="levenshtein">Levenshtein Distance</option>
+                                    <option value="jaro">Jaro Distance</option>
+                                    <option value="hamming">Hamming Distance</option>
+                                    <option value="match_rating">Match Rating Approach Comparison</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-text">
+                            Choose the similarity algorithm for matching. Results will be automatically recalculated when changed.
+                        </div>
+                    </div>
+                    
                     <!-- Original Game Details Section -->
                     <div class="card mb-3">
                         <div class="card-header">
@@ -852,6 +874,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <div class="modal-body" style="padding: 15px;">
                     <div class="mb-2">
                         <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0;">The best match is automatically selected for each game. You can change the selection if needed. Click "Validate" to apply the match and update the gamelist.</p>
+                    </div>
+                    
+                    <!-- Similarity Algorithm Selector -->
+                    <div class="mb-3">
+                        <div class="row align-items-center">
+                            <div class="col-md-12">
+                                <label for="globalSimilarityAlgorithm" class="form-label mb-1" style="font-size: 0.85rem;">
+                                    <i class="bi bi-cpu me-1"></i>Similarity Algorithm
+                                </label>
+                                <select class="form-select form-select-sm" id="globalSimilarityAlgorithm" style="font-size: 0.85rem;">
+                                    <option value="jaro_winkler">Jaro-Winkler Distance</option>
+                                    <option value="damerau_levenshtein">Damerau-Levenshtein Distance</option>
+                                    <option value="levenshtein">Levenshtein Distance</option>
+                                    <option value="jaro">Jaro Distance</option>
+                                    <option value="hamming">Hamming Distance</option>
+                                    <option value="match_rating">Match Rating Approach Comparison</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-text" style="font-size: 0.8rem;">
+                            Choose the similarity algorithm for matching. Results will be automatically recalculated when changed.
+                        </div>
                     </div>
                     
                     <div class="table-responsive">
@@ -2671,7 +2715,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             color: #6c757d !important;
         }
     </style>
-    
+
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     

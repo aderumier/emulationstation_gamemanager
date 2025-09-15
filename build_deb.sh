@@ -7,8 +7,20 @@ set -e  # Exit on any error
 
 echo "🔨 Building GameManager Debian Package..."
 
-# Get version from control file
-VERSION=$(grep "^Version:" debian/DEBIAN/control | cut -d' ' -f2)
+# Get version from git tag
+if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+    # We're on a tag, use it as version
+    GIT_TAG=$(git describe --tags --exact-match HEAD)
+    # Remove 'v' prefix if present for Debian package version
+    VERSION_NUMBER=${GIT_TAG#v}
+    VERSION="${VERSION_NUMBER}-1"
+    echo "🏷️  Using git tag: $GIT_TAG -> version: $VERSION"
+else
+    # Not on a tag, use control file version
+    VERSION=$(grep "^Version:" debian/DEBIAN/control | cut -d' ' -f2)
+    echo "⚠️  Not on a git tag, using control file version: $VERSION"
+fi
+
 PACKAGE_NAME="gamemanager_${VERSION}_all.deb"
 
 echo "📦 Package: $PACKAGE_NAME"
@@ -55,6 +67,10 @@ cp docker-compose.yml debian/opt/gamemanager/docker-compose.yml
 cp Dockerfile debian/opt/gamemanager/Dockerfile
 
 echo "✅ Source files synced successfully"
+
+# Update control file with correct version
+echo "🔧 Updating control file with version: $VERSION"
+sed -i "s/^Version: .*/Version: $VERSION/" debian/DEBIAN/control
 
 # Verify critical files are updated
 echo "🔍 Verifying critical files..."
