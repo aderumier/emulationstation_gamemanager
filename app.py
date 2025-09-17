@@ -248,6 +248,11 @@ def save_users(users):
     with open('var/config/user.cfg', 'w') as f:
         json.dump(users, f, indent=4)
 
+def save_config():
+    """Save configuration to config.json file"""
+    with open('var/config/config.json', 'w') as f:
+        json.dump(config, f, indent=4)
+
 def get_user_by_id(user_id):
     """Get user by ID"""
     users = load_users()
