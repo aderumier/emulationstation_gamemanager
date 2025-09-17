@@ -136,6 +136,9 @@ class GameCollectionManager {
         // Initialize application configuration modal
         this.initializeAppConfigurationModal();
         
+        // Initialize video configuration modal
+        this.initializeVideoConfigurationModal();
+        
         // Initialize WebSocket connection after everything else is ready
         setTimeout(() => {
             this.initializeWebSocket();
@@ -9643,6 +9646,132 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error saving configuration:', error);
             this.showToast('Error saving configuration', 'error');
+        }
+    }
+    
+    initializeVideoConfigurationModal() {
+        console.log('Initializing video configuration modal...');
+        
+        // Add event listener for opening the modal
+        const openVideoConfigBtn = document.getElementById('openVideoConfigModal');
+        if (openVideoConfigBtn) {
+            openVideoConfigBtn.addEventListener('click', () => {
+                this.openVideoConfigurationModal();
+            });
+        }
+        
+        // Add event listener for saving configuration
+        const saveVideoConfigBtn = document.getElementById('saveVideoConfigBtn');
+        if (saveVideoConfigBtn) {
+            saveVideoConfigBtn.addEventListener('click', () => {
+                this.saveVideoConfiguration();
+            });
+        }
+        
+        // Add event listener for refresh button
+        const refreshVideoConfigBtn = document.getElementById('refreshVideoConfigBtn');
+        if (refreshVideoConfigBtn) {
+            refreshVideoConfigBtn.addEventListener('click', () => {
+                this.loadVideoConfiguration();
+            });
+        }
+    }
+    
+    openVideoConfigurationModal() {
+        console.log('Opening video configuration modal...');
+        
+        // Load current configuration
+        this.loadVideoConfiguration();
+        
+        const modal = new bootstrap.Modal(document.getElementById('videoConfigModal'));
+        modal.show();
+    }
+    
+    async loadVideoConfiguration() {
+        try {
+            const response = await fetch('/api/video-config');
+            if (response.ok) {
+                const config = await response.json();
+                
+                // Populate resolution dropdown
+                const resolutionSelect = document.getElementById('videoResolutionSelect');
+                if (resolutionSelect) {
+                    resolutionSelect.innerHTML = '';
+                    
+                    // Add options from available resolutions
+                    Object.entries(config.available_resolutions).forEach(([value, label]) => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = label;
+                        if (value === config.force_video_resolution) {
+                            option.selected = true;
+                        }
+                        resolutionSelect.appendChild(option);
+                    });
+                }
+                
+                // Update current setting display
+                const currentResolution = document.getElementById('currentVideoResolution');
+                if (currentResolution) {
+                    const selectedResolution = config.force_video_resolution || 'No forced resolution (use original)';
+                    currentResolution.innerHTML = `<span class="badge bg-primary">${selectedResolution}</span>`;
+                }
+                
+                console.log('Video configuration loaded:', config);
+            } else {
+                console.error('Failed to load video configuration');
+                this.showToast('Failed to load video configuration', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading video configuration:', error);
+            this.showToast('Error loading video configuration', 'error');
+        }
+    }
+    
+    async saveVideoConfiguration() {
+        try {
+            const resolutionSelect = document.getElementById('videoResolutionSelect');
+            const forceVideoResolution = resolutionSelect ? resolutionSelect.value : '';
+            
+            const configData = {
+                force_video_resolution: forceVideoResolution
+            };
+            
+            console.log('Saving video configuration:', configData);
+            
+            const response = await fetch('/api/video-config', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(configData)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Video configuration saved:', result);
+                
+                // Show success message
+                this.showToast('Video configuration saved successfully!', 'success');
+                
+                // Update current setting display
+                const currentResolution = document.getElementById('currentVideoResolution');
+                if (currentResolution) {
+                    const selectedResolution = forceVideoResolution || 'No forced resolution (use original)';
+                    currentResolution.innerHTML = `<span class="badge bg-primary">${selectedResolution}</span>`;
+                }
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('videoConfigModal'));
+                modal.hide();
+            } else {
+                const error = await response.text();
+                console.error('Failed to save video configuration:', error);
+                this.showToast('Failed to save video configuration', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving video configuration:', error);
+            this.showToast('Error saving video configuration', 'error');
         }
     }
     

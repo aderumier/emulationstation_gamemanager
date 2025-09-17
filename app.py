@@ -3003,6 +3003,56 @@ def manage_similarity_config():
     except Exception as e:
         return jsonify({'error': f'Failed to manage similarity configuration: {str(e)}'}), 500
 
+@app.route('/api/video-config', methods=['GET', 'PUT'])
+@login_required
+def manage_video_config():
+    """Get or update video configuration"""
+    try:
+        if request.method == 'GET':
+            # Load current video configuration
+            video_config = config.get('video', {})
+            
+            # Define available video resolutions
+            available_resolutions = {
+                '': 'No forced resolution (use original)',
+                '1920x1080': '1920x1080 (Full HD 16:9)',
+                '1280x720': '1280x720 (HD 16:9)',
+                '854x480': '854x480 (FWVGA 16:9)',
+                '640x360': '640x360 (nHD 16:9)',
+                '1920x1440': '1920x1440 (4:3)',
+                '1600x1200': '1600x1200 (4:3)',
+                '1280x960': '1280x960 (4:3)',
+                '1024x768': '1024x768 (4:3)',
+                '800x600': '800x600 (4:3)',
+                '640x480': '640x480 (VGA 4:3)'
+            }
+            
+            return jsonify({
+                'force_video_resolution': video_config.get('force_video_resolution', ''),
+                'available_resolutions': available_resolutions
+            })
+        elif request.method == 'PUT':
+            new_config = request.get_json()
+            if not new_config:
+                return jsonify({'error': 'No configuration data provided'}), 400
+            
+            # Update video configuration
+            if 'video' not in config:
+                config['video'] = {}
+            
+            config['video']['force_video_resolution'] = new_config.get('force_video_resolution', '')
+            
+            # Save configuration
+            save_config()
+            
+            return jsonify({
+                'success': True, 
+                'message': 'Video configuration updated', 
+                'force_video_resolution': config['video']['force_video_resolution']
+            })
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage video configuration: {str(e)}'}), 500
+
 @app.route('/api/igdb-credentials', methods=['GET', 'POST'])
 @login_required
 def manage_igdb_credentials():
@@ -8992,6 +9042,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             if not crop_success:
                 task.update_progress(f"  ⚠️ Auto crop failed for {game_name}, using original video")
         
+        # Apply video resolution resizing if configured
+        resize_success = apply_video_resize(task, temp_path, game_name)
+        if not resize_success:
+            task.update_progress(f"  ⚠️ Video resize failed for {game_name}, using original video")
+        
         # Move temporary file to final location
         if os.path.exists(temp_path):
             # Remove existing file if it exists (for overwrite case)
@@ -9050,6 +9105,55 @@ def apply_auto_crop(task, video_path, game_name):
             
     except Exception as e:
         task.update_progress(f"  ❌ Auto crop error for {game_name}: {str(e)}")
+        return False
+
+def apply_video_resize(task, video_path, game_name):
+    """Apply video resolution resizing if configured (helper function)"""
+    try:
+        # Check if video resizing is configured
+        video_config = config.get('video', {})
+        force_resolution = video_config.get('force_video_resolution', '')
+        
+        if not force_resolution:
+            # No resolution forcing configured, skip resizing
+            return True
+        
+        import subprocess
+        
+        # Create temporary resized filename
+        base_path = os.path.splitext(video_path)[0]
+        resized_path = f"{base_path}_resized.mp4"
+        
+        # FFmpeg resize command
+        resize_cmd = [
+            'ffmpeg', '-i', video_path,
+            '-vf', f'scale={force_resolution}',
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-y',  # Overwrite output file
+            resized_path
+        ]
+        
+        # Log the ffmpeg command
+        task.update_progress(f"  🔧 Resizing video to {force_resolution} for {game_name}")
+        task.update_progress(f"  ffmpeg command: {' '.join(resize_cmd)}")
+        
+        result = subprocess.run(resize_cmd, capture_output=True, text=True, timeout=300)
+        
+        if result.returncode == 0 and os.path.exists(resized_path):
+            # Replace original with resized version
+            os.replace(resized_path, video_path)
+            task.update_progress(f"  ✅ Video resize completed for {game_name} ({force_resolution})")
+            return True
+        else:
+            task.update_progress(f"  ❌ Video resize failed for {game_name}: {result.stderr}")
+            # Clean up failed resized file if it exists
+            if os.path.exists(resized_path):
+                os.remove(resized_path)
+            return False
+            
+    except Exception as e:
+        task.update_progress(f"  ❌ Video resize error for {game_name}: {str(e)}")
         return False
 
 def update_gamelist_video_field(gamelist_path, rom_path, video_filename):

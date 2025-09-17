@@ -2902,5 +2902,8 @@
             "levenshtein": "Levenshtein Distance",
             "jaro": "Jaro Distance"
         }
+    },
+    "video": {
+        "force_video_resolution": ""
     }
 }
