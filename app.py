@@ -8840,7 +8840,7 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
             video_filters.append(f'scale={force_resolution}')
         
         # Calculate video duration for fade effects if needed
-        fade_out_start = 27  # Default fallback value
+        fade_out_start = 28  # Default fallback value (30s - 2s = 28s)
         if enable_fade:
             try:
                 duration_result = subprocess.run([
@@ -8850,16 +8850,16 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
                 
                 if duration_result.returncode == 0:
                     duration = float(duration_result.stdout.strip())
-                    fade_out_start = max(0, duration - 3)  # Start fade-out 3 seconds before end
+                    fade_out_start = max(0, duration - 2)  # Start fade-out 2 seconds before end
                     task.update_progress(f"  🎬 Video duration: {duration:.1f}s, fade-out starts at {fade_out_start:.1f}s")
                 else:
-                    task.update_progress(f"  ⚠️ Could not get video duration, using fallback fade-out at 27s")
+                    task.update_progress(f"  ⚠️ Could not get video duration, using fallback fade-out at 28s")
             except Exception as e:
-                task.update_progress(f"  ⚠️ Error getting video duration: {e}, using fallback fade-out at 27s")
+                task.update_progress(f"  ⚠️ Error getting video duration: {e}, using fallback fade-out at 28s")
         
         # Add fade effects if enabled
         if enable_fade:
-            video_filters.append(f'fade=t=in:st=0:d=3,fade=t=out:st={fade_out_start}:d=3')
+            video_filters.append(f'fade=t=in:st=0:d=2,fade=t=out:st={fade_out_start}:d=2')
         
         # Combine video filters with comma
         vf_filter = ','.join(video_filters) if video_filters else None
@@ -8867,7 +8867,7 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         # Build audio filters for fade effects
         af_filters = []
         if enable_fade:
-            af_filters.append(f'afade=t=in:st=0:d=3,afade=t=out:st={fade_out_start}:d=3')
+            af_filters.append(f'afade=t=in:st=0:d=2,afade=t=out:st={fade_out_start}:d=2')
         
         af_filter = ','.join(af_filters) if af_filters else None
         
@@ -8899,7 +8899,7 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         if force_resolution:
             operations.append(f'resize to {force_resolution}')
         if enable_fade:
-            operations.append('fade in/out (3s each) - video & audio')
+            operations.append('fade in/out (2s each) - video & audio')
         
         task.update_progress(f"  🔧 Applying video processing to {game_name}: {', '.join(operations)}")
         task.update_progress(f"  ffmpeg command: {' '.join(process_cmd)}")
