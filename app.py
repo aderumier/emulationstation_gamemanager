@@ -8103,67 +8103,22 @@ def run_rom_scan_task(system_name):
         task.update_progress(f"Found {len(new_roms)} new ROMs to add")
         task.update_progress(f"Found {len(missing_roms)} games with missing ROM files")
         
-        # If no missing ROMs, proceed with adding new ones
-        if not missing_roms:
-            # Add new ROMs to gamelist
-            next_id = max([game.get('id', 0) for game in existing_games] + [0]) + 1
-            for rom_file in new_roms:
-                # Check if this ROM should be hidden (referenced in M3U)
-                normalized_rom = rom_file.lstrip('./')
-                is_hidden = normalized_rom in hidden_roms
-                
-                new_game = {
-                    'id': next_id,
-                    'path': f'./{rom_file}',
-                    'name': os.path.splitext(os.path.basename(rom_file))[0],  # Use basename without extension as name
-                    'desc': '',
-                    'genre': '',
-                    'developer': '',
-                    'publisher': '',
-                    'rating': '',
-                    'players': ''
-                }
-                
-                # Add hidden attribute if this ROM is referenced in an M3U file
-                if is_hidden:
-                    new_game['hidden'] = 'true'
-                    task.update_progress(f"Added hidden game (M3U referenced): {rom_file}")
-                else:
-                    task.update_progress(f"Added new game: {rom_file}")
-                
-                existing_games.append(new_game)
-                next_id += 1
-            
-            # Save updated gamelist
-            if new_roms:
-                write_gamelist_xml(existing_games, gamelist_path)
-                task.update_progress(f"Added {len(new_roms)} new games to gamelist.xml")
-                
-                # Notify all connected clients about the gamelist update
-                notify_gamelist_updated(system_name, len(existing_games))
-            
-            # Automatically trigger media scan to verify media files exist
-            task.update_progress("Starting automatic media scan to verify media files...")
-            try:
-                media_scan_result = scan_media_files(system_name)
-                if media_scan_result.get('success'):
-                    task.update_progress(f"Media scan completed: {media_scan_result.get('message', '')}")
-                else:
-                    task.update_progress(f"Media scan warning: {media_scan_result.get('error', 'Unknown error')}")
-            except Exception as e:
-                task.update_progress(f"Media scan error: {str(e)}")
-            
-            task.update_progress(f"ROM scan completed successfully! Added {len(new_roms)} new games and verified media files.")
-            task.complete()
-        else:
-            # Store scan results for confirmation
+        # Store scan results for confirmation if there are new ROMs or missing ROMs
+        if new_roms or missing_roms:
             task.scan_results = {
                 'new_roms': new_roms,
                 'missing_roms': missing_roms,
                 'total_existing': len(existing_games),
                 'total_rom_files': len(rom_files)
             }
-            task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs and {len(missing_roms)} missing ROMs. Awaiting confirmation.")
+            if missing_roms:
+                task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs and {len(missing_roms)} missing ROMs. Awaiting confirmation.")
+            else:
+                task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs to add. Awaiting confirmation.")
+            task.complete()
+        else:
+            # No new ROMs or missing ROMs found
+            task.update_progress("ROM scan completed. No changes needed.")
             task.complete()
         
     except Exception as e:
