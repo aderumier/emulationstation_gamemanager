@@ -8674,7 +8674,7 @@ def run_youtube_download_task(task_id, data):
         # Download full video to temporary file
         full_download_cmd = [
             yt_dlp_path,
-            '-f', 'best[height<=720]',  # Best quality up to 720p for full download
+            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Optimized format selection
             '-o', output_template,  # Output template (temporary filename)
             '--progress',  # Show progress
             '--newline',   # Progress on new lines
