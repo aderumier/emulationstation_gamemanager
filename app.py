@@ -3017,19 +3017,14 @@ def manage_video_config():
             # Load current video configuration
             video_config = config.get('video', {})
             
-            # Define available video resolutions
+            # Define available video resolutions (height-based, maintaining aspect ratio)
             available_resolutions = {
                 '': 'No forced resolution (use original)',
-                '1920x1080': '1920x1080 (Full HD 16:9)',
-                '1280x720': '1280x720 (HD 16:9)',
-                '854x480': '854x480 (FWVGA 16:9)',
-                '640x360': '640x360 (nHD 16:9)',
-                '1920x1440': '1920x1440 (4:3)',
-                '1600x1200': '1600x1200 (4:3)',
-                '1280x960': '1280x960 (4:3)',
-                '1024x768': '1024x768 (4:3)',
-                '800x600': '800x600 (4:3)',
-                '640x480': '640x480 (VGA 4:3)'
+                '480': '480p (height-based, maintain aspect ratio)',
+                '720': '720p (height-based, maintain aspect ratio)',
+                '1080': '1080p (height-based, maintain aspect ratio)',
+                '1440': '1440p (height-based, maintain aspect ratio)',
+                '2160': '2160p/4K (height-based, maintain aspect ratio)'
             }
             
             return jsonify({
@@ -8839,9 +8834,10 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
                 video_filters.append('crop=ih*16/9:ih')
                 task.update_progress(f"  🔄 Using fallback 16:9 crop for {game_name}")
         
-        # Add scale filter if resolution forcing is configured
+        # Add scale filter if resolution forcing is configured (height-based, maintain aspect ratio)
         if force_resolution:
-            video_filters.append(f'scale={force_resolution}')
+            # Use height-based scaling: scale to specified height, width calculated automatically to maintain aspect ratio
+            video_filters.append(f'scale=-1:{force_resolution}')
         
         # Calculate video duration for fade effects if needed
         fade_out_start = 28  # Default fallback value (30s - 2s = 28s)
@@ -8917,7 +8913,7 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         if auto_crop:
             operations.append('auto crop (detected dimensions)')
         if force_resolution:
-            operations.append(f'resize to {force_resolution}')
+            operations.append(f'resize to {force_resolution}p (height-based, maintain aspect ratio)')
         if enable_fade:
             operations.append('fade in/out (2s each) - video & audio')
         if enable_cuda:
