@@ -8841,22 +8841,40 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         
         # Add fade effects if enabled
         if enable_fade:
-            # Get video duration for fade-out timing
-            # We'll use a simple approach: fade-in for first 3 seconds, fade-out for last 3 seconds
+            # Fade in for first 3 seconds, fade out for last 3 seconds
             video_filters.append('fade=t=in:st=0:d=3,fade=t=out:st=-3:d=3')
         
-        # Combine filters with comma
-        vf_filter = ','.join(video_filters)
+        # Combine video filters with comma
+        vf_filter = ','.join(video_filters) if video_filters else None
+        
+        # Build audio filters for fade effects
+        af_filters = []
+        if enable_fade:
+            # Add audio fade in and out effects
+            af_filters.append('afade=t=in:st=0:d=3,afade=t=out:st=-3:d=3')
+        
+        af_filter = ','.join(af_filters) if af_filters else None
         
         # FFmpeg command with combined filters
         process_cmd = [
-            'ffmpeg', '-i', video_path,
-            '-vf', vf_filter,
+            'ffmpeg', '-i', video_path
+        ]
+        
+        # Add video filters if any
+        if vf_filter:
+            process_cmd.extend(['-vf', vf_filter])
+        
+        # Add audio filters if any
+        if af_filter:
+            process_cmd.extend(['-af', af_filter])
+        
+        # Add codec settings
+        process_cmd.extend([
             '-c:v', 'libx264',
             '-c:a', 'aac',
             '-y',  # Overwrite output file
             processed_path
-        ]
+        ])
         
         # Log the ffmpeg command
         operations = []
@@ -8865,7 +8883,7 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         if force_resolution:
             operations.append(f'resize to {force_resolution}')
         if enable_fade:
-            operations.append('fade in/out (3s each)')
+            operations.append('fade in/out (3s each) - video & audio')
         
         task.update_progress(f"  🔧 Applying video processing to {game_name}: {', '.join(operations)}")
         task.update_progress(f"  ffmpeg command: {' '.join(process_cmd)}")

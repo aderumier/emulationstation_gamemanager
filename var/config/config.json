@@ -2904,6 +2904,7 @@
         }
     },
     "video": {
-        "force_video_resolution": ""
+        "force_video_resolution": "640x480",
+        "enable_fadin_fadout": true
     }
 }
