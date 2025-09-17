@@ -3029,6 +3029,7 @@ def manage_video_config():
             
             return jsonify({
                 'force_video_resolution': video_config.get('force_video_resolution', ''),
+                'enable_fadin_fadout': video_config.get('enable_fadin_fadout', False),
                 'available_resolutions': available_resolutions
             })
         elif request.method == 'PUT':
@@ -3041,6 +3042,7 @@ def manage_video_config():
                 config['video'] = {}
             
             config['video']['force_video_resolution'] = new_config.get('force_video_resolution', '')
+            config['video']['enable_fadin_fadout'] = new_config.get('enable_fadin_fadout', False)
             
             # Save configuration
             save_config()
@@ -3048,7 +3050,8 @@ def manage_video_config():
             return jsonify({
                 'success': True, 
                 'message': 'Video configuration updated', 
-                'force_video_resolution': config['video']['force_video_resolution']
+                'force_video_resolution': config['video']['force_video_resolution'],
+                'enable_fadin_fadout': config['video']['enable_fadin_fadout']
             })
     except Exception as e:
         return jsonify({'error': f'Failed to manage video configuration: {str(e)}'}), 500
@@ -8505,292 +8508,21 @@ def run_youtube_download_task(task_id, data):
         except Exception as e:
             task.update_progress(f"Warning: Could not clean up old temporary files: {e}")
         
-        # Check if yt-dlp is available
-        try:
-            import subprocess
-            yt_dlp_path = get_yt_dlp_path()
-            result = subprocess.run([yt_dlp_path, '--version'], capture_output=True, text=True, timeout=10)
-            if result.returncode != 0:
-                task.complete(False, 'yt-dlp is not installed or not available')
-                return
-            task.update_progress(f"yt-dlp version: {result.stdout.strip()}")
-        except FileNotFoundError:
-            task.complete(False, 'yt-dlp is not installed')
-            return
-        except subprocess.TimeoutExpired:
-            task.complete(False, 'yt-dlp check timed out')
-            return
-        
-        # Download video with yt-dlp using optimized section download with fallback
-        task.update_progress(f"Attempting optimized section download from {start_time}s to {start_time + 30}s...")
-        
-        # Use just the filename for output to avoid path issues
-        output_filename_only = os.path.basename(output_path)
-        # Create temporary filename for download
-        temp_filename = f"temp_{output_filename_only}"
-        output_template = temp_filename.replace('.mp4', '.%(ext)s')
-        
-        # Calculate end time for the 30-second section
-        end_time = start_time + 30
-        
-        # First attempt: Optimized section download
-        yt_dlp_path = get_yt_dlp_path()
-        download_cmd = [
-            yt_dlp_path,
-            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Optimized format selection
-            '-o', output_template,  # Output template (just filename)
-            '--download-sections', f'*{start_time}-{end_time}',  # Download only the specific section
-            '--force-keyframes-at-cuts',  # Ensure clean cuts at keyframes
-            '--progress',  # Show progress
-            '--newline',   # Progress on new lines
-            video_url
-        ]
-        
-        task.update_progress(f"Primary download command: {' '.join(download_cmd)}")
-        
-        # Run primary download with real-time output capture
-        process = subprocess.Popen(
-            download_cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
-            text=True, 
-            cwd=videos_dir,
-            bufsize=1,
-            universal_newlines=True
+        # Use the common download helper function
+        success = download_youtube_video_for_game(
+            task, video_url, start_time, auto_crop, 
+            output_path, videos_dir, output_filename, 1  # playlist_index=1 for single downloads
         )
         
-        # Monitor download progress
-        section_download_success = False
-        for line in iter(process.stdout.readline, ''):
-            if line:
-                line = line.strip()
-                if line:
-                    task.update_progress(f"yt-dlp: {line}")
-                    # Check for download completion indicators
-                    if '[download] 100%' in line or 'has already been downloaded' in line:
-                        task.update_progress("Section download completed!")
-                        section_download_success = True
-                        break
-        
-        # Wait for download to complete
-        process.wait()
-        
-        if process.returncode == 0 and section_download_success:
-            # Section download succeeded - process the file
-            task.update_progress("Section download successful! Processing file...")
+        if success:
+            # Get final file size for gamelist update
+            file_size = os.path.getsize(output_path)
+            end_time = start_time + 30
             
-            # Find the actual downloaded temporary file
-            downloaded_file = None
-            for file in os.listdir(videos_dir):
-                if file.startswith(temp_filename.replace('.mp4', '')):
-                    downloaded_file = os.path.join(videos_dir, file)
-                    break
-            
-            if downloaded_file and os.path.exists(downloaded_file):
-                # Rename temporary file to final output filename
-                try:
-                    os.rename(downloaded_file, output_path)
-                    task.update_progress(f"Renamed temporary file to final filename: {output_path}")
-                except Exception as e:
-                    task.update_progress(f"Warning: Could not rename temporary file: {e}")
-                    # If rename fails, copy the file
-                    import shutil
-                    shutil.copy2(downloaded_file, output_path)
-                    os.remove(downloaded_file)
-                    task.update_progress(f"Copied temporary file to final filename: {output_path}")
-                
-                # Verify the final file exists
-                if os.path.exists(output_path):
-                    file_size = os.path.getsize(output_path)
-                    task.update_progress(f"Final video size: {file_size} bytes")
-                    
-                    # Apply auto cropping if enabled (BEFORE early return)
-                    if auto_crop:
-                        try:
-                            task.update_progress("Auto cropping enabled - detecting and removing black borders...")
-                            task.update_progress(f"Input video path: {output_path}")
-                            task.update_progress(f"Video exists: {os.path.exists(output_path)}")
-                            
-                            # Check if ffmpeg is available
-                            try:
-                                ffmpeg_result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=10)
-                                if ffmpeg_result.returncode != 0:
-                                    raise Exception("FFmpeg is not available")
-                                task.update_progress("FFmpeg is available for cropping")
-                            except FileNotFoundError:
-                                raise Exception("FFmpeg is not installed")
-                            except subprocess.TimeoutExpired:
-                                raise Exception("FFmpeg check timed out")
-                            
-                            # Create temporary file for cropped video
-                            cropped_filename = output_filename.replace('.mp4', '_cropped.mp4')
-                            cropped_path = os.path.join(videos_dir, cropped_filename)
-                            task.update_progress(f"Output cropped path: {cropped_path}")
-                            
-                            # Apply cropping
-                            task.update_progress("Starting crop detection...")
-                            crop_result = crop_video(output_path, cropped_path, 0, 30)  # Crop the entire 30-second clip
-                            if crop_result:
-                                task.update_progress("Crop detection and application completed successfully")
-                            else:
-                                task.update_progress("Crop process completed but returned False")
-                            
-                            # Verify cropped file exists
-                            if os.path.exists(cropped_path):
-                                task.update_progress("Cropped file created successfully")
-                                # Replace original with cropped version
-                                os.replace(cropped_path, output_path)
-                                task.update_progress("Original file replaced with cropped version")
-                            else:
-                                task.update_progress("Warning: Cropped file was not created")
-                            
-                            # Update file size
-                            file_size = os.path.getsize(output_path)
-                            task.update_progress(f"Auto cropping completed! New file size: {file_size} bytes")
-                            
-                        except Exception as e:
-                            task.update_progress(f"Warning: Auto cropping failed: {e}")
-                            import traceback
-                            task.update_progress(f"Error details: {traceback.format_exc()}")
-                            task.update_progress("Continuing with original video...")
-                    
-                    # Update gamelist.xml and complete task
-                    update_gamelist_and_complete(task, system_path, output_filename, output_path, file_size, start_time, end_time, rom_file)
-                    return
-                else:
-                    task.update_progress("Warning: Section download file not found, falling back to full download...")
-            else:
-                task.update_progress("Warning: Section download file not found, falling back to full download...")
+            # Update gamelist.xml and complete task
+            update_gamelist_and_complete(task, system_path, output_filename, output_path, file_size, start_time, end_time, rom_file)
         else:
-            task.update_progress(f"Section download failed (return code: {process.returncode}), falling back to full download...")
-        
-        # Fallback: Download full video and extract clip with FFmpeg
-        task.update_progress("Starting fallback: downloading full video and extracting clip...")
-        
-        # Clean up any partial files from failed section download
-        for file in os.listdir(videos_dir):
-            if file.startswith(output_filename.replace('.mp4', '')):
-                try:
-                    os.remove(os.path.join(videos_dir, file))
-                    task.update_progress(f"Cleaned up partial file: {file}")
-                except Exception as e:
-                    task.update_progress(f"Warning: Could not clean up partial file {file}: {e}")
-        
-        # Download full video to temporary file
-        full_download_cmd = [
-            yt_dlp_path,
-            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # Optimized format selection
-            '-o', output_template,  # Output template (temporary filename)
-            '--progress',  # Show progress
-            '--newline',   # Progress on new lines
-            video_url
-        ]
-        
-        task.update_progress(f"Fallback download command: {' '.join(full_download_cmd)}")
-        
-        # Run full download
-        full_process = subprocess.Popen(
-            full_download_cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
-            text=True, 
-            cwd=videos_dir,
-            bufsize=1,
-            universal_newlines=True
-        )
-        
-        # Monitor full download progress
-        for line in iter(full_process.stdout.readline, ''):
-            if line:
-                line = line.strip()
-                if line:
-                    task.update_progress(f"yt-dlp (full): {line}")
-                    # Check for download completion indicators
-                    if '[download] 100%' in line or 'has already been downloaded' in line:
-                        task.update_progress("Full video download completed!")
-                        break
-        
-        # Wait for full download to complete
-        full_process.wait()
-        
-        if full_process.returncode != 0:
-            task.complete(False, f'Full video download failed with return code: {full_process.returncode}')
-            return
-        
-        # Find the full downloaded temporary file
-        full_downloaded_file = None
-        for file in os.listdir(videos_dir):
-            if file.startswith(temp_filename.replace('.mp4', '')):
-                full_downloaded_file = os.path.join(videos_dir, file)
-                break
-        
-        if not full_downloaded_file:
-            task.complete(False, 'Full downloaded temporary file not found')
-            return
-        
-        task.update_progress(f"Full video downloaded to temporary file: {full_downloaded_file}")
-        
-        # Extract 30-second clip using ffmpeg to temporary output file
-        task.update_progress(f"Extracting 30-second clip from {start_time}s using FFmpeg...")
-        
-        # Use relative paths for FFmpeg since it's running from the videos directory
-        downloaded_filename = os.path.basename(full_downloaded_file)
-        temp_output_filename = f"temp_clip_{output_filename_only}"
-        
-        clip_cmd = [
-            'ffmpeg',
-            '-i', downloaded_filename,  # Just the filename
-            '-ss', str(start_time),
-            '-t', '30',
-            '-c', 'copy',  # Copy without re-encoding for speed
-            '-avoid_negative_ts', 'make_zero',
-            temp_output_filename  # Temporary output filename
-        ]
-        
-        task.update_progress(f"FFmpeg command: {' '.join(clip_cmd)} (running from {videos_dir})")
-        
-        # Run ffmpeg
-        ffmpeg_result = subprocess.run(clip_cmd, capture_output=True, text=True, cwd=videos_dir)
-        
-        if ffmpeg_result.returncode != 0:
-            task.update_progress(f"FFmpeg error: {ffmpeg_result.stderr}")
-            task.complete(False, f'Failed to extract clip: {ffmpeg_result.stderr}')
-            return
-        
-        # Clean up the full downloaded video file
-        try:
-            os.remove(full_downloaded_file)
-            task.update_progress("Cleaned up full downloaded video file")
-        except Exception as e:
-            task.update_progress(f"Warning: Could not clean up full video file: {e}")
-        
-        # Move temporary clip to final location
-        temp_clip_path = os.path.join(videos_dir, temp_output_filename)
-        if not os.path.exists(temp_clip_path):
-            task.complete(False, 'Temporary clip file not found after FFmpeg extraction')
-            return
-        
-        try:
-            os.rename(temp_clip_path, output_path)
-            task.update_progress(f"Moved temporary clip to final location: {output_path}")
-        except Exception as e:
-            task.update_progress(f"Warning: Could not move temporary clip: {e}")
-            # If rename fails, copy the file
-            import shutil
-            shutil.copy2(temp_clip_path, output_path)
-            os.remove(temp_clip_path)
-            task.update_progress(f"Copied temporary clip to final location: {output_path}")
-        
-        # Verify the final clip exists
-        if not os.path.exists(output_path):
-            task.complete(False, 'Final clip file not found after moving from temporary location')
-            return
-        
-        file_size = os.path.getsize(output_path)
-        task.update_progress(f"Final clip size: {file_size} bytes")
-        
-        # Update gamelist.xml and complete task
-        update_gamelist_and_complete(task, system_path, output_filename, output_path, file_size, start_time, end_time, rom_file)
+            task.complete(False, f'Failed to download video for {output_filename}')
         
     except Exception as e:
         print(f"Error in YouTube download task: {e}")
@@ -9035,17 +8767,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_file = temp_files[0]
         temp_path = os.path.join(videos_dir, temp_file)
         
-        # Apply auto crop if enabled (on temporary file)
-        if auto_crop:
-            task.update_progress(f"  🔧 Applying auto crop to temporary file: {temp_file}")
-            crop_success = apply_auto_crop(task, temp_path, game_name)
-            if not crop_success:
-                task.update_progress(f"  ⚠️ Auto crop failed for {game_name}, using original video")
-        
-        # Apply video resolution resizing if configured
-        resize_success = apply_video_resize(task, temp_path, game_name)
-        if not resize_success:
-            task.update_progress(f"  ⚠️ Video resize failed for {game_name}, using original video")
+        # Apply video processing (crop and/or resize) if needed
+        processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
+        if not processing_success:
+            task.update_progress(f"  ⚠️ Video processing failed for {game_name}, using original video")
         
         # Move temporary file to final location
         if os.path.exists(temp_path):
@@ -9066,94 +8791,96 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         task.update_progress(f"  ❌ Error downloading {game_name}: {str(e)}")
         return False
 
-def apply_auto_crop(task, video_path, game_name):
-    """Apply automatic cropping to a video (helper function)"""
+def apply_video_processing(task, video_path, game_name, auto_crop=False):
+    """Apply video processing (crop and/or resize) in a single ffmpeg call (helper function)"""
     try:
         import subprocess
         
-        # Create temporary cropped filename
-        base_path = os.path.splitext(video_path)[0]
-        cropped_path = f"{base_path}_cropped.mp4"
-        
-        # FFmpeg crop command (center crop to 16:9 aspect ratio)
-        crop_cmd = [
-            'ffmpeg', '-i', video_path,
-            '-vf', 'crop=ih*16/9:ih',
-            '-c:v', 'libx264',
-            '-c:a', 'aac',
-            '-y',  # Overwrite output file
-            cropped_path
-        ]
-        
-        # Log the ffmpeg command
-        task.update_progress(f"  🔧 Applying auto crop to {game_name}")
-        task.update_progress(f"  ffmpeg command: {' '.join(crop_cmd)}")
-        
-        result = subprocess.run(crop_cmd, capture_output=True, text=True, timeout=120)
-        
-        if result.returncode == 0 and os.path.exists(cropped_path):
-            # Replace original with cropped version
-            os.replace(cropped_path, video_path)
-            task.update_progress(f"  ✅ Auto crop completed for {game_name}")
-            return True
-        else:
-            task.update_progress(f"  ❌ Auto crop failed for {game_name}")
-            # Clean up failed cropped file if it exists
-            if os.path.exists(cropped_path):
-                os.remove(cropped_path)
-            return False
-            
-    except Exception as e:
-        task.update_progress(f"  ❌ Auto crop error for {game_name}: {str(e)}")
-        return False
-
-def apply_video_resize(task, video_path, game_name):
-    """Apply video resolution resizing if configured (helper function)"""
-    try:
-        # Check if video resizing is configured
+        # Check video processing configuration
         video_config = config.get('video', {})
         force_resolution = video_config.get('force_video_resolution', '')
+        enable_fade = video_config.get('enable_fadin_fadout', False)
         
-        if not force_resolution:
-            # No resolution forcing configured, skip resizing
+        # If no processing is needed, skip
+        if not auto_crop and not force_resolution and not enable_fade:
             return True
         
-        import subprocess
-        
-        # Create temporary resized filename
+        # Create temporary processed filename
         base_path = os.path.splitext(video_path)[0]
-        resized_path = f"{base_path}_resized.mp4"
+        processed_path = f"{base_path}_processed.mp4"
         
-        # FFmpeg resize command
-        resize_cmd = [
+        # Build video filter chain
+        video_filters = []
+        
+        # Add crop filter if auto crop is enabled
+        if auto_crop:
+            # Use cropdetect to find optimal crop dimensions
+            try:
+                task.update_progress(f"  🔍 Detecting optimal crop dimensions for {game_name}")
+                crop_dimensions = cropdetect(video_path, 0, 15)  # Analyze first 10 seconds
+                
+                if crop_dimensions:
+                    video_filters.append(f'crop={crop_dimensions}')
+                    task.update_progress(f"  📐 Using detected crop dimensions: {crop_dimensions}")
+                else:
+                    task.update_progress(f"  ℹ️ No cropping needed for {game_name}")
+            except Exception as e:
+                task.update_progress(f"  ⚠️ Crop detection failed for {game_name}: {str(e)}")
+                # Fall back to fixed 16:9 crop if detection fails
+                video_filters.append('crop=ih*16/9:ih')
+                task.update_progress(f"  🔄 Using fallback 16:9 crop for {game_name}")
+        
+        # Add scale filter if resolution forcing is configured
+        if force_resolution:
+            video_filters.append(f'scale={force_resolution}')
+        
+        # Add fade effects if enabled
+        if enable_fade:
+            # Get video duration for fade-out timing
+            # We'll use a simple approach: fade-in for first 3 seconds, fade-out for last 3 seconds
+            video_filters.append('fade=t=in:st=0:d=3,fade=t=out:st=-3:d=3')
+        
+        # Combine filters with comma
+        vf_filter = ','.join(video_filters)
+        
+        # FFmpeg command with combined filters
+        process_cmd = [
             'ffmpeg', '-i', video_path,
-            '-vf', f'scale={force_resolution}',
+            '-vf', vf_filter,
             '-c:v', 'libx264',
             '-c:a', 'aac',
             '-y',  # Overwrite output file
-            resized_path
+            processed_path
         ]
         
         # Log the ffmpeg command
-        task.update_progress(f"  🔧 Resizing video to {force_resolution} for {game_name}")
-        task.update_progress(f"  ffmpeg command: {' '.join(resize_cmd)}")
+        operations = []
+        if auto_crop:
+            operations.append('auto crop (detected dimensions)')
+        if force_resolution:
+            operations.append(f'resize to {force_resolution}')
+        if enable_fade:
+            operations.append('fade in/out (3s each)')
         
-        result = subprocess.run(resize_cmd, capture_output=True, text=True, timeout=300)
+        task.update_progress(f"  🔧 Applying video processing to {game_name}: {', '.join(operations)}")
+        task.update_progress(f"  ffmpeg command: {' '.join(process_cmd)}")
         
-        if result.returncode == 0 and os.path.exists(resized_path):
-            # Replace original with resized version
-            os.replace(resized_path, video_path)
-            task.update_progress(f"  ✅ Video resize completed for {game_name} ({force_resolution})")
+        result = subprocess.run(process_cmd, capture_output=True, text=True, timeout=300)
+        
+        if result.returncode == 0 and os.path.exists(processed_path):
+            # Replace original with processed version
+            os.replace(processed_path, video_path)
+            task.update_progress(f"  ✅ Video processing completed for {game_name}")
             return True
         else:
-            task.update_progress(f"  ❌ Video resize failed for {game_name}: {result.stderr}")
-            # Clean up failed resized file if it exists
-            if os.path.exists(resized_path):
-                os.remove(resized_path)
+            task.update_progress(f"  ❌ Video processing failed for {game_name}: {result.stderr}")
+            # Clean up failed processed file if it exists
+            if os.path.exists(processed_path):
+                os.remove(processed_path)
             return False
             
     except Exception as e:
-        task.update_progress(f"  ❌ Video resize error for {game_name}: {str(e)}")
+        task.update_progress(f"  ❌ Video processing error for {game_name}: {str(e)}")
         return False
 
 def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
