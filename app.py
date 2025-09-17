@@ -9842,6 +9842,49 @@ def activate_user(user_id):
     
     return jsonify({'error': 'User not found'}), 404
 
+@app.route('/api/change-password', methods=['POST'])
+@login_required
+def change_password():
+    """Change user password (for local accounts only)"""
+    try:
+        # Check if user is a local account (not Discord)
+        if current_user.discord_id:
+            return jsonify({'success': False, 'message': 'Discord accounts cannot change password through this interface'})
+        
+        data = request.get_json()
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+        confirm_password = data.get('confirm_password')
+        
+        # Validate input
+        if not all([current_password, new_password, confirm_password]):
+            return jsonify({'success': False, 'message': 'All fields are required'})
+        
+        if new_password != confirm_password:
+            return jsonify({'success': False, 'message': 'New passwords do not match'})
+        
+        if len(new_password) < 6:
+            return jsonify({'success': False, 'message': 'New password must be at least 6 characters long'})
+        
+        # Load users and verify current password
+        users = load_users()
+        if current_user.id not in users:
+            return jsonify({'success': False, 'message': 'User not found'})
+        
+        user_data = users[current_user.id]
+        if not verify_password(current_password, user_data['password_hash']):
+            return jsonify({'success': False, 'message': 'Current password is incorrect'})
+        
+        # Update password
+        users[current_user.id]['password_hash'] = hash_password(new_password)
+        save_users(users)
+        
+        return jsonify({'success': True, 'message': 'Password changed successfully'})
+    
+    except Exception as e:
+        print(f"Error changing password: {e}")
+        return jsonify({'success': False, 'message': 'Error changing password'})
+
 def _matches_media_type(image_type, requested_media_type, media_directory):
     """Check if an image type matches the requested media type using config mappings"""
     # Load the LaunchBox configuration from config

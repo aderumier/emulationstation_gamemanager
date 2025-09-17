@@ -139,6 +139,9 @@ class GameCollectionManager {
         // Initialize video configuration modal
         this.initializeVideoConfigurationModal();
         
+        // Initialize change password modal
+        this.initializeChangePasswordModal();
+        
         // Initialize WebSocket connection after everything else is ready
         setTimeout(() => {
             this.initializeWebSocket();
@@ -9810,6 +9813,107 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error saving video configuration:', error);
             this.showToast('Error saving video configuration', 'error');
+        }
+    }
+    
+    initializeChangePasswordModal() {
+        console.log('Initializing change password modal...');
+        
+        // Add event listener for opening the modal
+        const openChangePasswordBtn = document.getElementById('openChangePasswordModal');
+        if (openChangePasswordBtn) {
+            openChangePasswordBtn.addEventListener('click', () => {
+                this.openChangePasswordModal();
+            });
+        }
+        
+        // Add event listener for save button
+        const savePasswordBtn = document.getElementById('savePasswordBtn');
+        if (savePasswordBtn) {
+            savePasswordBtn.addEventListener('click', () => {
+                this.savePassword();
+            });
+        }
+    }
+    
+    openChangePasswordModal() {
+        console.log('Opening change password modal...');
+        
+        // Clear form
+        document.getElementById('currentPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
+        
+        const modal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
+        modal.show();
+    }
+    
+    async savePassword() {
+        try {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // Validate form
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                this.showToast('All fields are required', 'error');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                this.showToast('New passwords do not match', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                this.showToast('New password must be at least 6 characters long', 'error');
+                return;
+            }
+            
+            // Show loading state
+            const saveBtn = document.getElementById('savePasswordBtn');
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Changing...';
+            saveBtn.disabled = true;
+            
+            // Send request
+            const response = await fetch('/api/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showToast('Password changed successfully', 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('changePasswordModal'));
+                modal.hide();
+                
+                // Clear form
+                document.getElementById('currentPassword').value = '';
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+            } else {
+                this.showToast(result.message || 'Failed to change password', 'error');
+            }
+            
+        } catch (error) {
+            console.error('Error changing password:', error);
+            this.showToast('Error changing password', 'error');
+        } finally {
+            // Restore button state
+            const saveBtn = document.getElementById('savePasswordBtn');
+            saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Change Password';
+            saveBtn.disabled = false;
         }
     }
     
