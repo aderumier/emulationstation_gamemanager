@@ -2521,6 +2521,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableFadeInFadeOut">
+                                    <label class="form-check-label" for="enableFadeInFadeOut">
+                                        Enable Fade In/Fade Out Effects
+                                    </label>
+                                </div>
+                                <div class="form-text">Add 3-second fade-in at the beginning and 3-second fade-out at the end of videos</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Current Setting</label>
+                                <div class="form-control-plaintext" id="currentFadeSetting">
+                                    <span class="badge bg-secondary">Not loaded</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Note:</strong> When a resolution is selected, videos will be automatically resized using ffmpeg after download. This may take additional time but ensures consistent video dimensions across your collection.
@@ -2529,9 +2551,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshVideoConfigBtn">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                    </button>
-                    <button type="button" class="btn btn-primary" id="saveVideoConfigBtn">
-                        <i class="bi bi-check-lg me-1"></i>Save Configuration
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>

@@ -9660,19 +9660,32 @@ class GameCollectionManager {
             });
         }
         
-        // Add event listener for saving configuration
-        const saveVideoConfigBtn = document.getElementById('saveVideoConfigBtn');
-        if (saveVideoConfigBtn) {
-            saveVideoConfigBtn.addEventListener('click', () => {
-                this.saveVideoConfiguration();
-            });
-        }
-        
         // Add event listener for refresh button
         const refreshVideoConfigBtn = document.getElementById('refreshVideoConfigBtn');
         if (refreshVideoConfigBtn) {
             refreshVideoConfigBtn.addEventListener('click', () => {
                 this.loadVideoConfiguration();
+            });
+        }
+        
+        // Add auto-save event listeners for form elements
+        this.setupVideoConfigAutoSave();
+    }
+    
+    setupVideoConfigAutoSave() {
+        // Auto-save when resolution selection changes
+        const resolutionSelect = document.getElementById('videoResolutionSelect');
+        if (resolutionSelect) {
+            resolutionSelect.addEventListener('change', () => {
+                this.saveVideoConfiguration();
+            });
+        }
+        
+        // Auto-save when fade checkbox changes
+        const fadeCheckbox = document.getElementById('enableFadeInFadeOut');
+        if (fadeCheckbox) {
+            fadeCheckbox.addEventListener('change', () => {
+                this.saveVideoConfiguration();
             });
         }
     }
@@ -9717,6 +9730,20 @@ class GameCollectionManager {
                     currentResolution.innerHTML = `<span class="badge bg-primary">${selectedResolution}</span>`;
                 }
                 
+                // Update fade setting checkbox
+                const fadeCheckbox = document.getElementById('enableFadeInFadeOut');
+                if (fadeCheckbox) {
+                    fadeCheckbox.checked = config.enable_fadin_fadout || false;
+                }
+                
+                // Update current fade setting display
+                const currentFadeSetting = document.getElementById('currentFadeSetting');
+                if (currentFadeSetting) {
+                    const fadeStatus = config.enable_fadin_fadout ? 'Enabled' : 'Disabled';
+                    const badgeClass = config.enable_fadin_fadout ? 'bg-success' : 'bg-secondary';
+                    currentFadeSetting.innerHTML = `<span class="badge ${badgeClass}">${fadeStatus}</span>`;
+                }
+                
                 console.log('Video configuration loaded:', config);
             } else {
                 console.error('Failed to load video configuration');
@@ -9733,8 +9760,12 @@ class GameCollectionManager {
             const resolutionSelect = document.getElementById('videoResolutionSelect');
             const forceVideoResolution = resolutionSelect ? resolutionSelect.value : '';
             
+            const fadeCheckbox = document.getElementById('enableFadeInFadeOut');
+            const enableFadeInFadeOut = fadeCheckbox ? fadeCheckbox.checked : false;
+            
             const configData = {
-                force_video_resolution: forceVideoResolution
+                force_video_resolution: forceVideoResolution,
+                enable_fadin_fadout: enableFadeInFadeOut
             };
             
             console.log('Saving video configuration:', configData);
@@ -9761,9 +9792,16 @@ class GameCollectionManager {
                     currentResolution.innerHTML = `<span class="badge bg-primary">${selectedResolution}</span>`;
                 }
                 
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('videoConfigModal'));
-                modal.hide();
+                // Update current fade setting display
+                const currentFadeSetting = document.getElementById('currentFadeSetting');
+                if (currentFadeSetting) {
+                    const fadeStatus = enableFadeInFadeOut ? 'Enabled' : 'Disabled';
+                    const badgeClass = enableFadeInFadeOut ? 'bg-success' : 'bg-secondary';
+                    currentFadeSetting.innerHTML = `<span class="badge ${badgeClass}">${fadeStatus}</span>`;
+                }
+                
+                // Don't close modal for auto-save, just show success message
+                this.showToast('Video configuration saved automatically', 'success');
             } else {
                 const error = await response.text();
                 console.error('Failed to save video configuration:', error);
