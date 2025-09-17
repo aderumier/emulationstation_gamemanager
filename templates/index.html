@@ -2548,6 +2548,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableCuda">
+                                    <label class="form-check-label" for="enableCuda">
+                                        Enable CUDA Hardware Acceleration
+                                    </label>
+                                </div>
+                                <div class="form-text">Use NVIDIA GPU for faster video processing (requires compatible GPU and drivers)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Current Setting</label>
+                                <div class="form-control-plaintext" id="currentCudaSetting">
+                                    <span class="badge bg-secondary">Not loaded</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Note:</strong> When a resolution is selected, videos will be automatically resized using ffmpeg after download. This may take additional time but ensures consistent video dimensions across your collection.

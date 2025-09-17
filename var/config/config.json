@@ -2672,8 +2672,8 @@
         },
         "adrenaline": {
             "launchbox": "",
-            "screenscraper": null,
-            "igdb": null,
+            "screenscraper": "",
+            "igdb": "",
             "extensions": [
                 ".pc",
                 ".wsquashfs",
@@ -2905,6 +2905,7 @@
     },
     "video": {
         "force_video_resolution": "640x480",
-        "enable_fadin_fadout": true
+        "enable_fadin_fadout": true,
+        "enable_cuda": false
     }
 }

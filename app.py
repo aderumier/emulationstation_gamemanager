@@ -3035,6 +3035,7 @@ def manage_video_config():
             return jsonify({
                 'force_video_resolution': video_config.get('force_video_resolution', ''),
                 'enable_fadin_fadout': video_config.get('enable_fadin_fadout', False),
+                'enable_cuda': video_config.get('enable_cuda', False),
                 'available_resolutions': available_resolutions
             })
         elif request.method == 'PUT':
@@ -3048,6 +3049,7 @@ def manage_video_config():
             
             config['video']['force_video_resolution'] = new_config.get('force_video_resolution', '')
             config['video']['enable_fadin_fadout'] = new_config.get('enable_fadin_fadout', False)
+            config['video']['enable_cuda'] = new_config.get('enable_cuda', False)
             
             # Save configuration
             save_config()
@@ -3056,7 +3058,8 @@ def manage_video_config():
                 'success': True, 
                 'message': 'Video configuration updated', 
                 'force_video_resolution': config['video']['force_video_resolution'],
-                'enable_fadin_fadout': config['video']['enable_fadin_fadout']
+                'enable_fadin_fadout': config['video']['enable_fadin_fadout'],
+                'enable_cuda': config['video']['enable_cuda']
             })
     except Exception as e:
         return jsonify({'error': f'Failed to manage video configuration: {str(e)}'}), 500
@@ -8805,6 +8808,7 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         video_config = config.get('video', {})
         force_resolution = video_config.get('force_video_resolution', '')
         enable_fade = video_config.get('enable_fadin_fadout', False)
+        enable_cuda = video_config.get('enable_cuda', False)
         
         # If no processing is needed, skip
         if not auto_crop and not force_resolution and not enable_fade:
@@ -8872,9 +8876,14 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         af_filter = ','.join(af_filters) if af_filters else None
         
         # FFmpeg command with combined filters
-        process_cmd = [
-            'ffmpeg', '-i', video_path
-        ]
+        process_cmd = ['ffmpeg']
+        
+        # Add CUDA hardware acceleration if enabled
+        if enable_cuda:
+            process_cmd.extend(['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda'])
+        
+        process_cmd.append('-i')
+        process_cmd.append(video_path)
         
         # Add video filters if any
         if vf_filter:
@@ -8885,12 +8894,23 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
             process_cmd.extend(['-af', af_filter])
         
         # Add codec settings
-        process_cmd.extend([
-            '-c:v', 'libx264',
-            '-c:a', 'aac',
-            '-y',  # Overwrite output file
-            processed_path
-        ])
+        if enable_cuda:
+            # Use NVIDIA hardware encoder
+            process_cmd.extend([
+                '-c:v', 'h264_nvenc',
+                '-preset', 'slow',
+                '-c:a', 'aac',
+                '-y',  # Overwrite output file
+                processed_path
+            ])
+        else:
+            # Use software encoder
+            process_cmd.extend([
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-y',  # Overwrite output file
+                processed_path
+            ])
         
         # Log the ffmpeg command
         operations = []
@@ -8900,6 +8920,8 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
             operations.append(f'resize to {force_resolution}')
         if enable_fade:
             operations.append('fade in/out (2s each) - video & audio')
+        if enable_cuda:
+            operations.append('CUDA hardware acceleration (h264_nvenc)')
         
         task.update_progress(f"  🔧 Applying video processing to {game_name}: {', '.join(operations)}")
         task.update_progress(f"  ffmpeg command: {' '.join(process_cmd)}")

@@ -9691,6 +9691,14 @@ class GameCollectionManager {
                 this.saveVideoConfiguration();
             });
         }
+        
+        // Auto-save when CUDA checkbox changes
+        const cudaCheckbox = document.getElementById('enableCuda');
+        if (cudaCheckbox) {
+            cudaCheckbox.addEventListener('change', () => {
+                this.saveVideoConfiguration();
+            });
+        }
     }
     
     openVideoConfigurationModal() {
@@ -9747,6 +9755,20 @@ class GameCollectionManager {
                     currentFadeSetting.innerHTML = `<span class="badge ${badgeClass}">${fadeStatus}</span>`;
                 }
                 
+                // Update CUDA setting checkbox
+                const cudaCheckbox = document.getElementById('enableCuda');
+                if (cudaCheckbox) {
+                    cudaCheckbox.checked = config.enable_cuda || false;
+                }
+                
+                // Update current CUDA setting display
+                const currentCudaSetting = document.getElementById('currentCudaSetting');
+                if (currentCudaSetting) {
+                    const cudaStatus = config.enable_cuda ? 'Enabled' : 'Disabled';
+                    const badgeClass = config.enable_cuda ? 'bg-success' : 'bg-secondary';
+                    currentCudaSetting.innerHTML = `<span class="badge ${badgeClass}">${cudaStatus}</span>`;
+                }
+                
                 console.log('Video configuration loaded:', config);
             } else {
                 console.error('Failed to load video configuration');
@@ -9766,9 +9788,13 @@ class GameCollectionManager {
             const fadeCheckbox = document.getElementById('enableFadeInFadeOut');
             const enableFadeInFadeOut = fadeCheckbox ? fadeCheckbox.checked : false;
             
+            const cudaCheckbox = document.getElementById('enableCuda');
+            const enableCuda = cudaCheckbox ? cudaCheckbox.checked : false;
+            
             const configData = {
                 force_video_resolution: forceVideoResolution,
-                enable_fadin_fadout: enableFadeInFadeOut
+                enable_fadin_fadout: enableFadeInFadeOut,
+                enable_cuda: enableCuda
             };
             
             console.log('Saving video configuration:', configData);
