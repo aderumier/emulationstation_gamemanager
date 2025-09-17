@@ -8054,6 +8054,23 @@ def run_rom_scan_task(system_name):
         if os.path.exists(gamelist_path):
             existing_games = parse_gamelist_xml(gamelist_path)
             task.update_progress(f"Loaded {len(existing_games)} existing games from gamelist.xml")
+        else:
+            # Check if there's a gamelist.xml in the roms directory to use as starting point
+            roms_gamelist_path = os.path.join(system_path, 'gamelist.xml')
+            if os.path.exists(roms_gamelist_path):
+                task.update_progress(f"var/gamelists/{system_name}/gamelist.xml not found, copying from roms/{system_name}/gamelist.xml")
+                try:
+                    # Copy the gamelist from roms to var/gamelists
+                    import shutil
+                    os.makedirs(os.path.dirname(gamelist_path), exist_ok=True)
+                    shutil.copy2(roms_gamelist_path, gamelist_path)
+                    existing_games = parse_gamelist_xml(gamelist_path)
+                    task.update_progress(f"Copied and loaded {len(existing_games)} existing games from roms/{system_name}/gamelist.xml")
+                except Exception as e:
+                    task.update_progress(f"Warning: Failed to copy gamelist from roms directory: {e}")
+                    existing_games = []
+            else:
+                task.update_progress(f"No existing gamelist found, will create new one with {len(rom_files)} ROM files")
         
         # Create a set of existing ROM paths for quick lookup
         existing_roms = set()
