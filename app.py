@@ -8837,7 +8837,8 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         # Add scale filter if resolution forcing is configured (height-based, maintain aspect ratio)
         if force_resolution:
             # Use height-based scaling: scale to specified height, width calculated automatically to maintain aspect ratio
-            video_filters.append(f'scale=-1:{force_resolution}')
+            # Round width up to nearest even number for libx264 compatibility
+            video_filters.append(f'scale=ceil(iw*{force_resolution}/ih/2)*2:{force_resolution}')
         
         # Calculate video duration for fade effects if needed
         fade_out_start = 28  # Default fallback value (30s - 2s = 28s)
