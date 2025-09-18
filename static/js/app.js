@@ -343,15 +343,8 @@ class GameCollectionManager {
                 queueStatusDiv.style.display = 'none';
             }
 
-            // Update current task status
-            if (queueStatus.current_task && queueStatus.current_task.status === 'running') {
-                currentTaskTypeSpan.textContent = queueStatus.current_task.type;
-                const progress = queueStatus.current_task.progress_percentage || 0;
-                currentTaskProgressDiv.textContent = `Progress: ${progress}%`;
-                currentTaskStatusDiv.style.display = 'block';
-            } else {
-                currentTaskStatusDiv.style.display = 'none';
-            }
+            // Hide current task status since it's already shown in the task grid
+            currentTaskStatusDiv.style.display = 'none';
         } catch (error) {
             console.error('Error updating queue status display:', error);
         }
