@@ -54,6 +54,11 @@ cp var/config/config.json debian/opt/gamemanager/var/config/config.json
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
 cp -r pyrate_limiter debian/opt/gamemanager/pyrate_limiter
 
+# Tools and plugins
+mkdir -p debian/opt/gamemanager/tools
+cp tools/yt-dlp debian/opt/gamemanager/tools/yt-dlp
+cp -r tools/yt-dlp-plugins debian/opt/gamemanager/tools/yt-dlp-plugins
+
 # Fix paths in config.json for production environment
 echo "🔧 Updating paths for production environment..."
 sed -i 's|"roms_root_directory": "/home/aderumier/cursorscraper/roms"|"roms_root_directory": "/opt/gamemanager/roms"|g' debian/opt/gamemanager/var/config/config.json
