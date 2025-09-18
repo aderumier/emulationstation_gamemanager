@@ -1909,7 +1909,10 @@ def add_task_to_queue(task_type, task_data, username=None):
     
     # Only process if no task is currently running
     if not is_task_running():
+        print(f"DEBUG: No task running, processing next queued task")
         process_next_queued_task()
+    else:
+        print(f"DEBUG: Task already running, queued task will wait")
     
     return task
 
