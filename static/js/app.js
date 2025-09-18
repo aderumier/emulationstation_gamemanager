@@ -12736,13 +12736,21 @@ class GameCollectionManager {
         const searchInput = document.getElementById('youtubeSearchInput');
         
         if (searchBtn) {
-            searchBtn.addEventListener('click', () => {
+            // Remove existing event listeners
+            const newSearchBtn = searchBtn.cloneNode(true);
+            searchBtn.parentNode.replaceChild(newSearchBtn, searchBtn);
+            
+            newSearchBtn.addEventListener('click', () => {
                 this.performYouTubeSearch();
             });
         }
         
         if (searchInput) {
-            searchInput.addEventListener('keypress', (e) => {
+            // Remove existing event listeners
+            const newSearchInput = searchInput.cloneNode(true);
+            searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+            
+            newSearchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     this.performYouTubeSearch();
                 }
@@ -13112,13 +13120,21 @@ class GameCollectionManager {
     initializePlayerControls() {
         const getTimeBtn = document.getElementById('getCurrentTimeBtn');
         if (getTimeBtn) {
-            getTimeBtn.addEventListener('click', () => {
+            // Remove existing event listeners
+            const newGetTimeBtn = getTimeBtn.cloneNode(true);
+            getTimeBtn.parentNode.replaceChild(newGetTimeBtn, getTimeBtn);
+            
+            newGetTimeBtn.addEventListener('click', () => {
                 this.getCurrentPlayerTime();
             });
         }
         const downloadBtn = document.getElementById('downloadVideoBtn');
         if (downloadBtn) {
-            downloadBtn.addEventListener('click', () => {
+            // Remove existing event listeners
+            const newDownloadBtn = downloadBtn.cloneNode(true);
+            downloadBtn.parentNode.replaceChild(newDownloadBtn, downloadBtn);
+            
+            newDownloadBtn.addEventListener('click', () => {
                 console.log('Download button clicked - triggering downloadYouTubeVideo');
                 this.downloadYouTubeVideo();
             });
