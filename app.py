@@ -8792,11 +8792,12 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 # Clean up the line and show progress
                 line = line.strip()
                 if line:
-                    # Filter out noisy output but keep essential progress info
-                    if any(keyword in line.lower() for keyword in ['download', 'progress', 'eta', '%', 'mb', 'gb', 'kb']):
-                        # Skip very verbose technical details
-                        if not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'ref b l1', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
-                            task.update_progress(f"  📥 {line}")
+                    # Show yt-dlp download progress and essential info
+                    if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
+                        task.update_progress(f"  📥 {line}")
+                    # Filter out ffmpeg technical details but keep essential progress
+                    elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'ref b l1', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
+                        task.update_progress(f"  📥 {line}")
                     stdout_lines.append(line)
             
             # Wait for process to complete
