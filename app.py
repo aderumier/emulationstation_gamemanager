@@ -4550,15 +4550,13 @@ def scrap_launchbox():
         if not system_name:
             return jsonify({'error': 'System name required'}), 400
         
-        # Create and start new task
-        task = create_task('scraping', {
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('scraping', {
             'system_name': system_name,
             'selected_games': selected_games,
             'force_download': force_download,
             'enable_partial_match_modal': enable_partial_match_modal
         })
-        current_task_id = task.id
-        task.start()
         
         # Enqueue scraping in single worker process (sequential)
         _ensure_worker_started()
@@ -4581,8 +4579,6 @@ def scrap_launchbox():
         })
         
     except Exception as e:
-        if current_task_id and current_task_id in tasks:
-            tasks[current_task_id].complete(False, str(e))
         print(f"Error in scrap_launchbox endpoint: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
@@ -5950,31 +5946,11 @@ def scan_media_endpoint(system_name):
     """Scan media files for a specific system"""
     global current_task_id
     
-    # Check if another task is already running
-    can_start, message = can_start_task('media_scan')
-    if not can_start:
-        # Queue the task if it can't start immediately
-        queued, queue_message = queue_task('media_scan', {
-            'system_name': system_name
-        })
-        return jsonify({
-            'error': message,
-            'queued': queued,
-            'queue_message': queue_message
-        }), 409  # Conflict status
-    
     try:
-        # Create and start new task
-        task = create_task('media_scan', {
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('media_scan', {
             'system_name': system_name
         })
-        current_task_id = task.id
-        task.start()
-        
-        # Start task in background thread
-        thread = threading.Thread(target=run_media_scan_task, args=(system_name,))
-        thread.daemon = True
-        thread.start()
         
         return jsonify({'success': True, 'message': 'Media scan started'})
     except Exception as e:
@@ -7781,15 +7757,8 @@ def youtube_download():
             'auto_crop': auto_crop  # Include auto crop setting
         }
         
-        # Create and start the task directly (flat data, not nested) so frontend can read system_name
-        task = create_task('youtube_download', task_data)
-        current_task_id = task.id
-        task.start()
-        
-        # Start YouTube download in background thread
-        thread = threading.Thread(target=run_youtube_download_task, args=(task.id, task_data))
-        thread.daemon = True
-        thread.start()
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('youtube_download', task_data)
         
         return jsonify({
             'success': True,
@@ -7852,25 +7821,17 @@ def youtube_download_batch(system_name):
             'playlist_index': playlist_index
         }
         
-        task = create_task('youtube_download_batch', task_data)
-        current_task_id = task.id
-        task.start()
-        
-        # Start task in background thread
-        thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index))
-        thread.daemon = True
-        thread.start()
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('youtube_download_batch', task_data)
         
         return jsonify({
             'success': True,
             'message': f'YouTube download batch task started for {len(selected_games)} games',
-            'task_id': current_task_id,
+            'task_id': task.id,
             'games_count': len(selected_games)
         })
         
     except Exception as e:
-        if current_task_id and current_task_id in tasks:
-            tasks[current_task_id].complete(False, str(e))
         print(f"Error in youtube_download_batch endpoint: {e}")
         return jsonify({'error': f'YouTube download batch failed: {str(e)}'}), 500
 
@@ -7930,31 +7891,11 @@ def scan_rom_endpoint(system_name):
     """Start ROM scan for a specific system"""
     global current_task_id
     
-    # Check if another task is already running
-    can_start, message = can_start_task('rom_scan')
-    if not can_start:
-        # Queue the task if it can't start immediately
-        queued, queue_message = queue_task('rom_scan', {
-            'system_name': system_name
-        })
-        return jsonify({
-            'error': message,
-            'queued': queued,
-            'queue_message': queue_message
-        }), 409  # Conflict status
-    
     try:
-        # Create and start new task
-        task = create_task('rom_scan', {
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('rom_scan', {
             'system_name': system_name
         })
-        current_task_id = task.id
-        task.start()
-        
-        # Start task in background thread
-        thread = threading.Thread(target=run_rom_scan_task, args=(system_name,))
-        thread.daemon = True
-        thread.start()
         
         return jsonify({'success': True, 'message': 'ROM scan started'})
     except Exception as e:
