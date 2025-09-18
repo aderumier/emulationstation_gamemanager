@@ -8785,6 +8785,16 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         stdout_lines = []
         try:
             while True:
+                # Check if task was cancelled
+                if task.status == 'cancelled':
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    task.update_progress(f"  🛑 Download cancelled for {game_name}")
+                    return False
+                
                 line = process.stdout.readline()
                 if not line:
                     break
@@ -8806,6 +8816,15 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         except subprocess.TimeoutExpired:
             process.kill()
             task.update_progress(f"  ⏰ Download timeout for {game_name}")
+            return False
+        except Exception as e:
+            # Ensure process is killed on any exception
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+            task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
             return False
         
         if process.returncode != 0:
