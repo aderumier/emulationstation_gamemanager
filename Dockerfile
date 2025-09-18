@@ -52,11 +52,11 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
     # Copy the .deb package
-    COPY gamemanager_2.1.4-1_all.deb .
+    COPY gamemanager_2.1.5-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_2.1.4-1_all.deb / && \
-    rm gamemanager_2.1.4-1_all.deb
+RUN dpkg-deb -x gamemanager_2.1.5-1_all.deb / && \
+    rm gamemanager_2.1.5-1_all.deb
 
 # Install the package dependencies manually
 RUN apt-get update && apt-get install -y \
