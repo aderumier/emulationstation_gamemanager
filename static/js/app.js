@@ -191,6 +191,25 @@ class GameCollectionManager {
                     this.switchTab('task-management');
                 });
                 
+                // Add Bootstrap tab event listeners for when tabs are shown
+                mediaPreviewContent.addEventListener('shown.bs.tab', () => {
+                    console.log('Media preview tab shown via Bootstrap');
+                    if (this.currentMediaPreviewGame) {
+                        console.log('Loading media for current game:', this.currentMediaPreviewGame.name);
+                        this.showMediaPreview(this.currentMediaPreviewGame);
+                    }
+                });
+                
+                taskManagementContent.addEventListener('shown.bs.tab', () => {
+                    console.log('Task management tab shown via Bootstrap');
+                    // Clear media preview content when switching to task management to free memory
+                    const mediaPreviewContent = document.getElementById('mediaPreviewContent');
+                    if (mediaPreviewContent) {
+                        mediaPreviewContent.innerHTML = '';
+                        console.log('Cleared media preview content when switching to task management');
+                    }
+                });
+                
                 // Set initial tab state
                 this.switchTab('media-preview');
                 
@@ -220,10 +239,33 @@ class GameCollectionManager {
         if (tabName === 'media-preview') {
             document.getElementById('media-preview-tab').classList.add('active');
             document.getElementById('media-preview-content').classList.add('show', 'active');
+            
+            // Load media preview if there's a current game selected
+            if (this.currentMediaPreviewGame) {
+                console.log('Switching to media preview tab, loading media for:', this.currentMediaPreviewGame.name);
+                this.showMediaPreview(this.currentMediaPreviewGame);
+            }
         } else if (tabName === 'task-management') {
             document.getElementById('task-management-tab').classList.add('active');
             document.getElementById('task-management-content').classList.add('show', 'active');
+            
+            // Clear media preview content when switching to task management to free memory
+            const mediaPreviewContent = document.getElementById('mediaPreviewContent');
+            if (mediaPreviewContent) {
+                mediaPreviewContent.innerHTML = '';
+                console.log('Cleared media preview content when switching to task management');
+            }
         }
+    }
+
+    isMediaPreviewTabActive() {
+        const mediaPreviewTab = document.getElementById('media-preview-tab');
+        const mediaPreviewContent = document.getElementById('media-preview-content');
+        
+        return mediaPreviewTab && mediaPreviewContent && 
+               mediaPreviewTab.classList.contains('active') && 
+               mediaPreviewContent.classList.contains('show') && 
+               mediaPreviewContent.classList.contains('active');
     }
 
 
@@ -5457,6 +5499,12 @@ class GameCollectionManager {
 
     async showMediaPreview(game) {
         if (!game) return;
+
+        // Check if media preview tab is currently active
+        if (!this.isMediaPreviewTabActive()) {
+            console.log('Media preview tab is not active, skipping media loading...');
+            return;
+        }
 
         // Prevent multiple simultaneous calls
         if (this.showingMediaPreview) {
