@@ -7844,45 +7844,21 @@ def download_images_endpoint(system_name):
     
     global current_task_id
     
-    # Check if another task is already running
-    can_start, message = can_start_task('image_download')
-    if not can_start:
-        # Queue the task if it can't start immediately
-        queued, queue_message = queue_task('image_download', {
-            'system_name': system_name,
-            'data': request.get_json()
-        })
-        return jsonify({
-            'error': message,
-            'queued': queued,
-            'queue_message': queue_message
-        }), 409  # Conflict status
-    
     try:
-        # Create and start new task
-        task = create_task('image_download', {
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('image_download', {
             'system_name': system_name,
             'data': request.get_json()
         })
-        current_task_id = task.id
-        task.start()
-        
-        # Start task in background thread and return immediately
-        thread = threading.Thread(target=run_image_download_task, args=(system_name, request.get_json()))
-        thread.daemon = True
-        thread.start()
         
         return jsonify({
             'success': True,
             'message': f'Image download task started for {system_name}',
-            'task_id': current_task_id
+            'task_id': task.id
         })
         
     except Exception as e:
-        # Update task state with error
-        if current_task_id and current_task_id in tasks:
-            tasks[current_task_id].complete(False, str(e))
-        
+        print(f"Error in download_images_endpoint: {e}")
         return jsonify({'error': f'Image download failed: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/scan-roms', methods=['POST'])
@@ -13973,7 +13949,7 @@ def scrap_igdb_system(system_name):
         print(f"🍪 DEBUG: Parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
         print(f"🍪 DEBUG: Selected fields: {selected_fields}")
         
-        # Create task object
+        # Add task to queue instead of starting directly
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
@@ -13983,27 +13959,7 @@ def scrap_igdb_system(system_name):
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
-        task = Task('igdb_scraping', task_data, username)
-        
-        # Set global current task ID for progress updates
-        global current_task_id
-        current_task_id = task.id
-        
-        # Add to tasks list
-        tasks[task.id] = task
-        
-        # Start the task
-        task.start()
-        
-        # Start the scraper task in a separate thread
-        import threading
-        print(f"🔧 DEBUG: Starting IGDB scraper with parameters - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)}), overwrite_media_fields: {overwrite_media_fields} (type: {type(overwrite_media_fields)}), selected_fields: {selected_fields} (type: {type(selected_fields)})")
-        scraper_thread = threading.Thread(
-            target=run_igdb_scraper_task,
-            args=(system_name, task.id, selected_games, overwrite_text_fields, overwrite_media_fields, selected_fields),
-            daemon=True
-        )
-        scraper_thread.start()
+        task = add_task_to_queue('igdb_scraping', task_data, username=username)
         
         return jsonify({
             'success': True,
@@ -14186,7 +14142,7 @@ def scrap_screenscraper_system(system_name):
         print(f"🍪 DEBUG: ScreenScraper Parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
         print(f"🍪 DEBUG: ScreenScraper Selected fields: {selected_fields}")
         
-        # Create task object
+        # Add task to queue instead of starting directly
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
@@ -14196,26 +14152,7 @@ def scrap_screenscraper_system(system_name):
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
-        task = Task('screenscraper_scraping', task_data, username)
-        
-        # Set global current task ID for progress updates
-        global current_task_id
-        current_task_id = task.id
-        
-        # Add to tasks list
-        tasks[task.id] = task
-        
-        # Start the task
-        task.start()
-        
-        # Start the scraper task in a separate thread
-        import threading
-        scraper_thread = threading.Thread(
-            target=run_screenscraper_task,
-            args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, overwrite_media_fields),
-            daemon=True
-        )
-        scraper_thread.start()
+        task = add_task_to_queue('screenscraper_scraping', task_data, username=username)
         
         return jsonify({
             'success': True,
@@ -14257,7 +14194,7 @@ def scrap_steam_system(system_name):
                 selected_fields.append(field)
         
         
-        # Create task object
+        # Add task to queue instead of starting directly
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
@@ -14267,26 +14204,7 @@ def scrap_steam_system(system_name):
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
-        task = Task('steam_scraping', task_data, username)
-        
-        # Set global current task ID for progress updates
-        global current_task_id
-        current_task_id = task.id
-        
-        # Add to tasks list
-        tasks[task.id] = task
-        
-        # Start the task
-        task.start()
-        
-        # Start the scraper task in a separate thread
-        import threading
-        scraper_thread = threading.Thread(
-            target=run_steam_task,
-            args=(system_name, task.id, selected_games, overwrite_media_fields, overwrite_text_fields),
-            daemon=True
-        )
-        scraper_thread.start()
+        task = add_task_to_queue('steam_scraping', task_data, username=username)
         
         return jsonify({
             'success': True,
@@ -14328,7 +14246,7 @@ def scrap_steamgriddb_system(system_name):
         
         print(f"🔧 DEBUG: Final selected_fields from cookies: {selected_fields}")
         
-        # Create task object
+        # Add task to queue instead of starting directly
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
@@ -14337,26 +14255,7 @@ def scrap_steamgriddb_system(system_name):
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
-        task = Task('steamgriddb_scraping', task_data, username)
-        
-        # Set global current task ID for progress updates
-        global current_task_id
-        current_task_id = task.id
-        
-        # Add to tasks list
-        tasks[task.id] = task
-        
-        # Start the task
-        task.start()
-        
-        # Start the scraper task in a separate thread
-        import threading
-        scraper_thread = threading.Thread(
-            target=run_steamgriddb_task,
-            args=(system_name, task.id, selected_games, overwrite_media_fields),
-            daemon=True
-        )
-        scraper_thread.start()
+        task = add_task_to_queue('steamgriddb_scraping', task_data, username=username)
         
         return jsonify({
             'success': True,
