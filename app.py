@@ -2042,7 +2042,8 @@ def process_next_queued_task():
             thread.start()
     elif task_type == 'youtube_download':
         # Start YouTube download task
-        data = task_data.get('data', {})
+        # For youtube_download, task_data is flat (not nested under 'data')
+        data = task_data
         if data:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
