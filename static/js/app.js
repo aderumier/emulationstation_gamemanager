@@ -3347,7 +3347,12 @@ class GameCollectionManager {
             }
         } catch (error) {
             console.error('Error fetching LaunchBox media:', error);
-            contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-danger">Error loading media from LaunchBox: ' + error.message + '</div></div>';
+            // Extract just the error message without the HTTP status prefix
+            let errorMessage = error.message;
+            if (errorMessage.includes('HTTP error! status: 404 - ')) {
+                errorMessage = errorMessage.replace('HTTP error! status: 404 - ', '');
+            }
+            contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-danger">' + errorMessage + '</div></div>';
             progressDiv.style.display = 'none';
         }
     }
@@ -3486,7 +3491,12 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error downloading media:', error);
             const progressDiv = document.getElementById('launchboxMediaProgress');
-            progressDiv.textContent = 'Error: ' + error.message;
+            // Extract just the error message without the HTTP status prefix
+            let errorMessage = error.message;
+            if (errorMessage.includes('HTTP error! status: 404 - ')) {
+                errorMessage = errorMessage.replace('HTTP error! status: 404 - ', '');
+            }
+            progressDiv.textContent = 'Error: ' + errorMessage;
             progressDiv.className = 'text-danger mt-1';
         }
     }
