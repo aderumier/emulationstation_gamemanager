@@ -5498,10 +5498,12 @@ class GameCollectionManager {
                 const mediaPath = game[field];
                 
                 if (field === 'video' || mediaPath.endsWith('.mp4')) {
+                    // Add cache-busting parameter to force video refresh
+                    const cacheBuster = new Date().getTime();
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
                             <video width="450" height="450" controls style="object-fit: contain; background-color: #f8f9fa;">
-                                <source src="/roms/${this.currentSystem}/${mediaPath}" type="video/mp4">
+                                <source src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" type="video/mp4">
                             </video>
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
@@ -5541,9 +5543,11 @@ class GameCollectionManager {
                         </div>
                     `;
                 } else {
+                    // Add cache-busting parameter to force image refresh
+                    const cacheBuster = new Date().getTime();
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="/roms/${this.currentSystem}/${mediaPath}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: #f8f9fa;">
+                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: #f8f9fa;">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
