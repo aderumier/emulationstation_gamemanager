@@ -9010,23 +9010,43 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
             # Round width up to nearest even number for libx264 compatibility
             video_filters.append(f'scale=ceil(iw*{force_resolution}/ih/2)*2:{force_resolution}')
         
-        # Calculate video duration for fade effects if needed
+        # FFmpeg command with combined filters
+        process_cmd = ['ffmpeg']
+        
+        # Add CUDA hardware acceleration if enabled
+        if enable_cuda:
+            process_cmd.extend(['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda'])
+        
+        # Add video cutting parameters if start_time and end_time are provided
+        cut_duration = None
+        if start_time is not None and end_time is not None:
+            cut_duration = end_time - start_time
+            process_cmd.extend(['-ss', str(start_time), '-t', str(cut_duration)])
+            task.update_progress(f"  ✂️ Cutting video from {start_time}s to {end_time}s (duration: {cut_duration}s)")
+        
+        # Calculate video duration for fade effects if needed (after cutting)
         fade_out_start = 28  # Default fallback value (30s - 2s = 28s)
         if enable_fade:
-            try:
-                duration_result = subprocess.run([
-                    'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                    '-of', 'csv=p=0', video_path
-                ], capture_output=True, text=True, timeout=30)
-                
-                if duration_result.returncode == 0:
-                    duration = float(duration_result.stdout.strip())
-                    fade_out_start = max(0, duration - 2)  # Start fade-out 2 seconds before end
-                    task.update_progress(f"  🎬 Video duration: {duration:.1f}s, fade-out starts at {fade_out_start:.1f}s")
-                else:
-                    task.update_progress(f"  ⚠️ Could not get video duration, using fallback fade-out at 28s")
-            except Exception as e:
-                task.update_progress(f"  ⚠️ Error getting video duration: {e}, using fallback fade-out at 28s")
+            if cut_duration is not None:
+                # Use cut duration for fade calculation
+                fade_out_start = max(0, cut_duration - 2)  # Start fade-out 2 seconds before end
+                task.update_progress(f"  🎬 Cut video duration: {cut_duration:.1f}s, fade-out starts at {fade_out_start:.1f}s")
+            else:
+                # Use original video duration if no cutting
+                try:
+                    duration_result = subprocess.run([
+                        'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                        '-of', 'csv=p=0', video_path
+                    ], capture_output=True, text=True, timeout=30)
+                    
+                    if duration_result.returncode == 0:
+                        duration = float(duration_result.stdout.strip())
+                        fade_out_start = max(0, duration - 2)  # Start fade-out 2 seconds before end
+                        task.update_progress(f"  🎬 Video duration: {duration:.1f}s, fade-out starts at {fade_out_start:.1f}s")
+                    else:
+                        task.update_progress(f"  ⚠️ Could not get video duration, using fallback fade-out at 28s")
+                except Exception as e:
+                    task.update_progress(f"  ⚠️ Error getting video duration: {e}, using fallback fade-out at 28s")
         
         # Add fade effects if enabled
         if enable_fade:
@@ -9041,19 +9061,6 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
             af_filters.append(f'afade=t=in:st=0:d=2,afade=t=out:st={fade_out_start}:d=2')
         
         af_filter = ','.join(af_filters) if af_filters else None
-        
-        # FFmpeg command with combined filters
-        process_cmd = ['ffmpeg']
-        
-        # Add CUDA hardware acceleration if enabled
-        if enable_cuda:
-            process_cmd.extend(['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda'])
-        
-        # Add video cutting parameters if start_time and end_time are provided
-        if start_time is not None and end_time is not None:
-            duration = end_time - start_time
-            process_cmd.extend(['-ss', str(start_time), '-t', str(duration)])
-            task.update_progress(f"  ✂️ Cutting video from {start_time}s to {end_time}s (duration: {duration}s)")
         
         process_cmd.append('-i')
         process_cmd.append(video_path)
