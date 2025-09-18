@@ -2079,6 +2079,121 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_2d_box_generation_task, args=(system_name, selected_games))
             thread.daemon = True
             thread.start()
+    elif task_type == 'igdb_scraping':
+        # Start IGDB scraping task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        selected_fields = task_data.get('selected_fields', [])
+        overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('igdb_scraping', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start IGDB scraping in background thread
+            thread = threading.Thread(target=run_igdb_scraper_task, args=(system_name, task.id, selected_games, overwrite_text_fields, overwrite_media_fields, selected_fields))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'screenscraper_scraping':
+        # Start ScreenScraper scraping task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        selected_fields = task_data.get('selected_fields', [])
+        overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('screenscraper_scraping', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start ScreenScraper scraping in background thread
+            thread = threading.Thread(target=run_screenscraper_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, overwrite_media_fields))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'steam_scraping':
+        # Start Steam scraping task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        selected_fields = task_data.get('selected_fields', [])
+        overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('steam_scraping', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start Steam scraping in background thread
+            thread = threading.Thread(target=run_steam_task, args=(system_name, task.id, selected_games, overwrite_media_fields, overwrite_text_fields))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'steamgriddb_scraping':
+        # Start SteamGridDB scraping task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        selected_fields = task_data.get('selected_fields', [])
+        overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('steamgriddb_scraping', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start SteamGridDB scraping in background thread
+            thread = threading.Thread(target=run_steamgriddb_task, args=(system_name, task.id, selected_games, overwrite_media_fields))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'youtube_download_batch':
+        # Start YouTube download batch task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        start_time = task_data.get('start_time', 0)
+        auto_crop = task_data.get('auto_crop', False)
+        overwrite_existing = task_data.get('overwrite_existing', False)
+        playlist_index = task_data.get('playlist_index', 1)
+        if system_name and selected_games:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('youtube_download_batch', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start YouTube download batch in background thread
+            thread = threading.Thread(target=run_youtube_download_batch_task, args=(system_name, task.id, selected_games, start_time, auto_crop, overwrite_existing, playlist_index))
+            thread.daemon = True
+            thread.start()
     else:
         print(f"Unknown task type: {task_type}")
         return
