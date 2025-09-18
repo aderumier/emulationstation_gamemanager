@@ -1049,12 +1049,14 @@ def _scraping_result_listener(result_q):
                         notify_gamelist_updated(system_name, stats.get('total_games', 0), 0, stats.get('updated_games', 0))
                     # create image download task if any
                     rom_paths = data.get('rom_paths') or []
+                    print(f"🔧 DEBUG: Scraping result - gl: {gl}, rom_paths: {len(rom_paths) if rom_paths else 0}")
                     if gl and rom_paths:
                         try:
                             # Get username from the original scraping task
                             original_task = tasks[task_id]
                             username = getattr(original_task, 'username', 'Unknown')
                             
+                            print(f"🔧 DEBUG: Creating image download task for {len(rom_paths)} games")
                             add_task_to_queue('image_download', {
                                 'system_name': os.path.basename(os.path.dirname(gl)),
                                 'data': {
@@ -1064,8 +1066,11 @@ def _scraping_result_listener(result_q):
                                 }
                             }, username=username)
                             tasks[task_id].update_progress(f"🖼️  Image download task created for {len(rom_paths)} matched games")
+                            print(f"🔧 DEBUG: Image download task created successfully")
                         except Exception as _e:
                             print(f"Failed to enqueue image task: {_e}")
+                    else:
+                        print(f"🔧 DEBUG: No image download task created - gl: {gl}, rom_paths: {len(rom_paths) if rom_paths else 0}")
                 else:
                     # If worker reports a cooperative stop and provided a saved gamelist, still notify and mark as stopped
                     if data.get('stopped') and data.get('gamelist_path'):
