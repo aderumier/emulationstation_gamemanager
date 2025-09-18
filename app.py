@@ -8737,9 +8737,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             '--newline'
         ]
         
-        # Add YouTube PO token extractor args if enabled
+        # Add YouTube PO token extractor args if enabled and URL is from YouTube
         video_config = config.get('video', {})
-        if video_config.get('enable_youtube_po_token', False):
+        is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
+        
+        if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
             youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
             download_cmd.extend([
                 '--extractor-args', 'youtube:player-client=mweb',
@@ -8749,11 +8751,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             # When using PO token, we'll download the full video and cut it later
             task.update_progress(f"  📹 Downloading full video (will be cut to {start_time}-{end_time}s later)")
         else:
-            # Only use download-sections when PO token is not enabled
+            # Only use download-sections when PO token is not enabled or not a YouTube URL
             download_cmd.extend([
                 '--download-sections', f'*{start_time}-{end_time}',
                 '--force-keyframes-at-cuts'
             ])
+            if video_config.get('enable_youtube_po_token', False) and not is_youtube_url:
+                task.update_progress(f"  ℹ️ PO token disabled for non-YouTube URL: {video_url}")
         
         # Add playlist index parameter for Steam Store URLs
         if is_steam_store:
@@ -8804,9 +8808,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_path = os.path.join(videos_dir, temp_file)
         
         # Apply video processing (crop and/or resize) if needed
-        # If YouTube PO token is enabled, we need to cut the video since we downloaded the full video
+        # If YouTube PO token is enabled and URL is from YouTube, we need to cut the video since we downloaded the full video
         video_config = config.get('video', {})
-        if video_config.get('enable_youtube_po_token', False):
+        is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
+        
+        if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, start_time, end_time)
         else:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
