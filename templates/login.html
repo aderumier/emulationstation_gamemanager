@@ -127,8 +127,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             <div class="d-flex align-items-center justify-content-center mb-3">
                 <img src="{{ url_for('static', filename='images/pixel-nostalgia-logo.png') }}" alt="Pixel Nostalgia" style="height: 50px; width: auto; max-width: 100%;">
             </div>
-            <h2 class="mb-2">Game Collection Manager</h2>
-            <p class="mb-0">Login to access your collection</p>
+            {% if is_first_user %}
+                <h2 class="mb-2">Welcome to Game Collection Manager</h2>
+                <p class="mb-0">Create your first admin account</p>
+            {% else %}
+                <h2 class="mb-2">Game Collection Manager</h2>
+                <p class="mb-0">Login to access your collection</p>
+            {% endif %}
         </div>
         
         <div class="login-body">
@@ -143,46 +148,94 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 {% endif %}
             {% endwith %}
             
-            <form method="POST" action="{{ url_for('login') }}">
-                <div class="mb-3">
-                    <label for="username" class="form-label">Username</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-person"></i></span>
-                        <input type="text" class="form-control" id="username" name="username" required>
+            {% if is_first_user %}
+                <form method="POST" action="{{ url_for('login') }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email (optional)</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                            <input type="email" class="form-control" id="email" name="email">
+                        </div>
                     </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                        </div>
+                        <div class="form-text">Password must be at least 6 characters long</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="6">
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>First User Setup:</strong> You are creating the first admin account. This account will have full administrative privileges.
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-login w-100 mb-3">
+                        <i class="bi bi-person-plus me-2"></i>Create Admin Account
+                    </button>
+                </form>
+            {% else %}
+                <form method="POST" action="{{ url_for('login') }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="remember_me" name="remember_me">
+                        <label class="form-check-label" for="remember_me">
+                            Remember me
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-login w-100 mb-3">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                    </button>
+                </form>
+            {% endif %}
+            
+            {% if not is_first_user %}
+                <div class="divider">
+                    <span>or</span>
                 </div>
                 
-                <div class="mb-3 form-check">
-                    <input type="checkbox" class="form-check-input" id="remember_me" name="remember_me">
-                    <label class="form-check-label" for="remember_me">
-                        Remember me
-                    </label>
-                </div>
+                <a href="{{ url_for('discord_login') }}" class="btn btn-discord text-white w-100 mb-3">
+                    <i class="bi bi-discord me-2"></i>Login with Discord
+                </a>
                 
-                <button type="submit" class="btn btn-primary btn-login w-100 mb-3">
-                    <i class="bi bi-box-arrow-in-right me-2"></i>Login
-                </button>
-            </form>
-            
-            <div class="divider">
-                <span>or</span>
-            </div>
-            
-            <a href="{{ url_for('discord_login') }}" class="btn btn-discord text-white w-100 mb-3">
-                <i class="bi bi-discord me-2"></i>Login with Discord
-            </a>
-            
-            <div class="register-link">
-                <p class="mb-0">Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
-            </div>
+                <div class="register-link">
+                    <p class="mb-0">Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+                </div>
+            {% endif %}
         </div>
     </div>
     

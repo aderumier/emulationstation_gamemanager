@@ -243,6 +243,14 @@ def load_users():
     """Load users from user.cfg file"""
     return load_json_with_comments('var/config/user.cfg')
 
+def users_exist():
+    """Check if any users exist in the system"""
+    try:
+        users = load_users()
+        return len(users) > 0
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
+
 def save_users(users):
     """Save users to user.cfg file"""
     with open('var/config/user.cfg', 'w') as f:
@@ -9637,6 +9645,44 @@ def get_media_fields():
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Check if this is the first user (no users exist yet)
+    if not users_exist():
+        if request.method == 'POST':
+            # Handle first user registration
+            username = request.form.get('username')
+            password = request.form.get('password')
+            confirm_password = request.form.get('confirm_password')
+            email = request.form.get('email', '')
+            
+            if not username or not password or not confirm_password:
+                flash('Please fill in all required fields', 'error')
+                return render_template('login.html', is_first_user=True)
+            
+            if password != confirm_password:
+                flash('Passwords do not match', 'error')
+                return render_template('login.html', is_first_user=True)
+            
+            if len(password) < 6:
+                flash('Password must be at least 6 characters long', 'error')
+                return render_template('login.html', is_first_user=True)
+            
+            # Create the first admin user
+            admin_user, error = create_user(username, password, email)
+            if admin_user:
+                # Validate the first user immediately and make them admin
+                users = load_users()
+                if admin_user.id in users:
+                    users[admin_user.id]['is_validated'] = True
+                    save_users(users)
+                    flash('First admin user created successfully! You can now log in.', 'success')
+                    return redirect(url_for('login'))
+                else:
+                    flash('Failed to validate admin user', 'error')
+            else:
+                flash(f'Failed to create admin user: {error}', 'error')
+        
+        return render_template('login.html', is_first_user=True)
+    
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
