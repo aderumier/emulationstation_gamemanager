@@ -194,9 +194,16 @@ class GameCollectionManager {
                 // Add Bootstrap tab event listeners for when tabs are shown
                 mediaPreviewContent.addEventListener('shown.bs.tab', () => {
                     console.log('Media preview tab shown via Bootstrap');
-                    if (this.currentMediaPreviewGame) {
-                        console.log('Loading media for current game:', this.currentMediaPreviewGame.name);
-                        this.showMediaPreview(this.currentMediaPreviewGame);
+                    // Always refresh media preview for currently selected game
+                    if (this.gridApi) {
+                        const selectedRows = this.gridApi.getSelectedRows();
+                        if (selectedRows.length > 0) {
+                            console.log('Refreshing media for selected game:', selectedRows[0].name);
+                            this.showMediaPreview(selectedRows[0]);
+                        } else {
+                            console.log('No game selected, clearing media preview');
+                            this.hideMediaPreview();
+                        }
                     }
                 });
                 
@@ -240,10 +247,16 @@ class GameCollectionManager {
             document.getElementById('media-preview-tab').classList.add('active');
             document.getElementById('media-preview-content').classList.add('show', 'active');
             
-            // Load media preview if there's a current game selected
-            if (this.currentMediaPreviewGame) {
-                console.log('Switching to media preview tab, loading media for:', this.currentMediaPreviewGame.name);
-                this.showMediaPreview(this.currentMediaPreviewGame);
+            // Always refresh media preview for currently selected game
+            if (this.gridApi) {
+                const selectedRows = this.gridApi.getSelectedRows();
+                if (selectedRows.length > 0) {
+                    console.log('Switching to media preview tab, refreshing media for:', selectedRows[0].name);
+                    this.showMediaPreview(selectedRows[0]);
+                } else {
+                    console.log('No game selected, clearing media preview');
+                    this.hideMediaPreview();
+                }
             }
         } else if (tabName === 'task-management') {
             document.getElementById('task-management-tab').classList.add('active');
