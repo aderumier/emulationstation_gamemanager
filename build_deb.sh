@@ -52,6 +52,9 @@ cp var/config/config.json debian/opt/gamemanager/var/config/config.json
 
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
+
+# Remove user-specific config file (should not be in package)
+rm -f debian/opt/gamemanager/var/config/user.cfg
 cp -r pyrate_limiter debian/opt/gamemanager/pyrate_limiter
 
 # Tools and plugins
