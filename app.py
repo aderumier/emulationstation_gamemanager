@@ -3039,6 +3039,8 @@ def manage_video_config():
                 'force_video_resolution': video_config.get('force_video_resolution', ''),
                 'enable_fadin_fadout': video_config.get('enable_fadin_fadout', False),
                 'enable_cuda': video_config.get('enable_cuda', False),
+                'enable_youtube_po_token': video_config.get('enable_youtube_po_token', False),
+                'youtube_po_token_provider': video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416'),
                 'available_resolutions': available_resolutions
             })
         elif request.method == 'PUT':
@@ -3053,6 +3055,8 @@ def manage_video_config():
             config['video']['force_video_resolution'] = new_config.get('force_video_resolution', '')
             config['video']['enable_fadin_fadout'] = new_config.get('enable_fadin_fadout', False)
             config['video']['enable_cuda'] = new_config.get('enable_cuda', False)
+            config['video']['enable_youtube_po_token'] = new_config.get('enable_youtube_po_token', False)
+            config['video']['youtube_po_token_provider'] = new_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
             
             # Save configuration
             save_config()
@@ -3062,7 +3066,9 @@ def manage_video_config():
                 'message': 'Video configuration updated', 
                 'force_video_resolution': config['video']['force_video_resolution'],
                 'enable_fadin_fadout': config['video']['enable_fadin_fadout'],
-                'enable_cuda': config['video']['enable_cuda']
+                'enable_cuda': config['video']['enable_cuda'],
+                'enable_youtube_po_token': config['video']['enable_youtube_po_token'],
+                'youtube_po_token_provider': config['video']['youtube_po_token_provider']
             })
     except Exception as e:
         return jsonify({'error': f'Failed to manage video configuration: {str(e)}'}), 500
@@ -8732,6 +8738,16 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             '--progress',
             '--newline'
         ]
+        
+        # Add YouTube PO token extractor args if enabled
+        video_config = config.get('video', {})
+        if video_config.get('enable_youtube_po_token', False):
+            youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
+            download_cmd.extend([
+                '--extractor-args', 'youtube:player-client=mweb',
+                '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
+            ])
+            task.update_progress(f"  🔑 Using YouTube PO token provider: {youtube_po_token_provider}")
         
         # Add playlist index parameter for Steam Store URLs
         if is_steam_store:

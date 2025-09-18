@@ -2570,6 +2570,60 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     
+                    <hr class="my-4">
+                    
+                    <div class="mb-3">
+                        <h6>YouTube PO Token Settings</h6>
+                        <p class="text-muted small">Configure YouTube PO token provider for enhanced YouTube video downloading capabilities.</p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableYoutubePoToken">
+                                    <label class="form-check-label" for="enableYoutubePoToken">
+                                        Enable YouTube PO Token Provider
+                                    </label>
+                                </div>
+                                <div class="form-text">Use a PO token provider to bypass YouTube restrictions and improve download success rate</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Current Setting</label>
+                                <div class="form-control-plaintext" id="currentYoutubePoTokenSetting">
+                                    <span class="badge bg-secondary">Not loaded</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="youtubePoTokenProvider" class="form-label">PO Token Provider URL</label>
+                                <input type="text" class="form-control" id="youtubePoTokenProvider" placeholder="http://127.0.0.1:4416">
+                                <div class="form-text">URL of the bgutil PO token provider service</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Current Setting</label>
+                                <div class="form-control-plaintext" id="currentYoutubePoTokenProvider">
+                                    <span class="badge bg-secondary">Not loaded</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Setup Required:</strong> You need to install the bgutil token provider Docker container with the following command:
+                        <br><br>
+                        <code>docker run --name bgutil-provider -d -p 4416:4416 --init brainicism/bgutil-ytdlp-pot-provider</code>
+                    </div>
+                    
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Note:</strong> When a resolution is selected, videos will be automatically resized using ffmpeg after download. This may take additional time but ensures consistent video dimensions across your collection.

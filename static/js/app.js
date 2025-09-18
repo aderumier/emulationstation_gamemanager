@@ -9699,6 +9699,22 @@ class GameCollectionManager {
                 this.saveVideoConfiguration();
             });
         }
+        
+        // Auto-save when YouTube PO token checkbox changes
+        const youtubePoTokenCheckbox = document.getElementById('enableYoutubePoToken');
+        if (youtubePoTokenCheckbox) {
+            youtubePoTokenCheckbox.addEventListener('change', () => {
+                this.saveVideoConfiguration();
+            });
+        }
+        
+        // Auto-save when YouTube PO token provider URL changes
+        const youtubePoTokenProvider = document.getElementById('youtubePoTokenProvider');
+        if (youtubePoTokenProvider) {
+            youtubePoTokenProvider.addEventListener('change', () => {
+                this.saveVideoConfiguration();
+            });
+        }
     }
     
     openVideoConfigurationModal() {
@@ -9769,6 +9785,33 @@ class GameCollectionManager {
                     currentCudaSetting.innerHTML = `<span class="badge ${badgeClass}">${cudaStatus}</span>`;
                 }
                 
+                // Update YouTube PO token setting checkbox
+                const youtubePoTokenCheckbox = document.getElementById('enableYoutubePoToken');
+                if (youtubePoTokenCheckbox) {
+                    youtubePoTokenCheckbox.checked = config.enable_youtube_po_token || false;
+                }
+                
+                // Update current YouTube PO token setting display
+                const currentYoutubePoTokenSetting = document.getElementById('currentYoutubePoTokenSetting');
+                if (currentYoutubePoTokenSetting) {
+                    const youtubePoTokenStatus = config.enable_youtube_po_token ? 'Enabled' : 'Disabled';
+                    const badgeClass = config.enable_youtube_po_token ? 'bg-success' : 'bg-secondary';
+                    currentYoutubePoTokenSetting.innerHTML = `<span class="badge ${badgeClass}">${youtubePoTokenStatus}</span>`;
+                }
+                
+                // Update YouTube PO token provider input
+                const youtubePoTokenProvider = document.getElementById('youtubePoTokenProvider');
+                if (youtubePoTokenProvider) {
+                    youtubePoTokenProvider.value = config.youtube_po_token_provider || 'http://127.0.0.1:4416';
+                }
+                
+                // Update current YouTube PO token provider display
+                const currentYoutubePoTokenProvider = document.getElementById('currentYoutubePoTokenProvider');
+                if (currentYoutubePoTokenProvider) {
+                    const providerUrl = config.youtube_po_token_provider || 'http://127.0.0.1:4416';
+                    currentYoutubePoTokenProvider.innerHTML = `<span class="badge bg-info">${providerUrl}</span>`;
+                }
+                
                 console.log('Video configuration loaded:', config);
             } else {
                 console.error('Failed to load video configuration');
@@ -9791,10 +9834,18 @@ class GameCollectionManager {
             const cudaCheckbox = document.getElementById('enableCuda');
             const enableCuda = cudaCheckbox ? cudaCheckbox.checked : false;
             
+            const youtubePoTokenCheckbox = document.getElementById('enableYoutubePoToken');
+            const enableYoutubePoToken = youtubePoTokenCheckbox ? youtubePoTokenCheckbox.checked : false;
+            
+            const youtubePoTokenProvider = document.getElementById('youtubePoTokenProvider');
+            const youtubePoTokenProviderUrl = youtubePoTokenProvider ? youtubePoTokenProvider.value : 'http://127.0.0.1:4416';
+            
             const configData = {
                 force_video_resolution: forceVideoResolution,
                 enable_fadin_fadout: enableFadeInFadeOut,
-                enable_cuda: enableCuda
+                enable_cuda: enableCuda,
+                enable_youtube_po_token: enableYoutubePoToken,
+                youtube_po_token_provider: youtubePoTokenProviderUrl
             };
             
             console.log('Saving video configuration:', configData);
