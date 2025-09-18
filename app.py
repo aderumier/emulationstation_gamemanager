@@ -946,6 +946,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
             rp = result.get('game_path')
             if rp:
                 matched_rom_paths.append(rp)
+                print(f"🔧 DEBUG: Added ROM path to matched_rom_paths: {rp}")
     # Compute diff of removed games (by ROM path) before saving
     try:
         # Final list that will effectively be written (write_gamelist_xml dedupes by path)
@@ -992,6 +993,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         'progress_percentage': 100,
         'stats': stats,
     })
+    print(f"🔧 DEBUG: Scraping worker returning - matched_rom_paths: {len(matched_rom_paths)} paths")
     return {'success': True, 'stats': stats, 'gamelist_path': gamelist_path, 'rom_paths': matched_rom_paths, 'force_download': force_download, 'system_name': system_name}
 
 def _scraping_result_listener(result_q):
