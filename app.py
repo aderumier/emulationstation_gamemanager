@@ -8763,7 +8763,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         process = subprocess.Popen(
             download_cmd, 
             stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
+            stderr=subprocess.PIPE, 
             text=True, 
             cwd=videos_dir,
             bufsize=1,
@@ -8779,7 +8779,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             return False
         
         if process.returncode != 0:
-            task.update_progress(f"  ❌ Download failed for {game_name}")
+            # Log error details for debugging
+            task.update_progress(f"  ❌ Download failed for {game_name} (return code: {process.returncode})")
+            if stderr:
+                task.update_progress(f"  Error details: {stderr}")
             return False
         else:
             # Log successful completion (without yt-dlp output)
