@@ -8739,7 +8739,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         
         # Add YouTube PO token extractor args if enabled and URL is from YouTube
         video_config = config.get('video', {})
-        is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
+        is_youtube_url = 'youtu' in video_url.lower()
         
         if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
             youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
@@ -8773,16 +8773,32 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         process = subprocess.Popen(
             download_cmd, 
             stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
+            stderr=subprocess.STDOUT, 
             text=True, 
             cwd=videos_dir,
             bufsize=1,
             universal_newlines=True
         )
         
-        # Wait for completion with timeout
+        # Read output line by line to show real-time progress
+        stdout_lines = []
         try:
-            stdout, stderr = process.communicate(timeout=300)  # 5 minute timeout
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                
+                # Clean up the line and show progress
+                line = line.strip()
+                if line:
+                    # Filter out some noisy yt-dlp output but keep important progress info
+                    if any(keyword in line.lower() for keyword in ['download', 'progress', 'eta', '%', 'mb', 'gb', 'kb']):
+                        task.update_progress(f"  📥 {line}")
+                    stdout_lines.append(line)
+            
+            # Wait for process to complete
+            process.wait()
+            
         except subprocess.TimeoutExpired:
             process.kill()
             task.update_progress(f"  ⏰ Download timeout for {game_name}")
@@ -8791,8 +8807,9 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         if process.returncode != 0:
             # Log error details for debugging
             task.update_progress(f"  ❌ Download failed for {game_name} (return code: {process.returncode})")
-            if stderr:
-                task.update_progress(f"  Error details: {stderr}")
+            # Show last few lines of output for debugging
+            if stdout_lines:
+                task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
             return False
         else:
             # Log successful completion (without yt-dlp output)
