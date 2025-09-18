@@ -8784,9 +8784,12 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Read output line by line to show real-time progress
         stdout_lines = []
         try:
+            import select
+            import sys
+            
             while True:
-                # Check if task was cancelled
-                if task.status == 'cancelled':
+                # Check if task was cancelled using the global stop event
+                if is_task_stopped():
                     process.terminate()
                     try:
                         process.wait(timeout=5)
@@ -8795,9 +8798,24 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     task.update_progress(f"  🛑 Download cancelled for {game_name}")
                     return False
                 
-                line = process.stdout.readline()
-                if not line:
-                    break
+                # Use select to check if there's data available to read (non-blocking)
+                if sys.platform != 'win32':
+                    # Unix-like systems
+                    ready, _, _ = select.select([process.stdout], [], [], 0.1)  # 100ms timeout
+                    if ready:
+                        line = process.stdout.readline()
+                        if not line:
+                            break
+                    else:
+                        # No data available, check if process is still running
+                        if process.poll() is not None:
+                            break
+                        continue
+                else:
+                    # Windows - fallback to blocking readline
+                    line = process.stdout.readline()
+                    if not line:
+                        break
                 
                 # Clean up the line and show progress
                 line = line.strip()
