@@ -2056,7 +2056,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start YouTube download in background thread
-            thread = threading.Thread(target=run_youtube_download_task, args=(data,))
+            thread = threading.Thread(target=run_youtube_download_task, args=(task.id, data))
             thread.daemon = True
             thread.start()
     elif task_type == '2d_box_generation':
