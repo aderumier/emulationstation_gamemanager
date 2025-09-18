@@ -12735,26 +12735,20 @@ class GameCollectionManager {
         const searchBtn = document.getElementById('youtubeSearchBtn');
         const searchInput = document.getElementById('youtubeSearchInput');
         
-        if (searchBtn) {
-            // Remove existing event listeners
-            const newSearchBtn = searchBtn.cloneNode(true);
-            searchBtn.parentNode.replaceChild(newSearchBtn, searchBtn);
-            
-            newSearchBtn.addEventListener('click', () => {
+        if (searchBtn && !searchBtn.hasAttribute('data-listener-attached')) {
+            searchBtn.addEventListener('click', () => {
                 this.performYouTubeSearch();
             });
+            searchBtn.setAttribute('data-listener-attached', 'true');
         }
         
-        if (searchInput) {
-            // Remove existing event listeners
-            const newSearchInput = searchInput.cloneNode(true);
-            searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-            
-            newSearchInput.addEventListener('keypress', (e) => {
+        if (searchInput && !searchInput.hasAttribute('data-listener-attached')) {
+            searchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     this.performYouTubeSearch();
                 }
             });
+            searchInput.setAttribute('data-listener-attached', 'true');
         }
     }
 
@@ -13119,26 +13113,20 @@ class GameCollectionManager {
 
     initializePlayerControls() {
         const getTimeBtn = document.getElementById('getCurrentTimeBtn');
-        if (getTimeBtn) {
-            // Remove existing event listeners
-            const newGetTimeBtn = getTimeBtn.cloneNode(true);
-            getTimeBtn.parentNode.replaceChild(newGetTimeBtn, getTimeBtn);
-            
-            newGetTimeBtn.addEventListener('click', () => {
+        if (getTimeBtn && !getTimeBtn.hasAttribute('data-listener-attached')) {
+            getTimeBtn.addEventListener('click', () => {
                 this.getCurrentPlayerTime();
             });
+            getTimeBtn.setAttribute('data-listener-attached', 'true');
         }
         const downloadBtn = document.getElementById('downloadVideoBtn');
-        if (downloadBtn) {
-            // Remove existing event listeners
-            const newDownloadBtn = downloadBtn.cloneNode(true);
-            downloadBtn.parentNode.replaceChild(newDownloadBtn, downloadBtn);
-            
-            newDownloadBtn.addEventListener('click', () => {
+        if (downloadBtn && !downloadBtn.hasAttribute('data-listener-attached')) {
+            downloadBtn.addEventListener('click', () => {
                 console.log('Download button clicked - triggering downloadYouTubeVideo');
                 this.downloadYouTubeVideo();
             });
-        } else {
+            downloadBtn.setAttribute('data-listener-attached', 'true');
+        } else if (!downloadBtn) {
             console.error('Download button not found!');
         }
         // Add modal close event listener to cleanup player
