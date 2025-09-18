@@ -12426,14 +12426,20 @@ class GameCollectionManager {
             const updatedGame = { ...originalGame };
             
             // Apply fields from the match
-            if (selectedMatch.name) updatedGame.name = selectedMatch.name;
-            if (selectedMatch.overview) updatedGame.desc = selectedMatch.overview;
-            if (selectedMatch.developer) updatedGame.developer = selectedMatch.developer;
-            if (selectedMatch.publisher) updatedGame.publisher = selectedMatch.publisher;
-            if (selectedMatch.genre) updatedGame.genre = selectedMatch.genre;
-            if (selectedMatch.rating) updatedGame.rating = selectedMatch.rating;
-            if (selectedMatch.players) updatedGame.players = selectedMatch.players;
-            if (selectedMatch.database_id) updatedGame.launchboxid = selectedMatch.database_id;
+            if (modalType === 'gameEdit') {
+                // When called from game edit modal, only update launchboxid
+                if (selectedMatch.database_id) updatedGame.launchboxid = selectedMatch.database_id;
+            } else {
+                // When called from other contexts (scraping, etc.), update all fields
+                if (selectedMatch.name) updatedGame.name = selectedMatch.name;
+                if (selectedMatch.overview) updatedGame.desc = selectedMatch.overview;
+                if (selectedMatch.developer) updatedGame.developer = selectedMatch.developer;
+                if (selectedMatch.publisher) updatedGame.publisher = selectedMatch.publisher;
+                if (selectedMatch.genre) updatedGame.genre = selectedMatch.genre;
+                if (selectedMatch.rating) updatedGame.rating = selectedMatch.rating;
+                if (selectedMatch.players) updatedGame.players = selectedMatch.players;
+                if (selectedMatch.database_id) updatedGame.launchboxid = selectedMatch.database_id;
+            }
             
             // Update the games array
             this.games[gameIndex] = updatedGame;
