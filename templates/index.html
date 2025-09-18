@@ -496,6 +496,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             
                             <!-- Task Management Tab -->
                             <div class="tab-pane fade" id="task-management-content" role="tabpanel" aria-labelledby="task-management-tab">
+                                <!-- Task Queue Status -->
+                                <div id="taskQueueStatus" class="mb-3" style="display: none;">
+                                    <div class="alert alert-info d-flex align-items-center">
+                                        <i class="bi bi-list-ul me-2"></i>
+                                        <div>
+                                            <strong>Task Queue:</strong> <span id="queueCount">0</span> tasks waiting
+                                            <div id="queueDetails" class="small text-muted mt-1"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Current Task Status -->
+                                <div id="currentTaskStatus" class="mb-3" style="display: none;">
+                                    <div class="alert alert-primary d-flex align-items-center">
+                                        <i class="bi bi-play-circle me-2"></i>
+                                        <div>
+                                            <strong>Currently Running:</strong> <span id="currentTaskType">-</span>
+                                            <div id="currentTaskProgress" class="small text-muted mt-1"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div id="taskGrid" class="ag-theme-alpine" style="height: 160px; width: 100%;"></div>
                             </div>
                         </div>

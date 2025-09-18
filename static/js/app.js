@@ -268,6 +268,9 @@ class GameCollectionManager {
                 mediaPreviewContent.innerHTML = '';
                 console.log('Cleared media preview content when switching to task management');
             }
+            
+            // Update queue status display
+            this.updateQueueStatusDisplay();
         }
     }
 
@@ -315,6 +318,45 @@ class GameCollectionManager {
         }
     }
 
+    async updateQueueStatusDisplay() {
+        // Update the queue status display in the task management tab
+        try {
+            const queueStatus = await this.checkTaskQueue();
+            if (!queueStatus) return;
+
+            const queueStatusDiv = document.getElementById('taskQueueStatus');
+            const currentTaskStatusDiv = document.getElementById('currentTaskStatus');
+            const queueCountSpan = document.getElementById('queueCount');
+            const queueDetailsDiv = document.getElementById('queueDetails');
+            const currentTaskTypeSpan = document.getElementById('currentTaskType');
+            const currentTaskProgressDiv = document.getElementById('currentTaskProgress');
+
+            // Update queue status
+            if (queueStatus.queue_length > 0) {
+                queueCountSpan.textContent = queueStatus.queue_length;
+                const queuedTasks = queueStatus.queued_tasks.map((task, index) => 
+                    `${index + 1}. ${task.type} (${new Date(task.timestamp * 1000).toLocaleTimeString()})`
+                ).join('<br>');
+                queueDetailsDiv.innerHTML = queuedTasks;
+                queueStatusDiv.style.display = 'block';
+            } else {
+                queueStatusDiv.style.display = 'none';
+            }
+
+            // Update current task status
+            if (queueStatus.current_task && queueStatus.current_task.status === 'running') {
+                currentTaskTypeSpan.textContent = queueStatus.current_task.type;
+                const progress = queueStatus.current_task.progress_percentage || 0;
+                currentTaskProgressDiv.textContent = `Progress: ${progress}%`;
+                currentTaskStatusDiv.style.display = 'block';
+            } else {
+                currentTaskStatusDiv.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error updating queue status display:', error);
+        }
+    }
+
 
 
     async refreshTasks() {
@@ -354,6 +396,8 @@ class GameCollectionManager {
                 this.displayTasksInGrid(tasks);
                 // Check for completed tasks that need grid refresh
                 this.checkForGridRefresh(tasks);
+                // Update queue status display
+                this.updateQueueStatusDisplay();
             } else {
                 console.error('Failed to fetch tasks');
             }

@@ -1702,6 +1702,11 @@ class Task:
         # Mark that grid refresh is needed for this task type
         if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation']:
             self.grid_refresh_needed = True
+        
+        # Clear current task and start next queued task
+        global current_task_id
+        current_task_id = None
+        process_next_queued_task()
 
     
     def to_dict(self):
@@ -1895,8 +1900,9 @@ def add_task_to_queue(task_type, task_data, username=None):
     task_queue.append(task_info)
     print(f"DEBUG: Added {task_type} task to queue. Position: {len(task_queue)}")
     
-    # Process the next queued task immediately
-    process_next_queued_task()
+    # Only process if no task is currently running
+    if not is_task_running():
+        process_next_queued_task()
     
     return task
 
@@ -1907,7 +1913,13 @@ def process_next_queued_task():
     # Clean up any stuck tasks first
     cleanup_stuck_tasks()
     
+    # Don't start a new task if one is already running
+    if is_task_running():
+        print(f"DEBUG: Task already running, not starting next queued task")
+        return
+    
     if not task_queue:
+        print(f"DEBUG: No tasks in queue")
         return
     
     next_task = task_queue.pop(0)
