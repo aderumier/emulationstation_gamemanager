@@ -3321,7 +3321,18 @@ class GameCollectionManager {
                 credentials: 'include'
             });
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // Try to get the error details from the response
+                let errorMessage = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage += ` - ${errorData.error}`;
+                    }
+                } catch (e) {
+                    // If we can't parse the response as JSON, just use the status text
+                    errorMessage += ` - ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
             }
             
             const data = await response.json();
@@ -3417,7 +3428,18 @@ class GameCollectionManager {
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // Try to get the error details from the response
+                let errorMessage = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage += ` - ${errorData.error}`;
+                    }
+                } catch (e) {
+                    // If we can't parse the response as JSON, just use the status text
+                    errorMessage += ` - ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
             }
             
             const result = await response.json();
