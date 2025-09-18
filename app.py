@@ -9727,45 +9727,6 @@ def login():
     
     return render_template('login.html')
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        terms = request.form.get('terms')
-        
-        # Validation
-        if not username or not password or not confirm_password:
-            flash('Please fill in all required fields', 'error')
-            return render_template('register.html')
-        
-        if password != confirm_password:
-            flash('Passwords do not match', 'error')
-            return render_template('register.html')
-        
-        if len(username) < 3 or len(username) > 20:
-            flash('Username must be between 3 and 20 characters', 'error')
-            return render_template('register.html')
-        
-        if len(password) < 6:
-            flash('Password must be at least 6 characters long', 'error')
-            return render_template('register.html')
-        
-        if not terms:
-            flash('You must accept the Terms of Service', 'error')
-            return render_template('register.html')
-        
-        # Create user
-        user, error = create_user(username, password, email)
-        if user:
-            flash('Account created successfully! Your account is pending validation by an administrator.', 'success')
-            return redirect(url_for('login'))
-        else:
-            flash(error or 'Failed to create account', 'error')
-    
-    return render_template('register.html')
 
 @app.route('/logout')
 @login_required
@@ -9785,10 +9746,6 @@ def discord_login():
     discord_url = f"https://discord.com/api/oauth2/authorize?client_id={discord_client_id}&redirect_uri={discord_redirect_uri}&response_type=code&scope={discord_scope}"
     return redirect(discord_url)
 
-@app.route('/discord/register')
-def discord_register():
-    # Same as login but we'll handle registration in the callback
-    return redirect(url_for('discord_login'))
 
 @app.route('/discord/callback')
 def discord_callback():
@@ -9839,13 +9796,9 @@ def discord_callback():
                         flash('Your account is pending validation. Please contact an administrator.', 'warning')
                         return redirect(url_for('login'))
                 else:
-                    # Create new user with Discord info
-                    user, error = create_user(username, secrets.token_hex(16), email, discord_id)
-                    if user:
-                        flash('Account created successfully! Your account is pending validation by an administrator.', 'success')
-                        return redirect(url_for('login'))
-                    else:
-                        flash(error or 'Failed to create account', 'error')
+                    # User doesn't exist - only allow first user setup
+                    flash('Discord account not found. Please contact an administrator to create your account.', 'error')
+                    return redirect(url_for('login'))
             else:
                 flash('Failed to get Discord user information', 'error')
         else:
