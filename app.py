@@ -928,6 +928,23 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                 result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"· {game_name} - skipped", 'current_step': stats['processed_games'], 'total_steps': stats['total_games'], 'progress_percentage': pct, 'stats': stats})
         except Exception:
             pass
+        # collect rom path for image download - add ALL selected games, regardless of match status
+        rp = result.get('game_path')
+        if rp:
+            matched_rom_paths.append(rp)
+            print(f"🔧 DEBUG: Added ROM path to matched_rom_paths: {rp}")
+        else:
+            # If no game_path in result, use the original game path from selected games
+            # This ensures ALL selected games are included for image download
+            original_game_path = None
+            for og in original_games:
+                if og.get('name') == result.get('game_name'):
+                    original_game_path = og.get('path')
+                    break
+            if original_game_path:
+                matched_rom_paths.append(original_game_path)
+                print(f"🔧 DEBUG: Added original ROM path to matched_rom_paths: {original_game_path}")
+        
         if result['status'] == 'matched':
             stats['matched_games'] += 1
             original_name = result.get('original_name', result['game_name'])
@@ -942,11 +959,6 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                     original_games[j] = result['game_data'].copy()
                     stats['updated_games'] += 1
                     break
-            # collect rom path for image download
-            rp = result.get('game_path')
-            if rp:
-                matched_rom_paths.append(rp)
-                print(f"🔧 DEBUG: Added ROM path to matched_rom_paths: {rp}")
     # Compute diff of removed games (by ROM path) before saving
     try:
         # Final list that will effectively be written (write_gamelist_xml dedupes by path)
