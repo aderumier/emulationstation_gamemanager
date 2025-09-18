@@ -8733,8 +8733,6 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             yt_dlp_path,
             '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             '-o', output_template,
-            '--download-sections', f'*{start_time}-{end_time}',
-            '--force-keyframes-at-cuts',
             '--progress',
             '--newline'
         ]
@@ -8748,6 +8746,14 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
             ])
             task.update_progress(f"  🔑 Using YouTube PO token provider: {youtube_po_token_provider}")
+            # When using PO token, we'll download the full video and cut it later
+            task.update_progress(f"  📹 Downloading full video (will be cut to {start_time}-{end_time}s later)")
+        else:
+            # Only use download-sections when PO token is not enabled
+            download_cmd.extend([
+                '--download-sections', f'*{start_time}-{end_time}',
+                '--force-keyframes-at-cuts'
+            ])
         
         # Add playlist index parameter for Steam Store URLs
         if is_steam_store:
@@ -8798,7 +8804,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_path = os.path.join(videos_dir, temp_file)
         
         # Apply video processing (crop and/or resize) if needed
-        processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
+        # If YouTube PO token is enabled, we need to cut the video since we downloaded the full video
+        video_config = config.get('video', {})
+        if video_config.get('enable_youtube_po_token', False):
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, start_time, end_time)
+        else:
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
+        
         if not processing_success:
             task.update_progress(f"  ⚠️ Video processing failed for {game_name}, using original video")
         
@@ -8821,7 +8833,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         task.update_progress(f"  ❌ Error downloading {game_name}: {str(e)}")
         return False
 
-def apply_video_processing(task, video_path, game_name, auto_crop=False):
+def apply_video_processing(task, video_path, game_name, auto_crop=False, start_time=None, end_time=None):
     """Apply video processing (crop and/or resize) in a single ffmpeg call (helper function)"""
     try:
         import subprocess
@@ -8906,6 +8918,12 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         if enable_cuda:
             process_cmd.extend(['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda'])
         
+        # Add video cutting parameters if start_time and end_time are provided
+        if start_time is not None and end_time is not None:
+            duration = end_time - start_time
+            process_cmd.extend(['-ss', str(start_time), '-t', str(duration)])
+            task.update_progress(f"  ✂️ Cutting video from {start_time}s to {end_time}s (duration: {duration}s)")
+        
         process_cmd.append('-i')
         process_cmd.append(video_path)
         
@@ -8938,6 +8956,8 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False):
         
         # Log the ffmpeg command
         operations = []
+        if start_time is not None and end_time is not None:
+            operations.append(f'cut video ({start_time}s-{end_time}s)')
         if auto_crop:
             operations.append('auto crop (detected dimensions)')
         if force_resolution:
