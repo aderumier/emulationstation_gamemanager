@@ -49,7 +49,6 @@ cp -r templates/* debian/opt/gamemanager/templates/
 
 # Configuration files
 cp var/config/config.json debian/opt/gamemanager/var/config/config.json
-cp var/config/user.cfg debian/opt/gamemanager/var/config/user.cfg
 
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc

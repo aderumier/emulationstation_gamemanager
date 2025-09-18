@@ -148,7 +148,6 @@ sessions/
 var/
 !var/config/
 !var/config/config.json
-!var/config/user.cfg
 !var/db/screenscraper/platforms.json
 # Exclude credentials files for security
 var/config/credentials.json

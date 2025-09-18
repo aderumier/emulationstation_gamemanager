@@ -79,9 +79,8 @@ RUN mkdir -p \
 
 # Copy config files to default location outside var (for volume mount scenarios)
 RUN cp /opt/gamemanager/var/config/config.json /opt/gamemanager/config.json.default && \
-    cp /opt/gamemanager/var/config/user.cfg /opt/gamemanager/user.cfg.default && \
-    chmod 644 /opt/gamemanager/config.json.default /opt/gamemanager/user.cfg.default && \
-    chown appuser:appuser /opt/gamemanager/config.json.default /opt/gamemanager/user.cfg.default
+    chmod 644 /opt/gamemanager/config.json.default && \
+    chown appuser:appuser /opt/gamemanager/config.json.default
 
 # Copy platform cache files to default location outside var (for volume mount scenarios)
 RUN cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/screenscraper_platforms.json.default && \
@@ -119,10 +118,6 @@ if [ ! -f /opt/gamemanager/var/config/config.json ]; then
     cp /opt/gamemanager/config.json.default /opt/gamemanager/var/config/config.json
 fi
 
-if [ ! -f /opt/gamemanager/var/config/user.cfg ]; then
-    echo "Copying default user.cfg to var/config/"
-    cp /opt/gamemanager/user.cfg.default /opt/gamemanager/var/config/user.cfg
-fi
 
 # Copy platform cache files to var/db (always copy to ensure they're in the volume)
 echo "Copying platform cache files to var/db..."
