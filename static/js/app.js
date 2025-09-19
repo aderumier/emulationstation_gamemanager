@@ -454,7 +454,7 @@ class GameCollectionManager {
             return {
                 id: task.id,
                 type: this.getTaskDisplayName(task.type),
-                status: this.getTaskStatusText(task.status),
+                status: task.status,
                 startTime: task.start_time ? new Date(task.start_time * 1000).toLocaleString() : 'N/A',
                 duration: task.duration ? `${task.duration.toFixed(1)}s` : 'N/A',
                 progress: task.progress_percentage || 0,
@@ -752,7 +752,8 @@ class GameCollectionManager {
                 filter: true,
                 cellRenderer: (params) => {
                     const status = params.value;
-                    return `<span class="task-status-badge ${status}">${this.getTaskStatusText(status)}</span>`;
+                    const displayText = this.getTaskStatusText(status);
+                    return `<span class="task-status-badge ${status}">${displayText}</span>`;
                 }
             },
             {
