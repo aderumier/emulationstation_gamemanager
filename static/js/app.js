@@ -269,8 +269,6 @@ class GameCollectionManager {
                 console.log('Cleared media preview content when switching to task management');
             }
             
-            // Update queue status display
-            this.updateQueueStatusDisplay();
         }
     }
 
@@ -318,37 +316,6 @@ class GameCollectionManager {
         }
     }
 
-    async updateQueueStatusDisplay() {
-        // Update the queue status display in the task management tab
-        try {
-            const queueStatus = await this.checkTaskQueue();
-            if (!queueStatus) return;
-
-            const queueStatusDiv = document.getElementById('taskQueueStatus');
-            const currentTaskStatusDiv = document.getElementById('currentTaskStatus');
-            const queueCountSpan = document.getElementById('queueCount');
-            const queueDetailsDiv = document.getElementById('queueDetails');
-            const currentTaskTypeSpan = document.getElementById('currentTaskType');
-            const currentTaskProgressDiv = document.getElementById('currentTaskProgress');
-
-            // Update queue status
-            if (queueStatus.queue_length > 0) {
-                queueCountSpan.textContent = queueStatus.queue_length;
-                const queuedTasks = queueStatus.queued_tasks.map((task, index) => 
-                    `${index + 1}. ${task.type} (${new Date(task.timestamp * 1000).toLocaleTimeString()})`
-                ).join('<br>');
-                queueDetailsDiv.innerHTML = queuedTasks;
-                queueStatusDiv.style.display = 'block';
-            } else {
-                queueStatusDiv.style.display = 'none';
-            }
-
-            // Hide current task status since it's already shown in the task grid
-            currentTaskStatusDiv.style.display = 'none';
-        } catch (error) {
-            console.error('Error updating queue status display:', error);
-        }
-    }
 
 
 
@@ -357,6 +324,27 @@ class GameCollectionManager {
             const response = await fetch('/api/tasks');
             if (response.ok) {
                 let tasks = await response.json();
+                
+                // Get queued tasks and add them to the task grid
+                const queueStatus = await this.checkTaskQueue();
+                if (queueStatus && queueStatus.queued_tasks) {
+                    queueStatus.queued_tasks.forEach(queuedTask => {
+                        // Create a task object for queued tasks
+                        const queuedTaskObj = {
+                            id: queuedTask.task_id,
+                            type: queuedTask.type,
+                            status: 'queued',
+                            start_time: queuedTask.timestamp,
+                            progress_percentage: 0,
+                            current_step: 0,
+                            total_steps: 0,
+                            username: 'Unknown',
+                            data: queuedTask.data || {}
+                        };
+                        tasks[queuedTask.task_id] = queuedTaskObj;
+                    });
+                }
+                
                 // Reconstruct missing fields from log history after restart (only once)
                 if (!this.historyLoaded) {
                     try {
@@ -389,8 +377,6 @@ class GameCollectionManager {
                 this.displayTasksInGrid(tasks);
                 // Check for completed tasks that need grid refresh
                 this.checkForGridRefresh(tasks);
-                // Update queue status display
-                this.updateQueueStatusDisplay();
             } else {
                 console.error('Failed to fetch tasks');
             }
@@ -468,7 +454,7 @@ class GameCollectionManager {
             return {
                 id: task.id,
                 type: this.getTaskDisplayName(task.type),
-                status: task.status,
+                status: this.getTaskStatusText(task.status),
                 startTime: task.start_time ? new Date(task.start_time * 1000).toLocaleString() : 'N/A',
                 duration: task.duration ? `${task.duration.toFixed(1)}s` : 'N/A',
                 progress: task.progress_percentage || 0,
@@ -480,10 +466,12 @@ class GameCollectionManager {
             };
         });
 
-        // Sort tasks: running first, then by start time (newest first)
+        // Sort tasks: running first, then queued, then by start time (newest first)
         gridData.sort((a, b) => {
             if (a.status === 'running' && b.status !== 'running') return -1;
             if (a.status !== 'running' && b.status === 'running') return 1;
+            if (a.status === 'queued' && b.status !== 'queued' && b.status !== 'running') return -1;
+            if (a.status !== 'queued' && b.status === 'queued' && a.status !== 'running') return 1;
             return (b.data.start_time || 0) - (a.data.start_time || 0);
         });
 
