@@ -4177,7 +4177,7 @@ class GameCollectionManager {
             
             const cardHeader = document.createElement('div');
             cardHeader.className = 'card-header';
-            cardHeader.innerHTML = `<h6 class="mb-0"><i class="bi bi-image me-2"></i>${mediaTypes[mediaKey]}</h6>`;
+            cardHeader.innerHTML = `<h6 class="mb-0"><i class="bi bi-image me-2"></i>${mediaTypes[mediaKey] || mediaKey}</h6>`;
             card.appendChild(cardHeader);
 
             const cardBody = document.createElement('div');
