@@ -43,6 +43,7 @@ import multiprocessing
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+from typing import Dict, List
 import secrets
 from datetime import datetime
 import uuid
@@ -6930,6 +6931,7 @@ def manual_scrap_game(system_name):
         print(f"DEBUG: Current game data: {current_game}")
         
         # Initialize results structure
+        # Text fields are fixed set
         scrap_results = {
             'text_fields': {
                 'name': {'current': current_game.get('name', ''), 'sources': {}},
@@ -6939,17 +6941,19 @@ def manual_scrap_game(system_name):
                 'genre': {'current': current_game.get('genre', ''), 'sources': {}},
                 'releasedate': {'current': current_game.get('releasedate', ''), 'sources': {}}
             },
-            'media_fields': {
-                'image': {'current': current_game.get('image', ''), 'sources': {}},
-                'marquee': {'current': current_game.get('marquee', ''), 'sources': {}},
-                'video': {'current': current_game.get('video', ''), 'sources': {}}
-            }
+            'media_fields': {}
         }
         
-        # Get system configuration
+        # Get system configuration and media fields mapping
         config = load_config()
         systems_config = config.get('systems', {})
         system_config = systems_config.get(system_name, {})
+        # Initialize media_fields for ALL configured media fields
+        for media_field_name in config.get('media_fields', {}).keys():
+            scrap_results['media_fields'][media_field_name] = {
+                'current': current_game.get(media_field_name, ''),
+                'sources': {}
+            }
         
         # Debug: Print system config and game IDs
         print(f"DEBUG: System config: {system_config}")
@@ -7178,32 +7182,38 @@ async def scrape_igdb_manual(game, system_name, system_config):
         except Exception as e:
             print(f"Error getting involved companies: {e}")
         
-        # Extract media fields
-        media_fields = {}
+        # Extract media fields using config mappings; collect ALL available media
+        media_fields: Dict[str, List[str]] = {}
         
-        # Get cover image
+        def add_media(mapped_field: str, url: str):
+            if not mapped_field or not url:
+                return
+            media_fields.setdefault(mapped_field, []).append(url)
+        
+        # Cover → mapped field
         if igdb_game.get('cover'):
             cover_id = igdb_game['cover']
             cover_url = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
-            media_fields['image'] = cover_url
+            mapped = igdb_image_mapping.get('cover', 'image')
+            add_media(mapped, cover_url)
         
-        # Get screenshots
+        # Screenshots → mapped field, add all
         if igdb_game.get('screenshots'):
-            screenshot_id = igdb_game['screenshots'][0]  # Get first screenshot
-            screenshot_url = f"https://images.igdb.com/igdb/image/upload/t_screenshot_big/{screenshot_id}.jpg"
-            media_fields['marquee'] = screenshot_url
+            for ss_id in igdb_game['screenshots']:
+                ss_url = f"https://images.igdb.com/igdb/image/upload/t_screenshot_big/{ss_id}.jpg"
+                mapped = igdb_image_mapping.get('screenshots', 'image')
+                add_media(mapped, ss_url)
         
-        # Get artworks
+        # Artworks → mapped field, add all
         try:
             artworks = await fetch_igdb_artworks(
                 async_client, access_token, igdb_config['client_id'], igdb_game['id']
             )
             if artworks:
-                # Use first artwork as marquee if no screenshot
-                if not media_fields.get('marquee'):
-                    artwork_id = artworks[0]
-                    artwork_url = f"https://images.igdb.com/igdb/image/upload/t_artwork_big/{artwork_id}.jpg"
-                    media_fields['marquee'] = artwork_url
+                for art_id in artworks:
+                    art_url = f"https://images.igdb.com/igdb/image/upload/t_artwork_big/{art_id}.jpg"
+                    mapped = igdb_image_mapping.get('artworks', 'fanart')
+                    add_media(mapped, art_url)
         except Exception as e:
             print(f"Error getting artworks: {e}")
         
@@ -7262,10 +7272,12 @@ async def scrape_steam_manual(game, system_name):
             if genre_names:
                 text_fields['genre'] = ', '.join(genre_names)
         
-        # Extract media fields
-        media_fields = {}
+        # Extract media fields (arrays), using config mapping if present
+        media_fields: Dict[str, List[str]] = {}
+        steam_image_mapping = config.get('steam', {}).get('image_type_mappings', {})
         if steam_data.get('header_image'):
-            media_fields['image'] = steam_data['header_image']
+            mapped = steam_image_mapping.get('header_image', 'image')
+            media_fields.setdefault(mapped, []).append(steam_data['header_image'])
         
         return {
             'text_fields': text_fields,
@@ -7375,33 +7387,26 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     except:
                         pass
         
-        # Extract media fields
-        # Return arrays of URLs per gamelist media field to allow multi-choice selection in UI
-        media_fields = {'image': [], 'marquee': [], 'video': []}
-        
-        # Map ScreenScraper media types to gamelist fields using config mapping
+        # Extract media fields grouped by configured gamelist media fields
+        media_fields: Dict[str, List[str]] = {}
         ss_image_mapping = config.get('screenscraper', {}).get('image_type_mappings', {})
-        
         if detailed_data.get('medias'):
-            medias = detailed_data['medias']
-            for media in medias:
+            for media in detailed_data['medias']:
                 media_type = media.get('type')
                 media_url = media.get('url')
                 if not media_url:
                     continue
-                
-                # Default/simple mappings
-                if media_type in ['ss', 'sstitle']:
-                    media_fields['image'].append(media_url)
-                elif media_type in ['screenmarquee', 'fanart']:
-                    media_fields['marquee'].append(media_url)
-                elif media_type in ['video', 'video-normalized']:
-                    media_fields['video'].append(media_url)
-                
-                # Additional mapping via config if provided (maps ss type -> gamelist field)
+                # Use mapping to determine target gamelist field; fallback heuristics
                 mapped_field = ss_image_mapping.get(media_type)
-                if mapped_field and mapped_field in media_fields:
-                    media_fields[mapped_field].append(media_url)
+                if not mapped_field:
+                    if media_type in ['ss', 'sstitle']:
+                        mapped_field = 'image'
+                    elif media_type in ['screenmarquee', 'fanart']:
+                        mapped_field = 'marquee'
+                    elif media_type in ['video', 'video-normalized']:
+                        mapped_field = 'video'
+                if mapped_field:
+                    media_fields.setdefault(mapped_field, []).append(media_url)
         
         return {
             'text_fields': text_fields,
@@ -7537,8 +7542,8 @@ async def scrape_launchbox_manual(game, system_name):
         # Extract text fields using common logic
         text_fields = extract_launchbox_text_fields(game_elem, mapping_config)
         
-        # Extract media fields from the images in the metadata
-        media_fields = {}
+        # Extract media fields from the images in the metadata (arrays per field)
+        media_fields: Dict[str, List[str]] = {}
         
         # Get media URLs from LaunchBox images in the metadata
         if 'images' in game_metadata and game_metadata['images']:
@@ -7562,19 +7567,24 @@ async def scrape_launchbox_manual(game, system_name):
                             # Construct full URL from base URL + filename
                             image_url = base_url + filename
                             
-                            # Map image types to media fields
-                            if image_type in ['Box - Front', 'Box - 3D', 'Box - Back']:
-                                media_fields['image'] = image_url
-                            elif image_type in ['Fanart - Background', 'Fanart - Banner', 'Screenshot - Game Title']:
-                                media_fields['marquee'] = image_url
+                            # Map LaunchBox image types to gamelist fields via config
+                            lb_map = image_config.get('image_type_mappings', {})
+                            mapped_field = lb_map.get(image_type)
+                            if not mapped_field:
+                                if image_type.startswith('Box'):
+                                    mapped_field = 'image'
+                                elif image_type.startswith('Fanart') or image_type.startswith('Screenshot'):
+                                    mapped_field = 'marquee'
+                            if mapped_field:
+                                media_fields.setdefault(mapped_field, []).append(image_url)
                 elif isinstance(image, dict):
                     image_type = image.get('type', '').lower()
                     image_url = image.get('url')
                     
-                    if image_type in ['boxart', 'box art', 'cover'] and image_url:
-                        media_fields['image'] = image_url
-                    elif image_type in ['fanart', 'fan art', 'marquee', 'banner'] and image_url:
-                        media_fields['marquee'] = image_url
+                    lb_map = image_config.get('image_type_mappings', {})
+                    mapped_field = lb_map.get(image_type) or ('image' if 'box' in image_type else 'marquee')
+                    if mapped_field and image_url:
+                        media_fields.setdefault(mapped_field, []).append(image_url)
         
         return {
             'text_fields': text_fields,
