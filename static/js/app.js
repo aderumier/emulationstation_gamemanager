@@ -3022,7 +3022,6 @@ class GameCollectionManager {
         // Initialize manual crop button
         this.initializeManualCropButton(game);
     }
-    
     initializeEditModalTabs() {
         // Ensure the first tab is active and visible
         const firstTab = document.getElementById('game-info-tab');
@@ -3779,7 +3778,6 @@ class GameCollectionManager {
             progressOverlay.style.display = 'none';
         }
     }
-
     async deleteVideoForGame(game, mediaField) {
         if (!confirm(`Are you sure you want to delete the ${mediaField} video for "${game.name}"?`)) {
             return;
@@ -4215,13 +4213,20 @@ class GameCollectionManager {
                 tile.dataset.source = source;
                 tile.dataset.index = String(index);
                 tile.innerHTML = `
-                    <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 150px; background:#f8f9fa;">
+                    <div class="media-preview-item" style="width: 100%; height: 150px;">
                         ${this.getMediaPreview(url, mediaKey)}
                     </div>
                     <div class="card-body py-2">
                         <div class="small text-muted">${source.charAt(0).toUpperCase() + source.slice(1)}</div>
                     </div>
                 `;
+                // Hover full preview like game grid (images only)
+                tile.addEventListener('mouseenter', (ev) => {
+                    if (mediaKey !== 'video') {
+                        this.showThumbnailHover(ev, url, mediaKey);
+                    }
+                });
+                tile.addEventListener('mouseleave', () => this.hideThumbnailHover());
                 tile.addEventListener('click', () => {
                     // remove highlight from other tiles for this media key
                     card.querySelectorAll('.selectable-media-item').forEach(el => el.classList.remove('border', 'border-primary'));
