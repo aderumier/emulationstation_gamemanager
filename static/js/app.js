@@ -818,6 +818,10 @@ class GameCollectionManager {
                         buttons = `<button class="btn btn-outline-warning btn-sm" onclick="window.gameManager.stopTask('${taskId}')">
                             <i class="bi bi-stop-circle"></i> Stop
                         </button>`;
+                    } else if (status === 'queued') {
+                        buttons = `<button class="btn btn-outline-danger btn-sm" onclick="window.gameManager.deleteTask('${taskId}')">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>`;
                     }
                     
                     return `<div class="task-actions-cell">${buttons}</div>`;
@@ -1084,7 +1088,8 @@ class GameCollectionManager {
             'running': 'Running',
             'completed': 'Completed',
             'error': 'Error',
-            'queued': 'Queue'
+            'queued': 'Queue',
+            'stopped': 'Stopped'
         };
         return statusTexts[status] || status;
     }
@@ -1353,6 +1358,33 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error stopping task:', error);
             this.showToast('Error stopping task', 'error');
+        }
+    }
+
+    async deleteTask(taskId) {
+        try {
+            // Confirm deletion
+            if (!confirm('Are you sure you want to delete this queued task?')) {
+                return;
+            }
+
+            const response = await fetch(`/api/tasks/${taskId}/delete`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                this.showToast(result.message || 'Task deleted successfully', 'success');
+                
+                // Refresh the task list to remove the deleted task
+                this.refreshTasks();
+            } else {
+                const errorData = await response.json();
+                this.showToast(errorData.error || 'Failed to delete task', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            this.showToast('Error deleting task', 'error');
         }
     }
 

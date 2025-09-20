@@ -7293,6 +7293,50 @@ def stop_task_endpoint(task_id):
     except Exception as e:
         return jsonify({'error': f'Failed to stop task: {str(e)}'}), 500
 
+@app.route('/api/tasks/<task_id>/delete', methods=['DELETE'])
+@login_required
+def delete_task_endpoint(task_id):
+    """Delete a queued task from the queue"""
+    global task_queue
+    
+    # Find the task in the queue
+    task_index = None
+    for i, task_info in enumerate(task_queue):
+        if task_info['task_id'] == task_id:
+            task_index = i
+            break
+    
+    if task_index is None:
+        return jsonify({'error': 'Task not found in queue'}), 404
+    
+    # Check if task is queued (not running)
+    task_info = task_queue[task_index]
+    task_id = task_info['task_id']
+    
+    # Check if the task exists in the tasks dictionary and is queued
+    if task_id not in tasks:
+        return jsonify({'error': 'Task not found in tasks dictionary'}), 404
+    
+    task = tasks[task_id]
+    if task.status != TASK_STATUS_QUEUED:
+        return jsonify({'error': 'Only queued tasks can be deleted'}), 400
+    
+    try:
+        # Remove the task from the queue
+        deleted_task = task_queue.pop(task_index)
+        
+        # Also remove from the tasks dictionary
+        if task_id in tasks:
+            del tasks[task_id]
+        
+        return jsonify({
+            'success': True,
+            'message': f'Task "{deleted_task.get("type", "unknown")}" deleted from queue',
+            'deleted_task_id': task_id
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete task: {str(e)}'}), 500
+
 @app.route('/api/youtube/search', methods=['POST'])
 @login_required
 def youtube_search():

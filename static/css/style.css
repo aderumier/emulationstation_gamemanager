@@ -888,6 +888,11 @@ body {
     color: white;
 }
 
+.task-status-badge.stopped {
+    background-color: #fd7e14;
+    color: white;
+}
+
 .task-actions-cell {
     display: flex;
     gap: 5px;
