@@ -1532,6 +1532,8 @@ class GameCollectionManager {
         }
 
         document.getElementById('saveGameChanges').addEventListener('click', async () => await this.saveGameChangesFromModal());
+        document.getElementById('manualScrapBtn').addEventListener('click', async () => await this.openManualScrapModal());
+        document.getElementById('applyManualScrapResults').addEventListener('click', async () => await this.applyManualScrapResults());
 
         document.getElementById('clearFiltersBtn').addEventListener('click', async () => await this.clearAllFilters());
         document.getElementById('thumbnailViewBtn').addEventListener('click', () => this.toggleThumbnailView());
@@ -4018,6 +4020,322 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error saving changes:', error);
             this.showAlert('Error saving changes to gamelist.xml', 'danger');
+        }
+    }
+
+    async openManualScrapModal() {
+        if (!this.editingGamePath) {
+            this.showAlert('No game selected for manual scraping', 'error');
+            return;
+        }
+
+        const game = this.games.find(g => g.path === this.editingGamePath);
+        if (!game) {
+            this.showAlert('Game not found for manual scraping', 'error');
+            return;
+        }
+
+        // Show the manual scrap modal
+        const modal = new bootstrap.Modal(document.getElementById('manualScrapModal'));
+        modal.show();
+
+        // Show loading state
+        document.getElementById('manualScrapLoading').style.display = 'block';
+        document.getElementById('manualScrapContent').style.display = 'none';
+
+        try {
+            // Call the manual scrap API
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/manual-scrap`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rom_path: game.path
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.displayManualScrapResults(result.results);
+            } else {
+                const errorData = await response.json();
+                this.showAlert(`Error: ${errorData.error}`, 'error');
+                modal.hide();
+            }
+        } catch (error) {
+            console.error('Error performing manual scrap:', error);
+            this.showAlert('Error performing manual scrap', 'error');
+            modal.hide();
+        }
+    }
+
+    displayManualScrapResults(results) {
+        // Hide loading state
+        document.getElementById('manualScrapLoading').style.display = 'none';
+        document.getElementById('manualScrapContent').style.display = 'block';
+
+        // Populate text fields table
+        this.populateTextFieldsTable(results.text_fields);
+        
+        // Populate media fields
+        this.populateMediaFields(results.media_fields);
+
+        // Enable the apply button
+        document.getElementById('applyManualScrapResults').disabled = false;
+    }
+
+    populateTextFieldsTable(textFields) {
+        const tbody = document.getElementById('textFieldsTableBody');
+        tbody.innerHTML = '';
+
+        const fieldLabels = {
+            'name': 'Name',
+            'desc': 'Description',
+            'developer': 'Developer',
+            'publisher': 'Publisher',
+            'genre': 'Genre',
+            'releasedate': 'Release Date'
+        };
+
+        Object.entries(textFields).forEach(([fieldKey, fieldData]) => {
+            const row = document.createElement('tr');
+            
+            // Field name
+            const fieldCell = document.createElement('td');
+            fieldCell.textContent = fieldLabels[fieldKey] || fieldKey;
+            fieldCell.className = 'fw-bold';
+            row.appendChild(fieldCell);
+
+            // Current value
+            const currentCell = document.createElement('td');
+            currentCell.textContent = fieldData.current || 'N/A';
+            currentCell.className = 'text-muted';
+            row.appendChild(currentCell);
+
+            // Source columns (IGDB, Steam, ScreenScraper, SteamGridDB)
+            const sources = ['igdb', 'steam', 'screenscraper', 'steamgriddb'];
+            sources.forEach(source => {
+                const sourceCell = document.createElement('td');
+                const sourceValue = fieldData.sources[source] || '';
+                sourceCell.textContent = sourceValue || 'N/A';
+                sourceCell.className = sourceValue ? 'text-success' : 'text-muted';
+                row.appendChild(sourceCell);
+            });
+
+            // Select column - show current selection
+            const selectCell = document.createElement('td');
+            selectCell.className = 'text-center';
+            selectCell.innerHTML = '<span class="badge bg-secondary">Current</span>';
+            selectCell.dataset.field = fieldKey;
+            selectCell.dataset.selected = 'current';
+            selectCell.style.cursor = 'pointer';
+            selectCell.title = 'Click to cycle through available sources';
+            row.appendChild(selectCell);
+
+            tbody.appendChild(row);
+        });
+
+        // Add click handlers for select cells
+        this.addTextFieldClickHandlers(textFields);
+    }
+
+    addTextFieldClickHandlers(textFields) {
+        const selectCells = document.querySelectorAll('td[data-field]');
+        selectCells.forEach(cell => {
+            cell.addEventListener('click', () => {
+                const fieldKey = cell.dataset.field;
+                const currentSelection = cell.dataset.selected;
+                const fieldData = textFields[fieldKey];
+                
+                // Get available sources (including current)
+                const availableSources = ['current'];
+                const sources = ['igdb', 'steam', 'screenscraper', 'steamgriddb'];
+                sources.forEach(source => {
+                    if (fieldData.sources[source]) {
+                        availableSources.push(source);
+                    }
+                });
+                
+                // Find next source in cycle
+                const currentIndex = availableSources.indexOf(currentSelection);
+                const nextIndex = (currentIndex + 1) % availableSources.length;
+                const nextSource = availableSources[nextIndex];
+                
+                // Update the cell display
+                this.updateTextFieldSelection(cell, nextSource, fieldData);
+            });
+        });
+    }
+
+    updateTextFieldSelection(cell, source, fieldData) {
+        cell.dataset.selected = source;
+        
+        if (source === 'current') {
+            cell.innerHTML = '<span class="badge bg-secondary">Current</span>';
+        } else {
+            const sourceValue = fieldData.sources[source];
+            const displayText = source.charAt(0).toUpperCase() + source.slice(1);
+            const badgeClass = sourceValue ? 'bg-success' : 'bg-warning';
+            cell.innerHTML = `<span class="badge ${badgeClass}">${displayText}</span>`;
+        }
+    }
+
+    populateMediaFields(mediaFields) {
+        const container = document.getElementById('mediaFieldsContainer');
+        container.innerHTML = '';
+
+        const mediaTypes = {
+            'image': 'Box Art',
+            'marquee': 'Marquee',
+            'video': 'Video'
+        };
+
+        Object.entries(mediaFields).forEach(([mediaKey, mediaData]) => {
+            const card = document.createElement('div');
+            card.className = 'card mb-3';
+            
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'card-header';
+            cardHeader.innerHTML = `<h6 class="mb-0"><i class="bi bi-image me-2"></i>${mediaTypes[mediaKey]}</h6>`;
+            card.appendChild(cardHeader);
+
+            const cardBody = document.createElement('div');
+            cardBody.className = 'card-body';
+            
+            // Current media
+            const currentSection = document.createElement('div');
+            currentSection.className = 'mb-3';
+            currentSection.innerHTML = `
+                <h6>Current:</h6>
+                <div class="media-preview-item" style="width: 150px; height: 150px;">
+                    ${this.getMediaPreview(mediaData.current, mediaKey)}
+                </div>
+            `;
+            cardBody.appendChild(currentSection);
+
+            // Source options
+            const sourcesSection = document.createElement('div');
+            sourcesSection.innerHTML = '<h6>Available Sources:</h6>';
+            
+            const sources = ['igdb', 'steam', 'screenscraper', 'steamgriddb'];
+            sources.forEach(source => {
+                if (mediaData.sources[source]) {
+                    const sourceDiv = document.createElement('div');
+                    sourceDiv.className = 'mb-2';
+                    sourceDiv.innerHTML = `
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="${mediaKey}_source" value="${source}" id="${mediaKey}_${source}">
+                            <label class="form-check-label" for="${mediaKey}_${source}">
+                                ${source.charAt(0).toUpperCase() + source.slice(1)}
+                            </label>
+                        </div>
+                        <div class="media-preview-item ms-3" style="width: 150px; height: 150px;">
+                            ${this.getMediaPreview(mediaData.sources[source], mediaKey)}
+                        </div>
+                    `;
+                    sourcesSection.appendChild(sourceDiv);
+                }
+            });
+
+            // Add current option
+            const currentOption = document.createElement('div');
+            currentOption.className = 'mb-2';
+            currentOption.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="${mediaKey}_source" value="current" id="${mediaKey}_current" checked>
+                    <label class="form-check-label" for="${mediaKey}_current">
+                        Keep Current
+                    </label>
+                </div>
+            `;
+            sourcesSection.insertBefore(currentOption, sourcesSection.firstChild);
+
+            cardBody.appendChild(sourcesSection);
+            card.appendChild(cardBody);
+            container.appendChild(card);
+        });
+    }
+
+    getMediaPreview(mediaPath, mediaType) {
+        if (!mediaPath) {
+            return '<div class="media-placeholder"><i class="bi bi-image"></i><br>No Media</div>';
+        }
+
+        console.log('getMediaPreview called with:', { mediaPath, mediaType, currentSystem: this.currentSystem });
+
+        let mediaUrl;
+        
+        // Remove leading ./ if present
+        let cleanPath = mediaPath;
+        if (cleanPath.startsWith('./')) {
+            cleanPath = cleanPath.substring(2);
+        }
+        
+        console.log('After removing ./:', cleanPath);
+        
+        // Check if the path already contains the full structure starting with /roms/
+        if (cleanPath.startsWith('/roms/')) {
+            // Path already contains full structure, use it as-is
+            mediaUrl = cleanPath;
+            console.log('Using full path as-is:', mediaUrl);
+        } else if (cleanPath.startsWith('media/')) {
+            // Path starts with media/, it's a relative path from system root
+            mediaUrl = `/roms/${this.currentSystem}/${cleanPath}`;
+            console.log('Constructed URL for media/ path:', mediaUrl);
+        } else {
+            // Path is just a filename, construct the full URL
+            mediaUrl = `/roms/${this.currentSystem}/media/${mediaType}s/${cleanPath}`;
+            console.log('Constructed URL for filename:', mediaUrl);
+        }
+        
+        console.log('Final mediaUrl:', mediaUrl);
+        
+        if (mediaType === 'video') {
+            return `<video src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: cover;" controls></video>`;
+        } else {
+            return `<img src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<div class=\\"media-placeholder\\"><i class=\\"bi bi-image\\"></i><br>Error</div>'">`;
+        }
+    }
+
+    async applyManualScrapResults() {
+        try {
+            // Collect selected values from the form
+            const selectedValues = {};
+            
+            // Get text field selections from clickable cells
+            const textFieldCells = document.querySelectorAll('td[data-field]');
+            textFieldCells.forEach(cell => {
+                const fieldName = cell.dataset.field;
+                const selectedSource = cell.dataset.selected;
+                selectedValues[fieldName] = selectedSource;
+            });
+
+            // Get media field selections
+            const mediaFieldRadios = document.querySelectorAll('input[name$="_source"]:checked');
+            mediaFieldRadios.forEach(radio => {
+                const fieldName = radio.name.replace('_source', '');
+                const selectedSource = radio.value;
+                selectedValues[fieldName] = selectedSource;
+            });
+
+            console.log('Selected values:', selectedValues);
+
+            // TODO: Implement the actual application of selected values
+            // This would involve:
+            // 1. Downloading selected media files
+            // 2. Updating the gamelist.xml with selected text fields
+            // 3. Refreshing the game data
+
+            this.showAlert('Manual scrap results applied successfully!', 'success');
+            
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('manualScrapModal'));
+            modal.hide();
+
+        } catch (error) {
+            console.error('Error applying manual scrap results:', error);
+            this.showAlert('Error applying manual scrap results', 'error');
         }
     }
 

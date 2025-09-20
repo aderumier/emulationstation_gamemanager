@@ -6870,6 +6870,70 @@ def delete_game_media_batch(system_name):
         app.logger.error(f'Error deleting media batch: {str(e)}')
         return jsonify({'error': f'Failed to delete media batch: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/game/manual-scrap', methods=['POST'])
+@login_required
+def manual_scrap_game(system_name):
+    """Manually scrape a single game from all available sources"""
+    try:
+        # Check if system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        rom_path = data.get('rom_path')
+        if not rom_path:
+            return jsonify({'error': 'ROM path is required'}), 400
+        
+        # Get current game data from gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        current_game = None
+        for game in games:
+            if game.get('path') == rom_path:
+                current_game = game
+                break
+        
+        if not current_game:
+            return jsonify({'error': 'Game not found in gamelist'}), 404
+        
+        # Initialize results structure
+        scrap_results = {
+            'text_fields': {
+                'name': {'current': current_game.get('name', ''), 'sources': {}},
+                'desc': {'current': current_game.get('desc', ''), 'sources': {}},
+                'developer': {'current': current_game.get('developer', ''), 'sources': {}},
+                'publisher': {'current': current_game.get('publisher', ''), 'sources': {}},
+                'genre': {'current': current_game.get('genre', ''), 'sources': {}},
+                'releasedate': {'current': current_game.get('releasedate', ''), 'sources': {}}
+            },
+            'media_fields': {
+                'image': {'current': current_game.get('image', ''), 'sources': {}},
+                'marquee': {'current': current_game.get('marquee', ''), 'sources': {}},
+                'video': {'current': current_game.get('video', ''), 'sources': {}}
+            }
+        }
+        
+        # TODO: Implement actual scraping logic for each source
+        # For now, return the structure with empty sources
+        
+        return jsonify({
+            'success': True,
+            'results': scrap_results,
+            'message': 'Manual scrap completed (placeholder)'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error in manual scrap: {str(e)}')
+        return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
+
 @app.route('/api/task/status')
 @login_required
 def get_task_status():

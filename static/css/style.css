@@ -1040,6 +1040,29 @@ body {
     100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
+/* Manual Scrap Modal - Clickable Text Field Cells */
+.manual-scrap-table td[data-field] {
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.manual-scrap-table td[data-field]:hover {
+    background-color: #e3f2fd !important;
+    border-color: #2196f3 !important;
+    transform: scale(1.02);
+}
+
+.manual-scrap-table td[data-field] .badge {
+    font-size: 0.75rem;
+    padding: 0.4em 0.6em;
+    transition: all 0.2s ease;
+}
+
+.manual-scrap-table td[data-field]:hover .badge {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
 /* Edit Game Modal Tabs */
 #editGameModalTabs .nav-link {
     color: #6c757d;
