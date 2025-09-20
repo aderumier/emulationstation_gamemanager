@@ -4075,6 +4075,7 @@ class GameCollectionManager {
         document.getElementById('manualScrapLoading').style.display = 'none';
         document.getElementById('manualScrapContent').style.display = 'block';
 
+
         // Populate text fields table
         this.populateTextFieldsTable(results.text_fields);
         
@@ -4113,77 +4114,63 @@ class GameCollectionManager {
             currentCell.className = 'text-muted';
             row.appendChild(currentCell);
 
-            // Source columns (IGDB, Steam, ScreenScraper, SteamGridDB)
-            const sources = ['igdb', 'steam', 'screenscraper', 'steamgriddb'];
+            // Make the row track selection state
+            row.dataset.field = fieldKey;
+            row.dataset.selected = 'current';
+
+            // Make current cell clickable to select 'current'
+            currentCell.dataset.source = 'current';
+            currentCell.style.cursor = 'pointer';
+            currentCell.title = 'Click to select current value';
+            currentCell.addEventListener('click', () => {
+                this.setTextFieldSelection(row, 'current');
+            });
+
+            // Source columns (IGDB, ScreenScraper, LaunchBox)
+            const sources = ['igdb', 'screenscraper', 'launchbox'];
             sources.forEach(source => {
                 const sourceCell = document.createElement('td');
                 const sourceValue = fieldData.sources[source] || '';
                 sourceCell.textContent = sourceValue || 'N/A';
                 sourceCell.className = sourceValue ? 'text-success' : 'text-muted';
+                sourceCell.dataset.source = source;
+                sourceCell.style.cursor = 'pointer';
+                if (sourceValue) {
+                    sourceCell.title = `Click to select ${source}`;
+                }
+                sourceCell.addEventListener('click', () => {
+                    // Only allow selecting if there is a value for this source
+                    if (fieldData.sources[source]) {
+                        this.setTextFieldSelection(row, source);
+                    }
+                });
                 row.appendChild(sourceCell);
             });
 
-            // Select column - show current selection
-            const selectCell = document.createElement('td');
-            selectCell.className = 'text-center';
-            selectCell.innerHTML = '<span class="badge bg-secondary">Current</span>';
-            selectCell.dataset.field = fieldKey;
-            selectCell.dataset.selected = 'current';
-            selectCell.style.cursor = 'pointer';
-            selectCell.title = 'Click to cycle through available sources';
-            row.appendChild(selectCell);
+            // Initialize selection highlight on 'current'
+            this.setTextFieldSelection(row, 'current');
 
             tbody.appendChild(row);
         });
-
-        // Add click handlers for select cells
-        this.addTextFieldClickHandlers(textFields);
     }
 
-    addTextFieldClickHandlers(textFields) {
-        const selectCells = document.querySelectorAll('td[data-field]');
-        selectCells.forEach(cell => {
-            cell.addEventListener('click', () => {
-                const fieldKey = cell.dataset.field;
-                const currentSelection = cell.dataset.selected;
-                const fieldData = textFields[fieldKey];
-                
-                // Get available sources (including current)
-                const availableSources = ['current'];
-                const sources = ['igdb', 'steam', 'screenscraper', 'steamgriddb'];
-                sources.forEach(source => {
-                    if (fieldData.sources[source]) {
-                        availableSources.push(source);
-                    }
-                });
-                
-                // Find next source in cycle
-                const currentIndex = availableSources.indexOf(currentSelection);
-                const nextIndex = (currentIndex + 1) % availableSources.length;
-                const nextSource = availableSources[nextIndex];
-                
-                // Update the cell display
-                this.updateTextFieldSelection(cell, nextSource, fieldData);
-            });
+    setTextFieldSelection(row, source) {
+        row.dataset.selected = source;
+        // Clear highlight from all selectable cells in this row
+        row.querySelectorAll('td[data-source]').forEach(td => {
+            td.classList.remove('table-active');
         });
-    }
-
-    updateTextFieldSelection(cell, source, fieldData) {
-        cell.dataset.selected = source;
-        
-        if (source === 'current') {
-            cell.innerHTML = '<span class="badge bg-secondary">Current</span>';
-        } else {
-            const sourceValue = fieldData.sources[source];
-            const displayText = source.charAt(0).toUpperCase() + source.slice(1);
-            const badgeClass = sourceValue ? 'bg-success' : 'bg-warning';
-            cell.innerHTML = `<span class="badge ${badgeClass}">${displayText}</span>`;
+        // Highlight the selected cell
+        const selectedCell = row.querySelector(`td[data-source="${source}"]`);
+        if (selectedCell) {
+            selectedCell.classList.add('table-active');
         }
     }
 
     populateMediaFields(mediaFields) {
         const container = document.getElementById('mediaFieldsContainer');
         container.innerHTML = '';
+
 
         const mediaTypes = {
             'image': 'Box Art',
@@ -4262,34 +4249,32 @@ class GameCollectionManager {
             return '<div class="media-placeholder"><i class="bi bi-image"></i><br>No Media</div>';
         }
 
-        console.log('getMediaPreview called with:', { mediaPath, mediaType, currentSystem: this.currentSystem });
-
         let mediaUrl;
         
-        // Remove leading ./ if present
-        let cleanPath = mediaPath;
-        if (cleanPath.startsWith('./')) {
-            cleanPath = cleanPath.substring(2);
-        }
-        
-        console.log('After removing ./:', cleanPath);
-        
-        // Check if the path already contains the full structure starting with /roms/
-        if (cleanPath.startsWith('/roms/')) {
-            // Path already contains full structure, use it as-is
-            mediaUrl = cleanPath;
-            console.log('Using full path as-is:', mediaUrl);
-        } else if (cleanPath.startsWith('media/')) {
-            // Path starts with media/, it's a relative path from system root
-            mediaUrl = `/roms/${this.currentSystem}/${cleanPath}`;
-            console.log('Constructed URL for media/ path:', mediaUrl);
+        // Check if it's an external URL (starts with http:// or https://)
+        if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
+            // External URL, use directly
+            mediaUrl = mediaPath;
         } else {
-            // Path is just a filename, construct the full URL
-            mediaUrl = `/roms/${this.currentSystem}/media/${mediaType}s/${cleanPath}`;
-            console.log('Constructed URL for filename:', mediaUrl);
+            // Local file path - handle as before
+            // Remove leading ./ if present
+            let cleanPath = mediaPath;
+            if (cleanPath.startsWith('./')) {
+                cleanPath = cleanPath.substring(2);
+            }
+            
+            // Check if the path already contains the full structure starting with /roms/
+            if (cleanPath.startsWith('/roms/')) {
+                // Path already contains full structure, use it as-is
+                mediaUrl = cleanPath;
+            } else if (cleanPath.startsWith('media/')) {
+                // Path starts with media/, it's a relative path from system root
+                mediaUrl = `/roms/${this.currentSystem}/${cleanPath}`;
+            } else {
+                // Path is just a filename, construct the full URL
+                mediaUrl = `/roms/${this.currentSystem}/media/${mediaType}s/${cleanPath}`;
+            }
         }
-        
-        console.log('Final mediaUrl:', mediaUrl);
         
         if (mediaType === 'video') {
             return `<video src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: cover;" controls></video>`;

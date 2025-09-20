@@ -48,6 +48,9 @@ from datetime import datetime
 import uuid
 import subprocess as sp
 from collections import Counter
+from steam_service import SteamService
+from screenscraper_service import ScreenScraperService
+from steamgrid_service import SteamGridService
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -527,7 +530,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 @app.before_request
 def log_request_info():
     # Skip logging for frequent API calls to reduce console spam
-    if request.path != '/api/tasks':
+    if request.path not in ['/api/tasks', '/api/task/queue']:
         print(f"DEBUG REQUEST: {request.method} {request.path} - Endpoint: {request.endpoint}")
 
 # Disable Flask's default HTTP request logging to reduce console spam
@@ -6896,13 +6899,35 @@ def manual_scrap_game(system_name):
         
         games = parse_gamelist_xml(gamelist_path)
         current_game = None
+        
+        # Debug: Print all game paths to see what we're working with
+        print(f"DEBUG: Looking for rom_path: '{rom_path}'")
+        print(f"DEBUG: Available game paths:")
+        for i, game in enumerate(games[:5]):  # Show first 5 games
+            print(f"  {i}: '{game.get('path')}'")
+        
+        # Try exact match first
         for game in games:
             if game.get('path') == rom_path:
                 current_game = game
                 break
         
+        # If no exact match, try to find by filename
         if not current_game:
-            return jsonify({'error': 'Game not found in gamelist'}), 404
+            rom_filename = os.path.basename(rom_path)
+            print(f"DEBUG: No exact match, trying to find by filename: '{rom_filename}'")
+            for game in games:
+                game_filename = os.path.basename(game.get('path', ''))
+                if game_filename == rom_filename:
+                    current_game = game
+                    print(f"DEBUG: Found game by filename: '{game.get('path')}'")
+                    break
+        
+        if not current_game:
+            return jsonify({'error': f'Game not found in gamelist. Looking for: {rom_path}'}), 404
+        
+        # Debug: Print current game data
+        print(f"DEBUG: Current game data: {current_game}")
         
         # Initialize results structure
         scrap_results = {
@@ -6921,18 +6946,621 @@ def manual_scrap_game(system_name):
             }
         }
         
-        # TODO: Implement actual scraping logic for each source
-        # For now, return the structure with empty sources
+        # Get system configuration
+        config = load_config()
+        systems_config = config.get('systems', {})
+        system_config = systems_config.get(system_name, {})
+        
+        # Debug: Print system config and game IDs
+        print(f"DEBUG: System config: {system_config}")
+        print(f"DEBUG: Game has screenscraperid: {current_game.get('screenscraperid')}")
+        print(f"DEBUG: Game has launchboxid: {current_game.get('launchboxid')}")
+        print(f"DEBUG: Game has igdbid: {current_game.get('igdbid')}")
+        
+        # Scrape from each available source
+        import asyncio
+        
+        async def scrape_all_sources(sys_config):
+            # IGDB scraping
+            if sys_config.get('igdb'):
+                try:
+                    igdb_data = await scrape_igdb_manual(current_game, system_name, sys_config)
+                    if igdb_data:
+                        # Update text fields
+                        for field, value in igdb_data.get('text_fields', {}).items():
+                            if value and field in scrap_results['text_fields']:
+                                scrap_results['text_fields'][field]['sources']['igdb'] = value
+                        
+                        # Update media fields
+                        for field, value in igdb_data.get('media_fields', {}).items():
+                            if value and field in scrap_results['media_fields']:
+                                scrap_results['media_fields'][field]['sources']['igdb'] = value
+                except Exception as e:
+                    print(f"IGDB scraping error: {e}")
+            
+            # Steam scraping
+            if current_game.get('steamid'):
+                try:
+                    steam_data = await scrape_steam_manual(current_game, system_name)
+                    if steam_data:
+                        # Update text fields
+                        for field, value in steam_data.get('text_fields', {}).items():
+                            if value and field in scrap_results['text_fields']:
+                                scrap_results['text_fields'][field]['sources']['steam'] = value
+                        
+                        # Update media fields
+                        for field, value in steam_data.get('media_fields', {}).items():
+                            if value and field in scrap_results['media_fields']:
+                                scrap_results['media_fields'][field]['sources']['steam'] = value
+                except Exception as e:
+                    print(f"Steam scraping error: {e}")
+            
+            # ScreenScraper scraping
+            if sys_config.get('screenscraper') and current_game.get('screenscraperid'):
+                print(f"DEBUG: Calling ScreenScraper scraper for game: {current_game.get('name')} with ID: {current_game.get('screenscraperid')}")
+                try:
+                    screenscraper_data = await scrape_screenscraper_manual(current_game, system_name, sys_config)
+                    print(f"DEBUG: ScreenScraper returned: {screenscraper_data}")
+                    if screenscraper_data:
+                        # Update text fields
+                        for field, value in screenscraper_data.get('text_fields', {}).items():
+                            if value and field in scrap_results['text_fields']:
+                                scrap_results['text_fields'][field]['sources']['screenscraper'] = value
+                        
+                        # Update media fields
+                        for field, value in screenscraper_data.get('media_fields', {}).items():
+                            if value and field in scrap_results['media_fields']:
+                                scrap_results['media_fields'][field]['sources']['screenscraper'] = value
+                except Exception as e:
+                    print(f"ScreenScraper scraping error: {e}")
+            else:
+                print(f"DEBUG: ScreenScraper not enabled or no ID found. Config: {sys_config.get('screenscraper')}, Game ID: {current_game.get('screenscraperid')}")
+            
+            # SteamGridDB scraping
+            if current_game.get('steamid'):
+                try:
+                    steamgrid_data = await scrape_steamgriddb_manual(current_game, system_name)
+                    if steamgrid_data:
+                        # Update media fields
+                        for field, value in steamgrid_data.get('media_fields', {}).items():
+                            if value and field in scrap_results['media_fields']:
+                                scrap_results['media_fields'][field]['sources']['steamgriddb'] = value
+                except Exception as e:
+                    print(f"SteamGridDB scraping error: {e}")
+            
+            # LaunchBox scraping
+            if current_game.get('launchboxid'):
+                print(f"DEBUG: Calling LaunchBox scraper for game: {current_game.get('name')} with ID: {current_game.get('launchboxid')}")
+                try:
+                    launchbox_data = await scrape_launchbox_manual(current_game, system_name)
+                    print(f"DEBUG: LaunchBox returned: {launchbox_data}")
+                    if launchbox_data:
+                        # Update text fields
+                        for field, value in launchbox_data.get('text_fields', {}).items():
+                            if value and field in scrap_results['text_fields']:
+                                scrap_results['text_fields'][field]['sources']['launchbox'] = value
+                        
+                        # Update media fields
+                        for field, value in launchbox_data.get('media_fields', {}).items():
+                            if value and field in scrap_results['media_fields']:
+                                scrap_results['media_fields'][field]['sources']['launchbox'] = value
+                except Exception as e:
+                    print(f"LaunchBox scraping error: {e}")
+            else:
+                print(f"DEBUG: No LaunchBox ID found for game: {current_game.get('name')}")
+        
+        # Run the async scraping
+        print(f"DEBUG: About to call scrape_all_sources with system_config: {system_config}")
+        asyncio.run(scrape_all_sources(system_config))
+        
+        # Debug: Print the final results
+        print(f"DEBUG: Final manual scrap results: {scrap_results}")
         
         return jsonify({
             'success': True,
             'results': scrap_results,
-            'message': 'Manual scrap completed (placeholder)'
+            'message': 'Manual scrap completed successfully'
         })
         
     except Exception as e:
         app.logger.error(f'Error in manual scrap: {str(e)}')
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
+
+async def scrape_igdb_manual(game, system_name, system_config):
+    """Scrape IGDB data for manual scrap (returns data without writing files)"""
+    try:
+        # Get IGDB configuration
+        igdb_config = get_igdb_config()
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            return None
+        
+        # Get access token
+        access_token = get_igdb_access_token()
+        if not access_token:
+            return None
+        
+        # Get IGDB platform ID
+        igdb_platform_id = system_config.get('igdb')
+        if not igdb_platform_id:
+            return None
+        
+        # Get async client
+        async_client = await get_igdb_async_client()
+        
+        # Get game name
+        game_name = game.get('name', '')
+        if not game_name:
+            return None
+        
+        # Check if already has IGDB ID
+        existing_igdb_id = game.get('igdbid')
+        
+        # Get IGDB game data
+        if existing_igdb_id:
+            igdb_game = await fetch_igdb_game_by_id_async(
+                existing_igdb_id,
+                access_token,
+                igdb_config['client_id'],
+                async_client
+            )
+        else:
+            igdb_game = await search_igdb_game_by_name_async(
+                game_name, 
+                igdb_platform_id, 
+                access_token, 
+                igdb_config['client_id'],
+                async_client
+            )
+        
+        if not igdb_game:
+            return None
+        
+        # Get field mappings
+        config = load_config()
+        igdb_mapping = config.get('igdb', {}).get('mapping', {})
+        igdb_image_mapping = config.get('igdb', {}).get('image_type_mappings', {})
+        
+        # Extract text fields
+        text_fields = {}
+        if igdb_game.get('name'):
+            text_fields['name'] = igdb_game['name']
+        if igdb_game.get('summary'):
+            text_fields['desc'] = igdb_game['summary']
+        if igdb_game.get('first_release_date'):
+            # Convert timestamp to date
+            import datetime
+            release_date = datetime.datetime.fromtimestamp(igdb_game['first_release_date'])
+            text_fields['releasedate'] = release_date.strftime('%Y%m%d')
+        
+        # Get genres
+        if igdb_game.get('genres'):
+            try:
+                genre_ids = igdb_game['genres']
+                # Convert genre IDs to strings (same as existing code)
+                genre_names = [str(g) for g in genre_ids]
+                if genre_names:
+                    text_fields['genre'] = ', '.join(genre_names)
+            except Exception as e:
+                print(f"Error getting genres: {e}")
+        
+        # Get involved companies
+        try:
+            involved_companies = await fetch_igdb_involved_companies(
+                async_client, access_token, igdb_config['client_id'], igdb_game['id']
+            )
+            if involved_companies:
+                developers = []
+                publishers = []
+                for company in involved_companies:
+                    company_id = company.get('company')
+                    if company_id:
+                        company_name = get_igdb_company_name(company_id)
+                        if company_name:
+                            if company.get('developer'):
+                                developers.append(company_name)
+                            if company.get('publisher'):
+                                publishers.append(company_name)
+                
+                if developers:
+                    text_fields['developer'] = ', '.join(developers)
+                if publishers:
+                    text_fields['publisher'] = ', '.join(publishers)
+        except Exception as e:
+            print(f"Error getting involved companies: {e}")
+        
+        # Extract media fields
+        media_fields = {}
+        
+        # Get cover image
+        if igdb_game.get('cover'):
+            cover_id = igdb_game['cover']
+            cover_url = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
+            media_fields['image'] = cover_url
+        
+        # Get screenshots
+        if igdb_game.get('screenshots'):
+            screenshot_id = igdb_game['screenshots'][0]  # Get first screenshot
+            screenshot_url = f"https://images.igdb.com/igdb/image/upload/t_screenshot_big/{screenshot_id}.jpg"
+            media_fields['marquee'] = screenshot_url
+        
+        # Get artworks
+        try:
+            artworks = await fetch_igdb_artworks(
+                async_client, access_token, igdb_config['client_id'], igdb_game['id']
+            )
+            if artworks:
+                # Use first artwork as marquee if no screenshot
+                if not media_fields.get('marquee'):
+                    artwork_id = artworks[0]
+                    artwork_url = f"https://images.igdb.com/igdb/image/upload/t_artwork_big/{artwork_id}.jpg"
+                    media_fields['marquee'] = artwork_url
+        except Exception as e:
+            print(f"Error getting artworks: {e}")
+        
+        return {
+            'text_fields': text_fields,
+            'media_fields': media_fields
+        }
+        
+    except Exception as e:
+        print(f"Error in IGDB manual scraping: {e}")
+        return None
+
+async def scrape_steam_manual(game, system_name):
+    """Scrape Steam data for manual scrap (returns data without writing files)"""
+    try:
+        steam_id = game.get('steamid')
+        print(f"DEBUG: Steam manual scrap - steam_id: {steam_id}")
+        if not steam_id:
+            print("DEBUG: Steam manual scrap - No steam_id found")
+            return None
+        
+        # Get Steam service
+        steam_service = SteamService()
+        
+        # Get Steam game data
+        steam_data = await steam_service.get_steam_game_data(steam_id)
+        if not steam_data:
+            return None
+        
+        # Extract text fields
+        text_fields = {}
+        if steam_data.get('name'):
+            text_fields['name'] = steam_data['name']
+        if steam_data.get('short_description'):
+            text_fields['desc'] = steam_data['short_description']
+        if steam_data.get('release_date', {}).get('date'):
+            # Convert Steam date format to YYYYMMDD
+            release_date = steam_data['release_date']['date']
+            if release_date:
+                try:
+                    import datetime
+                    date_obj = datetime.datetime.strptime(release_date, '%d %b, %Y')
+                    text_fields['releasedate'] = date_obj.strftime('%Y%m%d')
+                except:
+                    pass
+        
+        # Get developers and publishers
+        if steam_data.get('developers'):
+            text_fields['developer'] = ', '.join(steam_data['developers'])
+        if steam_data.get('publishers'):
+            text_fields['publisher'] = ', '.join(steam_data['publishers'])
+        
+        # Get genres
+        if steam_data.get('genres'):
+            genre_names = [genre.get('description', '') for genre in steam_data['genres'] if genre.get('description')]
+            if genre_names:
+                text_fields['genre'] = ', '.join(genre_names)
+        
+        # Extract media fields
+        media_fields = {}
+        if steam_data.get('header_image'):
+            media_fields['image'] = steam_data['header_image']
+        
+        return {
+            'text_fields': text_fields,
+            'media_fields': media_fields
+        }
+        
+    except Exception as e:
+        print(f"Error in Steam manual scraping: {e}")
+        return None
+
+async def scrape_screenscraper_manual(game, system_name, system_config):
+    """Scrape ScreenScraper data for manual scrap (returns data without writing files)"""
+    try:
+        # Get existing ScreenScraper ID from game data
+        screenscraper_id = game.get('screenscraperid')
+        if not screenscraper_id:
+            return None
+        
+        # Get ScreenScraper configuration
+        screenscraper_config = system_config.get('screenscraper', {})
+        if isinstance(screenscraper_config, int):
+            # If it's just an integer (system_id), it's enabled
+            pass
+        elif not screenscraper_config.get('enabled'):
+            return None
+        
+        # Get ScreenScraper service with proper initialization
+        from credential_manager import CredentialManager
+        credential_manager = CredentialManager()
+        screenscraper_credentials = credential_manager.get_screenscraper_credentials()
+        
+        # Get the full config (needed for systems mapping)
+        config = load_config()
+        
+        # Handle case where screenscraper config is just an integer (system_id)
+        if isinstance(screenscraper_config, int):
+            system_id = screenscraper_config
+        else:
+            system_id = screenscraper_config.get('system_id')
+        
+        screenscraper_service = ScreenScraperService(config, screenscraper_credentials)
+        
+        if not system_id:
+            return None
+        
+        # Get game data directly using the existing ScreenScraper ID
+        # Use system_name for system resolution inside the service
+        game_data = await screenscraper_service.get_game_by_id(screenscraper_id, system_name)
+        if not game_data:
+            return None
+        
+        # Use the game data directly
+        detailed_data = game_data
+        
+        # Extract text fields
+        text_fields = {}
+        if detailed_data.get('noms'):
+            # Get first name
+            names = detailed_data['noms']
+            if names and len(names) > 0:
+                if isinstance(names[0], dict):
+                    text_fields['name'] = names[0].get('text', '')
+                else:
+                    # If names[0] is not a dict, it might be a string or int
+                    text_fields['name'] = str(names[0])
+        
+        if detailed_data.get('synopsis'):
+            synopsis = detailed_data['synopsis']
+            if isinstance(synopsis, list) and len(synopsis) > 0:
+                # Get the first synopsis entry (usually English)
+                if isinstance(synopsis[0], dict) and 'text' in synopsis[0]:
+                    text_fields['desc'] = synopsis[0]['text']
+                else:
+                    text_fields['desc'] = str(synopsis[0])
+            else:
+                text_fields['desc'] = str(synopsis)
+        
+        if detailed_data.get('dates'):
+            # Get first date
+            dates = detailed_data['dates']
+            if dates and len(dates) > 0:
+                if isinstance(dates[0], dict):
+                    date_text = dates[0].get('text', '')
+                else:
+                    date_text = str(dates[0])
+                if date_text:
+                    try:
+                        # Convert various date formats to YYYYMMDD
+                        import datetime
+                        import re
+                        
+                        # Try different date formats
+                        date_formats = [
+                            '%Y-%m-%d',
+                            '%Y',
+                            '%m/%d/%Y',
+                            '%d/%m/%Y'
+                        ]
+                        
+                        for fmt in date_formats:
+                            try:
+                                date_obj = datetime.datetime.strptime(date_text, fmt)
+                                text_fields['releasedate'] = date_obj.strftime('%Y%m%d')
+                                break
+                            except:
+                                continue
+                    except:
+                        pass
+        
+        # Extract media fields
+        media_fields = {}
+        
+        # Get media URLs
+        if detailed_data.get('medias'):
+            medias = detailed_data['medias']
+            for media in medias:
+                media_type = media.get('type')
+                media_url = media.get('url')
+                
+                if media_type == 'ss' and media_url:  # Screenshot
+                    media_fields['image'] = media_url
+                elif media_type == 'fanart' and media_url:  # Fanart
+                    media_fields['marquee'] = media_url
+        
+        return {
+            'text_fields': text_fields,
+            'media_fields': media_fields
+        }
+        
+    except Exception as e:
+        print(f"Error in ScreenScraper manual scraping: {e}")
+        return None
+
+async def scrape_steamgriddb_manual(game, system_name):
+    """Scrape SteamGridDB data for manual scrap (returns data without writing files)"""
+    try:
+        steam_id = game.get('steamid')
+        print(f"DEBUG: SteamGridDB manual scrap - steam_id: {steam_id}")
+        if not steam_id:
+            print("DEBUG: SteamGridDB manual scrap - No steam_id found")
+            return None
+        
+        # Get SteamGridDB service
+        steamgrid_service = SteamGridService()
+        
+        # Get API key
+        api_key = steamgrid_service.get_api_key()
+        if not api_key:
+            return None
+        
+        # Get SteamGridDB ID
+        steamgrid_id = await steamgrid_service.get_steamgrid_id(steam_id=steam_id, api_key=api_key)
+        if not steamgrid_id:
+            return None
+        
+        # Get media data
+        media_types = ['grids', 'heroes', 'logos']
+        media_data = await steamgrid_service.get_steamgrid_media(steamgrid_id, media_types, api_key)
+        
+        # Extract media fields
+        media_fields = {}
+        
+        # Get best grid (image)
+        if media_data.get('grids'):
+            grids = media_data['grids']
+            if grids:
+                # Sort by score and get the best one
+                best_grid = max(grids, key=lambda x: x.get('score', 0))
+                media_fields['image'] = best_grid.get('url')
+        
+        # Get best hero (marquee)
+        if media_data.get('heroes'):
+            heroes = media_data['heroes']
+            if heroes:
+                # Sort by score and get the best one
+                best_hero = max(heroes, key=lambda x: x.get('score', 0))
+                media_fields['marquee'] = best_hero.get('url')
+        
+        return {
+            'text_fields': {},  # SteamGridDB doesn't provide text data
+            'media_fields': media_fields
+        }
+        
+    except Exception as e:
+        print(f"Error in SteamGridDB manual scraping: {e}")
+        return None
+
+def extract_launchbox_text_fields(game_elem, mapping_config):
+    """Extract text fields from LaunchBox XML element using common logic"""
+    text_fields = {}
+    
+    # Always extract these standard fields regardless of mapping config
+    standard_fields = ['Name', 'Description', 'Developer', 'Publisher', 'Genre', 'ReleaseDate', 'Platform', 'DatabaseID']
+    
+    # Extract text from XML element
+    for child in game_elem:
+        tag = child.tag
+        text = child.text.strip() if child.text else ''
+        
+        if tag in standard_fields:
+            # Map LaunchBox fields to our internal field names
+            if tag == 'Name':
+                text_fields['name'] = text
+            elif tag == 'Description':
+                text_fields['desc'] = text
+            elif tag == 'Developer':
+                text_fields['developer'] = text
+            elif tag == 'Publisher':
+                text_fields['publisher'] = text
+            elif tag == 'Genre':
+                text_fields['genre'] = text
+            elif tag == 'ReleaseDate':
+                if text and len(text) == 8:
+                    # Already in YYYYMMDD format
+                    text_fields['releasedate'] = text
+                else:
+                    try:
+                        import datetime
+                        if text:
+                            # Try to parse various date formats including ISO format
+                            for fmt in ['%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S+00:00', '%Y-%m-%d', '%Y/%m/%d', '%m/%d/%Y', '%d/%m/%Y']:
+                                try:
+                                    date_obj = datetime.datetime.strptime(text, fmt)
+                                    text_fields['releasedate'] = date_obj.strftime('%Y%m%d')
+                                    break
+                                except:
+                                    continue
+                    except:
+                        pass
+    
+    return text_fields
+
+async def scrape_launchbox_manual(game, system_name):
+    """Scrape LaunchBox data for manual scrap (returns data without writing files)"""
+    try:
+        launchbox_id = game.get('launchboxid')
+        if not launchbox_id:
+            return None
+        
+        # Get LaunchBox game data from cache
+        # Try both str and int keys since cache keys may be stringified
+        game_metadata = global_metadata_cache.get(launchbox_id)
+        if not game_metadata:
+            game_metadata = global_metadata_cache.get(str(launchbox_id)) or global_metadata_cache.get(int(launchbox_id))
+        if not game_metadata:
+            return None
+        
+        game_elem = game_metadata.get('game')
+        if not game_elem:
+            return None
+        
+        # Get mapping configuration
+        config = load_config()
+        mapping_config = config.get('launchbox', {}).get('mapping', {})
+        
+        # Extract text fields using common logic
+        text_fields = extract_launchbox_text_fields(game_elem, mapping_config)
+        
+        # Extract media fields from the images in the metadata
+        media_fields = {}
+        
+        # Get media URLs from LaunchBox images in the metadata
+        if 'images' in game_metadata and game_metadata['images']:
+            images = game_metadata['images']
+            
+            # Get LaunchBox image base URL from config
+            image_config = load_image_mappings()
+            base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
+            
+            for image in images:
+                if hasattr(image, 'tag'):  # XML element
+                    # Extract data from XML element
+                    image_type_elem = image.find('Type')
+                    filename_elem = image.find('FileName')
+                    
+                    if image_type_elem is not None and filename_elem is not None:
+                        image_type = image_type_elem.text.strip() if image_type_elem.text else ''
+                        filename = filename_elem.text.strip() if filename_elem.text else ''
+                        
+                        if filename:
+                            # Construct full URL from base URL + filename
+                            image_url = base_url + filename
+                            
+                            # Map image types to media fields
+                            if image_type in ['Box - Front', 'Box - 3D', 'Box - Back']:
+                                media_fields['image'] = image_url
+                            elif image_type in ['Fanart - Background', 'Fanart - Banner', 'Screenshot - Game Title']:
+                                media_fields['marquee'] = image_url
+                elif isinstance(image, dict):
+                    image_type = image.get('type', '').lower()
+                    image_url = image.get('url')
+                    
+                    if image_type in ['boxart', 'box art', 'cover'] and image_url:
+                        media_fields['image'] = image_url
+                    elif image_type in ['fanart', 'fan art', 'marquee', 'banner'] and image_url:
+                        media_fields['marquee'] = image_url
+        
+        return {
+            'text_fields': text_fields,
+            'media_fields': media_fields
+        }
+        
+    except Exception as e:
+        print(f"Error in LaunchBox manual scraping: {e}")
+        return None
 
 @app.route('/api/task/status')
 @login_required
@@ -9194,9 +9822,9 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
         else:
             # Use software encoder
             process_cmd.extend([
-                '-c:v', 'libx264',
-                '-c:a', 'aac',
-                '-y',  # Overwrite output file
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-y',  # Overwrite output file
                 processed_path
             ])
         

@@ -534,6 +534,82 @@ class ScreenScraperService:
                 return None
         
         return None
+
+    async def get_game_by_id(self, gameid: str, system_name: str) -> Optional[Dict]:
+        """
+        Fetch a ScreenScraper game's data directly by its ScreenScraper jeu ID.
+
+        Args:
+            gameid: ScreenScraper game ID (gameid)
+            system_name: The system name (needed to resolve systemeid and region/media policies)
+
+        Returns:
+            The 'game' dictionary from ScreenScraper if found, else None
+        """
+        if not all([self.devid, self.devpassword, self.ssid, self.sspassword]):
+            print("ScreenScraper credentials not configured")
+            return None
+
+        # Resolve ScreenScraper system ID from main config
+        systemeid = self.get_system_id(system_name)
+        if not systemeid:
+            print(f"No ScreenScraper system ID found for {system_name}")
+            return None
+
+        params = {
+            'devid': self.devid,
+            'devpassword': self.devpassword,
+            'ssid': self.ssid,
+            'sspassword': self.sspassword,
+            # Use 'gameid' for jeuInfos.php when fetching by ID
+            'gameid': str(gameid),
+            'systemeid': systemeid,
+            'output': 'json'
+        }
+
+        client = await get_screenscraper_async_client(self.max_connections)
+
+        for attempt in range(self.retry_attempts):
+            try:
+                # Debug prints
+                print(f"Fetching ScreenScraper by ID: {gameid} (attempt {attempt + 1})")
+                print(f"API URL: {self.api_url}")
+                print(f"Params: {params}")
+                response = await client.get(self.api_url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"ID fetch response: {data}")
+                    if 'response' in data and 'jeu' in data['response']:
+                        jeu = data['response']['jeu']
+                        # API may return a dict or list; normalize to dict
+                        if isinstance(jeu, list) and len(jeu) > 0:
+                            return jeu[0]
+                        if isinstance(jeu, dict):
+                            return jeu
+                        return None
+                    elif response.status_code == 429:
+                        wait_time = 2 ** attempt
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"ScreenScraper API returned status {response.status_code}")
+                        print(f"Response text: {response.text}")
+                        return None
+            except httpx.TimeoutException:
+                if attempt < self.retry_attempts - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return None
+            except Exception as e:
+                print(f"Error fetching ScreenScraper game by id '{gameid}': {e}")
+                import traceback
+                traceback.print_exc()
+                if attempt < self.retry_attempts - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return None
+
+        return None
     
     async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None, is_cancelled_callback=None) -> Dict[str, str]:
         """
