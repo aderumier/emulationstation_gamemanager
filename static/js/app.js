@@ -4028,6 +4028,10 @@ class GameCollectionManager {
             return;
         }
 
+        // Keep rom path and clear previous selections
+        this.currentManualScrapRomPath = game.path;
+        this.manualScrapSelectedMedia = {};
+
         // Show the manual scrap modal
         const modal = new bootstrap.Modal(document.getElementById('manualScrapModal'));
         modal.show();
@@ -4043,6 +4047,7 @@ class GameCollectionManager {
                 headers: {
                     'Content-Type': 'application/json'
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     rom_path: game.path
                 })
@@ -4050,6 +4055,9 @@ class GameCollectionManager {
 
             if (response.ok) {
                 const result = await response.json();
+                // store results for apply mapping if needed
+                this.lastManualScrapResults = result.results || {};
+                this.lastManualScrapTextFields = (result.results && result.results.text_fields) || {};
                 this.displayManualScrapResults(result.results);
             } else {
                 const errorData = await response.json();
@@ -4185,16 +4193,7 @@ class GameCollectionManager {
             const cardBody = document.createElement('div');
             cardBody.className = 'card-body';
             
-            // Current media
-            const currentSection = document.createElement('div');
-            currentSection.className = 'mb-3';
-            currentSection.innerHTML = `
-                <h6>Current:</h6>
-                <div class="media-preview-item" style="width: 150px; height: 150px;">
-                    ${this.getMediaPreview(mediaData.current, mediaKey)}
-                </div>
-            `;
-            cardBody.appendChild(currentSection);
+            // Removed 'Current' preview section per request
 
             // Source options
             const sourcesSection = document.createElement('div');
