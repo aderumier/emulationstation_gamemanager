@@ -462,15 +462,13 @@ class ScreenScraperService:
             'output': 'json'
         }
         
-        # Get the global connection pool client
-        client = await get_screenscraper_async_client(self.max_connections)
-        
         for attempt in range(self.retry_attempts):
             try:
                 print(f"Searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
                 print(f"API URL: {self.api_url}")
                 print(f"Params: {params}")
-                response = await client.get(self.api_url, params=params)
+                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                    response = await client.get(self.api_url, params=params)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -567,15 +565,14 @@ class ScreenScraperService:
             'output': 'json'
         }
 
-        client = await get_screenscraper_async_client(self.max_connections)
-
         for attempt in range(self.retry_attempts):
             try:
                 # Debug prints
                 print(f"Fetching ScreenScraper by ID: {gameid} (attempt {attempt + 1})")
                 print(f"API URL: {self.api_url}")
                 print(f"Params: {params}")
-                response = await client.get(self.api_url, params=params)
+                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                    response = await client.get(self.api_url, params=params)
                 if response.status_code == 200:
                     data = response.json()
                     print(f"ID fetch response: {data}")
