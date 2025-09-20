@@ -7075,6 +7075,74 @@ def manual_scrap_game(system_name):
             'results': scrap_results,
             'message': 'Manual scrap completed successfully'
         })
+
+@app.route('/api/rom-system/<system_name>/game/manual-scrap/apply', methods=['POST'])
+@login_required
+def apply_manual_scrap(system_name):
+    """Apply selected manual scrap changes: update text fields and download selected media."""
+    try:
+        data = request.get_json(force=True) or {}
+        rom_path = data.get('rom_path')
+        selections = data.get('selections', {})
+        if not rom_path:
+            return jsonify({'error': 'rom_path is required'}), 400
+
+        # Load gamelist and find the game
+        system_dir = os.path.join('roms', system_name)
+        gamelist_path = os.path.join(system_dir, 'gamelist.xml')
+        games = parse_gamelist_xml(gamelist_path)
+        game = next((g for g in games if g.get('path') == rom_path or os.path.basename(g.get('path','')) == os.path.basename(rom_path)), None)
+        if not game:
+            return jsonify({'error': 'Game not found'}), 404
+
+        # Update text fields
+        text_fields = ['name','desc','developer','publisher','genre','releasedate']
+        for field in text_fields:
+            selected_source = selections.get(field)
+            selected_value = selections.get(f'{field}_value')
+            if selected_value:
+                game[field] = selected_value
+
+        # Handle media downloads: selections may include e.g. image_url, marquee_url
+        media_updates = {}
+        media_fields = config.get('media_fields', {})
+        for media_field in media_fields.keys():
+            selected_url = selections.get(f'{media_field}_url')
+            if selected_url:
+                # Determine target directory
+                directory = media_fields[media_field].get('directory', f'{media_field}s')
+                ext = media_fields[media_field].get('target_extension', None)
+                # Build filename from rom filename
+                rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+                target_dir = os.path.join(system_dir, 'media', directory)
+                os.makedirs(target_dir, exist_ok=True)
+                # Guess extension from URL if not forced
+                from urllib.parse import urlparse
+                parsed = urlparse(selected_url)
+                guessed_ext = os.path.splitext(parsed.path)[1] or '.png'
+                target_ext = ext or guessed_ext
+                target_path = os.path.join(target_dir, f'{rom_filename}{target_ext}')
+
+                # Download
+                try:
+                    resp = requests.get(selected_url, timeout=20)
+                    if resp.status_code == 200:
+                        with open(target_path, 'wb') as f:
+                            f.write(resp.content)
+                        # Update game field with relative path
+                        rel_path = f'./media/{directory}/{rom_filename}{target_ext}'
+                        game[media_field] = rel_path
+                        media_updates[media_field] = rel_path
+                except Exception as e:
+                    print(f'Error downloading media {media_field} from {selected_url}: {e}')
+
+        # Save gamelist back
+        write_gamelist_xml(gamelist_path, games)
+
+        return jsonify({'success': True, 'updated_text_fields': {k: game.get(k) for k in text_fields}, 'updated_media': media_updates})
+    except Exception as e:
+        app.logger.error(f'Error applying manual scrap: {e}')
+        return jsonify({'error': str(e)}), 500
         
     except Exception as e:
         app.logger.error(f'Error in manual scrap: {str(e)}')

@@ -4330,19 +4330,28 @@ class GameCollectionManager {
                 });
             }
 
-            console.log('Selected values:', selectedValues);
-
-            // TODO: Implement the actual application of selected values
-            // This would involve:
-            // 1. Downloading selected media files
-            // 2. Updating the gamelist.xml with selected text fields
-            // 3. Refreshing the game data
-
+            // Include the current rom path for backend to identify the game
+            const romPath = this.currentManualScrapRomPath || (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path);
+            // Send to backend to apply and download
+            const resp = await fetch(`/api/rom-system/${this.currentSystem}/game/manual-scrap/apply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ rom_path: romPath, selections: selectedValues })
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${resp.status}`);
+            }
+            const result = await resp.json();
             this.showAlert('Manual scrap results applied successfully!', 'success');
-            
-            // Close the modal
+            // Optionally refresh grid row if current game present
+            if (this.currentMediaPreviewGame) {
+                Object.assign(this.currentMediaPreviewGame, result.updated_media || {});
+                this.gridApi && this.gridApi.refreshCells && this.gridApi.refreshCells();
+            }
             const modal = bootstrap.Modal.getInstance(document.getElementById('manualScrapModal'));
-            modal.hide();
+            modal && modal.hide();
 
         } catch (error) {
             console.error('Error applying manual scrap results:', error);
