@@ -716,7 +716,6 @@ class GameCollectionManager {
             oldGame.launchboxid !== newGame.launchboxid
         );
     }
-
     initializeTaskGrid() {
         const taskGridElement = document.getElementById('taskGrid');
         if (!taskGridElement) return;
@@ -1476,7 +1475,6 @@ class GameCollectionManager {
             document.body.removeChild(toast);
         });
     }
-
     initializeEventListeners() {
         // System selection
         document.getElementById('systemSelect').addEventListener('change', (e) => {
@@ -2224,7 +2222,6 @@ class GameCollectionManager {
         }
         // Note: scraping and image_download tasks are now handled by the task panel
     }
-
     async loadRomSystem(systemName) {
         if (!systemName) return;
         
@@ -2965,7 +2962,6 @@ class GameCollectionManager {
             this.switchToPreviewTab();
         }, 100);
     }
-
     async populateEditModal(game) {
         // Clear all fields first to ensure no residual data
         document.getElementById('editName').value = '';
@@ -3732,7 +3728,6 @@ class GameCollectionManager {
         document.body.appendChild(fileInput);
         fileInput.click();
     }
-    
     showModalUploadProgress(mediaField, file) {
         // Find the edit modal
         const editModal = document.getElementById('editGameModal');
@@ -4205,39 +4200,57 @@ class GameCollectionManager {
             const sourcesSection = document.createElement('div');
             sourcesSection.innerHTML = '<h6>Available Sources:</h6>';
             
-            const sources = ['igdb', 'steam', 'screenscraper', 'steamgriddb'];
+            // Build a grid of selectable cards for all available media URLs
+            const grid = document.createElement('div');
+            grid.className = 'row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2';
+
+            // Helper to create a selectable tile
+            const createTile = (source, url, index) => {
+                const col = document.createElement('div');
+                col.className = 'col';
+                const tile = document.createElement('div');
+                tile.className = 'card h-100 selectable-media-item';
+                tile.style.cursor = 'pointer';
+                tile.dataset.mediaKey = mediaKey;
+                tile.dataset.source = source;
+                tile.dataset.index = String(index);
+                tile.innerHTML = `
+                    <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 150px; background:#f8f9fa;">
+                        ${this.getMediaPreview(url, mediaKey)}
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="small text-muted">${source.charAt(0).toUpperCase() + source.slice(1)}</div>
+                    </div>
+                `;
+                tile.addEventListener('click', () => {
+                    // remove highlight from other tiles for this media key
+                    card.querySelectorAll('.selectable-media-item').forEach(el => el.classList.remove('border', 'border-primary'));
+                    tile.classList.add('border', 'border-primary');
+                    // store selection on instance
+                    if (!this.manualScrapSelectedMedia) this.manualScrapSelectedMedia = {};
+                    this.manualScrapSelectedMedia[mediaKey] = { source, index, url };
+                });
+                col.appendChild(tile);
+                return col;
+            };
+
+            // Default tile: Keep Current
+            grid.appendChild(createTile('current', mediaData.current, -1));
+            // Preselect current
+            grid.querySelector('.selectable-media-item').classList.add('border', 'border-primary');
+            if (!this.manualScrapSelectedMedia) this.manualScrapSelectedMedia = {};
+            this.manualScrapSelectedMedia[mediaKey] = { source: 'current', index: -1, url: mediaData.current };
+
+            // Add tiles for each source. Each source may be an array of URLs.
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb'];
             sources.forEach(source => {
-                if (mediaData.sources[source]) {
-                    const sourceDiv = document.createElement('div');
-                    sourceDiv.className = 'mb-2';
-                    sourceDiv.innerHTML = `
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="${mediaKey}_source" value="${source}" id="${mediaKey}_${source}">
-                            <label class="form-check-label" for="${mediaKey}_${source}">
-                                ${source.charAt(0).toUpperCase() + source.slice(1)}
-                            </label>
-                        </div>
-                        <div class="media-preview-item ms-3" style="width: 150px; height: 150px;">
-                            ${this.getMediaPreview(mediaData.sources[source], mediaKey)}
-                        </div>
-                    `;
-                    sourcesSection.appendChild(sourceDiv);
-                }
+                const values = mediaData.sources[source];
+                if (!values) return;
+                const urls = Array.isArray(values) ? values : [values];
+                urls.forEach((url, idx) => grid.appendChild(createTile(source, url, idx)));
             });
 
-            // Add current option
-            const currentOption = document.createElement('div');
-            currentOption.className = 'mb-2';
-            currentOption.innerHTML = `
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="${mediaKey}_source" value="current" id="${mediaKey}_current" checked>
-                    <label class="form-check-label" for="${mediaKey}_current">
-                        Keep Current
-                    </label>
-                </div>
-            `;
-            sourcesSection.insertBefore(currentOption, sourcesSection.firstChild);
-
+            sourcesSection.appendChild(grid);
             cardBody.appendChild(sourcesSection);
             card.appendChild(cardBody);
             container.appendChild(card);
@@ -4296,13 +4309,14 @@ class GameCollectionManager {
                 selectedValues[fieldName] = selectedSource;
             });
 
-            // Get media field selections
-            const mediaFieldRadios = document.querySelectorAll('input[name$="_source"]:checked');
-            mediaFieldRadios.forEach(radio => {
-                const fieldName = radio.name.replace('_source', '');
-                const selectedSource = radio.value;
-                selectedValues[fieldName] = selectedSource;
-            });
+            // Get media field selections from selected tiles
+            if (this.manualScrapSelectedMedia) {
+                Object.entries(this.manualScrapSelectedMedia).forEach(([fieldName, sel]) => {
+                    selectedValues[fieldName] = sel.source;
+                    selectedValues[`${fieldName}_index`] = sel.index;
+                    selectedValues[`${fieldName}_url`] = sel.url;
+                });
+            }
 
             console.log('Selected values:', selectedValues);
 
@@ -4529,7 +4543,6 @@ class GameCollectionManager {
             this.modifiedGames.add(game.id);
         }
     }
-
     async findBestMatchForSelected() {
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
@@ -5265,7 +5278,6 @@ class GameCollectionManager {
         
         console.log('Modal should now be displayed with multiple matches');
     }
-
     displayScraperPartialMatchModal(originalGameName, matches) {
         console.log('displayScraperPartialMatchModal called with:', originalGameName, matches);
         
@@ -5902,7 +5914,6 @@ class GameCollectionManager {
             this.gridApi.setFilterModel(null);
         }
     }
-
     async showMediaPreview(game) {
         if (!game) return;
 
@@ -6682,7 +6693,6 @@ class GameCollectionManager {
         this.currentCropVideoField = null;
         this.currentCropVideoPath = null;
     }
-    
     forceImageSize(img) {
         // Calculate optimal size based on available space and image dimensions
         const container = img.parentElement;
@@ -7463,7 +7473,6 @@ class GameCollectionManager {
         const modal = new bootstrap.Modal(document.getElementById('launchboxConfigurationModal'));
         modal.show();
     }
-    
     loadLaunchboxSettings() {
         // Load saved settings from cookies
         const savedForceDownload = this.getCookie('forceDownloadImages');
@@ -8219,7 +8228,6 @@ class GameCollectionManager {
             console.error('❌ Error initializing ScreenScraper field checkboxes:', error);
         }
     }
-
     async initializeLaunchboxFieldCheckboxes() {
         console.log('🔧 Initializing LaunchBox field checkboxes from config...');
         
@@ -9019,7 +9027,6 @@ class GameCollectionManager {
             }
         });
     }
-    
     async saveMediaFieldInline(input) {
         const fieldName = input.dataset.fieldName;
         const fieldType = input.dataset.field;
@@ -9803,7 +9810,6 @@ class GameCollectionManager {
             });
         }
     }
-    
     initializeSteamgriddbConfigModal() {
         // Refresh button
         const refreshSteamgriddbMappingsBtn = document.getElementById('refreshSteamgriddbMappingsBtn');
@@ -10581,7 +10587,6 @@ class GameCollectionManager {
             this.performMultipleMediaDeletion();
         }
     }
-    
     async performMultipleMediaDeletion() {
         try {
             const totalItems = this.selectedMedia.length;
@@ -11377,7 +11382,6 @@ class GameCollectionManager {
             console.warn('Could not highlight navigated row:', error);
         }
     }
-
     enableButtons() {
         console.log('enableButtons called');
         document.getElementById('unifiedScanBtn').disabled = false;
@@ -12166,7 +12170,6 @@ class GameCollectionManager {
             console.log(`Column ${field} not found`);
         }
     }
-
     showAllColumns() {
         if (!this.gridApi) return;
         
@@ -12949,7 +12952,6 @@ class GameCollectionManager {
             this.showAlert('Error applying regular match: ' + error.message, 'danger');
         }
     }
-    
     updateEditModalFields(updatedGame) {
         // Check if edit modal is currently open
         const editModal = document.getElementById('editGameModal');
@@ -13748,7 +13750,6 @@ class GameCollectionManager {
             this.showAlert('Download failed: Network error', 'error');
         }
     }
-
     updateCurrentTimeDisplay() {
         // Update current time display every second while playing
         if (this.currentTimeInterval) {

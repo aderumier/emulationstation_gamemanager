@@ -6971,10 +6971,12 @@ def manual_scrap_game(system_name):
                             if value and field in scrap_results['text_fields']:
                                 scrap_results['text_fields'][field]['sources']['igdb'] = value
                         
-                        # Update media fields
+                        # Update media fields (collect multiple options per source)
                         for field, value in igdb_data.get('media_fields', {}).items():
                             if value and field in scrap_results['media_fields']:
-                                scrap_results['media_fields'][field]['sources']['igdb'] = value
+                                const_val = value if isinstance(value, list) else [value]
+                                scrap_results['media_fields'][field]['sources'].setdefault('igdb', [])
+                                scrap_results['media_fields'][field]['sources']['igdb'].extend(const_val)
                 except Exception as e:
                     print(f"IGDB scraping error: {e}")
             
@@ -6988,10 +6990,12 @@ def manual_scrap_game(system_name):
                             if value and field in scrap_results['text_fields']:
                                 scrap_results['text_fields'][field]['sources']['steam'] = value
                         
-                        # Update media fields
+                        # Update media fields (collect multiple options per source)
                         for field, value in steam_data.get('media_fields', {}).items():
                             if value and field in scrap_results['media_fields']:
-                                scrap_results['media_fields'][field]['sources']['steam'] = value
+                                const_val = value if isinstance(value, list) else [value]
+                                scrap_results['media_fields'][field]['sources'].setdefault('steam', [])
+                                scrap_results['media_fields'][field]['sources']['steam'].extend(const_val)
                 except Exception as e:
                     print(f"Steam scraping error: {e}")
             
@@ -7007,10 +7011,12 @@ def manual_scrap_game(system_name):
                             if value and field in scrap_results['text_fields']:
                                 scrap_results['text_fields'][field]['sources']['screenscraper'] = value
                         
-                        # Update media fields
+                        # Update media fields (collect multiple options per source)
                         for field, value in screenscraper_data.get('media_fields', {}).items():
                             if value and field in scrap_results['media_fields']:
-                                scrap_results['media_fields'][field]['sources']['screenscraper'] = value
+                                const_val = value if isinstance(value, list) else [value]
+                                scrap_results['media_fields'][field]['sources'].setdefault('screenscraper', [])
+                                scrap_results['media_fields'][field]['sources']['screenscraper'].extend(const_val)
                 except Exception as e:
                     print(f"ScreenScraper scraping error: {e}")
             else:
@@ -7021,10 +7027,12 @@ def manual_scrap_game(system_name):
                 try:
                     steamgrid_data = await scrape_steamgriddb_manual(current_game, system_name)
                     if steamgrid_data:
-                        # Update media fields
+                        # Update media fields (collect multiple options per source)
                         for field, value in steamgrid_data.get('media_fields', {}).items():
                             if value and field in scrap_results['media_fields']:
-                                scrap_results['media_fields'][field]['sources']['steamgriddb'] = value
+                                const_val = value if isinstance(value, list) else [value]
+                                scrap_results['media_fields'][field]['sources'].setdefault('steamgriddb', [])
+                                scrap_results['media_fields'][field]['sources']['steamgriddb'].extend(const_val)
                 except Exception as e:
                     print(f"SteamGridDB scraping error: {e}")
             
@@ -7040,10 +7048,12 @@ def manual_scrap_game(system_name):
                             if value and field in scrap_results['text_fields']:
                                 scrap_results['text_fields'][field]['sources']['launchbox'] = value
                         
-                        # Update media fields
+                        # Update media fields (collect multiple options per source)
                         for field, value in launchbox_data.get('media_fields', {}).items():
                             if value and field in scrap_results['media_fields']:
-                                scrap_results['media_fields'][field]['sources']['launchbox'] = value
+                                const_val = value if isinstance(value, list) else [value]
+                                scrap_results['media_fields'][field]['sources'].setdefault('launchbox', [])
+                                scrap_results['media_fields'][field]['sources']['launchbox'].extend(const_val)
                 except Exception as e:
                     print(f"LaunchBox scraping error: {e}")
             else:
@@ -7366,19 +7376,32 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                         pass
         
         # Extract media fields
-        media_fields = {}
+        # Return arrays of URLs per gamelist media field to allow multi-choice selection in UI
+        media_fields = {'image': [], 'marquee': [], 'video': []}
         
-        # Get media URLs
+        # Map ScreenScraper media types to gamelist fields using config mapping
+        ss_image_mapping = config.get('screenscraper', {}).get('image_type_mappings', {})
+        
         if detailed_data.get('medias'):
             medias = detailed_data['medias']
             for media in medias:
                 media_type = media.get('type')
                 media_url = media.get('url')
+                if not media_url:
+                    continue
                 
-                if media_type == 'ss' and media_url:  # Screenshot
-                    media_fields['image'] = media_url
-                elif media_type == 'fanart' and media_url:  # Fanart
-                    media_fields['marquee'] = media_url
+                # Default/simple mappings
+                if media_type in ['ss', 'sstitle']:
+                    media_fields['image'].append(media_url)
+                elif media_type in ['screenmarquee', 'fanart']:
+                    media_fields['marquee'].append(media_url)
+                elif media_type in ['video', 'video-normalized']:
+                    media_fields['video'].append(media_url)
+                
+                # Additional mapping via config if provided (maps ss type -> gamelist field)
+                mapped_field = ss_image_mapping.get(media_type)
+                if mapped_field and mapped_field in media_fields:
+                    media_fields[mapped_field].append(media_url)
         
         return {
             'text_fields': text_fields,
