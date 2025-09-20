@@ -4171,7 +4171,9 @@ class GameCollectionManager {
             'video': 'Video'
         };
 
-        Object.entries(mediaFields).forEach(([mediaKey, mediaData]) => {
+        Object.entries(mediaFields)
+            .filter(([mediaKey]) => mediaKey !== 'video' && mediaKey !== 'manual')
+            .forEach(([mediaKey, mediaData]) => {
             const card = document.createElement('div');
             card.className = 'card mb-3';
             
