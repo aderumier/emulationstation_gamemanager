@@ -746,7 +746,6 @@ def _scraping_worker_main(task_q, result_q, cancel_map):
                 result_q.put({'task_id': task.get('task_id'), 'ok': False, 'error': str(e)})
     except KeyboardInterrupt:
         pass
-
 def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     """Logic executed inside worker process to perform scraping."""
     system_name = task['system_name']
@@ -876,7 +875,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                     shutil.copy2(gamelist_path, backup_path)
                 except Exception:
                     pass
-                write_gamelist_xml(original_games, gamelist_path)
+                write_gamelist_xml(games, gamelist_path)
             except Exception as _e:
                 result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠️  Failed to save partial gamelist: {_e}"})
             result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"🛑 Task stopped by user after processing {stats['processed_games']} game(s)"})
@@ -996,7 +995,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     except Exception:
         pass
     try:
-        write_gamelist_xml(original_games, gamelist_path)
+        write_gamelist_xml(games, gamelist_path)
     except Exception as e:
         return {'success': False, 'error': f'Error saving gamelist: {e}'}
     # Final 100% update before finishing
@@ -1413,7 +1412,6 @@ def fix_over_escaped_xml_entities(text):
         original = unescaped
     
     return original
-
 # Task storage and management
 tasks = {}  # task_id -> task_info
 task_queue = []
@@ -2202,7 +2200,6 @@ def process_next_queued_task():
     else:
         print(f"Unknown task type: {task_type}")
         return
-
 def run_media_scan_task(system_name):
     """Run media scan task in background thread"""
     global current_task_id
@@ -2942,7 +2939,6 @@ def get_cache_statistics():
         'total_images': total_images,
         'total_database_ids': len(global_metadata_cache)
     }
-
 def parse_gamelist_xml(file_path):
     """Parse gamelist.xml file and return list of games"""
     try:
@@ -3717,7 +3713,6 @@ def manage_launchbox_mappings():
     
     except Exception as e:
         return jsonify({'error': f'Failed to manage launchbox mappings: {str(e)}'}), 500
-
 @app.route('/api/igdb-mappings', methods=['GET', 'PUT', 'POST'])
 @login_required
 def manage_igdb_mappings():
@@ -4505,8 +4500,6 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
     best_score = 0
     
     return best_match, best_score
-
-
 def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mapping_config=None):
     """Get top N matches for a game name using partitioned index and Jaro-Winkler similarity"""
     print(f"🔍 DEBUG: get_top_matches called for '{game_name}' (platform: {target_platform}, top_n: {top_n})")
@@ -5262,8 +5255,6 @@ def load_image_mappings():
 def load_region_config():
     """Load region priority configuration from consolidated config.json"""
     return config.get('launchbox', {}).get('region', {})
-
-
 async def download_launchbox_image_httpx(image_url, local_path, media_type=None, target_field=None, timeout=30, retry_attempts=10, client=None, game_name=None):
     """Download a single image from LaunchBox using HTTPX with HTTP/2 support"""
     import time
@@ -6055,8 +6046,6 @@ def format_xml_for_readability(xml_content):
         print(f"Error formatting XML: {e}")
         # Return original content if formatting fails
         return xml_content
-
-
 def save_formatted_gamelist_xml(tree, gamelist_path):
     """Save gamelist.xml with proper formatting using the common formatting function"""
     try:
@@ -6784,7 +6773,6 @@ def delete_game_media(system_name):
     except Exception as e:
         app.logger.error(f'Error deleting media: {str(e)}')
         return jsonify({'error': f'Failed to delete media: {str(e)}'}), 500
-
 @app.route('/api/rom-system/<system_name>/game/delete-media-batch', methods=['POST'])
 @login_required
 def delete_game_media_batch(system_name):
@@ -7091,9 +7079,8 @@ def apply_manual_scrap(system_name):
         if not rom_path:
             return jsonify({'error': 'rom_path is required'}), 400
 
-        # Load gamelist and find the game
-        system_dir = os.path.join('roms', system_name)
-        gamelist_path = os.path.join(system_dir, 'gamelist.xml')
+        # Load gamelist from var/gamelists and find the game
+        gamelist_path = get_gamelist_path(system_name)
         games = parse_gamelist_xml(gamelist_path)
         game = next((g for g in games if g.get('path') == rom_path or os.path.basename(g.get('path','')) == os.path.basename(rom_path)), None)
         if not game:
@@ -7110,6 +7097,8 @@ def apply_manual_scrap(system_name):
         # Handle media downloads: selections may include e.g. image_url, marquee_url
         media_updates = {}
         media_fields = config.get('media_fields', {})
+        # System directory for media files under ROMS_FOLDER
+        system_dir = os.path.join(ROMS_FOLDER, system_name)
         for media_field in media_fields.keys():
             selected_url = selections.get(f'{media_field}_url')
             if selected_url:
@@ -7141,7 +7130,7 @@ def apply_manual_scrap(system_name):
                     print(f'Error downloading media {media_field} from {selected_url}: {e}')
 
         # Save gamelist back
-        write_gamelist_xml(gamelist_path, games)
+        write_gamelist_xml(games, gamelist_path)
 
         return jsonify({'success': True, 'updated_text_fields': {k: game.get(k) for k in text_fields}, 'updated_media': media_updates})
     except Exception as e:
@@ -7559,7 +7548,6 @@ async def scrape_steamgriddb_manual(game, system_name):
     except Exception as e:
         print(f"Error in SteamGridDB manual scraping: {e}")
         return None
-
 def extract_launchbox_text_fields(game_elem, mapping_config):
     """Extract text fields from LaunchBox XML element using common logic"""
     text_fields = {}
@@ -8353,7 +8341,6 @@ def extract_from_yt_initial_data_alt(html_text):
     except Exception as e:
         print(f"Error extracting from ytInitialData alt: {e}")
         return []
-
 def extract_from_embedded_json(html_text):
     """Extract video data from embedded JSON in script tags"""
     try:
@@ -9123,7 +9110,6 @@ def run_rom_scan_task(system_name):
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].error(str(e))
         return
-
 @app.route('/api/rom-system/<system_name>/scan-roms', methods=['GET'])
 @login_required
 def get_rom_scan_results(system_name):
@@ -9821,7 +9807,6 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
     except Exception as e:
         task.update_progress(f"  ❌ Error downloading {game_name}: {str(e)}")
         return False
-
 def apply_video_processing(task, video_path, game_name, auto_crop=False, start_time=None, end_time=None):
     """Apply video processing (crop and/or resize) in a single ffmpeg call (helper function)"""
     try:
@@ -10615,7 +10600,6 @@ def notify_game_updated(system_name, game_name, changes):
         'changes': changes,
         'message': f'Game updated: {game_name}'
     })
-
 def debug_client_tracking():
     """Debug function to show current client tracking state"""
     print("🔍 Current client tracking state:")
@@ -11386,7 +11370,6 @@ def get_igdb_access_token():
     except Exception as e:
         print(f"Error getting IGDB access token: {e}")
         return None
-
 async def make_igdb_request_with_retry(async_client, url, headers, data, max_retries=3):
     """Make an IGDB API request with retry logic for rate limiting"""
     import asyncio
@@ -12185,7 +12168,6 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         import traceback
         traceback.print_exc()
         return None
-
 # =============================================================================
 # IGDB HTTP Client and Rate Limiter
 # =============================================================================
@@ -12713,7 +12695,6 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
     except Exception as e:
         print(f"Error populating gamelist with IGDB data: {e}")
         return False
-
 async def process_game_async(game, igdb_platform_id, access_token, client_id, async_client, igdb_config, company_cache=None):
     """Process a single game asynchronously"""
     try:
@@ -13445,7 +13426,6 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
     
     # Run the async scraper
     asyncio.run(async_scraper())
-
 def _igdb_scraping_result_listener(result_q, process, system_name):
     """Listen for results from IGDB scraper worker and update task progress"""
     import queue
@@ -13746,7 +13726,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             # Save updated gamelist (all games, not just processed ones)
             # Always save gamelist, even if no games were updated (to ensure consistency)
             print(f"💾 Saving updated gamelist...")
-            write_gamelist_xml(all_games, gamelist_path)
+            write_gamelist_xml(games, gamelist_path)
             if updated_count > 0:
                 print(f"✅ Updated {updated_count} games with ScreenScraper IDs")
             else:
@@ -13798,7 +13778,6 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
     
     thread = threading.Thread(target=run_async, daemon=True)
     thread.start()
-
 # =============================================================================
 # IGDB Scraper API Routes
 # =============================================================================
@@ -14515,7 +14494,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
     thread = threading.Thread(target=run_async)
     thread.daemon = True
     thread.start()
-
 def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_media_fields=False):
     """Run SteamGridDB task for a specific system (SteamGridDB API only)"""
     import asyncio
@@ -14914,362 +14892,6 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread = threading.Thread(target=run_async)
     thread.daemon = True
     thread.start()
-
-
-@app.route('/api/scrap-igdb/<system_name>', methods=['POST'])
-@login_required
-def scrap_igdb_system(system_name):
-    """Start IGDB scraping process for a specific system"""
-    global current_task_id
-    
-    try:
-        if not system_name:
-            return jsonify({'error': 'System name is required'}), 400
-        
-        # Check if IGDB is enabled
-        igdb_config = get_igdb_config()
-        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-            return jsonify({'error': 'IGDB credentials not configured'}), 400
-        
-        # Check if system has IGDB platform ID configured
-        config = load_config()
-        systems_config = config.get('systems', {})
-        system_config = systems_config.get(system_name, {})
-        
-        if not system_config.get('igdb'):
-            return jsonify({'error': f'No IGDB platform configured for system "{system_name}"'}), 400
-        
-        # Get request data
-        data = request.get_json() or {}
-        selected_games = data.get('selected_games', [])
-        selected_fields = data.get('selected_fields', [])
-        
-        # Get overwrite settings from cookies
-        overwrite_text_fields = request.cookies.get('overwriteTextFields', 'false').lower() == 'true'
-        overwrite_media_fields = request.cookies.get('overwriteMediaFields', 'false').lower() == 'true'
-        
-        print(f"🍪 DEBUG: Cookie values - overwriteTextFields: '{request.cookies.get('overwriteTextFields', 'NOT_SET')}', overwriteMediaFields: '{request.cookies.get('overwriteMediaFields', 'NOT_SET')}'")
-        print(f"🍪 DEBUG: Parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
-        print(f"🍪 DEBUG: Selected fields: {selected_fields}")
-        
-        # Add task to queue instead of starting directly
-        task_data = {
-            'system_name': system_name, 
-            'selected_games': selected_games,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields,
-            'overwrite_media_fields': overwrite_media_fields
-        }
-        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
-        
-        task = add_task_to_queue('igdb_scraping', task_data, username=username)
-        
-        return jsonify({
-            'success': True,
-            'task_id': task.id,
-            'message': f'IGDB scraping started for {system_name}'
-        })
-        
-    except Exception as e:
-        print(f"Error starting IGDB scraper: {e}")
-        return jsonify({'error': f'Failed to start IGDB scraper: {str(e)}'}), 500
-
-@app.route('/api/igdb/search', methods=['POST'])
-@login_required
-def search_igdb_games_api():
-    """Search for games in IGDB database"""
-    try:
-        data = request.get_json()
-        game_name = data.get('game_name', '').strip()
-        platform_name_or_id = data.get('platform_id')
-        limit = data.get('limit', 10)
-        
-        if not game_name:
-            return jsonify({'error': 'Game name is required'}), 400
-        
-        if not platform_name_or_id:
-            return jsonify({'error': 'Platform is required'}), 400
-        
-        # Get IGDB configuration
-        igdb_config = get_igdb_config()
-        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-            return jsonify({'error': 'IGDB credentials not configured'}), 400
-        
-        # Get access token
-        access_token = get_igdb_access_token()
-        if not access_token:
-            return jsonify({'error': 'Failed to get IGDB access token'}), 500
-        
-        # Convert platform name to ID if needed
-        platform_cache = load_igdb_platform_cache()
-        platform_id = get_igdb_platform_id(platform_name_or_id, platform_cache)
-        if not platform_id:
-            return jsonify({'error': f'Invalid platform: {platform_name_or_id}'}), 400
-        
-        # Search for games
-        import asyncio
-        
-        async def search_games():
-            async_client = await get_igdb_async_client()
-            try:
-                # Ensure platform cache is available
-                platform_cache = await ensure_igdb_platform_cache()
-                
-                # Clean game name - remove parentheses and extra text
-                import re
-                clean_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
-                clean_name = re.sub(r'\s*\[[^\]]*\]', '', clean_name).strip()
-                
-                # Search for games with platform filter
-                search_url = "https://api.igdb.com/v4/games"
-                search_data = f'fields id,name,summary,first_release_date,platforms,genres,total_rating,rating_count,player_perspectives,game_modes,cover,screenshots,artworks; search "{clean_name}"; where platforms = ({platform_id}); limit {limit};'
-                
-                headers = {
-                    'Client-ID': igdb_config['client_id'],
-                    'Authorization': f'Bearer {access_token}',
-                    'Content-Type': 'text/plain'
-                }
-                
-                response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
-                
-                if response.status_code == 200:
-                    games = response.json()
-                    if games:
-                        # Fetch involved companies for each game
-                        for game in games:
-                            involved_companies = await fetch_igdb_involved_companies(
-                                async_client, 
-                                access_token, 
-                                igdb_config['client_id'], 
-                                game['id']
-                            )
-                            game['involved_companies'] = involved_companies
-                        
-                        # Collect company IDs for caching
-                        company_ids = set()
-                        for game in games:
-                            if game.get('involved_companies'):
-                                for involvement in game['involved_companies']:
-                                    company_id = involvement.get('company')
-                                    if company_id:
-                                        company_ids.add(company_id)
-                        
-                        # Ensure company cache is available
-                        company_cache = await ensure_igdb_company_cache(list(company_ids))
-                        
-                        # Enhance games with cached platform and company names
-                        for game in games:
-                            if 'platforms' in game and game['platforms']:
-                                game['platforms'] = [
-                                    {'id': platform_id, 'name': get_igdb_platform_name(platform_id, platform_cache)}
-                                    for platform_id in game['platforms']
-                                ]
-                            
-                            # Add company names from involved_companies
-                            developer_names = []
-                            publisher_names = []
-                            
-                            if game.get('involved_companies'):
-                                for involvement in game['involved_companies']:
-                                    company_id = involvement.get('company')
-                                    is_developer = involvement.get('developer', False)
-                                    is_publisher = involvement.get('publisher', False)
-                                    
-                                    if company_id:
-                                        company_name = get_igdb_company_name(company_id, company_cache)
-                                        if company_name and not company_name.startswith('Company '):
-                                            if is_developer:
-                                                developer_names.append(company_name)
-                                            if is_publisher:
-                                                publisher_names.append(company_name)
-                            
-                            if developer_names:
-                                game['developer_names'] = developer_names
-                            if publisher_names:
-                                game['publisher_names'] = publisher_names
-                        
-                        return games
-                    else:
-                        # No games found for this platform
-                        return []
-                else:
-                    print(f"IGDB API error: {response.status_code} - {response.text}")
-                    return []
-                    
-            finally:
-                await close_igdb_async_client()
-        
-        # Run the async search
-        games = asyncio.run(search_games())
-        
-        return jsonify({
-            'success': True,
-            'games': games,
-            'count': len(games)
-        })
-        
-    except Exception as e:
-        print(f"Error searching IGDB games: {e}")
-        return jsonify({'error': f'Failed to search IGDB games: {str(e)}'}), 500
-
-# =============================================================================
-# ScreenScraper API Routes
-# =============================================================================
-
-@app.route('/api/scrap-screenscraper/<system_name>', methods=['POST'])
-@login_required
-def scrap_screenscraper_system(system_name):
-    """Start ScreenScraper task for a specific system"""
-    global current_task_id
-    
-    try:
-        if not system_name:
-            return jsonify({'error': 'System name is required'}), 400
-
-        # Check if ScreenScraper credentials are configured
-        from credential_manager import credential_manager
-        screenscraper_creds = credential_manager.get_screenscraper_credentials()
-        if not (screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')):
-            return jsonify({'error': 'ScreenScraper credentials not configured'}), 400
-        
-        # Get request data
-        data = request.get_json() or {}
-        selected_games = data.get('selected_games', [])
-        selected_fields = data.get('selected_fields', [])
-        
-        # Get overwrite settings from cookies
-        overwrite_text_fields = request.cookies.get('overwriteTextFieldsScreenscraper', 'false').lower() == 'true'
-        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsScreenscraper', 'false').lower() == 'true'
-        
-        print(f"🍪 DEBUG: ScreenScraper Cookie values - overwriteTextFieldsScreenscraper: '{request.cookies.get('overwriteTextFieldsScreenscraper', 'NOT_SET')}', overwriteMediaFieldsScreenscraper: '{request.cookies.get('overwriteMediaFieldsScreenscraper', 'NOT_SET')}'")
-        print(f"🍪 DEBUG: ScreenScraper Parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
-        print(f"🍪 DEBUG: ScreenScraper Selected fields: {selected_fields}")
-        
-        # Add task to queue instead of starting directly
-        task_data = {
-            'system_name': system_name, 
-            'selected_games': selected_games,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields,
-            'overwrite_media_fields': overwrite_media_fields
-        }
-        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
-        
-        task = add_task_to_queue('screenscraper_scraping', task_data, username=username)
-        
-        return jsonify({
-            'success': True,
-            'task_id': task.id,
-            'message': f'ScreenScraper task started for {system_name}'
-        })
-        
-    except Exception as e:
-        print(f"Error starting ScreenScraper task: {e}")
-        return jsonify({'error': f'Failed to start ScreenScraper task: {str(e)}'}), 500
-
-
-@app.route('/api/scrap-steam/<system_name>', methods=['POST'])
-@login_required
-def scrap_steam_system(system_name):
-    """Start Steam task for a specific system (Steam CDN only)"""
-    global current_task_id
-    
-    try:
-        if not system_name:
-            return jsonify({'error': 'System name is required'}), 400
-        
-        # Get request data
-        data = request.get_json() or {}
-        selected_games = data.get('selected_games', [])
-        selected_fields = data.get('selected_fields', [])
-        
-        # Get Steam preferences from cookies
-        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteam', 'false').lower() == 'true'
-        overwrite_text_fields = request.cookies.get('overwriteTextFieldsSteam', 'false').lower() == 'true'
-        
-        # Get selected media fields from cookies (always use cookies for Steam)
-        selected_fields = []
-        steam_fields = ['capsule', 'logo', 'hero', 'youtubeurl', 'screenshot']
-        for field in steam_fields:
-            cookie_name = f'steamField_{field}'
-            cookie_value = request.cookies.get(cookie_name, 'true').lower() == 'true'
-            if cookie_value:
-                selected_fields.append(field)
-        
-        
-        # Add task to queue instead of starting directly
-        task_data = {
-            'system_name': system_name, 
-            'selected_games': selected_games,
-            'selected_fields': selected_fields,
-            'overwrite_media_fields': overwrite_media_fields,
-            'overwrite_text_fields': overwrite_text_fields
-        }
-        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
-        
-        task = add_task_to_queue('steam_scraping', task_data, username=username)
-        
-        return jsonify({
-            'success': True,
-            'task_id': task.id,
-            'message': f'Steam task started for {system_name}'
-        })
-        
-    except Exception as e:
-        print(f"Error starting Steam task: {e}")
-        return jsonify({'error': f'Failed to start Steam task: {str(e)}'}), 500
-
-@app.route('/api/scrap-steamgriddb/<system_name>', methods=['POST'])
-@login_required
-def scrap_steamgriddb_system(system_name):
-    """Start SteamGridDB task for a specific system (SteamGridDB API only)"""
-    global current_task_id
-    
-    try:
-        if not system_name:
-            return jsonify({'error': 'System name is required'}), 400
-        
-        # Get request data
-        data = request.get_json() or {}
-        selected_games = data.get('selected_games', [])
-        selected_fields = data.get('selected_fields', [])
-        
-        # Get SteamGridDB preferences from cookies
-        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteamGridDB', 'false').lower() == 'true'
-        
-        # Get selected media fields from cookies (always use cookies for SteamGridDB)
-        selected_fields = []
-        steamgriddb_fields = ['grids', 'logos', 'heroes']
-        for field in steamgriddb_fields:
-            cookie_name = f'steamgriddbField_{field}'
-            cookie_value = request.cookies.get(cookie_name, 'true').lower() == 'true'
-            if cookie_value:
-                selected_fields.append(field)
-            print(f"🔧 DEBUG: SteamGridDB field {field} (cookie {cookie_name}): {cookie_value}")
-        
-        print(f"🔧 DEBUG: Final selected_fields from cookies: {selected_fields}")
-        
-        # Add task to queue instead of starting directly
-        task_data = {
-            'system_name': system_name, 
-            'selected_games': selected_games,
-            'selected_fields': selected_fields,
-            'overwrite_media_fields': overwrite_media_fields
-        }
-        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
-        
-        task = add_task_to_queue('steamgriddb_scraping', task_data, username=username)
-        
-        return jsonify({
-            'success': True,
-            'task_id': task.id,
-            'message': f'SteamGridDB task started for {system_name}'
-        })
-        
-    except Exception as e:
-        print(f"Error starting SteamGridDB task: {e}")
-        return jsonify({'error': f'Failed to start SteamGridDB task: {str(e)}'}), 500
-
 if __name__ == '__main__':
     # Initialize default admin user
     initialize_default_admin()

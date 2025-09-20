@@ -4312,12 +4312,19 @@ class GameCollectionManager {
             // Collect selected values from the form
             const selectedValues = {};
             
-            // Get text field selections from clickable cells
+            // Get text field selections from clickable cells, and include selected values
             const textFieldCells = document.querySelectorAll('td[data-field]');
             textFieldCells.forEach(cell => {
                 const fieldName = cell.dataset.field;
                 const selectedSource = cell.dataset.selected;
                 selectedValues[fieldName] = selectedSource;
+                // Resolve selected value from last results if source is not 'current'
+                if (selectedSource && selectedSource !== 'current' && this.lastManualScrapTextFields && this.lastManualScrapTextFields[fieldName]) {
+                    const sourceVal = this.lastManualScrapTextFields[fieldName].sources && this.lastManualScrapTextFields[fieldName].sources[selectedSource];
+                    if (sourceVal) {
+                        selectedValues[`${fieldName}_value`] = sourceVal;
+                    }
+                }
             });
 
             // Get media field selections from selected tiles
