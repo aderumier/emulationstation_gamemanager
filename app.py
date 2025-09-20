@@ -7076,6 +7076,10 @@ def manual_scrap_game(system_name):
             'message': 'Manual scrap completed successfully'
         })
 
+    except Exception as e:
+        app.logger.error(f'Error in manual scrap: {str(e)}')
+        return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
+
 @app.route('/api/rom-system/<system_name>/game/manual-scrap/apply', methods=['POST'])
 @login_required
 def apply_manual_scrap(system_name):
