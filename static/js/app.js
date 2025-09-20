@@ -4297,8 +4297,13 @@ class GameCollectionManager {
         if (mediaType === 'video') {
             return `<video src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: cover;" controls></video>`;
         } else {
-            return `<img src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<div class=\\"media-placeholder\\"><i class=\\"bi bi-image\\"></i><br>Error</div>'">`;
+            return `<img src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: contain;" onerror="gameManager.handleImageError(this)">`;
         }
+    }
+
+    handleImageError(imgEl) {
+        if (!imgEl || !imgEl.parentElement) return;
+        imgEl.parentElement.innerHTML = '<div class="media-placeholder"><i class="bi bi-image"></i><br>Error</div>';
     }
 
     async applyManualScrapResults() {
