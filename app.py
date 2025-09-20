@@ -7182,40 +7182,57 @@ async def scrape_igdb_manual(game, system_name, system_config):
         except Exception as e:
             print(f"Error getting involved companies: {e}")
         
-        # Extract media fields using config mappings; collect ALL available media
+        # Extract media fields using IGDB task helpers, normalize URLs like in downloads
         media_fields: Dict[str, List[str]] = {}
-        
+
+        def normalize_igdb_url(url: str) -> str:
+            if not url:
+                return url
+            # Prefix protocol if needed
+            if url.startswith('//'):
+                url = f"https:{url}"
+            elif not url.startswith('http'):
+                url = f"https://images.igdb.com{url}"
+            # Prefer larger size over thumb
+            url = url.replace('/t_thumb/', '/t_720p/')
+            return url
+
         def add_media(mapped_field: str, url: str):
             if not mapped_field or not url:
                 return
-            media_fields.setdefault(mapped_field, []).append(url)
-        
-        # Cover → mapped field
-        if igdb_game.get('cover'):
-            cover_id = igdb_game['cover']
-            cover_url = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
-            mapped = igdb_image_mapping.get('cover', 'image')
-            add_media(mapped, cover_url)
-        
-        # Screenshots → mapped field, add all
-        if igdb_game.get('screenshots'):
-            for ss_id in igdb_game['screenshots']:
-                ss_url = f"https://images.igdb.com/igdb/image/upload/t_screenshot_big/{ss_id}.jpg"
-                mapped = igdb_image_mapping.get('screenshots', 'image')
-                add_media(mapped, ss_url)
-        
-        # Artworks → mapped field, add all
+            media_fields.setdefault(mapped_field, []).append(normalize_igdb_url(url))
+
+        # Covers: use helper to select best cover and its url
         try:
-            artworks = await fetch_igdb_artworks(
-                async_client, access_token, igdb_config['client_id'], igdb_game['id']
-            )
-            if artworks:
-                for art_id in artworks:
-                    art_url = f"https://images.igdb.com/igdb/image/upload/t_artwork_big/{art_id}.jpg"
-                    mapped = igdb_image_mapping.get('artworks', 'fanart')
-                    add_media(mapped, art_url)
+            cover = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game_name))
+            if cover and cover.get('url'):
+                add_media(igdb_image_mapping.get('cover', 'image'), cover.get('url'))
         except Exception as e:
-            print(f"Error getting artworks: {e}")
+            print(f"Error getting IGDB cover: {e}")
+
+        # Screenshots: use helper (returns one)
+        try:
+            screenshot = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            if screenshot and screenshot.get('url'):
+                add_media(igdb_image_mapping.get('screenshots', 'image'), screenshot.get('url'))
+        except Exception as e:
+            print(f"Error getting IGDB screenshots: {e}")
+
+        # Artworks: use helper (returns one landscape)
+        try:
+            artwork = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            if artwork and artwork.get('url'):
+                add_media(igdb_image_mapping.get('artworks', 'fanart'), artwork.get('url'))
+        except Exception as e:
+            print(f"Error getting IGDB artworks: {e}")
+
+        # Logos: use helper if available
+        try:
+            logo = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            if logo and logo.get('url'):
+                add_media(igdb_image_mapping.get('logos', 'marquee'), logo.get('url'))
+        except Exception as e:
+            print(f"Error getting IGDB logos: {e}")
         
         return {
             'text_fields': text_fields,
