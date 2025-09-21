@@ -7014,8 +7014,8 @@ def manual_scrap_game(system_name):
             else:
                 print(f"DEBUG: ScreenScraper not enabled or no ID found. Config: {sys_config.get('screenscraper')}, Game ID: {current_game.get('screenscraperid')}")
             
-            # SteamGridDB scraping
-            if current_game.get('steamid'):
+            # SteamGridDB scraping (support steamgridid or steamid)
+            if current_game.get('steamgridid') or current_game.get('steamid'):
                 try:
                     steamgrid_data = await scrape_steamgriddb_manual(current_game, system_name)
                     if steamgrid_data:
@@ -7375,8 +7375,24 @@ async def scrape_steam_manual(game, system_name):
         # Extract media fields (arrays), using config mapping if present
         media_fields: Dict[str, List[str]] = {}
         steam_image_mapping = config.get('steam', {}).get('image_type_mappings', {})
+
+        # Build known Steam CDN URLs by steam_id
+        capsule_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg"
+        logo_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png"
+        hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
+
+        # Map and append as arrays
+        capsule_field = steam_image_mapping.get('capsule', 'boxart')
+        logo_field = steam_image_mapping.get('logo', 'marquee')
+        hero_field = steam_image_mapping.get('hero', 'fanart')
+
+        media_fields.setdefault(capsule_field, []).append(capsule_url)
+        media_fields.setdefault(logo_field, []).append(logo_url)
+        media_fields.setdefault(hero_field, []).append(hero_url)
+
+        # Also include header_image from API if present
         if steam_data.get('header_image'):
-            mapped = steam_image_mapping.get('header_image', 'image')
+            mapped = steam_image_mapping.get('header_image', capsule_field)
             media_fields.setdefault(mapped, []).append(steam_data['header_image'])
         
         return {
@@ -7521,9 +7537,10 @@ async def scrape_steamgriddb_manual(game, system_name):
     """Scrape SteamGridDB data for manual scrap (returns data without writing files)"""
     try:
         steam_id = game.get('steamid')
-        print(f"DEBUG: SteamGridDB manual scrap - steam_id: {steam_id}")
-        if not steam_id:
-            print("DEBUG: SteamGridDB manual scrap - No steam_id found")
+        steamgrid_id = game.get('steamgridid')
+        print(f"DEBUG: SteamGridDB manual scrap - steamgrid_id: {steamgrid_id}, steam_id: {steam_id}")
+        if not steamgrid_id and not steam_id:
+            print("DEBUG: SteamGridDB manual scrap - No steamgridid or steam_id found")
             return None
         
         # Get SteamGridDB service
@@ -7534,33 +7551,31 @@ async def scrape_steamgriddb_manual(game, system_name):
         if not api_key:
             return None
         
-        # Get SteamGridDB ID
-        steamgrid_id = await steamgrid_service.get_steamgrid_id(steam_id=steam_id, api_key=api_key)
+        # Resolve SteamGridDB ID: prefer existing steamgridid, else lookup by steamid
         if not steamgrid_id:
-            return None
+            steamgrid_id = await steamgrid_service.get_steamgrid_id(steam_id=steam_id, api_key=api_key)
+            if not steamgrid_id:
+                return None
         
         # Get media data
         media_types = ['grids', 'heroes', 'logos']
         media_data = await steamgrid_service.get_steamgrid_media(steamgrid_id, media_types, api_key)
         
-        # Extract media fields
-        media_fields = {}
-        
-        # Get best grid (image)
-        if media_data.get('grids'):
-            grids = media_data['grids']
-            if grids:
-                # Sort by score and get the best one
-                best_grid = max(grids, key=lambda x: x.get('score', 0))
-                media_fields['image'] = best_grid.get('url')
-        
-        # Get best hero (marquee)
-        if media_data.get('heroes'):
-            heroes = media_data['heroes']
-            if heroes:
-                # Sort by score and get the best one
-                best_hero = max(heroes, key=lambda x: x.get('score', 0))
-                media_fields['marquee'] = best_hero.get('url')
+        # Extract media fields as arrays, using mapping
+        media_fields: Dict[str, List[str]] = {}
+        sgd_image_mapping = config.get('steamgriddb', {}).get('image_type_mappings', {})
+
+        def map_and_append(items: List[Dict], sgd_type: str, default_field: str):
+            if not items:
+                return
+            target_field = sgd_image_mapping.get(sgd_type, default_field)
+            urls = [it.get('url') for it in items if it.get('url')]
+            if urls:
+                media_fields.setdefault(target_field, []).extend(urls)
+
+        map_and_append(media_data.get('grids', []), 'grids', 'boxart')
+        map_and_append(media_data.get('heroes', []), 'heroes', 'fanart')
+        map_and_append(media_data.get('logos', []), 'logos', 'marquee')
         
         return {
             'text_fields': {},  # SteamGridDB doesn't provide text data

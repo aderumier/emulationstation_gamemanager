@@ -39,6 +39,30 @@ class SteamService:
         self._unified_index = None
         self._cached_steam_apps = None
     
+    async def get_steam_game_data(self, steam_id: int) -> Optional[Dict]:
+        """Fetch game details from Steam Storefront API by Steam App ID.
+
+        Returns the 'data' object from the API which typically includes:
+        name, short_description, header_image, release_date, developers, publishers, genres, background, etc.
+        """
+        if not steam_id:
+            return None
+        try:
+            url = f"https://store.steampowered.com/api/appdetails?appids={steam_id}&l=en&cc=us"
+            async with httpx.AsyncClient(timeout=30.0, headers={
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Safari/537.36'
+            }) as client:
+                resp = await client.get(url)
+                if resp.status_code != 200:
+                    return None
+                payload = resp.json()
+                entry = payload.get(str(steam_id)) or payload.get(steam_id)
+                if not entry or not entry.get('success'):
+                    return None
+                return entry.get('data')
+        except Exception:
+            return None
+
     
     def load_app_index(self) -> Optional[List[Dict]]:
         """Load Steam app index from cache if valid"""
