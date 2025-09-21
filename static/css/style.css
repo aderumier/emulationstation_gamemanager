@@ -1,3 +1,9 @@
+/* Keep manual scrap header actions visible on scroll */
+#manualScrapModal .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
 /*
 GameManager - Game Collection Management System
 Copyright (C) 2024 Alexandre Derumier <aderumier@gmail.com>

@@ -2958,12 +2958,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     <!-- Manual Scrap Validation Modal -->
     <div class="modal fade" id="manualScrapModal" tabindex="-1" aria-labelledby="manualScrapModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="manualScrapModalLabel">
                         <i class="bi bi-search me-2"></i>Manual Scrap Results
                     </h5>
+                    <div class="ms-auto d-flex align-items-center">
+                        <button type="button" class="btn btn-primary" id="applyManualScrapResults" disabled>
+                            <i class="bi bi-check-circle me-2"></i>Apply Selected Changes
+                        </button>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -3017,9 +3022,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="applyManualScrapResults" disabled>
-                        <i class="bi bi-check-circle me-2"></i>Apply Selected Changes
-                    </button>
                 </div>
             </div>
         </div>
