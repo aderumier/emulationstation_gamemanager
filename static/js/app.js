@@ -5497,7 +5497,7 @@ class GameCollectionManager {
     }
 
     showRomScanConfirmation(scanSummary) {
-        const { new_roms, missing_roms, total_existing, total_rom_files } = scanSummary;
+        const { new_roms, missing_roms, total_existing, total_rom_files, is_initial_import } = scanSummary;
         
         // Create modal HTML
         const modalId = 'romScanConfirmationModal';
@@ -5522,18 +5522,34 @@ class GameCollectionManager {
                                 </div>
                                 <div class="col-md-6">
                                     <h6 class="text-warning">Actions Required</h6>
-                                    <div class="d-grid gap-2">
+                                    <div class="d-grid gap-2">`;
+        
+        // Show different buttons based on whether there are changes
+        if (new_roms.length > 0 || missing_roms.length > 0) {
+            modalHTML += `
                                         <button type="button" class="btn btn-success btn-sm" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
                                             <i class="fas fa-check"></i> Proceed with Changes
                                         </button>
                                         <button type="button" class="btn btn-secondary btn-sm" onclick="window.gameManager.confirmRomScan('cancel')" data-bs-dismiss="modal">
                                             <i class="fas fa-times"></i> Cancel
+                                        </button>`;
+        } else {
+            modalHTML += `
+                                        <button type="button" class="btn btn-success btn-sm" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
+                                            <i class="fas fa-check"></i> Continue (No Changes)
                                         </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="window.gameManager.confirmRomScan('cancel')" data-bs-dismiss="modal">
+                                            <i class="fas fa-times"></i> Cancel
+                                        </button>`;
+        }
+        
+        modalHTML += `
                                     </div>
                                 </div>
                             </div>`;
         
-        if (new_roms.length > 0) {
+        // Only show detailed game lists if it's not an initial import
+        if (new_roms.length > 0 && !is_initial_import) {
             modalHTML += `
                             <hr>
                             <div class="mb-3">
@@ -5551,7 +5567,8 @@ class GameCollectionManager {
                             </div>`;
         }
         
-        if (missing_roms.length > 0) {
+        // Only show detailed game lists if it's not an initial import
+        if (missing_roms.length > 0 && !is_initial_import) {
             modalHTML += `
                             <hr>
                             <div class="mb-3">
@@ -5569,17 +5586,34 @@ class GameCollectionManager {
                             </div>`;
         }
         
-        modalHTML += `
+        // Only show warning about removing games if there are missing ROMs and it's not an initial import
+        if (missing_roms.length > 0 && !is_initial_import) {
+            modalHTML += `
                             <div class="alert alert-warning mt-3">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <strong>Warning:</strong> This action will remove ${missing_roms.length} games with missing ROM files from your gamelist.xml. This cannot be undone.
-                            </div>
+                            </div>`;
+        }
+        
+        modalHTML += `
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>`;
+        
+        // Show different button text based on whether there are changes
+        if (new_roms.length > 0 || missing_roms.length > 0) {
+            modalHTML += `
                             <button type="button" class="btn btn-success" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
                                 <i class="fas fa-check"></i> Proceed with Changes
-                            </button>
+                            </button>`;
+        } else {
+            modalHTML += `
+                            <button type="button" class="btn btn-success" onclick="window.gameManager.confirmRomScan('proceed')" data-bs-dismiss="modal">
+                                <i class="fas fa-check"></i> Continue (No Changes)
+                            </button>`;
+        }
+        
+        modalHTML += `
                         </div>
                     </div>
                 </div>
@@ -5746,6 +5780,8 @@ class GameCollectionManager {
                                 // Show confirmation popup for games with missing ROMs
                                 this.showRomScanConfirmation(result.scan_summary);
                                 // Don't continue to media scan - user needs to confirm first
+                                // Restore button state immediately since we're waiting for user confirmation
+                                this.restoreScanButtonState();
                                 return;
                             } else {
                                 // Reload the system to get updated game list
@@ -5762,32 +5798,32 @@ class GameCollectionManager {
                             await this.continueWithMediaScan();
                         } else {
                             this.showAlert(result.error || 'Error getting ROM scan results', 'danger');
-                            // Restore button state on error
-                            this.restoreScanButtonState();
                         }
                     } else {
                         this.showAlert('Error getting ROM scan results', 'danger');
-                        // Restore button state on error
-                        this.restoreScanButtonState();
                     }
                 } else {
                     this.showAlert(romResult.error || 'Error starting ROM scan', 'danger');
-                    // Restore button state on error
-                    this.restoreScanButtonState();
                 }
             } else {
                 const errorData = await romResponse.json();
                 this.showAlert(errorData.error || 'Error starting ROM scan', 'danger');
-                // Restore button state on error
-                this.restoreScanButtonState();
             }
         } catch (error) {
             console.error('Error during unified scan:', error);
             this.showAlert('Error during unified scan: ' + error.message, 'danger');
-            // Restore button state on error
-            this.restoreScanButtonState();
+        } finally {
+            // Restore button state only if it's still in loading state
+            // (don't restore if already restored for confirmation case or media scan)
+            if (button && originalText && button.disabled) {
+                button.innerHTML = originalText;
+                button.disabled = false;
+                console.log('Scan button state restored in finally block');
+            } else if (button && !button.disabled) {
+                // Button is already enabled, ensure it has the correct text with icon
+                this.restoreScanButtonState();
+            }
         }
-        // Note: Button state is restored by continueWithMediaScan() for successful flows
     }
 
     async saveGamelist() {
