@@ -5480,9 +5480,7 @@ class GameCollectionManager {
                 const response = await fetch('/api/task/status');
                 if (response.ok) {
                     const status = await response.json();
-                    console.log(`Task status check ${attempts + 1}:`, status);
                     if (status.status === 'completed' || status.status === 'error') {
-                        console.log('Task completed with status:', status.status);
                         return; // Task completed
                     }
                 }
@@ -5673,13 +5671,16 @@ class GameCollectionManager {
                     const resultsResponse = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms`);
                     if (resultsResponse.ok) {
                         const result = await resultsResponse.json();
+                        console.log('ROM scan results:', result);
                         if (result.success) {
                             if (result.action_taken === 'requires_confirmation') {
                                 // Show confirmation popup for games with missing ROMs
                                 this.showRomScanConfirmation(result.scan_summary);
                             } else {
                                 // Reload the system to get updated game list
+                                console.log('Refreshing game grid after ROM scan completion');
                                 await this.loadRomSystem(this.currentSystem);
+                                console.log('Game grid refreshed, current games count:', this.games.length);
                                 this.showAlert('ROM scan completed. Starting media scan...', 'success');
                             }
                             

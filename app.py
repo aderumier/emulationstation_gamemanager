@@ -8977,6 +8977,8 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
         write_gamelist_xml(existing_games, gamelist_path)
         
         task.update_progress(f"Applied changes: Added {new_games_added} new games, removed {games_removed} games with missing ROMs")
+        task.update_progress(f"Gamelist written to: {gamelist_path}")
+        task.update_progress(f"Total games in gamelist: {len(existing_games)}")
         
     except Exception as e:
         task.update_progress(f"Error applying ROM scan changes: {e}")
