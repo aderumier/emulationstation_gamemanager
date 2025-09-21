@@ -3266,7 +3266,10 @@ class GameCollectionManager {
                 } else {
                     // Regular image file
                     const img = document.createElement('img');
-                    img.src = imagePath;
+                    // Add cache-busting parameter to avoid stale cached images
+                    const urlPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+                    const cacheSep = urlPath.includes('?') ? '&' : '?';
+                    img.src = `${urlPath}${cacheSep}v=${Date.now()}`;
                     img.alt = `${field} for ${game.name}`;
                     img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion`;
                     img.style.cssText = 'width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px;';
