@@ -52,16 +52,18 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
     # Copy the .deb package
-    COPY gamemanager_2.1.6-1_all.deb .
+    COPY gamemanager_2.1.7-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_2.1.6-1_all.deb / && \
-    rm gamemanager_2.1.6-1_all.deb
+RUN dpkg-deb -x gamemanager_2.1.7-1_all.deb / && \
+    rm gamemanager_2.1.7-1_all.deb
 
 # Install the package dependencies manually
-RUN apt-get update && apt-get install -y \
-    python3-jellyfish \
-    && rm -rf /var/lib/apt/lists/*
+# Note: python3-jellyfish installation may fail due to network issues
+# The application will work without it, but some features may be limited
+RUN apt-get update && \
+    (apt-get install -y python3-jellyfish || echo "Warning: Failed to install python3-jellyfish, continuing without it") && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories with proper structure first
 RUN mkdir -p \
