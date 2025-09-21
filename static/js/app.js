@@ -5480,8 +5480,8 @@ class GameCollectionManager {
                 const response = await fetch('/api/task/status');
                 if (response.ok) {
                     const status = await response.json();
-                    if (status.status === 'completed' || status.status === 'error') {
-                        return; // Task completed
+                    if (status.status === 'completed' || status.status === 'error' || status.status === 'waiting_confirmation') {
+                        return; // Task completed or waiting for confirmation
                     }
                 }
             } catch (error) {

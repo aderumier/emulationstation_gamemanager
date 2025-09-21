@@ -875,7 +875,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                     shutil.copy2(gamelist_path, backup_path)
                 except Exception:
                     pass
-                write_gamelist_xml(games, gamelist_path)
+                write_gamelist_xml(original_games, gamelist_path)
             except Exception as _e:
                 result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠️  Failed to save partial gamelist: {_e}"})
             result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"🛑 Task stopped by user after processing {stats['processed_games']} game(s)"})
@@ -995,7 +995,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     except Exception:
         pass
     try:
-        write_gamelist_xml(games, gamelist_path)
+        write_gamelist_xml(all_games, gamelist_path)
     except Exception as e:
         return {'success': False, 'error': f'Error saving gamelist: {e}'}
     # Final 100% update before finishing
@@ -1571,6 +1571,7 @@ TASK_STATUS_COMPLETED = 'completed'
 TASK_STATUS_ERROR = 'error'
 TASK_STATUS_STOPPED = 'stopped'
 TASK_STATUS_QUEUED = 'queued'
+TASK_STATUS_WAITING_CONFIRMATION = 'waiting_confirmation'
 
 # Logs directory
 LOGS_DIR = 'var/task_logs'
@@ -4007,6 +4008,179 @@ def manage_steamgriddb_credentials():
     
     except Exception as e:
         return jsonify({'error': f'Failed to manage SteamGridDB credentials: {str(e)}'}), 500
+
+@app.route('/api/scrap-steamgriddb/<system_name>', methods=['POST'])
+@login_required
+def scrap_steamgriddb_system(system_name):
+    """Start SteamGridDB task for a specific system (SteamGridDB API only)"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_fields': selected_fields
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('steamgriddb_scraping', task_data, username)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'SteamGridDB task queued for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting SteamGridDB task: {e}")
+        return jsonify({'error': f'Failed to start SteamGridDB task: {str(e)}'}), 500
+
+@app.route('/api/scrap-screenscraper/<system_name>', methods=['POST'])
+@login_required
+def scrap_screenscraper_system(system_name):
+    """Start ScreenScraper task for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Check if ScreenScraper is enabled based on credentials
+        from credential_manager import credential_manager
+        screenscraper_creds = credential_manager.get_screenscraper_credentials()
+        if not (screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')):
+            return jsonify({'error': 'ScreenScraper credentials not configured'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_fields': selected_fields
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('screenscraper_scraping', task_data, username)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'ScreenScraper task queued for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting ScreenScraper task: {e}")
+        return jsonify({'error': f'Failed to start ScreenScraper task: {str(e)}'}), 500
+
+@app.route('/api/scrap-steam/<system_name>', methods=['POST'])
+@login_required
+def scrap_steam_system(system_name):
+    """Start Steam task for a specific system (Steam CDN only)"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_fields': selected_fields
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('steam_scraping', task_data, username)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'Steam task queued for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting Steam task: {e}")
+        return jsonify({'error': f'Failed to start Steam task: {str(e)}'}), 500
+
+@app.route('/api/scrap-igdb/<system_name>', methods=['POST'])
+@login_required
+def scrap_igdb_system(system_name):
+    """Start IGDB scraping process for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Check if IGDB is enabled
+        igdb_config = get_igdb_config()
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            return jsonify({'error': 'IGDB credentials not configured'}), 400
+        
+        # Check if system has IGDB platform ID configured
+        config = load_config()
+        systems_config = config.get('systems', {})
+        system_config = systems_config.get(system_name, {})
+        
+        if not system_config.get('igdb'):
+            return jsonify({'error': f'No IGDB platform configured for system "{system_name}"'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        
+        # Get overwrite settings from cookies
+        overwrite_text_fields = request.cookies.get('overwriteTextFields', 'false').lower() == 'true'
+        overwrite_media_fields = request.cookies.get('overwriteMediaFields', 'false').lower() == 'true'
+        
+        print(f"🍪 DEBUG: Cookie values - overwriteTextFields: '{request.cookies.get('overwriteTextFields', 'NOT_SET')}', overwriteMediaFields: '{request.cookies.get('overwriteMediaFields', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: Parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        print(f"🍪 DEBUG: Selected fields: {selected_fields}")
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('igdb_scraping', task_data, username)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'IGDB scraping queued for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting IGDB scraper: {e}")
+        return jsonify({'error': f'Failed to start IGDB scraper: {str(e)}'}), 500
 
 @app.route('/api/steam-mappings', methods=['GET', 'PUT', 'POST'])
 @login_required
@@ -9192,8 +9366,8 @@ def run_rom_scan_task(system_name):
         task.update_progress(f"Found {len(new_roms)} new ROMs to add")
         task.update_progress(f"Found {len(missing_roms)} games with missing ROM files")
         
-        # Check if this is an initial import (no existing gamelist)
-        is_initial_import = len(existing_games) == 0
+        # Check if this is an initial import (no existing gamelist file)
+        is_initial_import = not os.path.exists(gamelist_path)
         
         # Store scan results for confirmation if there are new ROMs or missing ROMs
         if new_roms or missing_roms:
@@ -9210,13 +9384,16 @@ def run_rom_scan_task(system_name):
                 task.update_progress(f"Initial import: Found {len(new_roms)} ROMs to add. Proceeding without confirmation.")
                 # Apply changes directly for initial import
                 apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_path, system_path, hidden_roms)
+                task.complete()
             else:
-                # For existing gamelist, ask for confirmation
+                # For existing gamelist, ask for confirmation - DON'T complete the task yet
                 if missing_roms:
                     task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs and {len(missing_roms)} missing ROMs. Awaiting confirmation.")
                 else:
                     task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs to add. Awaiting confirmation.")
-            task.complete()
+                # Set status to waiting confirmation
+                task.status = TASK_STATUS_WAITING_CONFIRMATION
+                # Don't call task.complete() here - keep task active for confirmation
         else:
             # No new ROMs or missing ROMs found
             task.update_progress("ROM scan completed. No changes needed.")
@@ -9308,6 +9485,7 @@ def scan_rom_files_confirm(system_name):
         
         if action == 'cancel':
             task.update_progress("ROM scan cancelled by user")
+            task.complete()
             return jsonify({
                 'success': True,
                 'message': 'ROM scan cancelled',
@@ -9415,6 +9593,9 @@ def scan_rom_files_confirm(system_name):
         task.update_progress(f"Removed {len(missing_roms)} games with missing ROMs")
         task.update_progress(f"Total games in system: {len(valid_games)}")
         task.update_progress("Media files have been verified and updated")
+        
+        # Complete the task after applying changes
+        task.complete()
         
         return jsonify({
             'success': True,
@@ -13958,7 +14139,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             # Save updated gamelist (all games, not just processed ones)
             # Always save gamelist, even if no games were updated (to ensure consistency)
             print(f"💾 Saving updated gamelist...")
-            write_gamelist_xml(games, gamelist_path)
+            write_gamelist_xml(all_games, gamelist_path)
             if updated_count > 0:
                 print(f"✅ Updated {updated_count} games with ScreenScraper IDs")
             else:
