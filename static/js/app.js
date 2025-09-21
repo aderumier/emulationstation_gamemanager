@@ -5673,14 +5673,11 @@ class GameCollectionManager {
                     const resultsResponse = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms`);
                     if (resultsResponse.ok) {
                         const result = await resultsResponse.json();
-                        console.log('ROM scan results:', result);
                         if (result.success) {
                             if (result.action_taken === 'requires_confirmation') {
-                                console.log('Showing ROM scan confirmation modal');
                                 // Show confirmation popup for games with missing ROMs
                                 this.showRomScanConfirmation(result.scan_summary);
                             } else {
-                                console.log('ROM scan completed without confirmation needed');
                                 // Reload the system to get updated game list
                                 await this.loadRomSystem(this.currentSystem);
                                 this.showAlert('ROM scan completed. Starting media scan...', 'success');
