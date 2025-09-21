@@ -7669,11 +7669,7 @@ async def scrape_launchbox_manual(game, system_name):
                             # Map LaunchBox image types to gamelist fields via config
                             lb_map = image_config.get('image_type_mappings', {})
                             mapped_field = lb_map.get(image_type)
-                            if not mapped_field:
-                                if image_type.startswith('Box'):
-                                    mapped_field = 'image'
-                                elif image_type.startswith('Fanart') or image_type.startswith('Screenshot'):
-                                    mapped_field = 'marquee'
+                            # Only include if explicitly mapped in config
                             if mapped_field:
                                 media_fields.setdefault(mapped_field, []).append(image_url)
                 elif isinstance(image, dict):
@@ -7681,7 +7677,8 @@ async def scrape_launchbox_manual(game, system_name):
                     image_url = image.get('url')
                     
                     lb_map = image_config.get('image_type_mappings', {})
-                    mapped_field = lb_map.get(image_type) or ('image' if 'box' in image_type else 'marquee')
+                    mapped_field = lb_map.get(image_type)
+                    # Only include if explicitly mapped in config
                     if mapped_field and image_url:
                         media_fields.setdefault(mapped_field, []).append(image_url)
         
