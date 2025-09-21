@@ -9748,6 +9748,9 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             cookies_present = False
         # Choose first attempt: sections only if no cookies; otherwise full
         first_mode = 'full' if cookies_present else 'sections'
+
+        used_full_download_without_sections = True if cookies_present else False
+
         download_cmd = build_download_cmd(first_mode)
         if is_steam_store:
             task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
@@ -9830,6 +9833,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             # Fallback: try PO token directly if enabled and YouTube URL
             if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
                 used_po_token = True
+                used_full_download_without_sections = True
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 task.update_progress(f"  🔁 Fallback with YouTube PO token provider: {youtube_po_token_provider}")
                 # Clean previous temp files
@@ -9915,9 +9919,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         else:
             # Log successful completion (without yt-dlp output)
             task.update_progress(f"  ✅ Download completed for {game_name}")
-            # Set flag if we used full download (cookies present) or PO token
-            if first_mode == 'full' or used_po_token:
-                used_full_download_without_sections = True
+
         
         # Find the downloaded file
         temp_files = [f for f in os.listdir(videos_dir) if f.startswith('temp_')]
@@ -9933,7 +9935,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         video_config = config.get('video', {})
         is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
         
-        if used_po_token or used_full_download_without_sections:
+        if used_full_download_without_sections:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, start_time, end_time)
         else:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
