@@ -9375,7 +9375,8 @@ def run_rom_scan_task(system_name):
             'missing_roms': missing_roms,
             'total_existing': len(existing_games),
             'total_rom_files': len(rom_files),
-            'is_initial_import': is_initial_import
+            'is_initial_import': is_initial_import,
+            'hidden_roms': list(hidden_roms)  # Store hidden ROMs for M3U handling
         }
         
         # Always ask for confirmation, regardless of whether there are changes
@@ -9491,6 +9492,7 @@ def scan_rom_files_confirm(system_name):
         new_roms = task.scan_results.get('new_roms', [])
         missing_roms = task.scan_results.get('missing_roms', [])
         is_initial_import = task.scan_results.get('is_initial_import', False)
+        hidden_roms = set(task.scan_results.get('hidden_roms', []))
         
         task.update_progress(f"Using stored scan results: {len(new_roms)} new ROMs, {len(missing_roms)} missing ROMs")
         
@@ -9529,6 +9531,8 @@ def scan_rom_files_confirm(system_name):
         # Add new ROMs
         next_id = max([game.get('id', 0) for game in valid_games] + [0]) + 1
         for rom_file in new_roms:
+            # Check if this ROM should be hidden (referenced in M3U files)
+            should_hide = rom_file in hidden_roms
             new_game = {
                 'id': next_id,
                 'path': f'./{rom_file}',
@@ -9543,11 +9547,14 @@ def scan_rom_files_confirm(system_name):
                 'playcount': '0',
                 'lastplayed': '',
                 'favorite': 'false',
-                'hidden': 'false'
+                'hidden': 'true' if should_hide else 'false'
             }
             valid_games.append(new_game)
             next_id += 1
-            task.update_progress(f"Added new game: {rom_file}")
+            if should_hide:
+                task.update_progress(f"Added new game (hidden): {rom_file} (referenced in M3U)")
+            else:
+                task.update_progress(f"Added new game: {rom_file}")
         
         # Save updated gamelist
         write_gamelist_xml(valid_games, gamelist_path)
