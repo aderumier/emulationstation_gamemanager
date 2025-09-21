@@ -8938,6 +8938,50 @@ def parse_m3u_file(m3u_path):
         print(f"Error parsing M3U file {m3u_path}: {e}")
         return []
 
+def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_path, system_path, hidden_roms):
+    """Apply ROM scan changes directly (for initial import)"""
+    try:
+        # Load existing games
+        existing_games = []
+        if os.path.exists(gamelist_path):
+            existing_games = parse_gamelist_xml(gamelist_path)
+        
+        # Add new ROMs
+        new_games_added = 0
+        for rom_file in new_roms:
+            # Create game entry for new ROM
+            game_entry = {
+                'name': os.path.splitext(os.path.basename(rom_file))[0],
+                'path': f'./{rom_file}',
+                'desc': '',
+                'image': '',
+                'releasedate': '',
+                'developer': '',
+                'publisher': '',
+                'genre': '',
+                'players': '',
+                'playcount': '0',
+                'lastplayed': '',
+                'favorite': 'false',
+                'hidden': 'true' if rom_file in hidden_roms else 'false'
+            }
+            existing_games.append(game_entry)
+            new_games_added += 1
+        
+        # Remove games with missing ROMs
+        games_removed = 0
+        existing_games = [game for game in existing_games if game not in missing_roms]
+        games_removed = len(missing_roms)
+        
+        # Write updated gamelist
+        write_gamelist_xml(existing_games, gamelist_path)
+        
+        task.update_progress(f"Applied changes: Added {new_games_added} new games, removed {games_removed} games with missing ROMs")
+        
+    except Exception as e:
+        task.update_progress(f"Error applying ROM scan changes: {e}")
+        raise
+
 def run_rom_scan_task(system_name):
     """Run ROM scan task in background thread"""
     global current_task_id
@@ -9146,18 +9190,30 @@ def run_rom_scan_task(system_name):
         task.update_progress(f"Found {len(new_roms)} new ROMs to add")
         task.update_progress(f"Found {len(missing_roms)} games with missing ROM files")
         
+        # Check if this is an initial import (no existing gamelist)
+        is_initial_import = len(existing_games) == 0
+        
         # Store scan results for confirmation if there are new ROMs or missing ROMs
         if new_roms or missing_roms:
             task.scan_results = {
                 'new_roms': new_roms,
                 'missing_roms': missing_roms,
                 'total_existing': len(existing_games),
-                'total_rom_files': len(rom_files)
+                'total_rom_files': len(rom_files),
+                'is_initial_import': is_initial_import
             }
-            if missing_roms:
-                task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs and {len(missing_roms)} missing ROMs. Awaiting confirmation.")
+            
+            if is_initial_import:
+                # For initial import, don't ask for confirmation - proceed directly
+                task.update_progress(f"Initial import: Found {len(new_roms)} ROMs to add. Proceeding without confirmation.")
+                # Apply changes directly for initial import
+                apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_path, system_path, hidden_roms)
             else:
-                task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs to add. Awaiting confirmation.")
+                # For existing gamelist, ask for confirmation
+                if missing_roms:
+                    task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs and {len(missing_roms)} missing ROMs. Awaiting confirmation.")
+                else:
+                    task.update_progress(f"ROM scan completed. Found {len(new_roms)} new ROMs to add. Awaiting confirmation.")
             task.complete()
         else:
             # No new ROMs or missing ROMs found
@@ -9193,22 +9249,28 @@ def get_rom_scan_results(system_name):
             'missing_roms': [{'id': game.get('id'), 'name': game.get('name'), 'path': game.get('path')} for game in task.scan_results['missing_roms']],
             'total_existing': task.scan_results['total_existing'],
             'total_rom_files': task.scan_results['total_rom_files'],
+            'is_initial_import': task.scan_results.get('is_initial_import', False),
             'requires_confirmation': len(task.scan_results['new_roms']) > 0 or len(task.scan_results['missing_roms']) > 0
         }
         
-        # Determine action based on what was found
-        if len(task.scan_results['new_roms']) > 0 and len(task.scan_results['missing_roms']) > 0:
-            message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs and {len(scan_summary["missing_roms"])} missing ROMs.'
-            action_taken = 'requires_confirmation'
-        elif len(task.scan_results['new_roms']) > 0:
-            message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs to add.'
-            action_taken = 'requires_confirmation'
-        elif len(task.scan_results['missing_roms']) > 0:
-            message = f'ROM scan completed. Found {len(scan_summary["missing_roms"])} missing ROMs.'
-            action_taken = 'requires_confirmation'
-        else:
-            message = 'ROM scan completed. No changes needed.'
+        # Check if this was an initial import (already processed)
+        if task.scan_results.get('is_initial_import', False):
+            message = f'Initial import completed. Added {len(scan_summary["new_roms"])} ROMs.'
             action_taken = 'completed'
+        else:
+            # Determine action based on what was found
+            if len(task.scan_results['new_roms']) > 0 and len(task.scan_results['missing_roms']) > 0:
+                message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs and {len(scan_summary["missing_roms"])} missing ROMs.'
+                action_taken = 'requires_confirmation'
+            elif len(task.scan_results['new_roms']) > 0:
+                message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs to add.'
+                action_taken = 'requires_confirmation'
+            elif len(task.scan_results['missing_roms']) > 0:
+                message = f'ROM scan completed. Found {len(scan_summary["missing_roms"])} missing ROMs.'
+                action_taken = 'requires_confirmation'
+            else:
+                message = 'ROM scan completed. No changes needed.'
+                action_taken = 'completed'
         
         return jsonify({
             'success': True,
