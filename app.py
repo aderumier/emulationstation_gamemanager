@@ -9700,11 +9700,12 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Check if this is a Steam Store URL
         is_steam_store = 'store.steampowered.com' in video_url.lower()
         
-        # Build commands: try without PO token first, fallback to PO token if enabled
+        # Build commands: try with sections first, then full, then PO token if enabled
         video_config = config.get('video', {})
         is_youtube_url = 'youtu' in video_url.lower()
 
-        def build_download_cmd(use_po_token: bool) -> list:
+        def build_download_cmd(mode: str) -> list:
+            # mode: 'sections' | 'full' | 'po'
             cmd = [
                 yt_dlp_path,
                 '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
@@ -9722,24 +9723,32 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     cmd.extend(['--cookies', abs_cookie])
             except Exception:
                 pass
-            if use_po_token and is_youtube_url:
+            if mode == 'po' and is_youtube_url:
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 cmd.extend([
                     '--extractor-args', 'youtube:player-client=mweb',
                     '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
                 ])
-            else:
-                cmd.extend([
-                    '--download-sections', f'*{start_time}-{end_time}',
-                    '--force-keyframes-at-cuts'
-                ])
+            elif mode == 'sections':
+                # Sections mode disabled when using cookies; simplify to full download
+                pass
+            # mode 'full' adds neither sections nor keyframe forcing
             if is_steam_store:
                 cmd.extend(['--playlist-items', str(playlist_index)])
             cmd.append(video_url)
             return cmd
 
         used_po_token = False
-        download_cmd = build_download_cmd(use_po_token=False)
+        used_full_download_without_sections = False
+        # Determine if cookies are present
+        try:
+            cookie_path_check = os.path.join('var', 'config', 'youtube_cookie.txt')
+            cookies_present = os.path.isfile(cookie_path_check) and os.path.getsize(cookie_path_check) > 0
+        except Exception:
+            cookies_present = False
+        # Choose first attempt: sections only if no cookies; otherwise full
+        first_mode = 'full' if cookies_present else 'sections'
+        download_cmd = build_download_cmd(first_mode)
         if is_steam_store:
             task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
         task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
@@ -9818,7 +9827,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             return False
         
         if process.returncode != 0:
-            # Fallback to PO token if enabled and YouTube URL
+            # Fallback: try PO token directly if enabled and YouTube URL
             if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
                 used_po_token = True
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
@@ -9833,7 +9842,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                                 pass
                 except Exception:
                     pass
-                download_cmd = build_download_cmd(use_po_token=True)
+                download_cmd = build_download_cmd('po')
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 process = subprocess.Popen(
                     download_cmd,
@@ -9906,6 +9915,9 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         else:
             # Log successful completion (without yt-dlp output)
             task.update_progress(f"  ✅ Download completed for {game_name}")
+            # Set flag if we used full download (cookies present) or PO token
+            if first_mode == 'full' or used_po_token:
+                used_full_download_without_sections = True
         
         # Find the downloaded file
         temp_files = [f for f in os.listdir(videos_dir) if f.startswith('temp_')]
@@ -9917,11 +9929,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_path = os.path.join(videos_dir, temp_file)
         
         # Apply video processing (crop and/or resize) if needed
-        # If we used PO token on YouTube, we downloaded full video; cut to section
+        # If we downloaded full video (full fallback or PO token), cut to section
         video_config = config.get('video', {})
         is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
         
-        if used_po_token and is_youtube_url:
+        if used_po_token or used_full_download_without_sections:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, start_time, end_time)
         else:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
