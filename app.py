@@ -9193,14 +9193,28 @@ def get_rom_scan_results(system_name):
             'missing_roms': [{'id': game.get('id'), 'name': game.get('name'), 'path': game.get('path')} for game in task.scan_results['missing_roms']],
             'total_existing': task.scan_results['total_existing'],
             'total_rom_files': task.scan_results['total_rom_files'],
-            'requires_confirmation': len(task.scan_results['missing_roms']) > 0
+            'requires_confirmation': len(task.scan_results['new_roms']) > 0 or len(task.scan_results['missing_roms']) > 0
         }
+        
+        # Determine action based on what was found
+        if len(task.scan_results['new_roms']) > 0 and len(task.scan_results['missing_roms']) > 0:
+            message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs and {len(scan_summary["missing_roms"])} missing ROMs.'
+            action_taken = 'requires_confirmation'
+        elif len(task.scan_results['new_roms']) > 0:
+            message = f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs to add.'
+            action_taken = 'requires_confirmation'
+        elif len(task.scan_results['missing_roms']) > 0:
+            message = f'ROM scan completed. Found {len(scan_summary["missing_roms"])} missing ROMs.'
+            action_taken = 'requires_confirmation'
+        else:
+            message = 'ROM scan completed. No changes needed.'
+            action_taken = 'completed'
         
         return jsonify({
             'success': True,
-            'message': f'ROM scan completed. Found {len(scan_summary["new_roms"])} new ROMs and {len(scan_summary["missing_roms"])} missing ROMs.',
+            'message': message,
             'scan_summary': scan_summary,
-            'action_taken': 'requires_confirmation'
+            'action_taken': action_taken
         })
         
     except Exception as e:
@@ -9749,7 +9763,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Choose first attempt: sections only if no cookies; otherwise full
         first_mode = 'full' if cookies_present else 'sections'
 
-        used_full_download_without_sections = True if cookies_present else False
+        used_full_download_without_sections = True if cookies_present else False                                                
 
         download_cmd = build_download_cmd(first_mode)
         if is_steam_store:
