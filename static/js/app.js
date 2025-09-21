@@ -5691,7 +5691,9 @@ class GameCollectionManager {
         if (button) {
             button.innerHTML = '<i class="fas fa-search"></i> Scan ROMs & Media';
             button.disabled = false;
-            console.log('Scan button state restored');
+            console.log('Scan button state restored - button should be normal now');
+        } else {
+            console.error('Could not find unifiedScanBtn to restore state');
         }
     }
 
@@ -5752,6 +5754,7 @@ class GameCollectionManager {
                             }
                             
                             // Continue with media scan after ROM scan
+                            console.log('Starting media scan for initial import or confirmed ROM scan');
                             await this.continueWithMediaScan();
                         } else {
                             this.showAlert(result.error || 'Error getting ROM scan results', 'danger');
@@ -5769,10 +5772,10 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error during unified scan:', error);
             this.showAlert('Error during unified scan: ' + error.message, 'danger');
-        } finally {
-            // Restore button state
+            // Restore button state on error
             this.restoreScanButtonState();
         }
+        // Note: Button state is restored by continueWithMediaScan() for successful flows
     }
 
     async saveGamelist() {
