@@ -5679,6 +5679,8 @@ class GameCollectionManager {
                             } else {
                                 // Reload the system to get updated game list
                                 console.log('Refreshing game grid after ROM scan completion');
+                                // Add a small delay to ensure gamelist.xml is written
+                                await new Promise(resolve => setTimeout(resolve, 1000));
                                 await this.loadRomSystem(this.currentSystem);
                                 console.log('Game grid refreshed, current games count:', this.games.length);
                                 this.showAlert('ROM scan completed. Starting media scan...', 'success');
