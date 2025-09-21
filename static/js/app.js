@@ -4310,6 +4310,11 @@ class GameCollectionManager {
 
     async applyManualScrapResults() {
         try {
+            const applyBtn = document.getElementById('applyManualScrapResults');
+            const applyingBar = document.getElementById('manualScrapApplying');
+            if (applyBtn) applyBtn.disabled = true;
+            if (applyingBar) applyingBar.style.display = '';
+
             // Collect selected values from the form
             const selectedValues = {};
             
@@ -4374,6 +4379,12 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error applying manual scrap results:', error);
             this.showAlert('Error applying manual scrap results', 'error');
+        }
+        finally {
+            const applyBtn = document.getElementById('applyManualScrapResults');
+            const applyingBar = document.getElementById('manualScrapApplying');
+            if (applyingBar) applyingBar.style.display = 'none';
+            if (applyBtn) applyBtn.disabled = false;
         }
     }
 
