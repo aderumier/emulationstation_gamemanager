@@ -7091,7 +7091,8 @@ def apply_manual_scrap(system_name):
         for field in text_fields:
             selected_source = selections.get(field)
             selected_value = selections.get(f'{field}_value')
-            if selected_value:
+            # Apply any provided value (even empty string) when a non-current source was chosen
+            if selected_value is not None and selected_source and selected_source != 'current':
                 game[field] = selected_value
 
         # Handle media downloads: selections may include e.g. image_url, marquee_url
@@ -7101,33 +7102,54 @@ def apply_manual_scrap(system_name):
         system_dir = os.path.join(ROMS_FOLDER, system_name)
         for media_field in media_fields.keys():
             selected_url = selections.get(f'{media_field}_url')
-            if selected_url:
-                # Determine target directory
-                directory = media_fields[media_field].get('directory', f'{media_field}s')
-                ext = media_fields[media_field].get('target_extension', None)
-                # Build filename from rom filename
-                rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
-                target_dir = os.path.join(system_dir, 'media', directory)
-                os.makedirs(target_dir, exist_ok=True)
-                # Guess extension from URL if not forced
-                from urllib.parse import urlparse
-                parsed = urlparse(selected_url)
-                guessed_ext = os.path.splitext(parsed.path)[1] or '.png'
-                target_ext = ext or guessed_ext
-                target_path = os.path.join(target_dir, f'{rom_filename}{target_ext}')
+            if not selected_url:
+                continue
+            # Determine target directory
+            directory = media_fields[media_field].get('directory', f'{media_field}s')
+            ext = media_fields[media_field].get('target_extension', None)
+            # Build filename from rom filename
+            rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+            target_dir = os.path.join(system_dir, 'media', directory)
+            os.makedirs(target_dir, exist_ok=True)
 
-                # Download
-                try:
-                    resp = requests.get(selected_url, timeout=20)
-                    if resp.status_code == 200:
-                        with open(target_path, 'wb') as f:
-                            f.write(resp.content)
-                        # Update game field with relative path
-                        rel_path = f'./media/{directory}/{rom_filename}{target_ext}'
-                        game[media_field] = rel_path
-                        media_updates[media_field] = rel_path
-                except Exception as e:
-                    print(f'Error downloading media {media_field} from {selected_url}: {e}')
+            # If the selection is a local path (current value), don't attempt download
+            if selected_url.startswith('./') or selected_url.startswith('/roms/'):
+                # Normalize to gamelist relative path
+                if selected_url.startswith('/roms/'):
+                    # Convert absolute /roms/<system>/media/... to ./media/...
+                    try:
+                        parts = selected_url.split('/roms/')[1].split('/')
+                        # parts[0] is system_name
+                        rel = '/' + '/'.join(parts[2:]) if len(parts) > 2 else ''
+                        rel_path = f'.{rel}' if rel.startswith('/media/') else f'./media{rel}'
+                    except Exception:
+                        rel_path = selected_url
+                else:
+                    rel_path = selected_url
+                game[media_field] = rel_path
+                media_updates[media_field] = rel_path
+                continue
+
+            # Remote URL: download
+            from urllib.parse import urlparse
+            parsed = urlparse(selected_url)
+            guessed_ext = os.path.splitext(parsed.path)[1] or '.png'
+            target_ext = ext or guessed_ext
+            target_path = os.path.join(target_dir, f'{rom_filename}{target_ext}')
+
+            try:
+                resp = requests.get(selected_url, timeout=30)
+                if resp.status_code == 200:
+                    with open(target_path, 'wb') as f:
+                        f.write(resp.content)
+                    # Update game field with relative path
+                    rel_path = f'./media/{directory}/{rom_filename}{target_ext}'
+                    game[media_field] = rel_path
+                    media_updates[media_field] = rel_path
+                else:
+                    print(f'Error downloading media {media_field} from {selected_url}: HTTP {resp.status_code}')
+            except Exception as e:
+                print(f'Error downloading media {media_field} from {selected_url}: {e}')
 
         # Save gamelist back
         write_gamelist_xml(games, gamelist_path)
@@ -7154,10 +7176,8 @@ async def scrape_igdb_manual(game, system_name, system_config):
         if not access_token:
             return None
         
-        # Get IGDB platform ID
+        # Get IGDB platform ID (only required when searching by name)
         igdb_platform_id = system_config.get('igdb')
-        if not igdb_platform_id:
-            return None
         
         # Get async client
         async_client = await get_igdb_async_client()
@@ -7179,6 +7199,8 @@ async def scrape_igdb_manual(game, system_name, system_config):
                 async_client
             )
         else:
+            if not igdb_platform_id:
+                return None
             igdb_game = await search_igdb_game_by_name_async(
                 game_name, 
                 igdb_platform_id, 

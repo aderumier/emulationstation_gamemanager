@@ -4187,7 +4187,8 @@ class GameCollectionManager {
             
             const cardHeader = document.createElement('div');
             cardHeader.className = 'card-header';
-            cardHeader.innerHTML = `<h6 class="mb-0"><i class="bi bi-image me-2"></i>${mediaTypes[mediaKey] || mediaKey}</h6>`;
+            // Display the exact gamelist media field name
+            cardHeader.innerHTML = `<h6 class="mb-0"><i class="bi bi-image me-2"></i>${mediaKey}</h6>`;
             card.appendChild(cardHeader);
 
             const cardBody = document.createElement('div');
@@ -4312,16 +4313,16 @@ class GameCollectionManager {
             // Collect selected values from the form
             const selectedValues = {};
             
-            // Get text field selections from clickable cells, and include selected values
-            const textFieldCells = document.querySelectorAll('td[data-field]');
-            textFieldCells.forEach(cell => {
-                const fieldName = cell.dataset.field;
-                const selectedSource = cell.dataset.selected;
+            // Get text field selections from table rows (each row stores dataset field and selected)
+            const textRows = document.querySelectorAll('#textFieldsTableBody tr');
+            textRows.forEach(row => {
+                const fieldName = row.dataset.field;
+                const selectedSource = row.dataset.selected;
+                if (!fieldName || !selectedSource) return;
                 selectedValues[fieldName] = selectedSource;
-                // Resolve selected value from last results if source is not 'current'
-                if (selectedSource && selectedSource !== 'current' && this.lastManualScrapTextFields && this.lastManualScrapTextFields[fieldName]) {
+                if (selectedSource !== 'current' && this.lastManualScrapTextFields && this.lastManualScrapTextFields[fieldName]) {
                     const sourceVal = this.lastManualScrapTextFields[fieldName].sources && this.lastManualScrapTextFields[fieldName].sources[selectedSource];
-                    if (sourceVal) {
+                    if (sourceVal !== undefined && sourceVal !== null) {
                         selectedValues[`${fieldName}_value`] = sourceVal;
                     }
                 }
@@ -4351,10 +4352,21 @@ class GameCollectionManager {
             }
             const result = await resp.json();
             this.showAlert('Manual scrap results applied successfully!', 'success');
-            // Optionally refresh grid row if current game present
-            if (this.currentMediaPreviewGame) {
-                Object.assign(this.currentMediaPreviewGame, result.updated_media || {});
-                this.gridApi && this.gridApi.refreshCells && this.gridApi.refreshCells();
+            // Refresh games from server to reflect updates
+            await this.refreshGameGridWithData();
+            // If game edit modal is open, repopulate its fields from the refreshed data
+            if (this.editingGamePath) {
+                const edited = this.games.find(g => g.path === this.editingGamePath);
+                if (edited) {
+                    // Update basic text fields if present
+                    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+                    setVal('editName', edited.name);
+                    setVal('editDesc', edited.desc);
+                    setVal('editDeveloper', edited.developer);
+                    setVal('editPublisher', edited.publisher);
+                    setVal('editGenre', edited.genre);
+                    setVal('editReleasedate', edited.releasedate);
+                }
             }
             const modal = bootstrap.Modal.getInstance(document.getElementById('manualScrapModal'));
             modal && modal.hide();
