@@ -5616,19 +5616,82 @@ class GameCollectionManager {
                         // Reload the system to get updated game list
                         await this.loadRomSystem(this.currentSystem);
                         this.showAlert(`ROM scan completed! Added ${result.new_games_added} new games, removed ${result.games_removed} games with missing ROMs.`, 'success');
+                        
+                        // Continue with media scan after ROM confirmation
+                        await this.continueWithMediaScan();
                     } else if (result.action_taken === 'cancelled') {
                         this.showAlert('ROM scan cancelled.', 'info');
+                        // Restore button state when cancelled
+                        this.restoreScanButtonState();
                     }
                 } else {
                     this.showAlert(result.error || 'Error confirming ROM scan', 'danger');
+                    // Restore button state on error
+                    this.restoreScanButtonState();
                 }
             } else {
                 const errorData = await response.json();
                 this.showAlert(errorData.error || 'Error confirming ROM scan', 'danger');
+                // Restore button state on error
+                this.restoreScanButtonState();
             }
         } catch (error) {
             console.error('Error confirming ROM scan:', error);
             this.showAlert('Error confirming ROM scan', 'danger');
+            // Restore button state on error
+            this.restoreScanButtonState();
+        }
+    }
+
+    async continueWithMediaScan() {
+        try {
+            this.showAlert('Starting media scan...', 'info');
+            
+            // Wait a moment for any pending operations to complete
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Then scan media files
+            const mediaResponse = await fetch(`/api/rom-system/${this.currentSystem}/scan-media`, {
+                method: 'POST'
+            });
+            
+            if (mediaResponse.ok) {
+                const mediaResult = await mediaResponse.json();
+                if (mediaResult.success) {
+                    this.showAlert('Media scan completed successfully!', 'success');
+                    
+                    // Reload the current system to get updated data (uses efficient updates)
+                    await this.loadRomSystem(this.currentSystem);
+                } else {
+                    this.showAlert(mediaResult.error || 'Media scan failed', 'danger');
+                }
+            } else if (mediaResponse.status === 409) {
+                // Task conflict - another task is running
+                const errorData = await mediaResponse.json();
+                if (errorData.queued) {
+                    this.showAlert(`Task queued: ${errorData.queue_message}`, 'warning');
+                } else {
+                    this.showAlert(errorData.error || 'Task conflict - another task is running', 'danger');
+                }
+            } else {
+                const errorData = await mediaResponse.json();
+                this.showAlert(errorData.error || 'Media scan failed', 'danger');
+            }
+        } catch (error) {
+            console.error('Error during media scan:', error);
+            this.showAlert('Error during media scan: ' + error.message, 'danger');
+        } finally {
+            // Restore button state
+            this.restoreScanButtonState();
+        }
+    }
+
+    restoreScanButtonState() {
+        const button = document.getElementById('unifiedScanBtn');
+        if (button) {
+            button.innerHTML = '<i class="fas fa-search"></i> Scan ROMs & Media';
+            button.disabled = false;
+            console.log('Scan button state restored');
         }
     }
 
@@ -5676,6 +5739,8 @@ class GameCollectionManager {
                             if (result.action_taken === 'requires_confirmation') {
                                 // Show confirmation popup for games with missing ROMs
                                 this.showRomScanConfirmation(result.scan_summary);
+                                // Don't continue to media scan - user needs to confirm first
+                                return;
                             } else {
                                 // Reload the system to get updated game list
                                 console.log('Refreshing game grid after ROM scan completion');
@@ -5686,39 +5751,8 @@ class GameCollectionManager {
                                 this.showAlert('ROM scan completed. Starting media scan...', 'success');
                             }
                             
-                            // Always run media scan after ROM scan (regardless of confirmation status)
-                            // Wait a moment for any pending operations to complete
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            
-                            // Then scan media files
-                            const mediaResponse = await fetch(`/api/rom-system/${this.currentSystem}/scan-media`, {
-                                method: 'POST'
-                            });
-                            
-                            if (mediaResponse.ok) {
-                                const mediaResult = await mediaResponse.json();
-                                if (mediaResult.success) {
-                                    this.showAlert('Media scan completed successfully!', 'success');
-                                    
-                                    // Reload the current system to get updated data (uses efficient updates)
-                                    await this.loadRomSystem(this.currentSystem);
-                                    
-                                    console.log('Unified scan completed:', { rom: result, media: mediaResult });
-                                } else {
-                                    this.showAlert(mediaResult.error || 'Media scan failed', 'danger');
-                                }
-                            } else if (mediaResponse.status === 409) {
-                                // Task conflict - another task is running
-                                const errorData = await mediaResponse.json();
-                                if (errorData.queued) {
-                                    this.showAlert(`Task queued: ${errorData.queue_message}`, 'warning');
-                                } else {
-                                    this.showAlert(errorData.error || 'Task conflict - another task is running', 'danger');
-                                }
-                            } else {
-                                const errorData = await mediaResponse.json();
-                                this.showAlert(errorData.error || 'Media scan failed', 'danger');
-                            }
+                            // Continue with media scan after ROM scan
+                            await this.continueWithMediaScan();
                         } else {
                             this.showAlert(result.error || 'Error getting ROM scan results', 'danger');
                         }
@@ -5737,13 +5771,7 @@ class GameCollectionManager {
             this.showAlert('Error during unified scan: ' + error.message, 'danger');
         } finally {
             // Restore button state
-            if (button && originalText) {
-                button.innerHTML = originalText;
-                button.disabled = false;
-                console.log('Button state restored');
-            } else {
-                console.error('Could not restore button state - button or originalText not available');
-            }
+            this.restoreScanButtonState();
         }
     }
 
