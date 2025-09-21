@@ -2604,6 +2604,23 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <p class="text-muted small">Configure YouTube PO token provider for enhanced YouTube video downloading capabilities.</p>
                     </div>
                     
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="youtubeCookieTextarea" class="form-label">YouTube Cookies (netscape format)</label>
+                            <textarea class="form-control" id="youtubeCookieTextarea" rows="6" placeholder="# Paste exported cookies here..."></textarea>
+                            <div class="form-text">Contents will be saved to <code>var/config/youtube_cookie.txt</code> and used by yt-dlp when present.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Cookie File Status</label>
+                            <div id="youtubeCookieStatus" class="form-control-plaintext">
+                                <span class="badge bg-secondary">Not loaded</span>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="saveYoutubeCookieBtn">
+                                <i class="bi bi-save me-1"></i>Save Cookies
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-8">
                             <div class="mb-3">

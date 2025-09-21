@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+                                                                                                                                                                                                                                                                                                                                                                                                                #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
+"""c
 GameManager - Game Collection Management System
 Copyright (C) 2024 Alexandre Derumier <aderumier@gmail.com>
 
@@ -3185,13 +3185,18 @@ def manage_video_config():
                 '2160': '2160p/4K (height-based, maintain aspect ratio)'
             }
             
+            # Check youtube cookie presence
+            youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+            youtube_cookie_exists = os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0
+
             return jsonify({
                 'force_video_resolution': video_config.get('force_video_resolution', ''),
                 'enable_fadin_fadout': video_config.get('enable_fadin_fadout', False),
                 'enable_cuda': video_config.get('enable_cuda', False),
                 'enable_youtube_po_token': video_config.get('enable_youtube_po_token', False),
                 'youtube_po_token_provider': video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416'),
-                'available_resolutions': available_resolutions
+                'available_resolutions': available_resolutions,
+                'youtube_cookie_exists': youtube_cookie_exists
             })
         elif request.method == 'PUT':
             new_config = request.get_json()
@@ -3222,6 +3227,28 @@ def manage_video_config():
             })
     except Exception as e:
         return jsonify({'error': f'Failed to manage video configuration: {str(e)}'}), 500
+
+@app.route('/api/youtube-cookie', methods=['GET', 'POST'])
+@login_required
+def manage_youtube_cookie():
+    """Get status or save YouTube cookies file used by yt-dlp."""
+    try:
+        cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+        if request.method == 'GET':
+            exists = os.path.isfile(cookie_path) and os.path.getsize(cookie_path) > 0
+            size = os.path.getsize(cookie_path) if exists else 0
+            return jsonify({'exists': exists, 'size': size})
+        else:
+            data = request.get_json(force=True) or {}
+            content = data.get('content', '')
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(cookie_path), exist_ok=True)
+            # Write content as-is
+            with open(cookie_path, 'w', encoding='utf-8') as f:
+                f.write(content or '')
+            return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage YouTube cookie: {str(e)}'}), 500
 
 @app.route('/api/igdb-credentials', methods=['GET', 'POST'])
 @login_required
@@ -9682,6 +9709,17 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             
             '--newline'
         ]
+
+        # If youtube_cookie.txt exists, add cookies parameter
+        try:
+            youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+            if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
+                # Use absolute path for yt-dlp
+                abs_cookie = os.path.abspath(youtube_cookie_path)
+                download_cmd.extend(['--cookies', abs_cookie])
+                task.update_progress(f"  🔒 Using YouTube cookies file: {abs_cookie}")
+        except Exception:
+            pass
         
         # Add YouTube PO token extractor args if enabled and URL is from YouTube
         video_config = config.get('video', {})
@@ -9690,7 +9728,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
             youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
             download_cmd.extend([
-                '--extractor-args', 'youtube:player-client=mweb',
+                '--extractor-args', 'youtube:player-client=tv_simply,mweb',
                 '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
             ])
             task.update_progress(f"  🔑 Using YouTube PO token provider: {youtube_po_token_provider}")

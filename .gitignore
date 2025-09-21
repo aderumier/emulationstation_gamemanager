@@ -152,5 +152,6 @@ var/
 # Exclude credentials files for security
 var/config/credentials.json
 var/config/credentials.enc
+var/config/youtube_cookie.txt
 *.backup.*
 screenscraper_test.txt

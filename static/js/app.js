@@ -10232,6 +10232,14 @@ class GameCollectionManager {
                 this.saveVideoConfiguration();
             });
         }
+
+        // Save YouTube cookies button
+        const saveCookieBtn = document.getElementById('saveYoutubeCookieBtn');
+        if (saveCookieBtn) {
+            saveCookieBtn.addEventListener('click', async () => {
+                await this.saveYoutubeCookie();
+            });
+        }
     }
     
     openVideoConfigurationModal() {
@@ -10328,6 +10336,13 @@ class GameCollectionManager {
                     const providerUrl = config.youtube_po_token_provider || 'http://127.0.0.1:4416';
                     currentYoutubePoTokenProvider.innerHTML = `<span class="badge bg-info">${providerUrl}</span>`;
                 }
+
+                // Update YouTube cookie status
+                const cookieStatus = document.getElementById('youtubeCookieStatus');
+                if (cookieStatus) {
+                    const exists = !!config.youtube_cookie_exists;
+                    cookieStatus.innerHTML = exists ? '<span class="badge bg-success">Cookie file present</span>' : '<span class="badge bg-secondary">No cookie file</span>';
+                }
                 
                 console.log('Video configuration loaded:', config);
             } else {
@@ -10407,6 +10422,32 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error saving video configuration:', error);
             this.showToast('Error saving video configuration', 'error');
+        }
+    }
+
+    async saveYoutubeCookie() {
+        try {
+            const textarea = document.getElementById('youtubeCookieTextarea');
+            const content = textarea ? textarea.value : '';
+            const resp = await fetch('/api/youtube-cookie', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            if (!resp.ok) throw new Error(await resp.text());
+            this.showToast('YouTube cookies saved', 'success');
+            // Refresh header status
+            const statusResp = await fetch('/api/youtube-cookie');
+            if (statusResp.ok) {
+                const s = await statusResp.json();
+                const cookieStatus = document.getElementById('youtubeCookieStatus');
+                if (cookieStatus) {
+                    cookieStatus.innerHTML = s.exists ? '<span class="badge bg-success">Cookie file present</span>' : '<span class="badge bg-secondary">No cookie file</span>';
+                }
+            }
+        } catch (e) {
+            console.error('Failed to save YouTube cookie:', e);
+            this.showToast('Failed to save YouTube cookie', 'error');
         }
     }
     
