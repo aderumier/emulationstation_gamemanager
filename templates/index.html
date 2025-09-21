@@ -2609,6 +2609,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <label for="youtubeCookieTextarea" class="form-label">YouTube Cookies (netscape format)</label>
                             <textarea class="form-control" id="youtubeCookieTextarea" rows="6" placeholder="# Paste exported cookies here..."></textarea>
                             <div class="form-text">Contents will be saved to <code>var/config/youtube_cookie.txt</code> and used by yt-dlp when present.</div>
+                            <div class="alert alert-info mt-2" role="alert">
+                                <strong>How to export YouTube cookies:</strong>
+                                <ul class="mb-0">
+                                    <li>Open a new private browsing/incognito window and log into YouTube.</li>
+                                    <li>Navigate to <code>https://www.youtube.com/robots.txt</code> (this should be the only private/incognito tab open).</li>
+                                    <li>Export youtube.com cookies from the browser, then close the private browsing/incognito window so the session is never opened again.</li>
+                                </ul>
+                            </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Cookie File Status</label>
