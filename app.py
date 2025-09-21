@@ -9710,7 +9710,9 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 '-o', output_template,
                 '--progress',
-                '--newline'
+                '--newline',
+                '--sleep-interval', '5',
+                '--max-sleep-interval', '10'
             ]
             # Cookies support
             try:
