@@ -9506,20 +9506,25 @@ def scan_rom_files_confirm(system_name):
         if is_initial_import:
             valid_games = []
         else:
-            # Find games with missing ROM files
-            valid_games = []
-            for game in existing_games:
-                rom_path = game.get('path', '')
-                if rom_path:
-                    rom_filename = os.path.basename(rom_path)
-                    rom_file_path = os.path.join(system_path, rom_filename)
-                    if not os.path.exists(rom_file_path):
-                        task.update_progress(f"Removing game with missing ROM: {game.get('name', 'Unknown')} ({rom_filename})")
+            # If there are no changes, preserve all existing games
+            if not new_roms and not missing_roms:
+                valid_games = existing_games.copy()
+                task.update_progress("No changes detected, preserving all existing games")
+            else:
+                # Find games with missing ROM files (only when there are changes)
+                valid_games = []
+                for game in existing_games:
+                    rom_path = game.get('path', '')
+                    if rom_path:
+                        rom_filename = os.path.basename(rom_path)
+                        rom_file_path = os.path.join(system_path, rom_filename)
+                        if not os.path.exists(rom_file_path):
+                            task.update_progress(f"Removing game with missing ROM: {game.get('name', 'Unknown')} ({rom_filename})")
+                        else:
+                            valid_games.append(game)
                     else:
+                        # Keep games without path (they might be manually added)
                         valid_games.append(game)
-                else:
-                    # Keep games without path (they might be manually added)
-                    valid_games.append(game)
         
         # Add new ROMs
         next_id = max([game.get('id', 0) for game in valid_games] + [0]) + 1

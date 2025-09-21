@@ -1852,7 +1852,7 @@ class GameCollectionManager {
         
         switch (action) {
             case 'gamelist_updated':
-                console.log('Gamelist updated, refreshing grid...');
+                console.log('Gamelist updated, refreshing grid and system dropdown...');
                 // Show more specific message based on what actually changed
                 if (updateData.updated_count > 0) {
                     this.showToast(`Scraping completed: ${updateData.updated_count} games updated`, 'success');
@@ -1861,6 +1861,8 @@ class GameCollectionManager {
                 }
                 // For gamelist updates, fetch fresh data to ensure consistency
                 this.refreshGameGridWithData();
+                // Also refresh the system dropdown to update game counts
+                this.loadAvailableSystems();
                 break;
                 
             case 'games_deleted':
@@ -5727,7 +5729,7 @@ class GameCollectionManager {
     restoreScanButtonState() {
         const button = document.getElementById('unifiedScanBtn');
         if (button) {
-            button.innerHTML = '<i class="fas fa-search"></i> Scan ROMs & Media';
+            button.innerHTML = '<i class="bi bi-search"></i>';
             button.disabled = false;
             console.log('Scan button state restored - button should be normal now');
         } else {
