@@ -4362,6 +4362,15 @@ class GameCollectionManager {
             this.showAlert('Manual scrap results applied successfully!', 'success');
             // Refresh games from server to reflect updates
             await this.refreshGameGridWithData();
+            
+            // Refresh media preview if it's showing the same game
+            if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === romPath) {
+                const updatedGame = this.games.find(g => g.path === romPath);
+                if (updatedGame) {
+                    await this.showMediaPreview(updatedGame);
+                }
+            }
+            
             // If game edit modal is open, repopulate its fields from the refreshed data
             if (this.editingGamePath) {
                 const edited = this.games.find(g => g.path === this.editingGamePath);
@@ -4374,6 +4383,9 @@ class GameCollectionManager {
                     setVal('editPublisher', edited.publisher);
                     setVal('editGenre', edited.genre);
                     setVal('editReleasedate', edited.releasedate);
+                    
+                    // Refresh media files in game edit modal
+                    await this.showEditGameMedia(edited);
                 }
             }
             const modal = bootstrap.Modal.getInstance(document.getElementById('manualScrapModal'));
