@@ -9700,65 +9700,52 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Check if this is a Steam Store URL
         is_steam_store = 'store.steampowered.com' in video_url.lower()
         
-        # Download command
-        download_cmd = [
-            yt_dlp_path,
-            '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            '-o', output_template,
-            '--progress',
-            
-            '--newline'
-        ]
-
-        # If youtube_cookie.txt exists, add cookies parameter
-        try:
-            youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
-            if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
-                # Use absolute path for yt-dlp
-                abs_cookie = os.path.abspath(youtube_cookie_path)
-                download_cmd.extend(['--cookies', abs_cookie])
-                task.update_progress(f"  🔒 Using YouTube cookies file: {abs_cookie}")
-        except Exception:
-            pass
-        
-        # Add YouTube PO token extractor args if enabled and URL is from YouTube
+        # Build commands: try without PO token first, fallback to PO token if enabled
         video_config = config.get('video', {})
         is_youtube_url = 'youtu' in video_url.lower()
-        
-        if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
-            youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
-            download_cmd.extend([
-                '--extractor-args', 'youtube:player-client=tv_simply,mweb',
-                '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
-            ])
-            task.update_progress(f"  🔑 Using YouTube PO token provider: {youtube_po_token_provider}")
-            # When using PO token, we'll download the full video and cut it later
-            task.update_progress(f"  📹 Downloading full video (will be cut to {start_time}-{end_time}s later)")
-        else:
-            # Only use download-sections when PO token is not enabled or not a YouTube URL
-            download_cmd.extend([
-                '--download-sections', f'*{start_time}-{end_time}',
-                '--force-keyframes-at-cuts'
-            ])
-            if video_config.get('enable_youtube_po_token', False) and not is_youtube_url:
-                task.update_progress(f"  ℹ️ PO token disabled for non-YouTube URL: {video_url}")
-        
-        # Add playlist index parameter for Steam Store URLs
+
+        def build_download_cmd(use_po_token: bool) -> list:
+            cmd = [
+                yt_dlp_path,
+                '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                '-o', output_template,
+                '--progress',
+                '--newline'
+            ]
+            # Cookies support
+            try:
+                youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+                if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
+                    abs_cookie = os.path.abspath(youtube_cookie_path)
+                    cmd.extend(['--cookies', abs_cookie])
+            except Exception:
+                pass
+            if use_po_token and is_youtube_url:
+                youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
+                cmd.extend([
+                    '--extractor-args', 'youtube:player-client=mweb',
+                    '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
+                ])
+            else:
+                cmd.extend([
+                    '--download-sections', f'*{start_time}-{end_time}',
+                    '--force-keyframes-at-cuts'
+                ])
+            if is_steam_store:
+                cmd.extend(['--playlist-items', str(playlist_index)])
+            cmd.append(video_url)
+            return cmd
+
+        used_po_token = False
+        download_cmd = build_download_cmd(use_po_token=False)
         if is_steam_store:
-            download_cmd.extend(['--playlist-items', str(playlist_index)])
             task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
-        
-        download_cmd.append(video_url)
-        
-        # Log the yt-dlp command
         task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
-        
-        # Run download
         process = subprocess.Popen(
-            download_cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
-            text=True, 
+            download_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
             cwd=videos_dir,
             bufsize=1,
             universal_newlines=True
@@ -9829,12 +9816,91 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             return False
         
         if process.returncode != 0:
-            # Log error details for debugging
-            task.update_progress(f"  ❌ Download failed for {game_name} (return code: {process.returncode})")
-            # Show last few lines of output for debugging
-            if stdout_lines:
-                task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
-            return False
+            # Fallback to PO token if enabled and YouTube URL
+            if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
+                used_po_token = True
+                youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
+                task.update_progress(f"  🔁 Fallback with YouTube PO token provider: {youtube_po_token_provider}")
+                # Clean previous temp files
+                try:
+                    for f in os.listdir(videos_dir):
+                        if f.startswith('temp_'):
+                            try:
+                                os.remove(os.path.join(videos_dir, f))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                download_cmd = build_download_cmd(use_po_token=True)
+                task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                process = subprocess.Popen(
+                    download_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=videos_dir,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+                # Read output again
+                stdout_lines = []
+                try:
+                    import select
+                    import sys
+                    while True:
+                        if is_task_stopped():
+                            process.terminate()
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                            task.update_progress(f"  🛑 Download cancelled for {game_name}")
+                            return False
+                        if sys.platform != 'win32':
+                            ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                            if ready:
+                                line = process.stdout.readline()
+                                if not line:
+                                    break
+                            else:
+                                if process.poll() is not None:
+                                    break
+                                continue
+                        else:
+                            line = process.stdout.readline()
+                            if not line:
+                                break
+                        line = line.strip()
+                        if line:
+                            if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
+                                task.update_progress(f"  📥 {line}")
+                            elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
+                                task.update_progress(f"  📥 {line}")
+                            stdout_lines.append(line)
+                    process.wait()
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    task.update_progress(f"  ⏰ Download timeout for {game_name}")
+                    return False
+                except Exception as e:
+                    try:
+                        process.terminate()
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
+                    return False
+                if process.returncode != 0:
+                    task.update_progress(f"  ❌ Download failed for {game_name} even with PO token (code: {process.returncode})")
+                    if stdout_lines:
+                        task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+                    return False
+            else:
+                # Log error details for debugging
+                task.update_progress(f"  ❌ Download failed for {game_name} (return code: {process.returncode})")
+                if stdout_lines:
+                    task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+                return False
         else:
             # Log successful completion (without yt-dlp output)
             task.update_progress(f"  ✅ Download completed for {game_name}")
@@ -9849,11 +9915,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_path = os.path.join(videos_dir, temp_file)
         
         # Apply video processing (crop and/or resize) if needed
-        # If YouTube PO token is enabled and URL is from YouTube, we need to cut the video since we downloaded the full video
+        # If we used PO token on YouTube, we downloaded full video; cut to section
         video_config = config.get('video', {})
         is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
         
-        if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
+        if used_po_token and is_youtube_url:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, start_time, end_time)
         else:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
