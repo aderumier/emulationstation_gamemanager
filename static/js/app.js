@@ -5662,6 +5662,10 @@ class GameCollectionManager {
                     
                     // Reload the current system to get updated data (uses efficient updates)
                     await this.loadRomSystem(this.currentSystem);
+                    
+                    // Ensure games count is updated
+                    console.log('Updating games count after media scan, current games:', this.games.length);
+                    this.updateGamesCount();
                 } else {
                     this.showAlert(mediaResult.error || 'Media scan failed', 'danger');
                 }
@@ -5758,16 +5762,24 @@ class GameCollectionManager {
                             await this.continueWithMediaScan();
                         } else {
                             this.showAlert(result.error || 'Error getting ROM scan results', 'danger');
+                            // Restore button state on error
+                            this.restoreScanButtonState();
                         }
                     } else {
                         this.showAlert('Error getting ROM scan results', 'danger');
+                        // Restore button state on error
+                        this.restoreScanButtonState();
                     }
                 } else {
                     this.showAlert(romResult.error || 'Error starting ROM scan', 'danger');
+                    // Restore button state on error
+                    this.restoreScanButtonState();
                 }
             } else {
                 const errorData = await romResponse.json();
                 this.showAlert(errorData.error || 'Error starting ROM scan', 'danger');
+                // Restore button state on error
+                this.restoreScanButtonState();
             }
         } catch (error) {
             console.error('Error during unified scan:', error);
@@ -11032,6 +11044,7 @@ class GameCollectionManager {
     updateGamesCount() {
         // Update the games count display to show both total and selection
         // Always call updateSelectionDisplay to ensure it's up to date
+        console.log('updateGamesCount called, games.length:', this.games ? this.games.length : 'undefined');
         this.updateSelectionDisplay();
         
         // Update duplicates button state if filter is active
