@@ -4625,7 +4625,7 @@ class GameCollectionManager {
                 this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}" but failed to save gamelist`, 'warning');
             }
         } else {
-            this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
+        this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
         }
     }
     
@@ -5049,9 +5049,30 @@ class GameCollectionManager {
             const verified = game.verified ? 'Verified' : 'Unverified';
             const verifiedClass = game.verified ? 'bg-success' : 'bg-secondary';
             
+            // Create grid image HTML with fallback
+            const gridImage = game.grid_image || null;
+            const imageHtml = gridImage ? `
+                <div class="mb-2 text-center">
+                    <img src="${gridImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="handleSteamgridImageError(this)" 
+                         onload="console.log('SteamGridDB grid image loaded successfully:', this.src)" 
+                         alt="Game grid art" loading="lazy">
+                </div>
+            ` : `
+                <div class="mb-2 text-center">
+                    <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                        <div class="text-muted">
+                            <i class="bi bi-image" style="font-size: 2rem;"></i>
+                            <div class="small">No grid art available</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
             html += `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card h-100">
+                        ${imageHtml}
                         <div class="card-body">
                             <h6 class="card-title">${game.name}</h6>
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -14681,6 +14702,34 @@ function handleScreenscraperImageError(img) {
         <div class="text-muted">
             <i class="bi bi-image" style="font-size: 2rem;"></i>
             <div class="small">Box art not available</div>
+        </div>
+    `;
+    
+    // Replace the image with placeholder
+    img.parentNode.replaceChild(placeholder, img);
+}
+
+// Handle SteamGridDB image loading errors
+function handleSteamgridImageError(img) {
+    console.log('SteamGridDB grid image failed to load:', img.src);
+    
+    // Prevent infinite loop
+    if (img.onerror === null) {
+        return;
+    }
+    
+    // Show placeholder
+    img.onerror = null;
+    img.style.display = 'none';
+    
+    // Create placeholder div
+    const placeholder = document.createElement('div');
+    placeholder.className = 'd-flex align-items-center justify-content-center';
+    placeholder.style.cssText = 'height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;';
+    placeholder.innerHTML = `
+        <div class="text-muted">
+            <i class="bi bi-image" style="font-size: 2rem;"></i>
+            <div class="small">Grid art not available</div>
         </div>
     `;
     

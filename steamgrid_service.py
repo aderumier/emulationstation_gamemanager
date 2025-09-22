@@ -103,8 +103,19 @@ class SteamGridService:
                             'id': game_data.get('id'),
                             'name': game_data.get('name', 'Unknown'),
                             'verified': game_data.get('verified', False),
-                            'types': ['game']  # Default type
+                            'types': ['game'],  # Default type
+                            'grid_image': None  # Will be populated below
                         }]
+                        
+                        # Fetch grid image for the game
+                        if games:
+                            print(f"   🖼️  Fetching grid image for SteamGridDB ID {games[0]['id']}...")
+                            grid_image = await self.get_steamgrid_grid_image(games[0]['id'], api_key)
+                            if grid_image:
+                                games[0]['grid_image'] = grid_image
+                                print(f"   ✅ Grid image: {grid_image[:50]}...")
+                            else:
+                                print(f"   ❌ No grid image available")
                         
                         print(f"   ✅ Found SteamGridDB game: ID={games[0]['id']}, Name='{games[0]['name']}', Verified={games[0]['verified']}")
                         return games[:limit]  # Return up to limit games
@@ -168,21 +179,41 @@ class SteamGridService:
                         games_data = data['data']
                         print(f"   🎮 Found {len(games_data)} games in SteamGridDB search results:")
                         
-                        # Convert to our standard format
+                        # Convert to our standard format and fetch grid images
                         games = []
                         for i, game in enumerate(games_data):
                             game_info = {
                                 'id': game.get('id'),
                                 'name': game.get('name', 'Unknown'),
                                 'verified': game.get('verified', False),
-                                'types': game.get('types', ['game'])
+                                'types': game.get('types', ['game']),
+                                'grid_image': None  # Will be populated below
                             }
                             games.append(game_info)
                             print(f"      [{i+1}] ID: {game_info['id']}, Name: '{game_info['name']}', Verified: {game_info['verified']}")
                         
+                        # Fetch grid images for each game (in parallel for better performance)
+                        if games:
+                            print(f"   🖼️  Fetching grid images for {len(games)} games...")
+                            grid_tasks = []
+                            for game in games:
+                                task = self.get_steamgrid_grid_image(game['id'], api_key)
+                                grid_tasks.append(task)
+                            
+                            # Execute all grid image requests in parallel
+                            grid_images = await asyncio.gather(*grid_tasks, return_exceptions=True)
+                            
+                            # Assign grid images to games
+                            for i, (game, grid_image) in enumerate(zip(games, grid_images)):
+                                if isinstance(grid_image, str):
+                                    game['grid_image'] = grid_image
+                                    print(f"      [{i+1}] Grid image: {grid_image[:50]}...")
+                                else:
+                                    print(f"      [{i+1}] No grid image available")
+                        
                         # Return up to limit games
                         result = games[:limit]
-                        print(f"   ✅ Returning {len(result)} games (limit: {limit})")
+                        print(f"   ✅ Returning {len(result)} games with grid images (limit: {limit})")
                         return result
                     else:
                         print(f"   ❌ No SteamGridDB search results for '{clean_name}' (success={data.get('success')}, data={data.get('data')})")
@@ -283,6 +314,61 @@ class SteamGridService:
                     results[media_type] = []
         
         return results
+    
+    async def get_steamgrid_grid_image(self, steamgrid_id: int, api_key: str = None) -> Optional[str]:
+        """Get a single grid image URL for a SteamGridDB game"""
+        if not steamgrid_id:
+            return None
+        
+        try:
+            base_url = "https://www.steamgriddb.com/api/v2"
+            url = f"{base_url}/grids/game/{steamgrid_id}"
+            
+            headers = {}
+            if api_key:
+                headers['Authorization'] = f'Bearer {api_key}'
+                logger.debug(f"Using SteamGridDB API key: {api_key[:8]}...{api_key[-4:] if len(api_key) > 12 else '***'}")
+            else:
+                logger.warning("No SteamGridDB API key provided - requests may be rate limited")
+            
+            limits = httpx.Limits(max_connections=50, max_keepalive_connections=50)
+            async with httpx.AsyncClient(
+                limits=limits,
+                http2=True,
+                timeout=30.0,
+                headers=headers
+            ) as client:
+                logger.debug(f"Fetching grid image for SteamGridDB ID {steamgrid_id}: {url}")
+                
+                response = await client.get(url)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data.get('success') and data.get('data'):
+                        grids = data['data']
+                        if grids:
+                            # Return the first grid image URL (usually the best one)
+                            grid_url = grids[0].get('url')
+                            if grid_url:
+                                logger.debug(f"Found grid image for SteamGridDB ID {steamgrid_id}: {grid_url}")
+                                return grid_url
+                    
+                    logger.debug(f"No grid images found for SteamGridDB ID {steamgrid_id}")
+                    return None
+                elif response.status_code == 401:
+                    logger.error("SteamGridDB API authentication failed - check API key")
+                    return None
+                elif response.status_code == 429:
+                    logger.warning("SteamGridDB API rate limit exceeded")
+                    return None
+                else:
+                    logger.warning(f"SteamGridDB API error for grids: HTTP {response.status_code}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Error fetching grid image for SteamGridDB ID {steamgrid_id}: {e}")
+            return None
     
     async def download_steamgrid_media(self, steamgrid_id: int, game_name: str, 
                                      roms_root: str, system_name: str,
