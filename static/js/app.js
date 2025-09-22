@@ -5141,7 +5141,7 @@ class GameCollectionManager {
         
         try {
             console.log(`Fetching LaunchBox box image for ID: ${launchboxId}`);
-            const response = await fetch(`/api/launchbox-media/${launchboxId}/Box - Front`, {
+            const response = await fetch(`/api/launchbox-media/${launchboxId}/boxart`, {
                 credentials: 'include'
             });
             
