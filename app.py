@@ -10317,11 +10317,22 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             else:
                 task.update_progress(f"  ⚠️  Could not determine video duration, will use cookies")
         
-        # Choose first attempt: sections only if no cookies; otherwise full
-        first_mode = 'full' if cookies_present else 'sections'
-        use_cookies_first = cookies_present and not skip_cookies_for_long_videos
-
-        used_full_download_without_sections = True if cookies_present else False                                                
+        # Choose first attempt based on cookies and video duration
+        if cookies_present and not skip_cookies_for_long_videos:
+            # Have cookies and video is short - use full download with cookies
+            first_mode = 'full'
+            use_cookies_first = True
+            used_full_download_without_sections = True
+        elif cookies_present and skip_cookies_for_long_videos:
+            # Have cookies but video is long - use full download without cookies
+            first_mode = 'full'
+            use_cookies_first = False
+            used_full_download_without_sections = True
+        else:
+            # No cookies - use sections mode
+            first_mode = 'sections'
+            use_cookies_first = False
+            used_full_download_without_sections = False                                                
 
         download_cmd = build_download_cmd(first_mode, use_cookies_first)
         if is_steam_store:
@@ -10405,8 +10416,90 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             # Fallback logic: try different approaches based on the situation
             fallback_success = False
             
+            # If we started with sections mode (no cookies), try full download
+            if first_mode == 'sections' and not cookies_present:
+                task.update_progress(f"  🔁 Sections mode failed, trying full download...")
+                # Clean previous temp files
+                try:
+                    for f in os.listdir(videos_dir):
+                        if f.startswith('temp_'):
+                            try:
+                                os.remove(os.path.join(videos_dir, f))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                
+                download_cmd = build_download_cmd('full', use_cookies=False)
+                task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                process = subprocess.Popen(
+                    download_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=videos_dir,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+                # Read output again
+                stdout_lines = []
+                try:
+                    import select
+                    import sys
+                    while True:
+                        if is_task_stopped():
+                            process.terminate()
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                            task.update_progress(f"  🛑 Download cancelled for {game_name}")
+                            return False
+                        if sys.platform != 'win32':
+                            ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                            if ready:
+                                line = process.stdout.readline()
+                                if not line:
+                                    break
+                            else:
+                                if process.poll() is not None:
+                                    break
+                                continue
+                        else:
+                            line = process.stdout.readline()
+                            if not line:
+                                break
+                        line = line.strip()
+                        if line:
+                            if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
+                                task.update_progress(f"  📥 {line}")
+                            elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
+                                task.update_progress(f"  📥 {line}")
+                            stdout_lines.append(line)
+                    process.wait()
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    task.update_progress(f"  ⏰ Download timeout for {game_name}")
+                    return False
+                except Exception as e:
+                    try:
+                        process.terminate()
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
+                    return False
+                if process.returncode == 0:
+                    fallback_success = True
+                    used_full_download_without_sections = True
+                    task.update_progress(f"  ✅ Download succeeded with full download for {game_name}")
+                else:
+                    task.update_progress(f"  ❌ Download failed even with full download (code: {process.returncode})")
+                    if stdout_lines:
+                        task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+            
             # If we tried without cookies for a long video and it failed, try with cookies
-            if skip_cookies_for_long_videos and cookies_present:
+            elif skip_cookies_for_long_videos and cookies_present:
                 task.update_progress(f"  🔁 First attempt without cookies failed, trying with cookies...")
                 # Clean previous temp files
                 try:
