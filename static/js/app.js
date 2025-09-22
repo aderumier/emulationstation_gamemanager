@@ -5132,6 +5132,32 @@ class GameCollectionManager {
         }
     }
     
+    async getLaunchboxBoxImage(launchboxId) {
+        // Get Box - Front image URL for a LaunchBox game
+        if (!launchboxId) {
+            return null;
+        }
+        
+        try {
+            const response = await fetch(`/api/launchbox-media/${launchboxId}/box-front`, {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.media && data.media.length > 0) {
+                    // Return the first (best) box image URL
+                    return data.media[0].url;
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error fetching LaunchBox box image:', error);
+            return null;
+        }
+    }
+    
     async findBestMatchForSelected() {
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
@@ -5908,11 +5934,8 @@ class GameCollectionManager {
         const matchesList = document.getElementById('matchesList');
         matchesList.innerHTML = '';
         
-        // Generate match cards
-        matches.forEach((match, index) => {
-            const matchCard = this.createMatchCard(match, index);
-            matchesList.appendChild(matchCard);
-        });
+        // Generate match cards (async)
+        this.createMatchCards(matches, matchesList);
         
         // Enable the apply button
         document.getElementById('applySelectedMatch').disabled = true;
@@ -13367,18 +13390,23 @@ class GameCollectionManager {
         const matchesList = document.getElementById(matchesListId);
         matchesList.innerHTML = '';
         
-        // Generate match cards
-        matches.forEach((match, index) => {
-            const matchCard = this.createMatchCard(match, index);
-            matchesList.appendChild(matchCard);
-        });
+        // Generate match cards (async)
+        this.createMatchCards(matches, matchesList);
         
         // Apply button is no longer needed - using double-click instead
         
         console.log('Modal content populated with matches');
     }
 
-    createMatchCard(match, index) {
+    async createMatchCards(matches, matchesList) {
+        // Create match cards asynchronously
+        for (let i = 0; i < matches.length; i++) {
+            const matchCard = await this.createMatchCard(matches[i], i);
+            matchesList.appendChild(matchCard);
+        }
+    }
+
+    async createMatchCard(match, index) {
         console.log('createMatchCard called with:', match, index);
         
         const scoreClass = match.score >= 0.9 ? 'bg-success' : 
@@ -13387,6 +13415,58 @@ class GameCollectionManager {
         const matchTypeIcon = match.match_type === 'alternate' ? 
             '<i class="bi bi-arrow-repeat text-info" title="Matched via alternate name"></i>' : 
             '<i class="bi bi-check-circle text-success" title="Matched via main name"></i>';
+        
+        // Get box image if we have a database_id
+        let boxImageHtml = '';
+        if (match.database_id) {
+            try {
+                const boxImageUrl = await this.getLaunchboxBoxImage(match.database_id);
+                if (boxImageUrl) {
+                    boxImageHtml = `
+                        <div class="mb-2 text-center">
+                            <img src="${boxImageUrl}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                                 onerror="handleLaunchboxImageError(this)" 
+                                 onload="console.log('LaunchBox box image loaded successfully:', this.src)" 
+                                 alt="Game box art" loading="lazy">
+                        </div>
+                    `;
+                } else {
+                    boxImageHtml = `
+                        <div class="mb-2 text-center">
+                            <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                                <div class="text-muted">
+                                    <i class="bi bi-image" style="font-size: 2rem;"></i>
+                                    <div class="small">No box art available</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error fetching box image:', error);
+                boxImageHtml = `
+                    <div class="mb-2 text-center">
+                        <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                            <div class="text-muted">
+                                <i class="bi bi-image" style="font-size: 2rem;"></i>
+                                <div class="small">No box art available</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            boxImageHtml = `
+                <div class="mb-2 text-center">
+                    <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                        <div class="text-muted">
+                            <i class="bi bi-image" style="font-size: 2rem;"></i>
+                            <div class="small">No box art available</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         
         const card = document.createElement('div');
         card.className = 'col-md-6 mb-3';
@@ -13399,6 +13479,7 @@ class GameCollectionManager {
                         <span class="badge ${scoreClass}">${(match.score * 100).toFixed(1)}%</span>
                     </div>
                 </div>
+                ${boxImageHtml}
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
@@ -14730,6 +14811,34 @@ function handleSteamgridImageError(img) {
         <div class="text-muted">
             <i class="bi bi-image" style="font-size: 2rem;"></i>
             <div class="small">Grid art not available</div>
+        </div>
+    `;
+    
+    // Replace the image with placeholder
+    img.parentNode.replaceChild(placeholder, img);
+}
+
+// Handle LaunchBox image loading errors
+function handleLaunchboxImageError(img) {
+    console.log('LaunchBox box image failed to load:', img.src);
+    
+    // Prevent infinite loop
+    if (img.onerror === null) {
+        return;
+    }
+    
+    // Show placeholder
+    img.onerror = null;
+    img.style.display = 'none';
+    
+    // Create placeholder div
+    const placeholder = document.createElement('div');
+    placeholder.className = 'd-flex align-items-center justify-content-center';
+    placeholder.style.cssText = 'height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;';
+    placeholder.innerHTML = `
+        <div class="text-muted">
+            <i class="bi bi-image" style="font-size: 2rem;"></i>
+            <div class="small">Box art not available</div>
         </div>
     `;
     
