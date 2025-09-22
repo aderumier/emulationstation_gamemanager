@@ -11044,7 +11044,6 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 task.update_progress(f"  🗑️ Removed existing file: {output_filename_only}")
             
             # Move the final processed file to destination
-            import shutil
             shutil.move(final_source_path, output_path)
             task.update_progress(f"  📁 Moved {os.path.basename(final_source_path)} to final location: {output_filename_only}")
             
@@ -11352,7 +11351,6 @@ def run_manual_crop_task(task_id, data):
         task.update_progress("Crop applied successfully!")
         
         # Move temporary file to final location
-        import shutil
         shutil.move(temp_path, output_path)
         task.update_progress(f"Moved cropped video to final location: {output_path}")
         
@@ -13493,7 +13491,6 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             final_file_path = os.path.join(media_dir, final_filename)
             
             # Move the temp file to the final file
-            import shutil
             shutil.move(temp_file_path, final_file_path)
             print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
             
