@@ -427,26 +427,6 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
     except Exception as e:
         return False
 
-def initialize_default_admin():
-    """Initialize default admin user if no users exist"""
-    users = load_users()
-    if not users:
-        # Create default admin user
-        admin_user, error = create_user('admin', 'admin123', 'admin@cursorscraper.local')
-        if admin_user:
-            # Validate the admin user immediately
-            users = load_users()
-            if admin_user.id in users:
-                users[admin_user.id]['is_validated'] = True
-                save_users(users)
-                print("✅ Default admin user created: username='admin', password='admin123'")
-                print("⚠️  Please change the default password after first login!")
-            else:
-                print("❌ Failed to validate default admin user")
-        else:
-            print(f"❌ Failed to create default admin user: {error}")
-    else:
-        print(f"✅ Found {len(users)} existing users")
 
 # Configuration loading function
 def load_config():
@@ -16157,9 +16137,6 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread.daemon = True
     thread.start()
 if __name__ == '__main__':
-    # Initialize default admin user
-    initialize_default_admin()
-    
     # Ensure yt-dlp binary is available
     yt_dlp_path = ensure_yt_dlp_binary()
     if yt_dlp_path:
