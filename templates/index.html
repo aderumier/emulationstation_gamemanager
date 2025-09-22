@@ -901,6 +901,114 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- ScreenScraper Search Modal -->
+    <div class="modal fade" id="screenscraperSearchModal" tabindex="-1" aria-labelledby="screenscraperSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="screenscraperSearchModalLabel">
+                        <i class="bi bi-search me-2 text-warning"></i>ScreenScraper Game Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Searching for:</strong> <span id="screenscraperSearchGameName"></span>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>Search Results:</strong></span>
+                            <div class="spinner-border spinner-border-sm text-warning" id="screenscraperSearchSpinner" style="display: none;" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="screenscraperSearchResults" class="row">
+                        <!-- Search results will be populated here -->
+                    </div>
+                    <div id="screenscraperSearchError" class="alert alert-danger" style="display: none;">
+                        <!-- Error messages will be shown here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Steam Search Modal -->
+    <div class="modal fade" id="steamSearchModal" tabindex="-1" aria-labelledby="steamSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="steamSearchModalLabel">
+                        <i class="bi bi-steam me-2 text-success"></i>Steam Game Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Searching for:</strong> <span id="steamSearchGameName"></span>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>Search Results:</strong></span>
+                            <div class="spinner-border spinner-border-sm text-success" id="steamSearchSpinner" style="display: none;" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="steamSearchResults" class="row">
+                        <!-- Search results will be populated here -->
+                    </div>
+                    <div id="steamSearchError" class="alert alert-danger" style="display: none;">
+                        <!-- Error messages will be shown here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SteamGridDB Search Modal -->
+    <div class="modal fade" id="steamgridSearchModal" tabindex="-1" aria-labelledby="steamgridSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="steamgridSearchModalLabel">
+                        <i class="bi bi-grid-3x3-gap me-2 text-secondary"></i>SteamGridDB Game Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Searching for:</strong> <span id="steamgridSearchGameName"></span>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>Search Results:</strong></span>
+                            <div class="spinner-border spinner-border-sm text-secondary" id="steamgridSearchSpinner" style="display: none;" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="steamgridSearchResults" class="row">
+                        <!-- Search results will be populated here -->
+                    </div>
+                    <div id="steamgridSearchError" class="alert alert-danger" style="display: none;">
+                        <!-- Error messages will be shown here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Global Find Best Match Modal -->
     <div class="modal fade" id="globalMatchModal" tabindex="-1" aria-labelledby="globalMatchModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl" style="max-width: 95vw;">
@@ -2610,6 +2718,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <li>Open a new private browsing/incognito window and log into YouTube.</li>
                                     <li>Navigate to <code>https://www.youtube.com/robots.txt</code> (this should be the only private/incognito tab open).</li>
                                     <li>Export youtube.com cookies from the browser, then close the private browsing/incognito window so the session is never opened again.</li>
+                                    <li>You may also use a conforming browser extension for exporting cookies, such as <a href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank">Get cookies.txt LOCALLY</a> for Chrome or <a href="https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/" target="_blank">cookies.txt</a> for Firefox</li>
                                 </ul>
                             </div>
                         </div>

@@ -4182,6 +4182,257 @@ def scrap_igdb_system(system_name):
         print(f"Error starting IGDB scraper: {e}")
         return jsonify({'error': f'Failed to start IGDB scraper: {str(e)}'}), 500
 
+@app.route('/api/igdb/search', methods=['POST'])
+@login_required
+def search_igdb_games():
+    """Search for games in IGDB database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        platform_id = data.get('platform_id')
+        limit = data.get('limit', 10)
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        # Check if IGDB is enabled
+        igdb_config = get_igdb_config()
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            return jsonify({'error': 'IGDB credentials not configured'}), 400
+        
+        # Get access token
+        access_token = get_igdb_access_token()
+        if not access_token:
+            return jsonify({'error': 'Failed to get IGDB access token'}), 500
+        
+        # Get async client
+        import asyncio
+        async_client = asyncio.run(get_igdb_async_client())
+        
+        # Search for games
+        if platform_id:
+            # Search with platform filter
+            igdb_game = asyncio.run(search_igdb_game_by_name_async(
+                game_name, 
+                platform_id, 
+                access_token, 
+                igdb_config['client_id'],
+                async_client
+            ))
+            games = [igdb_game] if igdb_game else []
+        else:
+            # Search without platform filter - use a more general search
+            import re
+            clean_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+            clean_name = re.sub(r'\s*\[[^\]]*\]', '', clean_name).strip()
+            
+            search_url = "https://api.igdb.com/v4/games"
+            search_data = f'fields id,name,summary,first_release_date,platforms,genres,total_rating,rating_count,player_perspectives,game_modes,cover,screenshots,artworks; search "{clean_name}"; limit {limit};'
+            
+            headers = {
+                'Client-ID': igdb_config['client_id'],
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'text/plain'
+            }
+            
+            # Make the request
+            response = asyncio.run(make_igdb_request_with_retry(async_client, search_url, headers, search_data))
+            
+            if response and response.status_code == 200:
+                games = response.json()
+            else:
+                games = []
+        
+        return jsonify({
+            'success': True,
+            'games': games
+        })
+        
+    except Exception as e:
+        print(f"Error searching IGDB games: {e}")
+        return jsonify({'error': f'Failed to search IGDB games: {str(e)}'}), 500
+
+@app.route('/api/screenscraper/search', methods=['POST'])
+@login_required
+def search_screenscraper_games():
+    """Search for games in ScreenScraper database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        system_name = data.get('system_name', '').strip()
+        limit = data.get('limit', 10)
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Check if ScreenScraper credentials are configured
+        from credential_manager import credential_manager
+        screenscraper_creds = credential_manager.get_screenscraper_credentials()
+        if not (screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')):
+            return jsonify({'error': 'ScreenScraper credentials not configured'}), 400
+        
+        # Load config
+        config = load_config()
+        screenscraper_config = config.get('screenscraper', {})
+        
+        # Get system configuration
+        systems_config = config.get('systems', {})
+        system_config = systems_config.get(system_name, {})
+        screenscraper_system_id = system_config.get('screenscraper')
+        
+        if not screenscraper_system_id:
+            return jsonify({'error': f'No ScreenScraper system ID configured for system "{system_name}"'}), 400
+        
+        # Import ScreenScraper service
+        from screenscraper_service import ScreenScraperService
+        
+        # Create ScreenScraper service using the credentials we already loaded
+        screenscraper_service = ScreenScraperService(config, screenscraper_creds)
+        
+        # Search for games using async function
+        import asyncio
+        search_result = asyncio.run(screenscraper_service.search_game(game_name, system_name))
+        
+        if search_result and 'game_data' in search_result:
+            # Return the found game data
+            game_data = search_result['game_data']
+            games = [{
+                'id': game_data.get('id'),
+                'name': game_data.get('nom', game_name),
+                'description': game_data.get('description', ''),
+                'genre': game_data.get('genre', ''),
+                'publisher': game_data.get('editeur', ''),
+                'developer': game_data.get('developpeur', ''),
+                'year': game_data.get('annee', ''),
+                'rating': game_data.get('note', ''),
+                'players': game_data.get('joueurs', '')
+            }]
+        else:
+            games = []
+        
+        return jsonify({
+            'success': True,
+            'games': games
+        })
+        
+    except Exception as e:
+        print(f"Error searching ScreenScraper games: {e}")
+        return jsonify({'error': f'Failed to search ScreenScraper games: {str(e)}'}), 500
+
+@app.route('/api/steam/search', methods=['POST'])
+@login_required
+def search_steam_games():
+    """Search for games in Steam database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        system_name = data.get('system_name', '').strip()
+        limit = data.get('limit', 10)
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        # Import Steam service
+        from steam_service import SteamService
+        
+        # Create Steam service
+        steam_service = SteamService()
+        
+        # Get Steam apps list
+        apps = asyncio.run(steam_service.get_app_index())
+        
+        if not apps:
+            return jsonify({'error': 'Failed to load Steam apps list'}), 500
+        
+        # Search for games using the existing find_best_match method
+        match_result = steam_service.find_best_match(game_name, apps)
+        
+        if match_result and 'app' in match_result:
+            app = match_result['app']
+            games = [{
+                'appid': app.get('appid'),
+                'name': app.get('name', game_name),
+                'description': 'Steam game',  # Steam API doesn't provide descriptions in the basic app list
+                'price': 'Unknown',  # Would need additional API call
+                'release_date': 'Unknown'  # Would need additional API call
+            }]
+        else:
+            games = []
+        
+        return jsonify({
+            'success': True,
+            'games': games
+        })
+        
+    except Exception as e:
+        print(f"Error searching Steam games: {e}")
+        return jsonify({'error': f'Failed to search Steam games: {str(e)}'}), 500
+
+@app.route('/api/steamgriddb/search', methods=['POST'])
+@login_required
+def search_steamgriddb_games():
+    """Search for games in SteamGridDB database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        system_name = data.get('system_name', '').strip()
+        limit = data.get('limit', 10)
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        # Import SteamGridDB service to get API key
+        from steamgrid_service import SteamGridService
+        
+        # Create SteamGridDB service
+        steamgrid_service = SteamGridService()
+        
+        # Get API key
+        api_key = steamgrid_service.get_api_key()
+        if not api_key:
+            return jsonify({'error': 'SteamGridDB API key not configured'}), 400
+        
+        # SteamGridDB service is already created above, no need to recreate it
+        
+        # Search for games using async function
+        import asyncio
+        steamgrid_id = asyncio.run(steamgrid_service.get_steamgrid_id_by_name(game_name, api_key))
+        
+        if steamgrid_id:
+            # For now, return just the found ID since SteamGridDB search returns only one result
+            games = [{
+                'id': steamgrid_id,
+                'name': game_name,
+                'verified': True,  # We don't have this info from the basic search
+                'types': ['game']  # Default type
+            }]
+        else:
+            games = []
+        
+        return jsonify({
+            'success': True,
+            'games': games
+        })
+        
+    except Exception as e:
+        print(f"Error searching SteamGridDB games: {e}")
+        return jsonify({'error': f'Failed to search SteamGridDB games: {str(e)}'}), 500
+
 @app.route('/api/steam-mappings', methods=['GET', 'PUT', 'POST'])
 @login_required
 def manage_steam_mappings():
@@ -7618,8 +7869,13 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
         if isinstance(screenscraper_config, int):
             # If it's just an integer (system_id), it's enabled
             pass
-        elif not screenscraper_config.get('enabled'):
-            return None
+        else:
+            # Check if ScreenScraper credentials are configured
+            from credential_manager import CredentialManager
+            credential_manager = CredentialManager()
+            screenscraper_credentials = credential_manager.get_screenscraper_credentials()
+            if not (screenscraper_credentials.get('ssid') and screenscraper_credentials.get('sspassword')):
+                return None
         
         # Get ScreenScraper service with proper initialization
         from credential_manager import CredentialManager

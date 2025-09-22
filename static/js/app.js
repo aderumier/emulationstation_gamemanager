@@ -3015,6 +3015,15 @@ class GameCollectionManager {
         // Initialize IGDB search button for edit modal
         this.initializeEditModalIgdbSearch();
         
+        // Initialize ScreenScraper search button for edit modal
+        this.initializeEditModalScreenscraperSearch();
+        
+        // Initialize Steam search button for edit modal
+        this.initializeEditModalSteamSearch();
+        
+        // Initialize SteamGridDB search button for edit modal
+        this.initializeEditModalSteamgridSearch();
+        
         // Initialize YouTube preview button for edit modal
         this.initializeEditModalYoutubePreview();
         
@@ -4610,6 +4619,422 @@ class GameCollectionManager {
             this.modifiedGames.add(game.id);
         }
     }
+    
+    async showGameEditScreenscraperSearch() {
+        // Get current game data from edit modal
+        const gameName = document.getElementById('editName').value;
+        const systemName = this.currentSystem;
+        
+        if (!gameName || !systemName) {
+            this.showAlert('Please select a game and system first', 'warning');
+            return;
+        }
+        
+        // Store current modal context
+        this.currentModalContext = 'gameEdit';
+        this.currentGameData = {
+            name: gameName,
+            system: systemName
+        };
+        
+        // Show the ScreenScraper search modal
+        this.showScreenscraperSearchModal(gameName, systemName);
+    }
+    
+    async showScreenscraperSearchModal(gameName, systemName) {
+        // Set the game name in the modal
+        document.getElementById('screenscraperSearchGameName').textContent = gameName;
+        
+        // Store system name for use in results display
+        this.currentScreenscraperSearchSystem = systemName;
+        
+        // Clear previous results
+        document.getElementById('screenscraperSearchResults').innerHTML = '';
+        document.getElementById('screenscraperSearchError').style.display = 'none';
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('screenscraperSearchModal'));
+        modal.show();
+        
+        // Show spinner
+        document.getElementById('screenscraperSearchSpinner').style.display = 'inline-block';
+        
+        try {
+            // Search for games in ScreenScraper
+            const response = await fetch('/api/screenscraper/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: systemName,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('screenscraperSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displayScreenscraperSearchResults(result.games);
+            } else {
+                this.showScreenscraperSearchError(result.error || 'Failed to search ScreenScraper games');
+            }
+            
+        } catch (error) {
+            console.error('Error searching ScreenScraper games:', error);
+            document.getElementById('screenscraperSearchSpinner').style.display = 'none';
+            this.showScreenscraperSearchError('Error searching ScreenScraper games: ' + error.message);
+        }
+    }
+    
+    displayScreenscraperSearchResults(games) {
+        const resultsContainer = document.getElementById('screenscraperSearchResults');
+        
+        if (!games || games.length === 0) {
+            resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in ScreenScraper database.</div></div>';
+            return;
+        }
+        
+        let html = '';
+        games.forEach((game, index) => {
+            const description = game.description ? (game.description.length > 200 ? game.description.substring(0, 200) + '...' : game.description) : 'No description available';
+            const genre = game.genre || 'Unknown Genre';
+            const publisher = game.publisher || 'Unknown Publisher';
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">${game.name}</h6>
+                            <p class="card-text small text-muted">${description}</p>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">Genre: ${genre}</small>
+                                <small class="text-muted">ID: ${game.id}</small>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="badge bg-warning">${publisher}</small>
+                                <small class="text-muted">ScreenScraper</small>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="button" class="btn btn-warning btn-sm w-100" onclick="gameManager.selectScreenscraperGame(${game.id}, '${game.name.replace(/'/g, "\\'")}')">
+                                <i class="bi bi-check-circle me-1"></i>Select This Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+    }
+    
+    showScreenscraperSearchError(message) {
+        const errorContainer = document.getElementById('screenscraperSearchError');
+        errorContainer.textContent = message;
+        errorContainer.style.display = 'block';
+    }
+    
+    selectScreenscraperGame(screenscraperId, gameName) {
+        // Update the ScreenScraper ID field in the edit modal
+        document.getElementById('editScreenscraperId').value = screenscraperId;
+        
+        // Close the ScreenScraper search modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('screenscraperSearchModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // Show success message
+        this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}"`, 'success');
+        
+        // Mark the game as modified
+        if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
+            const game = this.games[this.editingGameIndex];
+            this.modifiedGames.add(game.id);
+        }
+    }
+    
+    async showGameEditSteamSearch() {
+        // Get current game data from edit modal
+        const gameName = document.getElementById('editName').value;
+        const systemName = this.currentSystem;
+        
+        if (!gameName || !systemName) {
+            this.showAlert('Please select a game and system first', 'warning');
+            return;
+        }
+        
+        // Store current modal context
+        this.currentModalContext = 'gameEdit';
+        this.currentGameData = {
+            name: gameName,
+            system: systemName
+        };
+        
+        // Show the Steam search modal
+        this.showSteamSearchModal(gameName, systemName);
+    }
+    
+    async showSteamSearchModal(gameName, systemName) {
+        // Set the game name in the modal
+        document.getElementById('steamSearchGameName').textContent = gameName;
+        
+        // Store system name for use in results display
+        this.currentSteamSearchSystem = systemName;
+        
+        // Clear previous results
+        document.getElementById('steamSearchResults').innerHTML = '';
+        document.getElementById('steamSearchError').style.display = 'none';
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('steamSearchModal'));
+        modal.show();
+        
+        // Show spinner
+        document.getElementById('steamSearchSpinner').style.display = 'inline-block';
+        
+        try {
+            // Search for games in Steam
+            const response = await fetch('/api/steam/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: systemName,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('steamSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displaySteamSearchResults(result.games);
+            } else {
+                this.showSteamSearchError(result.error || 'Failed to search Steam games');
+            }
+            
+        } catch (error) {
+            console.error('Error searching Steam games:', error);
+            document.getElementById('steamSearchSpinner').style.display = 'none';
+            this.showSteamSearchError('Error searching Steam games: ' + error.message);
+        }
+    }
+    
+    displaySteamSearchResults(games) {
+        const resultsContainer = document.getElementById('steamSearchResults');
+        
+        if (!games || games.length === 0) {
+            resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in Steam database.</div></div>';
+            return;
+        }
+        
+        let html = '';
+        games.forEach((game, index) => {
+            const description = game.description ? (game.description.length > 200 ? game.description.substring(0, 200) + '...' : game.description) : 'No description available';
+            const price = game.price || 'Free';
+            const releaseDate = game.release_date || 'Unknown';
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">${game.name}</h6>
+                            <p class="card-text small text-muted">${description}</p>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">Price: ${price}</small>
+                                <small class="text-muted">ID: ${game.appid}</small>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="badge bg-success">${releaseDate}</small>
+                                <small class="text-muted">Steam</small>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="button" class="btn btn-success btn-sm w-100" onclick="gameManager.selectSteamGame(${game.appid}, '${game.name.replace(/'/g, "\\'")}')">
+                                <i class="bi bi-check-circle me-1"></i>Select This Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+    }
+    
+    showSteamSearchError(message) {
+        const errorContainer = document.getElementById('steamSearchError');
+        errorContainer.textContent = message;
+        errorContainer.style.display = 'block';
+    }
+    
+    selectSteamGame(steamId, gameName) {
+        // Update the Steam ID field in the edit modal
+        document.getElementById('editSteamId').value = steamId;
+        
+        // Close the Steam search modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('steamSearchModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // Show success message
+        this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
+        
+        // Mark the game as modified
+        if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
+            const game = this.games[this.editingGameIndex];
+            this.modifiedGames.add(game.id);
+        }
+    }
+    
+    async showGameEditSteamgridSearch() {
+        // Get current game data from edit modal
+        const gameName = document.getElementById('editName').value;
+        const systemName = this.currentSystem;
+        
+        if (!gameName || !systemName) {
+            this.showAlert('Please select a game and system first', 'warning');
+            return;
+        }
+        
+        // Store current modal context
+        this.currentModalContext = 'gameEdit';
+        this.currentGameData = {
+            name: gameName,
+            system: systemName
+        };
+        
+        // Show the SteamGridDB search modal
+        this.showSteamgridSearchModal(gameName, systemName);
+    }
+    
+    async showSteamgridSearchModal(gameName, systemName) {
+        // Set the game name in the modal
+        document.getElementById('steamgridSearchGameName').textContent = gameName;
+        
+        // Store system name for use in results display
+        this.currentSteamgridSearchSystem = systemName;
+        
+        // Clear previous results
+        document.getElementById('steamgridSearchResults').innerHTML = '';
+        document.getElementById('steamgridSearchError').style.display = 'none';
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('steamgridSearchModal'));
+        modal.show();
+        
+        // Show spinner
+        document.getElementById('steamgridSearchSpinner').style.display = 'inline-block';
+        
+        try {
+            // Search for games in SteamGridDB
+            const response = await fetch('/api/steamgriddb/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: systemName,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('steamgridSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displaySteamgridSearchResults(result.games);
+            } else {
+                this.showSteamgridSearchError(result.error || 'Failed to search SteamGridDB games');
+            }
+            
+        } catch (error) {
+            console.error('Error searching SteamGridDB games:', error);
+            document.getElementById('steamgridSearchSpinner').style.display = 'none';
+            this.showSteamgridSearchError('Error searching SteamGridDB games: ' + error.message);
+        }
+    }
+    
+    displaySteamgridSearchResults(games) {
+        const resultsContainer = document.getElementById('steamgridSearchResults');
+        
+        if (!games || games.length === 0) {
+            resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in SteamGridDB database.</div></div>';
+            return;
+        }
+        
+        let html = '';
+        games.forEach((game, index) => {
+            const verified = game.verified ? 'Verified' : 'Unverified';
+            const verifiedClass = game.verified ? 'bg-success' : 'bg-secondary';
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">${game.name}</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">ID: ${game.id}</small>
+                                <small class="badge ${verifiedClass}">${verified}</small>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">SteamGridDB</small>
+                                <small class="text-muted">${game.types ? game.types.join(', ') : 'Unknown'}</small>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="button" class="btn btn-secondary btn-sm w-100" onclick="gameManager.selectSteamgridGame(${game.id}, '${game.name.replace(/'/g, "\\'")}')">
+                                <i class="bi bi-check-circle me-1"></i>Select This Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+    }
+    
+    showSteamgridSearchError(message) {
+        const errorContainer = document.getElementById('steamgridSearchError');
+        errorContainer.textContent = message;
+        errorContainer.style.display = 'block';
+    }
+    
+    selectSteamgridGame(steamgridId, gameName) {
+        // Update the SteamGridDB ID field in the edit modal
+        document.getElementById('editSteamgridid').value = steamgridId;
+        
+        // Close the SteamGridDB search modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('steamgridSearchModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // Show success message
+        this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}"`, 'success');
+        
+        // Mark the game as modified
+        if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
+            const game = this.games[this.editingGameIndex];
+            this.modifiedGames.add(game.id);
+        }
+    }
+    
     async findBestMatchForSelected() {
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
@@ -6555,6 +6980,33 @@ class GameCollectionManager {
         if (modalFindIgdbMatchBtn) {
             modalFindIgdbMatchBtn.addEventListener('click', () => {
                 this.showGameEditIgdbSearch();
+            });
+        }
+    }
+    
+    initializeEditModalScreenscraperSearch() {
+        const modalFindScreenscraperMatchBtn = document.getElementById('modalFindScreenscraperMatchBtn');
+        if (modalFindScreenscraperMatchBtn) {
+            modalFindScreenscraperMatchBtn.addEventListener('click', () => {
+                this.showGameEditScreenscraperSearch();
+            });
+        }
+    }
+    
+    initializeEditModalSteamSearch() {
+        const modalFindSteamMatchBtn = document.getElementById('modalFindSteamMatchBtn');
+        if (modalFindSteamMatchBtn) {
+            modalFindSteamMatchBtn.addEventListener('click', () => {
+                this.showGameEditSteamSearch();
+            });
+        }
+    }
+    
+    initializeEditModalSteamgridSearch() {
+        const modalFindSteamgridMatchBtn = document.getElementById('modalFindSteamgridMatchBtn');
+        if (modalFindSteamgridMatchBtn) {
+            modalFindSteamgridMatchBtn.addEventListener('click', () => {
+                this.showGameEditSteamgridSearch();
             });
         }
     }
