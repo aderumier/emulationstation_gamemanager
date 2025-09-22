@@ -22,6 +22,19 @@ if [ "$1" = "configure" ] && [ -z "$2" ]; then
     mkdir -p /opt/gamemanager/var/config
     mkdir -p /opt/gamemanager/roms
 
+    # Install default configuration files if they don't exist
+    echo "Installing default configuration files..."
+    if [ ! -f /opt/gamemanager/var/config/scrappers.json ]; then
+        echo "Installing default scrappers.json..."
+        # Files are already in place from package installation
+        echo "scrappers.json is ready"
+    fi
+    if [ ! -f /opt/gamemanager/var/config/systems.json ]; then
+        echo "Installing default systems.json..."
+        # Files are already in place from package installation
+        echo "systems.json is ready"
+    fi
+
     # Set permissions
     echo "Setting up permissions..."
     chown -R gamemanager:gamemanager /opt/gamemanager
@@ -99,6 +112,24 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     mkdir -p /opt/gamemanager/var/config
     mkdir -p /opt/gamemanager/roms
     
+    # Handle scrappers.json and systems.json - install only if they don't exist
+    echo "Checking for scrappers.json and systems.json..."
+    if [ ! -f /opt/gamemanager/var/config/scrappers.json ]; then
+        echo "Installing default scrappers.json..."
+        # Files are already in place from package installation
+        echo "scrappers.json is ready"
+    else
+        echo "scrappers.json already exists - keeping existing file"
+    fi
+    
+    if [ ! -f /opt/gamemanager/var/config/systems.json ]; then
+        echo "Installing default systems.json..."
+        # Files are already in place from package installation
+        echo "systems.json is ready"
+    else
+        echo "systems.json already exists - keeping existing file"
+    fi
+
     # Check if this is a real user config or just the default config from package
     # We'll check if there's a backup from previous installation or if config was modified
     USER_HAS_EXISTING_CONFIG=false
