@@ -11044,8 +11044,16 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 task.update_progress(f"  🗑️ Removed existing file: {output_filename_only}")
             
             # Move the final processed file to destination
-            os.rename(final_source_path, output_path)
-            task.update_progress(f"  📁 Moved {os.path.basename(final_source_path)} to final location: {output_filename_only}")
+            import shutil
+            try:
+                shutil.move(final_source_path, output_path)
+                task.update_progress(f"  📁 Moved {os.path.basename(final_source_path)} to final location: {output_filename_only}")
+            except Exception as e:
+                # Fallback: copy and remove if move fails (e.g., cross-device or symlink issues)
+                task.update_progress(f"  ⚠️ Move failed ({e}), using copy fallback...")
+                shutil.copy2(final_source_path, output_path)
+                os.remove(final_source_path)
+                task.update_progress(f"  📁 Copied {os.path.basename(final_source_path)} to final location: {output_filename_only}")
             
             # Clean up any remaining temp files
             if os.path.exists(temp_path) and temp_path != final_source_path:
@@ -11352,11 +11360,12 @@ def run_manual_crop_task(task_id, data):
         
         # Move temporary file to final location
         try:
-            os.rename(temp_path, output_path)
+            import shutil
+            shutil.move(temp_path, output_path)
             task.update_progress(f"Moved cropped video to final location: {output_path}")
         except Exception as e:
             task.update_progress(f"Warning: Could not move temporary file: {e}")
-            # If rename fails, copy the file
+            # If move fails, copy the file (handles cross-device and symlink issues)
             import shutil
             shutil.copy2(temp_path, output_path)
             os.remove(temp_path)
@@ -13498,9 +13507,17 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             final_filename = os.path.basename(temp_file_path)
             final_file_path = os.path.join(media_dir, final_filename)
             
-            # Rename the temp file to the final file
-            os.rename(temp_file_path, final_file_path)
-            print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
+            # Move the temp file to the final file
+            import shutil
+            try:
+                shutil.move(temp_file_path, final_file_path)
+                print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
+            except Exception as e:
+                # Fallback: copy and remove if move fails (e.g., cross-device or symlink issues)
+                print(f"{emoji} DEBUG: ⚠️ Move failed ({e}), using copy fallback...")
+                shutil.copy2(temp_file_path, final_file_path)
+                os.remove(temp_file_path)
+                print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
             
             # Check if file was written successfully
             if os.path.exists(final_file_path):
