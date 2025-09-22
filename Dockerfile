@@ -87,9 +87,9 @@ RUN cp /opt/gamemanager/var/config/config.json /opt/gamemanager/config.json.defa
     chown appuser:appuser /opt/gamemanager/config.json.default /opt/gamemanager/scrappers.json.default /opt/gamemanager/systems.json.default
 
 # Copy platform cache files to default location outside var (for volume mount scenarios)
-RUN cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/screenscraper_platforms.json.default && \
-    cp /opt/gamemanager/var/db/igdb/platforms.json /opt/gamemanager/igdb_platforms.json.default && \
-    cp /opt/gamemanager/var/config/credentials.enc /opt/gamemanager/credentials.enc.default && \
+RUN (cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/screenscraper_platforms.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/screenscraper_platforms.json.default) && \
+    (cp /opt/gamemanager/var/db/igdb/platforms.json /opt/gamemanager/igdb_platforms.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/igdb_platforms.json.default) && \
+    (cp /opt/gamemanager/var/config/credentials.enc /opt/gamemanager/credentials.enc.default 2>/dev/null || touch /opt/gamemanager/credentials.enc.default) && \
     chmod 644 /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default && \
     chown appuser:appuser /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default
 
