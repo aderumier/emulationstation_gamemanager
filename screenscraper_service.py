@@ -379,10 +379,11 @@ async def close_screenscraper_async_client():
         _screenscraper_async_client = None
 
 class ScreenScraperService:
-    def __init__(self, config: Dict, credentials: Dict, scrappers_config: Dict = None, max_connections: int = 2):
+    def __init__(self, config: Dict, credentials: Dict, scrappers_config: Dict = None, systems_config: Dict = None, max_connections: int = 2):
         self.config = config
         self.credentials = credentials
         self.scrappers_config = scrappers_config or {}
+        self.systems_config = systems_config or {}
         self.logger = logging.getLogger(__name__)
         # Static ScreenScraper configuration
         self.api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
@@ -412,7 +413,7 @@ class ScreenScraperService:
         print(f"Looking up system ID for: '{system_name}'")
         
         # Get the ScreenScraper system ID from the main systems config
-        main_systems_config = self.config.get('systems', {})
+        main_systems_config = self.systems_config
         system_config = main_systems_config.get(system_name, {})
         screenscraper_system_id = system_config.get('screenscraper')
         

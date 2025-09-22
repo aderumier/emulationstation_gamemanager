@@ -414,13 +414,13 @@ def find_match_in_metadata_indexed(gamelist_name, metadata_indexes, use_new_norm
     return False, None, None
 
 def load_platform_mapping():
-    """Load platform mapping from config.json"""
+    """Load platform mapping from systems.json"""
     try:
-        with open('var/config/config.json', 'r') as f:
-            config = json.load(f)
-        return config.get('systems', {})
+        with open('var/config/systems.json', 'r') as f:
+            systems_config = json.load(f)
+        return systems_config
     except Exception as e:
-        print(f"Error loading config.json: {e}")
+        print(f"Error loading systems.json: {e}")
         return {}
 
 def main():

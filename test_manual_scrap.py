@@ -22,6 +22,7 @@ from app import (
     global_metadata_cache,
     load_config,
     load_scrappers_config,
+    load_systems_config,
     load_metadata_cache
 )
 
@@ -43,7 +44,7 @@ async def test_scrapers():
     # Load system configuration
     config = load_config()
     scrappers_config = load_scrappers_config()
-    systems_config = config.get('systems', {})
+    systems_config = load_systems_config()
     system_config = systems_config.get(system_name, {})
     
     print("=" * 60)
@@ -113,7 +114,7 @@ async def test_scrapers():
         else:
             system_id = screenscraper_config.get('system_id')
         
-        screenscraper_service = ScreenScraperService(config, screenscraper_credentials, scrappers_config)
+        screenscraper_service = ScreenScraperService(config, screenscraper_credentials, scrappers_config, systems_config)
         
         print(f"Testing ScreenScraper search for: {test_game['name']}")
         search_result = await screenscraper_service.search_game(test_game['name'], system_name)
