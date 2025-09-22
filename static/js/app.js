@@ -5135,20 +5135,31 @@ class GameCollectionManager {
     async getLaunchboxBoxImage(launchboxId) {
         // Get Box - Front image URL for a LaunchBox game
         if (!launchboxId) {
+            console.log('No LaunchBox ID provided');
             return null;
         }
         
         try {
-            const response = await fetch(`/api/launchbox-media/${launchboxId}/box-front`, {
+            console.log(`Fetching LaunchBox box image for ID: ${launchboxId}`);
+            const response = await fetch(`/api/launchbox-media/${launchboxId}/Box - Front`, {
                 credentials: 'include'
             });
             
+            console.log(`LaunchBox API response status: ${response.status}`);
+            
             if (response.ok) {
                 const data = await response.json();
+                console.log('LaunchBox API response data:', data);
+                
                 if (data.success && data.media && data.media.length > 0) {
+                    console.log(`Found ${data.media.length} box images, using first one:`, data.media[0].url);
                     // Return the first (best) box image URL
                     return data.media[0].url;
+                } else {
+                    console.log('No box images found in LaunchBox response');
                 }
+            } else {
+                console.log('LaunchBox API request failed with status:', response.status);
             }
             
             return null;
