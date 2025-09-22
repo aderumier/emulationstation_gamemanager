@@ -11976,10 +11976,19 @@ def discord_callback():
             try:
                 error_data = response.json()
                 print(f"[DISCORD DEBUG] Error data: {error_data}")
-                error_message = error_data.get('error_description', error_data.get('error', 'Unknown error'))
-                flash(f'Discord authentication failed: {error_message}', 'error')
+                error_type = error_data.get('error', 'Unknown error')
+                error_description = error_data.get('error_description', 'No description provided')
+                
+                if error_type == 'invalid_client':
+                    flash(f'Discord authentication failed: Invalid client credentials. Please check your Discord application settings in the Developer Portal. Error: {error_description}', 'error')
+                elif error_type == 'invalid_grant':
+                    flash(f'Discord authentication failed: Invalid authorization code. Please try logging in again. Error: {error_description}', 'error')
+                elif error_type == 'redirect_uri_mismatch':
+                    flash(f'Discord authentication failed: Redirect URI mismatch. Please check your Discord application redirect URI settings. Error: {error_description}', 'error')
+                else:
+                    flash(f'Discord authentication failed: {error_description} (Error: {error_type})', 'error')
             except:
-                flash(f'Discord authentication failed (HTTP {response.status_code})', 'error')
+                flash(f'Discord authentication failed (HTTP {response.status_code}): {response.text}', 'error')
     except Exception as e:
         print(f"[DISCORD DEBUG] EXCEPTION: Discord authentication error: {e}")
         print(f"[DISCORD DEBUG] Exception type: {type(e).__name__}")
