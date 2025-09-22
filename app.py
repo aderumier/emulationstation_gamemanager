@@ -4398,20 +4398,9 @@ def search_steamgriddb_games():
         
         # SteamGridDB service is already created above, no need to recreate it
         
-        # Search for games using async function
+        # Search for games using async function with 20 games limit
         import asyncio
-        steamgrid_id = asyncio.run(steamgrid_service.get_steamgrid_id_by_name(game_name, api_key))
-        
-        if steamgrid_id:
-            # For now, return just the found ID since SteamGridDB search returns only one result
-            games = [{
-                'id': steamgrid_id,
-                'name': game_name,
-                'verified': True,  # We don't have this info from the basic search
-                'types': ['game']  # Default type
-            }]
-        else:
-            games = []
+        games = asyncio.run(steamgrid_service.get_steamgrid_id_by_name(game_name, api_key, limit=20))
         
         return jsonify({
             'success': True,

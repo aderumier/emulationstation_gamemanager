@@ -64,10 +64,10 @@ class SteamGridService:
             logger.error(f"Error saving SteamGridDB API key: {e}")
             return False
     
-    async def get_steamgrid_id_by_steam_id(self, steam_id: int, api_key: str = None) -> Optional[int]:
-        """Get SteamGridDB ID using Steam ID"""
+    async def get_steamgrid_id_by_steam_id(self, steam_id: int, api_key: str = None, limit: int = 1) -> List[Dict]:
+        """Get SteamGridDB games using Steam ID"""
         if not steam_id:
-            return None
+            return []
     
         try:
             base_url = "https://www.steamgriddb.com/api/v2"
@@ -87,7 +87,7 @@ class SteamGridService:
                 timeout=30.0,
                 headers=headers
             ) as client:
-                logger.debug(f"Fetching SteamGridDB ID for Steam ID {steam_id}: {url}")
+                logger.debug(f"Fetching SteamGridDB games for Steam ID {steam_id}: {url}")
                 
                 response = await client.get(url)
                 
@@ -97,32 +97,38 @@ class SteamGridService:
                     print(f"   📊 Full response data: {json.dumps(data, indent=2)}")
                     
                     if data.get('success') and data.get('data'):
-                        steamgrid_id = data['data'].get('id')
-                        game_name = data['data'].get('name', 'Unknown')
-                        verified = data['data'].get('verified', False)
-                        print(f"   ✅ Found SteamGridDB ID: {steamgrid_id}, Name: '{game_name}', Verified: {verified}")
-                        return steamgrid_id
+                        game_data = data['data']
+                        # Convert single game to list format for consistency
+                        games = [{
+                            'id': game_data.get('id'),
+                            'name': game_data.get('name', 'Unknown'),
+                            'verified': game_data.get('verified', False),
+                            'types': ['game']  # Default type
+                        }]
+                        
+                        print(f"   ✅ Found SteamGridDB game: ID={games[0]['id']}, Name='{games[0]['name']}', Verified={games[0]['verified']}")
+                        return games[:limit]  # Return up to limit games
                     else:
-                        print(f"   ❌ No SteamGridDB ID found for Steam ID {steam_id} (success={data.get('success')}, data={data.get('data')})")
-                        return None
+                        print(f"   ❌ No SteamGridDB games found for Steam ID {steam_id} (success={data.get('success')}, data={data.get('data')})")
+                        return []
                 elif response.status_code == 401:
                     logger.error("SteamGridDB API authentication failed - check API key")
-                    return None
+                    return []
                 elif response.status_code == 429:
                     logger.warning("SteamGridDB API rate limit exceeded")
-                    return None
+                    return []
                 else:
                     logger.warning(f"SteamGridDB API error for Steam ID {steam_id}: HTTP {response.status_code}")
-                    return None
+                    return []
             
         except Exception as e:
-            logger.error(f"Error fetching SteamGridDB ID for Steam ID {steam_id}: {e}")
-            return None
+            logger.error(f"Error fetching SteamGridDB games for Steam ID {steam_id}: {e}")
+            return []
     
-    async def get_steamgrid_id_by_name(self, game_name: str, api_key: str = None) -> Optional[int]:
-        """Get SteamGridDB ID by searching game name"""
+    async def get_steamgrid_id_by_name(self, game_name: str, api_key: str = None, limit: int = 20) -> List[Dict]:
+        """Get SteamGridDB games by searching game name"""
         if not game_name:
-            return None
+            return []
         
         try:
             # Clean game name by removing text in parentheses
@@ -159,45 +165,55 @@ class SteamGridService:
                     print(f"   📊 Full response data: {json.dumps(data, indent=2)}")
                     
                     if data.get('success') and data.get('data'):
-                        games = data['data']
-                        print(f"   🎮 Found {len(games)} games in SteamGridDB search results:")
-                        for i, game in enumerate(games):
-                            print(f"      [{i+1}] ID: {game.get('id')}, Name: '{game.get('name')}', Verified: {game.get('verified', False)}")
+                        games_data = data['data']
+                        print(f"   🎮 Found {len(games_data)} games in SteamGridDB search results:")
                         
-                        if games:
-                            # Return the first game's ID
-                            steamgrid_id = games[0].get('id')
-                            game_name = games[0].get('name', 'Unknown')
-                            print(f"   ✅ Selected first game: ID={steamgrid_id}, Name='{game_name}'")
-                            return steamgrid_id
+                        # Convert to our standard format
+                        games = []
+                        for i, game in enumerate(games_data):
+                            game_info = {
+                                'id': game.get('id'),
+                                'name': game.get('name', 'Unknown'),
+                                'verified': game.get('verified', False),
+                                'types': game.get('types', ['game'])
+                            }
+                            games.append(game_info)
+                            print(f"      [{i+1}] ID: {game_info['id']}, Name: '{game_info['name']}', Verified: {game_info['verified']}")
+                        
+                        # Return up to limit games
+                        result = games[:limit]
+                        print(f"   ✅ Returning {len(result)} games (limit: {limit})")
+                        return result
                     else:
-                        print(f"   ❌ No SteamGridDB games found for '{clean_name}' (success={data.get('success')}, data={data.get('data')})")
-                        return None
+                        print(f"   ❌ No SteamGridDB search results for '{clean_name}' (success={data.get('success')}, data={data.get('data')})")
+                        return []
                 elif response.status_code == 401:
                     logger.error("SteamGridDB API authentication failed - check API key")
-                    return None
+                    return []
                 elif response.status_code == 429:
                     logger.warning("SteamGridDB API rate limit exceeded")
-                    return None
+                    return []
                 else:
-                    logger.warning(f"SteamGridDB API error for '{clean_name}': HTTP {response.status_code}")
-                    return None
+                    logger.warning(f"SteamGridDB API error for game '{clean_name}': HTTP {response.status_code}")
+                    return []
                 
         except Exception as e:
             logger.error(f"Error searching SteamGridDB for '{game_name}': {e}")
-            return None
+            return []
     
     async def get_steamgrid_id(self, steam_id: int = None, game_name: str = None, api_key: str = None) -> Optional[int]:
-        """Get SteamGridDB ID by Steam ID or game name"""
+        """Get SteamGridDB ID by Steam ID or game name (returns first result for backward compatibility)"""
         # Try Steam ID first if available
         if steam_id:
-            steamgrid_id = await self.get_steamgrid_id_by_steam_id(steam_id, api_key)
-            if steamgrid_id:
-                return steamgrid_id
+            games = await self.get_steamgrid_id_by_steam_id(steam_id, api_key, limit=1)
+            if games:
+                return games[0]['id']
         
         # Fall back to name search if Steam ID didn't work
         if game_name:
-            return await self.get_steamgrid_id_by_name(game_name, api_key)
+            games = await self.get_steamgrid_id_by_name(game_name, api_key, limit=1)
+            if games:
+                return games[0]['id']
         
         return None
     
