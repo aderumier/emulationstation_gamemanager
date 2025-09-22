@@ -363,6 +363,108 @@ def update_user_last_login(user_id):
         users[user_id]['last_login'] = datetime.now().isoformat()
         save_users(users)
 
+def should_auto_create_discord_user(discord_id, access_token, discord_config):
+    """Check if Discord user should be auto-created based on server membership and role"""
+    try:
+        # Get Discord configuration for auto-creation
+        auto_create_config = discord_config.get('auto_create', {})
+        required_guild_id = auto_create_config.get('guild_id')
+        required_role_name = auto_create_config.get('role_name')
+        auto_create_enabled = auto_create_config.get('enabled', False)
+        
+        print(f"[DISCORD DEBUG] Auto-create configuration:")
+        print(f"[DISCORD DEBUG] - Enabled: {auto_create_enabled}")
+        print(f"[DISCORD DEBUG] - Required Guild ID: {required_guild_id}")
+        print(f"[DISCORD DEBUG] - Required Role Name: {required_role_name}")
+        
+        # If auto-create is disabled or no configuration, don't auto-create
+        if not auto_create_enabled or not required_guild_id:
+            print(f"[DISCORD DEBUG] Auto-create disabled or no configuration found")
+            return False
+        
+        # Get user's guild memberships
+        headers = {'Authorization': f'Bearer {access_token}'}
+        print(f"[DISCORD DEBUG] Checking user guild memberships...")
+        
+        guilds_response = requests.get('https://discord.com/api/users/@me/guilds', headers=headers)
+        print(f"[DISCORD DEBUG] Guilds response status: {guilds_response.status_code}")
+        
+        if guilds_response.status_code != 200:
+            print(f"[DISCORD DEBUG] ERROR: Failed to get user guilds: {guilds_response.text}")
+            return False
+        
+        user_guilds = guilds_response.json()
+        print(f"[DISCORD DEBUG] User is member of {len(user_guilds)} guilds")
+        
+        # Check if user is member of required guild
+        user_guild_ids = [guild['id'] for guild in user_guilds]
+        if required_guild_id not in user_guild_ids:
+            print(f"[DISCORD DEBUG] User is not member of required guild {required_guild_id}")
+            return False
+        
+        print(f"[DISCORD DEBUG] User is member of required guild {required_guild_id}")
+        
+        # If no specific role required, just guild membership is enough
+        if not required_role_name:
+            print(f"[DISCORD DEBUG] No specific role required, auto-creating user")
+            return True
+        
+        # Check user's roles in the required guild
+        print(f"[DISCORD DEBUG] Checking user roles in guild {required_guild_id}...")
+        
+        # Get guild member info (requires bot token or user to be in guild)
+        # We'll use the OAuth2 access token to get guild member info
+        guild_member_response = requests.get(f'https://discord.com/api/users/@me/guilds/{required_guild_id}/member', headers=headers)
+        print(f"[DISCORD DEBUG] Guild member response status: {guild_member_response.status_code}")
+        
+        if guild_member_response.status_code != 200:
+            print(f"[DISCORD DEBUG] ERROR: Failed to get guild member info: {guild_member_response.text}")
+            # If we can't get member info, we can't check roles, so don't auto-create
+            return False
+        
+        member_info = guild_member_response.json()
+        user_role_ids = member_info.get('roles', [])
+        print(f"[DISCORD DEBUG] User role IDs in guild: {user_role_ids}")
+        
+        # Get guild roles to match role names
+        print(f"[DISCORD DEBUG] Getting guild roles to check role names...")
+        guild_roles_response = requests.get(f'https://discord.com/api/guilds/{required_guild_id}/roles', headers=headers)
+        print(f"[DISCORD DEBUG] Guild roles response status: {guild_roles_response.status_code}")
+        
+        if guild_roles_response.status_code != 200:
+            print(f"[DISCORD DEBUG] ERROR: Failed to get guild roles: {guild_roles_response.text}")
+            # If we can't get roles, we can't check role names, so don't auto-create
+            return False
+        
+        guild_roles = guild_roles_response.json()
+        print(f"[DISCORD DEBUG] Guild has {len(guild_roles)} roles")
+        
+        # Find the role ID for the required role name
+        required_role_id = None
+        for role in guild_roles:
+            if role['name'] == required_role_name:
+                required_role_id = role['id']
+                print(f"[DISCORD DEBUG] Found role '{required_role_name}' with ID: {required_role_id}")
+                break
+        
+        if not required_role_id:
+            print(f"[DISCORD DEBUG] ERROR: Role '{required_role_name}' not found in guild")
+            return False
+        
+        # Check if user has required role
+        if required_role_id in user_role_ids:
+            print(f"[DISCORD DEBUG] User has required role '{required_role_name}' ({required_role_id}), auto-creating user")
+            return True
+        else:
+            print(f"[DISCORD DEBUG] User does not have required role '{required_role_name}' ({required_role_id})")
+            return False
+            
+    except Exception as e:
+        print(f"[DISCORD DEBUG] EXCEPTION in should_auto_create_discord_user: {e}")
+        import traceback
+        print(f"[DISCORD DEBUG] Traceback: {traceback.format_exc()}")
+        return False
+
 def initialize_default_admin():
     """Initialize default admin user if no users exist"""
     users = load_users()
@@ -11831,7 +11933,8 @@ def logout():
 @app.route('/discord/login')
 def discord_login():
     # Discord OAuth2 URL
-    discord_config = config.get('discord', {})
+    from credential_manager import credential_manager
+    discord_config = credential_manager.get_discord_credentials()
     discord_client_id = discord_config.get('client_id', 'your_discord_client_id')
     discord_redirect_uri = discord_config.get('redirect_uri', url_for('discord_callback', _external=True))
     discord_scope = discord_config.get('scope', 'identify email')
@@ -11875,7 +11978,8 @@ def discord_callback():
     print(f"[DISCORD DEBUG] Authorization code received: {code[:10]}...")
     
     # Exchange code for access token
-    discord_config = config.get('discord', {})
+    from credential_manager import credential_manager
+    discord_config = credential_manager.get_discord_credentials()
     discord_client_id = discord_config.get('client_id', 'your_discord_client_id')
     discord_client_secret = discord_config.get('client_secret', 'your_discord_client_secret')
     discord_redirect_uri = discord_config.get('redirect_uri', url_for('discord_callback', _external=True))
@@ -11963,8 +12067,37 @@ def discord_callback():
                         return redirect(url_for('login'))
                 else:
                     print(f"[DISCORD DEBUG] User not found in database")
-                    # User doesn't exist - only allow first user setup
-                    flash('Discord account not found. Please contact an administrator to create your account.', 'error')
+                    # Check if user should be auto-created based on Discord server membership and role
+                    if should_auto_create_discord_user(discord_id, access_token, discord_config):
+                        print(f"[DISCORD DEBUG] User meets auto-creation criteria, creating account...")
+                        # Auto-create user
+                        username = f"discord_{username}"  # Prefix to avoid conflicts
+                        email = email or f"{discord_id}@discord.local"
+                        
+                        user, error = create_user(username, None, email, discord_id)
+                        if user:
+                            # Auto-validate the user since they met the criteria
+                            users = load_users()
+                            if user.id in users:
+                                users[user.id]['is_validated'] = True
+                                save_users(users)
+                                print(f"[DISCORD DEBUG] Auto-created and validated user: {username}")
+                                
+                                # Log the user in
+                                login_user(user)
+                                update_user_last_login(user.id)
+                                flash(f'Welcome! Your account has been automatically created and validated.', 'success')
+                                return redirect(url_for('index'))
+                            else:
+                                print(f"[DISCORD DEBUG] ERROR: Failed to validate auto-created user")
+                                flash('Account created but validation failed. Please contact an administrator.', 'error')
+                        else:
+                            print(f"[DISCORD DEBUG] ERROR: Failed to auto-create user: {error}")
+                            flash(f'Failed to create account: {error}', 'error')
+                    else:
+                        print(f"[DISCORD DEBUG] User does not meet auto-creation criteria")
+                        # User doesn't exist and doesn't meet auto-creation criteria
+                        flash('Discord account not found. Please contact an administrator to create your account.', 'error')
                     return redirect(url_for('login'))
             else:
                 print(f"[DISCORD DEBUG] ERROR: Failed to get Discord user information")
@@ -12005,7 +12138,9 @@ def discord_debug():
         flash('Access denied', 'error')
         return redirect(url_for('login'))
     
-    discord_config = config.get('discord', {})
+    from credential_manager import credential_manager
+    discord_config = credential_manager.get_discord_credentials()
+    auto_create_config = discord_config.get('auto_create', {})
     debug_info = {
         'client_id': discord_config.get('client_id', 'NOT CONFIGURED'),
         'client_secret': 'CONFIGURED' if discord_config.get('client_secret', 'your_discord_client_secret') != 'your_discord_client_secret' else 'NOT CONFIGURED',
@@ -12013,12 +12148,17 @@ def discord_debug():
         'scope': discord_config.get('scope', 'NOT CONFIGURED'),
         'current_redirect_uri': url_for('discord_callback', _external=True),
         'discord_login_url': url_for('discord_login', _external=True),
-        'discord_callback_url': url_for('discord_callback', _external=True)
+        'discord_callback_url': url_for('discord_callback', _external=True),
+        'auto_create': {
+            'enabled': auto_create_config.get('enabled', False),
+            'guild_id': auto_create_config.get('guild_id', 'NOT CONFIGURED'),
+            'role_name': auto_create_config.get('role_name', 'NOT CONFIGURED')
+        }
     }
     
     return f"""
     <h1>Discord Configuration Debug</h1>
-    <h2>Configuration from config.json:</h2>
+    <h2>Configuration from credentials.json:</h2>
     <pre>{json.dumps(debug_info, indent=2)}</pre>
     
     <h2>Test Discord Login:</h2>

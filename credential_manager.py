@@ -72,6 +72,30 @@ class CredentialManager:
             'client_secret': ''
         }
     
+    def get_discord_credentials(self) -> Dict[str, str]:
+        """Get Discord credentials from regular credentials file"""
+        if os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    credentials = json.load(f)
+                    if 'discord' in credentials:
+                        return credentials['discord']
+            except Exception as e:
+                print(f"Error loading Discord credentials: {e}")
+        
+        # Return empty Discord credentials
+        return {
+            'client_id': '',
+            'client_secret': '',
+            'redirect_uri': '',
+            'scope': '',
+            'auto_create': {
+                'enabled': False,
+                'guild_id': '',
+                'role_name': ''
+            }
+        }
+    
     def _get_developer_credentials(self) -> Dict[str, str]:
         """Get developer credentials from encoded file"""
         if os.path.exists(self.encoded_credentials_file):
@@ -153,6 +177,35 @@ class CredentialManager:
             json.dump(credentials, f, indent=2)
         
         print("ScreenScraper user credentials updated in regular file")
+    
+    def save_discord_credentials(self, client_id: str, client_secret: str, redirect_uri: str, scope: str, auto_create: Dict):
+        """Save Discord credentials to regular credentials file"""
+        # Load existing credentials
+        credentials = {}
+        if os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    credentials = json.load(f)
+            except Exception as e:
+                print(f"Error loading existing credentials: {e}")
+        
+        # Update Discord credentials
+        credentials['discord'] = {
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'redirect_uri': redirect_uri,
+            'scope': scope,
+            'auto_create': auto_create
+        }
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(self.credentials_file), exist_ok=True)
+        
+        # Save to regular credentials file
+        with open(self.credentials_file, 'w') as f:
+            json.dump(credentials, f, indent=2)
+        
+        print("Discord credentials saved successfully")
     
     def create_encoded_credentials_file(self):
         """Create the encoded credentials file with only developer credentials"""
