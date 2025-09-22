@@ -4600,7 +4600,7 @@ class GameCollectionManager {
         errorContainer.style.display = 'block';
     }
     
-    selectIgdbGame(igdbId, gameName) {
+    async selectIgdbGame(igdbId, gameName) {
         // Update the IGDB ID field in the edit modal
         document.getElementById('editIgdbId').value = igdbId;
         
@@ -4610,13 +4610,22 @@ class GameCollectionManager {
             modal.hide();
         }
         
-        // Show success message
-        this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
-        
-        // Mark the game as modified
+        // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
+            game.igdbid = igdbId;
             this.modifiedGames.add(game.id);
+            
+            // Auto-save the gamelist
+            try {
+                await this.saveGamelistDirect();
+                this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}" and gamelist saved`, 'success');
+            } catch (error) {
+                console.error('Error auto-saving gamelist:', error);
+                this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}" but failed to save gamelist`, 'warning');
+            }
+        } else {
+            this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
         }
     }
     
@@ -4760,7 +4769,7 @@ class GameCollectionManager {
         errorContainer.style.display = 'block';
     }
     
-    selectScreenscraperGame(screenscraperId, gameName) {
+    async selectScreenscraperGame(screenscraperId, gameName) {
         // Update the ScreenScraper ID field in the edit modal
         document.getElementById('editScreenscraperId').value = screenscraperId;
         
@@ -4770,13 +4779,22 @@ class GameCollectionManager {
             modal.hide();
         }
         
-        // Show success message
-        this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}"`, 'success');
-        
-        // Mark the game as modified
+        // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
+            game.screenscraperid = screenscraperId;
             this.modifiedGames.add(game.id);
+            
+            // Auto-save the gamelist
+            try {
+                await this.saveGamelistDirect();
+                this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}" and gamelist saved`, 'success');
+            } catch (error) {
+                console.error('Error auto-saving gamelist:', error);
+                this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}" but failed to save gamelist`, 'warning');
+            }
+        } else {
+            this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}"`, 'success');
         }
     }
     
@@ -4918,7 +4936,7 @@ class GameCollectionManager {
         errorContainer.style.display = 'block';
     }
     
-    selectSteamGame(steamId, gameName) {
+    async selectSteamGame(steamId, gameName) {
         // Update the Steam ID field in the edit modal
         document.getElementById('editSteamId').value = steamId;
         
@@ -4928,13 +4946,22 @@ class GameCollectionManager {
             modal.hide();
         }
         
-        // Show success message
-        this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
-        
-        // Mark the game as modified
+        // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
+            game.steamid = steamId;
             this.modifiedGames.add(game.id);
+            
+            // Auto-save the gamelist
+            try {
+                await this.saveGamelistDirect();
+                this.showAlert(`Steam ID set to ${steamId} for "${gameName}" and gamelist saved`, 'success');
+            } catch (error) {
+                console.error('Error auto-saving gamelist:', error);
+                this.showAlert(`Steam ID set to ${steamId} for "${gameName}" but failed to save gamelist`, 'warning');
+            }
+        } else {
+            this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
         }
     }
     
@@ -5055,7 +5082,7 @@ class GameCollectionManager {
         errorContainer.style.display = 'block';
     }
     
-    selectSteamgridGame(steamgridId, gameName) {
+    async selectSteamgridGame(steamgridId, gameName) {
         // Update the SteamGridDB ID field in the edit modal
         document.getElementById('editSteamgridid').value = steamgridId;
         
@@ -5065,13 +5092,22 @@ class GameCollectionManager {
             modal.hide();
         }
         
-        // Show success message
-        this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}"`, 'success');
-        
-        // Mark the game as modified
+        // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
+            game.steamgridid = steamgridId;
             this.modifiedGames.add(game.id);
+            
+            // Auto-save the gamelist
+            try {
+                await this.saveGamelistDirect();
+                this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}" and gamelist saved`, 'success');
+            } catch (error) {
+                console.error('Error auto-saving gamelist:', error);
+                this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}" but failed to save gamelist`, 'warning');
+            }
+        } else {
+            this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}"`, 'success');
         }
     }
     
