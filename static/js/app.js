@@ -10786,7 +10786,6 @@ class GameCollectionManager {
                 document.getElementById('discordClientId').value = discordConfig.client_id || '';
                 document.getElementById('discordClientSecret').value = discordConfig.client_secret || '';
                 document.getElementById('discordRedirectUri').value = discordConfig.redirect_uri || '';
-                document.getElementById('discordScope').value = discordConfig.scope || '';
                 document.getElementById('discordAutoCreate').checked = discordConfig.auto_create?.enabled || false;
                 document.getElementById('discordGuildId').value = discordConfig.auto_create?.guild_id || '';
                 document.getElementById('discordRoleName').value = discordConfig.auto_create?.role_name || '';
@@ -10855,7 +10854,7 @@ class GameCollectionManager {
                 client_id: document.getElementById('discordClientId').value,
                 client_secret: document.getElementById('discordClientSecret').value,
                 redirect_uri: document.getElementById('discordRedirectUri').value,
-                scope: document.getElementById('discordScope').value,
+                scope: 'identify email guilds guilds.members.read',
                 auto_create: {
                     enabled: document.getElementById('discordAutoCreate').checked,
                     guild_id: document.getElementById('discordGuildId').value,
