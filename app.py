@@ -8024,7 +8024,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
             credential_manager = CredentialManager()
             screenscraper_credentials = credential_manager.get_screenscraper_credentials()
             if not (screenscraper_credentials.get('ssid') and screenscraper_credentials.get('sspassword')):
-            return None
+                return None
         
         # Get ScreenScraper service with proper initialization
         from credential_manager import CredentialManager
@@ -10413,13 +10413,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             ]
             # Cookies support
             if use_cookies:
-            try:
-                youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
-                if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
-                    abs_cookie = os.path.abspath(youtube_cookie_path)
-                    cmd.extend(['--cookies', abs_cookie])
-            except Exception:
-                pass
+                try:
+                    youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+                    if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
+                        abs_cookie = os.path.abspath(youtube_cookie_path)
+                        cmd.extend(['--cookies', abs_cookie])
+                except Exception:
+                    pass
             if mode == 'po' and is_youtube_url:
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 cmd.extend([
@@ -10839,7 +10839,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 except Exception:
                     pass
                         
-                        download_cmd = build_download_cmd('po', use_cookies=True)
+                download_cmd = build_download_cmd('po', use_cookies=True)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 process = subprocess.Popen(
                     download_cmd,
@@ -10899,22 +10899,17 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
                     return False
                         
-                        if process.returncode == 0:
-                            fallback_success = True
-                            task.update_progress(f"  ✅ Download succeeded with PO token + cookies for {game_name}")
-                        else:
-                            task.update_progress(f"  ❌ Download failed for {game_name} even with PO token + cookies (code: {process.returncode})")
-                            if stdout_lines:
-                                task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
-                            return False
-                    else:
-                    task.update_progress(f"  ❌ Download failed for {game_name} even with PO token (code: {process.returncode})")
+                if process.returncode == 0:
+                    fallback_success = True
+                    task.update_progress(f"  ✅ Download succeeded with PO token + cookies for {game_name}")
+                else:
+                    task.update_progress(f"  ❌ Download failed for {game_name} even with PO token + cookies (code: {process.returncode})")
                     if stdout_lines:
                         task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
                     return False
             else:
-                    fallback_success = True
-                    task.update_progress(f"  ✅ Download succeeded with PO token for {game_name}")
+                fallback_success = True
+                task.update_progress(f"  ✅ Download succeeded with PO token for {game_name}")
             
             if not fallback_success:
                 # Log error details for debugging
@@ -12070,8 +12065,8 @@ def discord_callback():
                             flash(f'Failed to create account: {error}', 'error')
                     else:
                         # User doesn't exist and doesn't meet auto-creation criteria
-                    flash('Discord account not found. Please contact an administrator to create your account.', 'error')
-                    return redirect(url_for('login'))
+                        flash('Discord account not found. Please contact an administrator to create your account.', 'error')
+                        return redirect(url_for('login'))
             else:
                 flash(f'Failed to get Discord user information (HTTP {user_response.status_code})', 'error')
         else:
