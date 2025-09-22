@@ -10327,10 +10327,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             use_cookies_first = True
             used_full_download_without_sections = True
         elif cookies_present and skip_cookies_for_long_videos:
-            # Have cookies but video is long - use full download without cookies
-            first_mode = 'full'
+            # Have cookies but video is long - use sections mode without cookies
+            first_mode = 'sections'
             use_cookies_first = False
-            used_full_download_without_sections = True
+            used_full_download_without_sections = False
         else:
             # No cookies - use sections mode
             first_mode = 'sections'
@@ -10419,9 +10419,17 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             # Fallback logic: try different approaches based on the situation
             fallback_success = False
             
-            # If we started with sections mode (no cookies), try full download
-            if first_mode == 'sections' and not cookies_present:
-                task.update_progress(f"  🔁 Sections mode failed, trying full download...")
+            # If we started with sections mode, try full download
+            if first_mode == 'sections':
+                if cookies_present and skip_cookies_for_long_videos:
+                    # Had cookies but used sections for long video - try full download with cookies
+                    task.update_progress(f"  🔁 Sections mode failed, trying full download with cookies...")
+                    download_cmd = build_download_cmd('full', use_cookies=True)
+                else:
+                    # No cookies - try full download without cookies
+                    task.update_progress(f"  🔁 Sections mode failed, trying full download...")
+                    download_cmd = build_download_cmd('full', use_cookies=False)
+                
                 # Clean previous temp files
                 try:
                     for f in os.listdir(videos_dir):
@@ -10432,8 +10440,6 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                                 pass
                 except Exception:
                     pass
-                
-                download_cmd = build_download_cmd('full', use_cookies=False)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 process = subprocess.Popen(
                     download_cmd,

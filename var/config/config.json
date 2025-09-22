@@ -2907,7 +2907,7 @@
         "force_video_resolution": "1080",
         "enable_fadin_fadout": true,
         "enable_cuda": false,
-        "enable_youtube_po_token": false,
+        "enable_youtube_po_token": true,
         "youtube_po_token_provider": "http://127.0.0.1:4416",
         "youtube_skip_cookie_for_video_duration_bigger_than": 60
     }
