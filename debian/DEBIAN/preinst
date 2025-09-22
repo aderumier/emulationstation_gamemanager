@@ -7,6 +7,12 @@ set -e
 if [ "$1" = "upgrade" ] || [ "$1" = "install" ]; then
     echo "Checking for existing configuration files..."
     
+    # Check if config.json exists and was modified by user
+    if [ -f /opt/gamemanager/var/config/config.json ]; then
+        echo "Found existing config.json - backing up user modifications"
+        cp /opt/gamemanager/var/config/config.json /opt/gamemanager/var/config/config.json.user_backup
+    fi
+    
     # Check if scrappers.json exists and was modified by user
     if [ -f /opt/gamemanager/var/config/scrappers.json ]; then
         echo "Found existing scrappers.json - backing up user modifications"
