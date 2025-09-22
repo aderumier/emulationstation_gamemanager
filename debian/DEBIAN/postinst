@@ -161,18 +161,108 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
         echo "Using default config.json"
     fi
     
-    # Restore user-modified scrappers.json if backup exists
+    # Handle scrappers.json with user prompt
     if [ -f /opt/gamemanager/var/config/scrappers.json.user_backup ]; then
-        mv /opt/gamemanager/var/config/scrappers.json.user_backup /opt/gamemanager/var/config/scrappers.json
-        echo "Restored user-modified scrappers.json"
+        echo ""
+        echo "⚠️  Existing configuration file found: /opt/gamemanager/var/config/scrappers.json"
+        echo "The new version includes updated scraper configurations and settings."
+        echo ""
+        echo "Options:"
+        echo "  [Y] Yes - Overwrite with new config (recommended for new features)"
+        echo "  [N] No  - Keep existing config (preserve current settings)"
+        echo "  [D] Diff - Show differences between old and new config files"
+        echo ""
+        read -p "Do you want to overwrite the existing scrappers.json? [Y/n/d]: " -r
+        echo ""
+        
+        # Handle diff option
+        while [[ $REPLY =~ ^[Dd]$ ]]; do
+            echo ""
+            echo "📋 Showing differences between old and new scrappers.json:"
+            echo "   - (red) Lines removed from old config"
+            echo "   + (green) Lines added in new config"
+            echo "   ~ (yellow) Lines modified"
+            echo ""
+            echo "Press Enter to continue..."
+            read
+            
+            # Show diff with colors if available
+            if command -v colordiff >/dev/null 2>&1; then
+                colordiff -u /opt/gamemanager/var/config/scrappers.json.user_backup /opt/gamemanager/var/config/scrappers.json || true
+            else
+                diff -u /opt/gamemanager/var/config/scrappers.json.user_backup /opt/gamemanager/var/config/scrappers.json || true
+            fi
+            
+            echo ""
+            echo "Options:"
+            echo "  [Y] Yes - Overwrite with new config (recommended for new features)"
+            echo "  [N] No  - Keep existing config (preserve current settings)"
+            echo "  [D] Diff - Show differences again"
+            echo ""
+            read -p "Do you want to overwrite the existing scrappers.json? [Y/n/d]: " -r
+            echo ""
+        done
+        
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            echo "Keeping existing scrappers.json - you may need to manually update it later."
+            mv /opt/gamemanager/var/config/scrappers.json.user_backup /opt/gamemanager/var/config/scrappers.json
+        else
+            echo "Using new scrappers.json (user chose to overwrite)"
+            rm -f /opt/gamemanager/var/config/scrappers.json.user_backup
+        fi
     else
         echo "Using default scrappers.json"
     fi
     
-    # Restore user-modified systems.json if backup exists
+    # Handle systems.json with user prompt
     if [ -f /opt/gamemanager/var/config/systems.json.user_backup ]; then
-        mv /opt/gamemanager/var/config/systems.json.user_backup /opt/gamemanager/var/config/systems.json
-        echo "Restored user-modified systems.json"
+        echo ""
+        echo "⚠️  Existing configuration file found: /opt/gamemanager/var/config/systems.json"
+        echo "The new version includes updated system mappings and scraper configurations."
+        echo ""
+        echo "Options:"
+        echo "  [Y] Yes - Overwrite with new config (recommended for new features)"
+        echo "  [N] No  - Keep existing config (preserve current settings)"
+        echo "  [D] Diff - Show differences between old and new config files"
+        echo ""
+        read -p "Do you want to overwrite the existing systems.json? [Y/n/d]: " -r
+        echo ""
+        
+        # Handle diff option
+        while [[ $REPLY =~ ^[Dd]$ ]]; do
+            echo ""
+            echo "📋 Showing differences between old and new systems.json:"
+            echo "   - (red) Lines removed from old config"
+            echo "   + (green) Lines added in new config"
+            echo "   ~ (yellow) Lines modified"
+            echo ""
+            echo "Press Enter to continue..."
+            read
+            
+            # Show diff with colors if available
+            if command -v colordiff >/dev/null 2>&1; then
+                colordiff -u /opt/gamemanager/var/config/systems.json.user_backup /opt/gamemanager/var/config/systems.json || true
+            else
+                diff -u /opt/gamemanager/var/config/systems.json.user_backup /opt/gamemanager/var/config/systems.json || true
+            fi
+            
+            echo ""
+            echo "Options:"
+            echo "  [Y] Yes - Overwrite with new config (recommended for new features)"
+            echo "  [N] No  - Keep existing config (preserve current settings)"
+            echo "  [D] Diff - Show differences again"
+            echo ""
+            read -p "Do you want to overwrite the existing systems.json? [Y/n/d]: " -r
+            echo ""
+        done
+        
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            echo "Keeping existing systems.json - you may need to manually update it later."
+            mv /opt/gamemanager/var/config/systems.json.user_backup /opt/gamemanager/var/config/systems.json
+        else
+            echo "Using new systems.json (user chose to overwrite)"
+            rm -f /opt/gamemanager/var/config/systems.json.user_backup
+        fi
     else
         echo "Using default systems.json"
     fi
