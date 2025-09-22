@@ -10492,6 +10492,21 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 used_full_download_without_sections = True
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 task.update_progress(f"  🔁 Trying YouTube PO token provider: {youtube_po_token_provider}")
+                
+                # Check if we should skip cookies for PO token based on video duration
+                po_use_cookies = True
+                if cookies_present:
+                    skip_duration_threshold = video_config.get('youtube_skip_cookie_for_video_duration_bigger_than', 60)
+                    if video_duration is not None:
+                        duration_minutes = video_duration / 60
+                        if duration_minutes > skip_duration_threshold:
+                            po_use_cookies = False
+                            task.update_progress(f"  🍪 PO token: Video is longer than {skip_duration_threshold} minutes, trying without cookies first")
+                        else:
+                            task.update_progress(f"  🍪 PO token: Video is shorter than {skip_duration_threshold} minutes, will use cookies")
+                    else:
+                        task.update_progress(f"  🍪 PO token: Could not determine video duration, will use cookies")
+                
                 # Clean previous temp files
                 try:
                     for f in os.listdir(videos_dir):
@@ -10502,7 +10517,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                                 pass
                 except Exception:
                     pass
-                download_cmd = build_download_cmd('po', use_cookies=True)
+                download_cmd = build_download_cmd('po', use_cookies=po_use_cookies)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 process = subprocess.Popen(
                     download_cmd,
@@ -10562,10 +10577,93 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
                     return False
                 if process.returncode != 0:
-                    task.update_progress(f"  ❌ Download failed for {game_name} even with PO token (code: {process.returncode})")
-                    if stdout_lines:
-                        task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
-                    return False
+                    # If PO token without cookies failed and we have cookies, try PO token with cookies
+                    if not po_use_cookies and cookies_present:
+                        task.update_progress(f"  🔁 PO token without cookies failed, trying PO token with cookies...")
+                        # Clean previous temp files
+                        try:
+                            for f in os.listdir(videos_dir):
+                                if f.startswith('temp_'):
+                                    try:
+                                        os.remove(os.path.join(videos_dir, f))
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
+                        
+                        download_cmd = build_download_cmd('po', use_cookies=True)
+                        task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                        process = subprocess.Popen(
+                            download_cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            cwd=videos_dir,
+                            bufsize=1,
+                            universal_newlines=True
+                        )
+                        # Read output again
+                        stdout_lines = []
+                        try:
+                            import select
+                            import sys
+                            while True:
+                                if is_task_stopped():
+                                    process.terminate()
+                                    try:
+                                        process.wait(timeout=5)
+                                    except subprocess.TimeoutExpired:
+                                        process.kill()
+                                    task.update_progress(f"  🛑 Download cancelled for {game_name}")
+                                    return False
+                                if sys.platform != 'win32':
+                                    ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                                    if ready:
+                                        line = process.stdout.readline()
+                                        if not line:
+                                            break
+                                    else:
+                                        if process.poll() is not None:
+                                            break
+                                        continue
+                                else:
+                                    line = process.stdout.readline()
+                                    if not line:
+                                        break
+                                line = line.strip()
+                                if line:
+                                    if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
+                                        task.update_progress(f"  📥 {line}")
+                                    elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
+                                        task.update_progress(f"  📥 {line}")
+                                    stdout_lines.append(line)
+                            process.wait()
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            task.update_progress(f"  ⏰ Download timeout for {game_name}")
+                            return False
+                        except Exception as e:
+                            try:
+                                process.terminate()
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                            task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
+                            return False
+                        
+                        if process.returncode == 0:
+                            fallback_success = True
+                            task.update_progress(f"  ✅ Download succeeded with PO token + cookies for {game_name}")
+                        else:
+                            task.update_progress(f"  ❌ Download failed for {game_name} even with PO token + cookies (code: {process.returncode})")
+                            if stdout_lines:
+                                task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+                            return False
+                    else:
+                        task.update_progress(f"  ❌ Download failed for {game_name} even with PO token (code: {process.returncode})")
+                        if stdout_lines:
+                            task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+                        return False
                 else:
                     fallback_success = True
                     task.update_progress(f"  ✅ Download succeeded with PO token for {game_name}")
