@@ -1,0 +1,23 @@
+#!/bin/bash
+set -e
+
+# Pre-installation script for GameManager
+
+# Check if this is an upgrade (not a fresh installation)
+if [ "$1" = "upgrade" ] || [ "$1" = "install" ]; then
+    echo "Checking for existing configuration files..."
+    
+    # Check if scrappers.json exists and was modified by user
+    if [ -f /opt/gamemanager/var/config/scrappers.json ]; then
+        echo "Found existing scrappers.json - backing up user modifications"
+        cp /opt/gamemanager/var/config/scrappers.json /opt/gamemanager/var/config/scrappers.json.user_backup
+    fi
+    
+    # Check if systems.json exists and was modified by user
+    if [ -f /opt/gamemanager/var/config/systems.json ]; then
+        echo "Found existing systems.json - backing up user modifications"
+        cp /opt/gamemanager/var/config/systems.json /opt/gamemanager/var/config/systems.json.user_backup
+    fi
+fi
+
+exit 0

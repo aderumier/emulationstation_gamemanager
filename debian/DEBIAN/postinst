@@ -24,16 +24,9 @@ if [ "$1" = "configure" ] && [ -z "$2" ]; then
 
     # Install default configuration files if they don't exist
     echo "Installing default configuration files..."
-    if [ ! -f /opt/gamemanager/var/config/scrappers.json ]; then
-        echo "Installing default scrappers.json..."
-        # Files are already in place from package installation
-        echo "scrappers.json is ready"
-    fi
-    if [ ! -f /opt/gamemanager/var/config/systems.json ]; then
-        echo "Installing default systems.json..."
-        # Files are already in place from package installation
-        echo "systems.json is ready"
-    fi
+    # Files are already in place from package installation
+    echo "scrappers.json is ready"
+    echo "systems.json is ready"
 
     # Set permissions
     echo "Setting up permissions..."
@@ -112,22 +105,23 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     mkdir -p /opt/gamemanager/var/config
     mkdir -p /opt/gamemanager/roms
     
-    # Handle scrappers.json and systems.json - install only if they don't exist
-    echo "Checking for scrappers.json and systems.json..."
-    if [ ! -f /opt/gamemanager/var/config/scrappers.json ]; then
-        echo "Installing default scrappers.json..."
-        # Files are already in place from package installation
-        echo "scrappers.json is ready"
+    # Handle scrappers.json and systems.json - restore user modifications if they exist
+    echo "Checking for user-modified configuration files..."
+    
+    # Restore user-modified scrappers.json if backup exists
+    if [ -f /opt/gamemanager/var/config/scrappers.json.user_backup ]; then
+        mv /opt/gamemanager/var/config/scrappers.json.user_backup /opt/gamemanager/var/config/scrappers.json
+        echo "Restored user-modified scrappers.json"
     else
-        echo "scrappers.json already exists - keeping existing file"
+        echo "Using default scrappers.json"
     fi
     
-    if [ ! -f /opt/gamemanager/var/config/systems.json ]; then
-        echo "Installing default systems.json..."
-        # Files are already in place from package installation
-        echo "systems.json is ready"
+    # Restore user-modified systems.json if backup exists
+    if [ -f /opt/gamemanager/var/config/systems.json.user_backup ]; then
+        mv /opt/gamemanager/var/config/systems.json.user_backup /opt/gamemanager/var/config/systems.json
+        echo "Restored user-modified systems.json"
     else
-        echo "systems.json already exists - keeping existing file"
+        echo "Using default systems.json"
     fi
 
     # Check if this is a real user config or just the default config from package
@@ -264,6 +258,7 @@ EOF
         mv /opt/gamemanager/var/config/user.cfg.backup /opt/gamemanager/var/config/user.cfg
         echo "Restored existing user.cfg"
     fi
+    
     
     # Reload systemd
     systemctl daemon-reload
