@@ -11045,15 +11045,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             
             # Move the final processed file to destination
             import shutil
-            try:
-                shutil.move(final_source_path, output_path)
-                task.update_progress(f"  📁 Moved {os.path.basename(final_source_path)} to final location: {output_filename_only}")
-            except Exception as e:
-                # Fallback: copy and remove if move fails (e.g., cross-device or symlink issues)
-                task.update_progress(f"  ⚠️ Move failed ({e}), using copy fallback...")
-                shutil.copy2(final_source_path, output_path)
-                os.remove(final_source_path)
-                task.update_progress(f"  📁 Copied {os.path.basename(final_source_path)} to final location: {output_filename_only}")
+            shutil.move(final_source_path, output_path)
+            task.update_progress(f"  📁 Moved {os.path.basename(final_source_path)} to final location: {output_filename_only}")
             
             # Clean up any remaining temp files
             if os.path.exists(temp_path) and temp_path != final_source_path:
@@ -11359,17 +11352,9 @@ def run_manual_crop_task(task_id, data):
         task.update_progress("Crop applied successfully!")
         
         # Move temporary file to final location
-        try:
-            import shutil
-            shutil.move(temp_path, output_path)
-            task.update_progress(f"Moved cropped video to final location: {output_path}")
-        except Exception as e:
-            task.update_progress(f"Warning: Could not move temporary file: {e}")
-            # If move fails, copy the file (handles cross-device and symlink issues)
-            import shutil
-            shutil.copy2(temp_path, output_path)
-            os.remove(temp_path)
-            task.update_progress(f"Copied cropped video to final location: {output_path}")
+        import shutil
+        shutil.move(temp_path, output_path)
+        task.update_progress(f"Moved cropped video to final location: {output_path}")
         
         # Verify the final file exists
         if not os.path.exists(output_path):
@@ -13509,15 +13494,8 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             
             # Move the temp file to the final file
             import shutil
-            try:
-                shutil.move(temp_file_path, final_file_path)
-                print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
-            except Exception as e:
-                # Fallback: copy and remove if move fails (e.g., cross-device or symlink issues)
-                print(f"{emoji} DEBUG: ⚠️ Move failed ({e}), using copy fallback...")
-                shutil.copy2(temp_file_path, final_file_path)
-                os.remove(temp_file_path)
-                print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
+            shutil.move(temp_file_path, final_file_path)
+            print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
             
             # Check if file was written successfully
             if os.path.exists(final_file_path):
