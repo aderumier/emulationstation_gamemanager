@@ -386,14 +386,8 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
         required_role_name = auto_create_config.get('role_name')
         auto_create_enabled = auto_create_config.get('enabled', False)
         
-        print(f"[DISCORD DEBUG] Auto-create configuration:")
-        print(f"[DISCORD DEBUG] - Enabled: {auto_create_enabled}")
-        print(f"[DISCORD DEBUG] - Required Guild ID: {required_guild_id}")
-        print(f"[DISCORD DEBUG] - Required Role Name: {required_role_name}")
-        
         # If auto-create is disabled or no configuration, don't auto-create
         if not auto_create_enabled or not required_guild_id:
-            print(f"[DISCORD DEBUG] Auto-create disabled or no configuration found")
             return False
         
         # Add rate limiting protection
@@ -402,53 +396,35 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
         
         # Get user's guild memberships
         headers = {'Authorization': f'Bearer {access_token}'}
-        print(f"[DISCORD DEBUG] Checking user guild memberships...")
-        
         try:
             guilds_response = requests.get('https://discord.com/api/users/@me/guilds', headers=headers, timeout=10)
-            print(f"[DISCORD DEBUG] Guilds response status: {guilds_response.status_code}")
             
             if guilds_response.status_code == 429:  # Rate limited
-                print(f"[DISCORD DEBUG] ERROR: Rate limited by Discord API")
-                print(f"[DISCORD DEBUG] Response: {guilds_response.text}")
                 return False
             elif guilds_response.status_code != 200:
-                print(f"[DISCORD DEBUG] ERROR: Failed to get user guilds: {guilds_response.text}")
                 return False
             
             user_guilds = guilds_response.json()
-            print(f"[DISCORD DEBUG] User is member of {len(user_guilds)} guilds")
             
             # Check if user is member of required guild
             user_guild_ids = [guild['id'] for guild in user_guilds]
             if required_guild_id not in user_guild_ids:
-                print(f"[DISCORD DEBUG] User is not member of required guild {required_guild_id}")
                 return False
-            
-            print(f"[DISCORD DEBUG] User is member of required guild {required_guild_id}")
             
             # If no specific role required, just guild membership is enough
             if not required_role_name:
-                print(f"[DISCORD DEBUG] No specific role required, auto-creating user")
                 return True
             
             # For now, just check guild membership without role verification
             # Role checking requires bot permissions which are more complex to implement
-            print(f"[DISCORD DEBUG] User is member of required guild, auto-creating user")
-            print(f"[DISCORD DEBUG] Note: Role verification requires bot permissions and is not implemented yet")
             return True
             
         except requests.exceptions.Timeout:
-            print(f"[DISCORD DEBUG] ERROR: Discord API request timed out")
             return False
         except requests.exceptions.RequestException as e:
-            print(f"[DISCORD DEBUG] ERROR: Discord API request failed: {e}")
             return False
             
     except Exception as e:
-        print(f"[DISCORD DEBUG] EXCEPTION in should_auto_create_discord_user: {e}")
-        import traceback
-        print(f"[DISCORD DEBUG] Traceback: {traceback.format_exc()}")
         return False
 
 def initialize_default_admin():
@@ -5168,7 +5144,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
             # Get box image URL for this game
             database_id = item['game'].get('DatabaseID', '')
             box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
-            
+        
             # Create match info
             match_info = {
                 'game': item['game'],
@@ -8048,7 +8024,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
             credential_manager = CredentialManager()
             screenscraper_credentials = credential_manager.get_screenscraper_credentials()
             if not (screenscraper_credentials.get('ssid') and screenscraper_credentials.get('sspassword')):
-                return None
+            return None
         
         # Get ScreenScraper service with proper initialization
         from credential_manager import CredentialManager
@@ -10437,13 +10413,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             ]
             # Cookies support
             if use_cookies:
-                try:
-                    youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
-                    if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
-                        abs_cookie = os.path.abspath(youtube_cookie_path)
-                        cmd.extend(['--cookies', abs_cookie])
-                except Exception:
-                    pass
+            try:
+                youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+                if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
+                    abs_cookie = os.path.abspath(youtube_cookie_path)
+                    cmd.extend(['--cookies', abs_cookie])
+            except Exception:
+                pass
             if mode == 'po' and is_youtube_url:
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 cmd.extend([
@@ -10852,76 +10828,76 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     # If PO token without cookies failed and we have cookies, try PO token with cookies
                     if not po_use_cookies and cookies_present:
                         task.update_progress(f"  🔁 PO token without cookies failed, trying PO token with cookies...")
-                        # Clean previous temp files
-                        try:
-                            for f in os.listdir(videos_dir):
-                                if f.startswith('temp_'):
-                                    try:
-                                        os.remove(os.path.join(videos_dir, f))
-                                    except Exception:
-                                        pass
-                        except Exception:
-                            pass
+                # Clean previous temp files
+                try:
+                    for f in os.listdir(videos_dir):
+                        if f.startswith('temp_'):
+                            try:
+                                os.remove(os.path.join(videos_dir, f))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
                         
                         download_cmd = build_download_cmd('po', use_cookies=True)
-                        task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
-                        process = subprocess.Popen(
-                            download_cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            text=True,
+                task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                process = subprocess.Popen(
+                    download_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
                             cwd=temp_videos_dir,
-                            bufsize=1,
-                            universal_newlines=True
-                        )
-                        # Read output again
-                        stdout_lines = []
-                        try:
-                            import select
-                            import sys
-                            while True:
-                                if is_task_stopped():
-                                    process.terminate()
-                                    try:
-                                        process.wait(timeout=5)
-                                    except subprocess.TimeoutExpired:
-                                        process.kill()
-                                    task.update_progress(f"  🛑 Download cancelled for {game_name}")
-                                    return False
-                                if sys.platform != 'win32':
-                                    ready, _, _ = select.select([process.stdout], [], [], 0.1)
-                                    if ready:
-                                        line = process.stdout.readline()
-                                        if not line:
-                                            break
-                                    else:
-                                        if process.poll() is not None:
-                                            break
-                                        continue
-                                else:
-                                    line = process.stdout.readline()
-                                    if not line:
-                                        break
-                                line = line.strip()
-                                if line:
-                                    if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
-                                        task.update_progress(f"  📥 {line}")
-                                    elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
-                                        task.update_progress(f"  📥 {line}")
-                                    stdout_lines.append(line)
-                            process.wait()
-                        except subprocess.TimeoutExpired:
-                            process.kill()
-                            task.update_progress(f"  ⏰ Download timeout for {game_name}")
-                            return False
-                        except Exception as e:
+                    bufsize=1,
+                    universal_newlines=True
+                )
+                # Read output again
+                stdout_lines = []
+                try:
+                    import select
+                    import sys
+                    while True:
+                        if is_task_stopped():
+                            process.terminate()
                             try:
-                                process.terminate()
                                 process.wait(timeout=5)
                             except subprocess.TimeoutExpired:
                                 process.kill()
-                            task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
+                            task.update_progress(f"  🛑 Download cancelled for {game_name}")
                             return False
+                        if sys.platform != 'win32':
+                            ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                            if ready:
+                                line = process.stdout.readline()
+                                if not line:
+                                    break
+                            else:
+                                if process.poll() is not None:
+                                    break
+                                continue
+                        else:
+                            line = process.stdout.readline()
+                            if not line:
+                                break
+                        line = line.strip()
+                        if line:
+                            if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
+                                task.update_progress(f"  📥 {line}")
+                            elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
+                                task.update_progress(f"  📥 {line}")
+                            stdout_lines.append(line)
+                    process.wait()
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    task.update_progress(f"  ⏰ Download timeout for {game_name}")
+                    return False
+                except Exception as e:
+                    try:
+                        process.terminate()
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
+                    return False
                         
                         if process.returncode == 0:
                             fallback_success = True
@@ -10932,11 +10908,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                                 task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
                             return False
                     else:
-                        task.update_progress(f"  ❌ Download failed for {game_name} even with PO token (code: {process.returncode})")
-                        if stdout_lines:
-                            task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
-                        return False
-                else:
+                    task.update_progress(f"  ❌ Download failed for {game_name} even with PO token (code: {process.returncode})")
+                    if stdout_lines:
+                        task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+                    return False
+            else:
                     fallback_success = True
                     task.update_progress(f"  ✅ Download succeeded with PO token for {game_name}")
             
@@ -11970,43 +11946,29 @@ def discord_login():
     discord_redirect_uri = discord_config.get('redirect_uri', url_for('discord_callback', _external=True))
     discord_scope = discord_config.get('scope', 'identify email')
     
-    print(f"[DISCORD DEBUG] Starting Discord login process")
-    print(f"[DISCORD DEBUG] Client ID: {discord_client_id}")
-    print(f"[DISCORD DEBUG] Redirect URI: {discord_redirect_uri}")
-    print(f"[DISCORD DEBUG] Scope: {discord_scope}")
-    
     # Check if Discord is properly configured
     if discord_client_id == 'your_discord_client_id':
-        print(f"[DISCORD DEBUG] ERROR: Discord client_id not configured (using default value)")
         flash('Discord authentication not configured. Please contact an administrator.', 'error')
         return redirect(url_for('login'))
     
     discord_url = f"https://discord.com/api/oauth2/authorize?client_id={discord_client_id}&redirect_uri={discord_redirect_uri}&response_type=code&scope={discord_scope}"
-    print(f"[DISCORD DEBUG] Redirecting to Discord URL: {discord_url}")
     return redirect(discord_url)
 
 
 @app.route('/discord/callback')
 def discord_callback():
-    print(f"[DISCORD DEBUG] Discord callback received")
-    print(f"[DISCORD DEBUG] Request args: {dict(request.args)}")
     
     code = request.args.get('code')
     error = request.args.get('error')
     error_description = request.args.get('error_description')
     
     if error:
-        print(f"[DISCORD DEBUG] ERROR: Discord returned error: {error}")
-        print(f"[DISCORD DEBUG] ERROR DESCRIPTION: {error_description}")
         flash(f'Discord authentication failed: {error_description or error}', 'error')
         return redirect(url_for('login'))
     
     if not code:
-        print(f"[DISCORD DEBUG] ERROR: No authorization code received from Discord")
         flash('Discord authentication failed: No authorization code received', 'error')
         return redirect(url_for('login'))
-    
-    print(f"[DISCORD DEBUG] Authorization code received: {code[:10]}...")
     
     # Exchange code for access token
     from credential_manager import credential_manager
@@ -12015,14 +11977,8 @@ def discord_callback():
     discord_client_secret = discord_config.get('client_secret', 'your_discord_client_secret')
     discord_redirect_uri = discord_config.get('redirect_uri', url_for('discord_callback', _external=True))
     
-    print(f"[DISCORD DEBUG] Token exchange configuration:")
-    print(f"[DISCORD DEBUG] - Client ID: {discord_client_id}")
-    print(f"[DISCORD DEBUG] - Client Secret: {'*' * len(discord_client_secret) if discord_client_secret != 'your_discord_client_secret' else 'NOT CONFIGURED'}")
-    print(f"[DISCORD DEBUG] - Redirect URI: {discord_redirect_uri}")
-    
     # Check if Discord is properly configured
     if discord_client_id == 'your_discord_client_id' or discord_client_secret == 'your_discord_client_secret':
-        print(f"[DISCORD DEBUG] ERROR: Discord not properly configured")
         flash('Discord authentication not configured. Please contact an administrator.', 'error')
         return redirect(url_for('login'))
     
@@ -12035,94 +11991,62 @@ def discord_callback():
     }
     
     try:
-        print(f"[DISCORD DEBUG] Sending token exchange request to Discord...")
         response = requests.post('https://discord.com/api/oauth2/token', data=token_data)
-        print(f"[DISCORD DEBUG] Token exchange response status: {response.status_code}")
-        print(f"[DISCORD DEBUG] Token exchange response headers: {dict(response.headers)}")
         
         if response.status_code == 200:
             token_info = response.json()
-            print(f"[DISCORD DEBUG] Token exchange successful")
-            print(f"[DISCORD DEBUG] Token info keys: {list(token_info.keys())}")
             
             access_token = token_info.get('access_token')
             if not access_token:
-                print(f"[DISCORD DEBUG] ERROR: No access token in response")
                 flash('Discord authentication failed: No access token received', 'error')
                 return redirect(url_for('login'))
             
-            print(f"[DISCORD DEBUG] Access token received: {access_token[:10]}...")
             
             # Get user info from Discord
             headers = {'Authorization': f'Bearer {access_token}'}
-            print(f"[DISCORD DEBUG] Requesting user info from Discord...")
             
             try:
                 user_response = requests.get('https://discord.com/api/users/@me', headers=headers, timeout=10)
-                print(f"[DISCORD DEBUG] User info response status: {user_response.status_code}")
-                print(f"[DISCORD DEBUG] User info response headers: {dict(user_response.headers)}")
                 
                 if user_response.status_code == 429:  # Rate limited
-                    print(f"[DISCORD DEBUG] ERROR: Rate limited by Discord API")
-                    print(f"[DISCORD DEBUG] Response: {user_response.text}")
                     flash('Discord authentication failed: Rate limited. Please try again later.', 'error')
                     return redirect(url_for('login'))
                     
             except requests.exceptions.Timeout:
-                print(f"[DISCORD DEBUG] ERROR: Discord API request timed out")
                 flash('Discord authentication failed: Request timed out. Please try again.', 'error')
                 return redirect(url_for('login'))
             except requests.exceptions.RequestException as e:
-                print(f"[DISCORD DEBUG] ERROR: Discord API request failed: {e}")
                 flash('Discord authentication failed: Network error. Please try again.', 'error')
                 return redirect(url_for('login'))
             
             if user_response.status_code == 200:
                 discord_user = user_response.json()
-                print(f"[DISCORD DEBUG] User info received successfully")
-                print(f"[DISCORD DEBUG] Discord user data: {discord_user}")
                 
                 discord_id = discord_user.get('id')
                 username = discord_user.get('username')
                 email = discord_user.get('email')
                 
-                print(f"[DISCORD DEBUG] Extracted user info:")
-                print(f"[DISCORD DEBUG] - Discord ID: {discord_id}")
-                print(f"[DISCORD DEBUG] - Username: {username}")
-                print(f"[DISCORD DEBUG] - Email: {email}")
                 
                 if not discord_id:
-                    print(f"[DISCORD DEBUG] ERROR: No Discord ID in user data")
                     flash('Discord authentication failed: Invalid user data', 'error')
                     return redirect(url_for('login'))
                 
                 # Check if user already exists
-                print(f"[DISCORD DEBUG] Checking if user exists in database...")
                 user = get_user_by_discord_id(discord_id)
                 if user:
-                    print(f"[DISCORD DEBUG] User found in database: {user.username}")
-                    print(f"[DISCORD DEBUG] User status - Active: {user.is_active}, Validated: {user.is_validated}")
                     
                     if user.is_active and user.is_validated:
-                        print(f"[DISCORD DEBUG] User is active and validated, logging in...")
                         login_user(user)
                         update_user_last_login(user.id)
                         flash(f'Welcome back, {user.username}!', 'success')
                         return redirect(url_for('index'))
                     else:
-                        print(f"[DISCORD DEBUG] User account is not active or not validated")
                         flash('Your account is pending validation. Please contact an administrator.', 'warning')
                         return redirect(url_for('login'))
                 else:
-                    print(f"[DISCORD DEBUG] User not found in database")
-                    print(f"[DISCORD DEBUG] Discord ID: {discord_id}")
-                    print(f"[DISCORD DEBUG] Discord Username: {username}")
-                    print(f"[DISCORD DEBUG] Discord Email: {email}")
                     
                     # Check if user should be auto-created based on Discord server membership and role
-                    print(f"[DISCORD DEBUG] Checking auto-creation criteria...")
                     if should_auto_create_discord_user(discord_id, access_token, discord_config):
-                        print(f"[DISCORD DEBUG] User meets auto-creation criteria, creating account...")
                         # Auto-create user
                         new_username = username  # Use Discord username directly
                         user_email = email or f"{discord_id}@discord.local"
@@ -12134,7 +12058,6 @@ def discord_callback():
                             if user.id in users:
                                 users[user.id]['is_validated'] = True
                                 save_users(users)
-                                print(f"[DISCORD DEBUG] Auto-created and validated user: {new_username}")
                                 
                                 # Log the user in
                                 login_user(user)
@@ -12142,27 +12065,18 @@ def discord_callback():
                                 flash(f'Welcome! Your account has been automatically created and validated.', 'success')
                                 return redirect(url_for('index'))
                             else:
-                                print(f"[DISCORD DEBUG] ERROR: Failed to validate auto-created user")
                                 flash('Account created but validation failed. Please contact an administrator.', 'error')
                         else:
-                            print(f"[DISCORD DEBUG] ERROR: Failed to auto-create user: {error}")
                             flash(f'Failed to create account: {error}', 'error')
                     else:
-                        print(f"[DISCORD DEBUG] User does not meet auto-creation criteria")
-                        print(f"[DISCORD DEBUG] Auto-creation check failed - user may not be in required guild or have required role")
                         # User doesn't exist and doesn't meet auto-creation criteria
-                        flash('Discord account not found. Please contact an administrator to create your account.', 'error')
+                    flash('Discord account not found. Please contact an administrator to create your account.', 'error')
                     return redirect(url_for('login'))
             else:
-                print(f"[DISCORD DEBUG] ERROR: Failed to get Discord user information")
-                print(f"[DISCORD DEBUG] Response content: {user_response.text}")
                 flash(f'Failed to get Discord user information (HTTP {user_response.status_code})', 'error')
         else:
-            print(f"[DISCORD DEBUG] ERROR: Token exchange failed")
-            print(f"[DISCORD DEBUG] Response content: {response.text}")
             try:
                 error_data = response.json()
-                print(f"[DISCORD DEBUG] Error data: {error_data}")
                 error_type = error_data.get('error', 'Unknown error')
                 error_description = error_data.get('error_description', 'No description provided')
                 
@@ -12177,50 +12091,11 @@ def discord_callback():
             except:
                 flash(f'Discord authentication failed (HTTP {response.status_code}): {response.text}', 'error')
     except Exception as e:
-        print(f"[DISCORD DEBUG] EXCEPTION: Discord authentication error: {e}")
-        print(f"[DISCORD DEBUG] Exception type: {type(e).__name__}")
         import traceback
-        print(f"[DISCORD DEBUG] Traceback: {traceback.format_exc()}")
         flash(f'Discord authentication failed: {str(e)}', 'error')
     
     return redirect(url_for('login'))
 
-@app.route('/discord/debug')
-def discord_debug():
-    """Debug route to check Discord configuration (admin only)"""
-    if not current_user.is_authenticated or not current_user.is_validated:
-        flash('Access denied', 'error')
-        return redirect(url_for('login'))
-    
-    from credential_manager import credential_manager
-    discord_config = credential_manager.get_discord_credentials()
-    auto_create_config = discord_config.get('auto_create', {})
-    debug_info = {
-        'client_id': discord_config.get('client_id', 'NOT CONFIGURED'),
-        'client_secret': 'CONFIGURED' if discord_config.get('client_secret', 'your_discord_client_secret') != 'your_discord_client_secret' else 'NOT CONFIGURED',
-        'redirect_uri': discord_config.get('redirect_uri', 'NOT CONFIGURED'),
-        'scope': discord_config.get('scope', 'NOT CONFIGURED'),
-        'current_redirect_uri': url_for('discord_callback', _external=True),
-        'discord_login_url': url_for('discord_login', _external=True),
-        'discord_callback_url': url_for('discord_callback', _external=True),
-        'auto_create': {
-            'enabled': auto_create_config.get('enabled', False),
-            'guild_id': auto_create_config.get('guild_id', 'NOT CONFIGURED'),
-            'role_name': auto_create_config.get('role_name', 'NOT CONFIGURED')
-        }
-    }
-    
-    return f"""
-    <h1>Discord Configuration Debug</h1>
-    <h2>Configuration from credentials.json:</h2>
-    <pre>{json.dumps(debug_info, indent=2)}</pre>
-    
-    <h2>Test Discord Login:</h2>
-    <a href="{url_for('discord_login')}">Try Discord Login</a>
-    
-    <h2>Discord OAuth2 URL:</h2>
-    <pre>https://discord.com/api/oauth2/authorize?client_id={discord_config.get('client_id', 'your_discord_client_id')}&redirect_uri={url_for('discord_callback', _external=True)}&response_type=code&scope={discord_config.get('scope', 'identify email')}</pre>
-    """
 
 # User Management Routes (for admins)
 @app.route('/admin/users')
