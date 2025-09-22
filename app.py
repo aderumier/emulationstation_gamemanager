@@ -4355,7 +4355,7 @@ def scrap_igdb_system(system_name):
         
         # Check if system has IGDB platform ID configured
         config = load_config()
-        systems_config = systems_config
+        systems_config = load_systems_config()
         system_config = systems_config.get(system_name, {})
         
         if not system_config.get('igdb'):
@@ -4500,7 +4500,7 @@ def search_screenscraper_games():
         screenscraper_config = scrappers_config.get('screenscraper', {})
         
         # Get system configuration
-        systems_config = systems_config
+        systems_config = load_systems_config()
         system_config = systems_config.get(system_name, {})
         screenscraper_system_id = system_config.get('screenscraper')
         
@@ -4925,7 +4925,7 @@ def load_launchbox_config():
     
     # Load from consolidated config
     mapping_config = scrappers_config.get('launchbox', {}).get('mapping', {})
-    system_platform_mapping = systems_config
+    system_platform_mapping = load_systems_config()
     
     
     return mapping_config, system_platform_mapping
@@ -7621,7 +7621,7 @@ def manual_scrap_game(system_name):
         
         # Get system configuration and media fields mapping
         config = load_config()
-        systems_config = systems_config
+        systems_config = load_systems_config()
         system_config = systems_config.get(system_name, {})
         # Initialize media_fields for ALL configured media fields
         for media_field_name in config.get('media_fields', {}).keys():
@@ -8126,6 +8126,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
         else:
             system_id = screenscraper_config.get('system_id')
         
+        systems_config = load_systems_config()
         screenscraper_service = ScreenScraperService(config, screenscraper_credentials, scrappers_config, systems_config)
         
         if not system_id:
@@ -9680,6 +9681,7 @@ def run_rom_scan_task(system_name):
         task.update_progress(f"Gamelist path: {gamelist_path}")
         
         # Get supported ROM extensions for this system
+        systems_config = load_systems_config()
         system_config = systems_config.get(system_name, {})
         rom_extensions = system_config.get('extensions', [])
         
@@ -14527,7 +14529,7 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             
             # Get system configuration
             config = load_config()
-            systems_config = systems_config
+            systems_config = load_systems_config()
             system_config = systems_config.get(system_name, {})
             
             # Get IGDB field mappings from config
@@ -14955,6 +14957,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             print(f"🔧 ScreenScraper max_connections set to: {max_connections}")
             
             # Initialize ScreenScraper service with dynamic max_connections
+            systems_config = load_systems_config()
             service = ScreenScraperService(config, screenscraper_creds, scrappers_config, systems_config, max_connections)
             
             # Add field selection settings to config
