@@ -4298,26 +4298,27 @@ def search_screenscraper_games():
         # Create ScreenScraper service using the credentials we already loaded
         screenscraper_service = ScreenScraperService(config, screenscraper_creds)
         
-        # Search for games using async function
+        # Search for games using the new search_games_by_name method
         import asyncio
-        search_result = asyncio.run(screenscraper_service.search_game(game_name, system_name))
+        games_data = asyncio.run(screenscraper_service.search_games_by_name(game_name, system_name, limit))
         
-        if search_result and 'game_data' in search_result:
-            # Return the found game data
-            game_data = search_result['game_data']
-            games = [{
-                'id': game_data.get('id'),
-                'name': game_data.get('nom', game_name),
+        # Format the results for the frontend
+        games = []
+        for game_data in games_data:
+            games.append({
+                'id': game_data.get('jeu_id'),
+                'name': game_data.get('name', game_name),
                 'description': game_data.get('description', ''),
                 'genre': game_data.get('genre', ''),
-                'publisher': game_data.get('editeur', ''),
-                'developer': game_data.get('developpeur', ''),
-                'year': game_data.get('annee', ''),
-                'rating': game_data.get('note', ''),
-                'players': game_data.get('joueurs', '')
-            }]
-        else:
-            games = []
+                'publisher': game_data.get('publisher', ''),
+                'developer': game_data.get('developer', ''),
+                'year': game_data.get('year', ''),
+                'rating': game_data.get('rating', ''),
+                'players': game_data.get('players', ''),
+                'region': game_data.get('region', ''),
+                'system': game_data.get('system', system_name),
+                'box_image': game_data.get('box_image', '')
+            })
         
         return jsonify({
             'success': True,

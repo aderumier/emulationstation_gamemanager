@@ -4704,10 +4704,31 @@ class GameCollectionManager {
             const description = game.description ? (game.description.length > 200 ? game.description.substring(0, 200) + '...' : game.description) : 'No description available';
             const genre = game.genre || 'Unknown Genre';
             const publisher = game.publisher || 'Unknown Publisher';
+            const boxImage = game.box_image || null;
+            
+            // Create image HTML with fallback
+            const imageHtml = boxImage ? `
+                <div class="mb-2 text-center">
+                    <img src="${boxImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="handleScreenscraperImageError(this)" 
+                         onload="console.log('ScreenScraper box image loaded successfully:', this.src)" 
+                         alt="Game box art" loading="lazy">
+                </div>
+            ` : `
+                <div class="mb-2 text-center">
+                    <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                        <div class="text-muted">
+                            <i class="bi bi-image" style="font-size: 2rem;"></i>
+                            <div class="small">No box art available</div>
+                        </div>
+                    </div>
+                </div>
+            `;
             
             html += `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card h-100">
+                        ${imageHtml}
                         <div class="card-body">
                             <h6 class="card-title">${game.name}</h6>
                             <p class="card-text small text-muted">${description}</p>
@@ -14601,6 +14622,34 @@ function handleSteamImageError(img, fallbackUrl) {
     img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDIwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xMDAgMTUwTDEyMCAxNzBIMTAwVjE1MFoiIGZpbGw9IiNEOUQ5RDkiLz4KPHBhdGggZD0iTTEwMCAxNTBMMTgwIDEzMEgxMDBWMTUwWiIgZmlsbD0iI0Q5RDlEOSIvPgo8dGV4dCB4PSIxMDAiIHk9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OTk5OSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0Ij5JbWFnZSBub3QgZm91bmQ8L3RleHQ+Cjwvc3ZnPgo=';
     img.alt = 'Image not found';
     console.log('Steam image fallback also failed, showing placeholder');
+}
+
+// Handle ScreenScraper image loading errors
+function handleScreenscraperImageError(img) {
+    console.log('ScreenScraper box image failed to load:', img.src);
+    
+    // Prevent infinite loop
+    if (img.onerror === null) {
+        return;
+    }
+    
+    // Show placeholder
+    img.onerror = null;
+    img.style.display = 'none';
+    
+    // Create placeholder div
+    const placeholder = document.createElement('div');
+    placeholder.className = 'd-flex align-items-center justify-content-center';
+    placeholder.style.cssText = 'height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;';
+    placeholder.innerHTML = `
+        <div class="text-muted">
+            <i class="bi bi-image" style="font-size: 2rem;"></i>
+            <div class="small">Box art not available</div>
+        </div>
+    `;
+    
+    // Replace the image with placeholder
+    img.parentNode.replaceChild(placeholder, img);
 }
 
 // Initialize the game manager when the DOM is loaded

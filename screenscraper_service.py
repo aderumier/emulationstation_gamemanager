@@ -416,7 +416,7 @@ class ScreenScraperService:
         screenscraper_system_id = system_config.get('screenscraper')
         
         if not screenscraper_system_id:
-            print(f"No ScreenScraper system ID configured for {system_name}")
+            print(f"No ScreenScraper system ID found for {system_name}")
             return None
         
         # Convert to string if it's an integer
@@ -425,6 +425,216 @@ class ScreenScraperService:
         
         print(f"Found ScreenScraper system ID {screenscraper_system_id} for {system_name}")
         return screenscraper_system_id
+    
+    async def search_games_by_name(self, game_name: str, system_name: str, limit: int = 10) -> List[Dict]:
+        """
+        Search for games by name using ScreenScraper API jeuRecherche.php endpoint.
+        
+        Args:
+            game_name: The game name to search for
+            system_name: The system name
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of dictionaries with game data
+        """
+        print(f"Searching ScreenScraper for game name: {game_name}, System: {system_name}")
+        
+        if not all([self.devid, self.devpassword, self.ssid, self.sspassword]):
+            print("ScreenScraper credentials not configured")
+            return []
+        
+        # Get ScreenScraper system ID
+        systemeid = self.get_system_id(system_name)
+        if not systemeid:
+            print(f"No ScreenScraper system ID found for {system_name}")
+            return []
+        
+        # Clean the game name by removing text between parentheses (including parentheses)
+        import re
+        cleaned_game_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+        print(f"Original game name: '{game_name}' -> Cleaned: '{cleaned_game_name}'")
+        
+        # Use the jeuRecherche.php endpoint for searching by game name
+        search_api_url = 'https://api.screenscraper.fr/api2/jeuRecherche.php'
+        
+        params = {
+            'devid': self.devid,
+            'devpassword': self.devpassword,
+            'softname': 'cursorscraper',
+            'output': 'json',  # Use JSON for easier parsing
+            'ssid': self.ssid,
+            'sspassword': self.sspassword,
+            'systemeid': systemeid,
+            'recherche': cleaned_game_name
+        }
+        
+        for attempt in range(self.retry_attempts):
+            try:
+                print(f"Searching ScreenScraper for '{cleaned_game_name}' (attempt {attempt + 1})")
+                print(f"API URL: {search_api_url}")
+                print(f"Params: {params}")
+                
+                # Build the full URL for logging
+                from urllib.parse import urlencode
+                full_url = f"{search_api_url}?{urlencode(params)}"
+                print(f"🔗 ScreenScraper API Call: {full_url}")
+                
+                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                    response = await client.get(search_api_url, params=params)
+                
+                print(f"📡 ScreenScraper API Response: {response.status_code}")
+                
+                if response.status_code == 200:
+                    # Parse JSON response
+                    try:
+                        data = response.json()
+                    except json.JSONDecodeError as e:
+                        print(f"Failed to parse JSON response: {e}")
+                        print(f"Response content: {response.text[:500]}...")
+                        return []
+                    
+                    # Check for errors
+                    if 'header' in data and 'erreur' in data['header'] and data['header']['erreur']:
+                        error_msg = data['header']['erreur']
+                        print(f"ScreenScraper API error: {error_msg}")
+                        return []
+                    
+                    # Extract games from response
+                    games = []
+                    if 'response' in data and 'jeux' in data['response']:
+                        jeux = data['response']['jeux']
+                        for jeu in jeux:
+                            if 'id' in jeu:
+                                # Get the game name from noms array (prefer 'wor' region, fallback to first available)
+                                game_name = 'Unknown'
+                                if 'noms' in jeu and isinstance(jeu['noms'], list) and len(jeu['noms']) > 0:
+                                    # Look for 'wor' (world) region first, then use first available
+                                    for nom in jeu['noms']:
+                                        if nom.get('region') == 'wor':
+                                            game_name = nom.get('text', 'Unknown')
+                                            break
+                                    if game_name == 'Unknown':
+                                        game_name = jeu['noms'][0].get('text', 'Unknown')
+                                
+                                # Get system name
+                                system_name_result = system_name
+                                if 'systeme' in jeu and isinstance(jeu['systeme'], dict):
+                                    system_name_result = jeu['systeme'].get('text', system_name)
+                                
+                                # Get publisher
+                                publisher = 'Unknown'
+                                if 'editeur' in jeu and isinstance(jeu['editeur'], dict):
+                                    publisher = jeu['editeur'].get('text', 'Unknown')
+                                
+                                # Get developer
+                                developer = 'Unknown'
+                                if 'developpeur' in jeu and isinstance(jeu['developpeur'], dict):
+                                    developer = jeu['developpeur'].get('text', 'Unknown')
+                                
+                                # Get release date (prefer 'wor' region, fallback to first available)
+                                release_date = 'Unknown'
+                                if 'dates' in jeu and isinstance(jeu['dates'], list) and len(jeu['dates']) > 0:
+                                    for date in jeu['dates']:
+                                        if date.get('region') == 'wor':
+                                            release_date = date.get('text', 'Unknown')
+                                            break
+                                    if release_date == 'Unknown':
+                                        release_date = jeu['dates'][0].get('text', 'Unknown')
+                                
+                                # Get genre (first primary genre)
+                                genre = 'Unknown'
+                                if 'genres' in jeu and isinstance(jeu['genres'], list) and len(jeu['genres']) > 0:
+                                    for g in jeu['genres']:
+                                        if g.get('principale') == '1' and 'noms' in g and isinstance(g['noms'], list) and len(g['noms']) > 0:
+                                            # Look for English name first, then use first available
+                                            for genre_nom in g['noms']:
+                                                if genre_nom.get('langue') == 'en':
+                                                    genre = genre_nom.get('text', 'Unknown')
+                                                    break
+                                            if genre == 'Unknown':
+                                                genre = g['noms'][0].get('text', 'Unknown')
+                                            break
+                                
+                                # Get description (prefer English, fallback to first available)
+                                description = 'ScreenScraper game'
+                                if 'synopsis' in jeu and isinstance(jeu['synopsis'], list) and len(jeu['synopsis']) > 0:
+                                    for synopsis in jeu['synopsis']:
+                                        if synopsis.get('langue') == 'en':
+                                            description = synopsis.get('text', 'ScreenScraper game')
+                                            break
+                                    if description == 'ScreenScraper game':
+                                        description = jeu['synopsis'][0].get('text', 'ScreenScraper game')
+                                
+                                # Get players
+                                players = 'Unknown'
+                                if 'joueurs' in jeu and isinstance(jeu['joueurs'], dict):
+                                    players = jeu['joueurs'].get('text', 'Unknown')
+                                
+                                # Get rating
+                                rating = 'Unknown'
+                                if 'note' in jeu and isinstance(jeu['note'], dict):
+                                    rating = jeu['note'].get('text', 'Unknown')
+                                
+                                # Get box-2D image URL (prefer 'wor' region, fallback to first available)
+                                box_image = None
+                                if 'medias' in jeu and isinstance(jeu['medias'], list):
+                                    # First pass: look for 'wor' region
+                                    for media in jeu['medias']:
+                                        if media.get('type') == 'box-2D' and media.get('region') == 'wor':
+                                            box_image = media.get('url')
+                                            break
+                                    
+                                    # Second pass: if no 'wor' region found, take first available
+                                    if not box_image:
+                                        for media in jeu['medias']:
+                                            if media.get('type') == 'box-2D':
+                                                box_image = media.get('url')
+                                                break
+                                
+                                game_data = {
+                                    'jeu_id': str(jeu['id']),
+                                    'name': game_name,
+                                    'system': system_name_result,
+                                    'description': description,
+                                    'region': 'Unknown',
+                                    'developer': developer,
+                                    'publisher': publisher,
+                                    'release_date': release_date,
+                                    'genre': genre,
+                                    'players': players,
+                                    'rating': rating,
+                                    'box_image': box_image
+                                }
+                                games.append(game_data)
+                    
+                    # Limit results
+                    result = games[:limit]
+                    print(f"Found {len(result)} ScreenScraper games for '{cleaned_game_name}'")
+                    return result
+                    
+                elif response.status_code == 429:
+                    print(f"Rate limited by ScreenScraper API (attempt {attempt + 1})")
+                    if attempt < self.retry_attempts - 1:
+                        wait_time = (2 ** attempt) * 2  # Exponential backoff
+                        print(f"Waiting {wait_time} seconds before retry...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                else:
+                    print(f"ScreenScraper API returned status {response.status_code}")
+                    print(f"Response content: {response.text[:500]}...")  # Log first 500 chars of response
+                    if attempt < self.retry_attempts - 1:
+                        await asyncio.sleep(2)
+                        continue
+                        
+            except Exception as e:
+                print(f"Error searching ScreenScraper games: {e}")
+                if attempt < self.retry_attempts - 1:
+                    await asyncio.sleep(2)
+                    continue
+        
+        print(f"Failed to search ScreenScraper games after {self.retry_attempts} attempts")
+        return []
     
     async def search_game(self, rom_filename: str, system_name: str) -> Optional[Dict]:
         """
