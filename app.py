@@ -196,6 +196,9 @@ class User(UserMixin):
 # Authentication functions
 def hash_password(password):
     """Hash a password using SHA-256 with salt"""
+    if password is None:
+        # For Discord users without passwords, generate a random password
+        password = secrets.token_hex(32)
     salt = secrets.token_hex(16)
     password_hash = hashlib.sha256((password + salt).encode()).hexdigest()
     return f"{salt}:{password_hash}"
