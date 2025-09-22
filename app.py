@@ -378,7 +378,8 @@ def is_discord_auth_enabled():
     return bool(discord_config.get('client_id') and discord_config.get('client_secret'))
 
 def should_auto_create_discord_user(discord_id, access_token, discord_config):
-    """Check if Discord user should be auto-created based on server membership and role"""
+    """Check if Discord user should be auto-created based on server membership and role
+    Returns (should_create, error_message) tuple"""
     try:
         # Get Discord configuration for auto-creation
         auto_create_config = discord_config.get('auto_create', {})
@@ -387,8 +388,10 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
         auto_create_enabled = auto_create_config.get('enabled', False)
         
         # If auto-create is disabled or no configuration, don't auto-create
-        if not auto_create_enabled or not required_guild_id:
-            return False
+        if not auto_create_enabled:
+            return False, "Auto-creation is disabled"
+        if not required_guild_id:
+            return False, "No Discord server configured for auto-creation"
         
         # Add rate limiting protection
         import time
@@ -400,20 +403,20 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
             guilds_response = requests.get('https://discord.com/api/users/@me/guilds', headers=headers, timeout=10)
             
             if guilds_response.status_code == 429:  # Rate limited
-                return False
+                return False, "Discord API rate limited. Please try again later."
             elif guilds_response.status_code != 200:
-                return False
+                return False, "Failed to verify Discord server membership"
             
             user_guilds = guilds_response.json()
             
             # Check if user is member of required guild
             user_guild_ids = [guild['id'] for guild in user_guilds]
             if required_guild_id not in user_guild_ids:
-                return False
+                return False, f"You must be a member of the Discord server to create an account"
             
             # If no specific role required, just guild membership is enough
             if not required_role_name:
-                return True
+                return True, None
             
             # Check user's roles in the specific guild
             try:
@@ -425,9 +428,9 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
                 )
                 
                 if guild_member_response.status_code == 429:  # Rate limited
-                    return False
+                    return False, "Discord API rate limited. Please try again later."
                 elif guild_member_response.status_code != 200:
-                    return False
+                    return False, "Failed to verify your Discord roles"
                 
                 member_data = guild_member_response.json()
                 user_roles = member_data.get('roles', [])
@@ -440,9 +443,9 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
                 )
                 
                 if guild_roles_response.status_code == 429:  # Rate limited
-                    return False
+                    return False, "Discord API rate limited. Please try again later."
                 elif guild_roles_response.status_code != 200:
-                    return False
+                    return False, "Failed to verify Discord server roles"
                 
                 guild_roles = guild_roles_response.json()
                 
@@ -454,23 +457,26 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
                         break
                 
                 if not required_role_id:
-                    return False
+                    return False, f"Required role '{required_role_name}' not found in Discord server"
                 
                 # Check if user has the required role
-                return required_role_id in user_roles
+                if required_role_id in user_roles:
+                    return True, None
+                else:
+                    return False, f"You must have the '{required_role_name}' role in the Discord server to create an account"
                 
             except requests.exceptions.Timeout:
-                return False
+                return False, "Discord API request timed out. Please try again."
             except requests.exceptions.RequestException as e:
-                return False
+                return False, "Failed to verify Discord roles due to network error"
             
         except requests.exceptions.Timeout:
-            return False
+            return False, "Discord API request timed out. Please try again."
         except requests.exceptions.RequestException as e:
-            return False
+            return False, "Failed to verify Discord server membership due to network error"
             
     except Exception as e:
-        return False
+        return False, "An error occurred while verifying Discord permissions"
 
 
 # Configuration loading function
@@ -12066,7 +12072,8 @@ def discord_callback():
                 else:
                     
                     # Check if user should be auto-created based on Discord server membership and role
-                    if should_auto_create_discord_user(discord_id, access_token, discord_config):
+                    should_create, error_message = should_auto_create_discord_user(discord_id, access_token, discord_config)
+                    if should_create:
                         # Auto-create user
                         new_username = username  # Use Discord username directly
                         user_email = email or f"{discord_id}@discord.local"
@@ -12090,7 +12097,10 @@ def discord_callback():
                             flash(f'Failed to create account: {error}', 'error')
                     else:
                         # User doesn't exist and doesn't meet auto-creation criteria
-                        flash('Discord account not found. Please contact an administrator to create your account.', 'error')
+                        if error_message:
+                            flash(f'Discord authentication failed: {error_message}', 'error')
+                        else:
+                            flash('Discord account not found. Please contact an administrator to create your account.', 'error')
                         return redirect(url_for('login'))
             else:
                 flash(f'Failed to get Discord user information (HTTP {user_response.status_code})', 'error')
