@@ -10006,15 +10006,19 @@ def run_youtube_download_task(task_id, data):
         os.makedirs(videos_dir, exist_ok=True)
         task.update_progress(f"Created videos directory: {videos_dir}")
         
+        # Create temp directory for video processing
+        temp_videos_dir = os.path.join('var', 'temp', 'videos')
+        os.makedirs(temp_videos_dir, exist_ok=True)
+        
         # Full output path
         output_path = os.path.join(videos_dir, output_filename)
         task.update_progress(f"Output path: {output_path}")
         
         # Clean up any existing temporary files from previous failed downloads
         try:
-            for file in os.listdir(videos_dir):
+            for file in os.listdir(temp_videos_dir):
                 if file.startswith('temp_') and (file.endswith('.mp4') or file.endswith('.webm') or file.endswith('.mkv')):
-                    temp_file_path = os.path.join(videos_dir, file)
+                    temp_file_path = os.path.join(temp_videos_dir, file)
                     os.remove(temp_file_path)
                     task.update_progress(f"Cleaned up old temporary file: {file}")
         except Exception as e:
@@ -10023,7 +10027,7 @@ def run_youtube_download_task(task_id, data):
         # Use the common download helper function
         success = download_youtube_video_for_game(
             task, video_url, start_time, auto_crop, 
-            output_path, videos_dir, output_filename, 1  # playlist_index=1 for single downloads
+            output_path, videos_dir, output_filename, 1, temp_videos_dir  # playlist_index=1 for single downloads
         )
         
         if success:
@@ -10119,6 +10123,10 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         videos_dir = os.path.join(system_path, 'media', 'videos')
         os.makedirs(videos_dir, exist_ok=True)
         
+        # Create temp directory for video processing
+        temp_videos_dir = os.path.join('var', 'temp', 'videos')
+        os.makedirs(temp_videos_dir, exist_ok=True)
+        
         # Process each game
         successful_downloads = 0
         failed_downloads = 0
@@ -10166,7 +10174,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 # Download the video using the existing YouTube download logic
                 success = download_youtube_video_for_game(
                     task, youtube_url, start_time, auto_crop, 
-                    output_path, videos_dir, game_name, playlist_index
+                    output_path, videos_dir, game_name, playlist_index, temp_videos_dir
                 )
                 
                 if success:
@@ -10232,12 +10240,16 @@ def get_youtube_video_duration(video_url):
         print(f"Error getting video duration: {e}")
         return None
 
-def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1):
+def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None):
     """Download a single YouTube video for a game (helper function)"""
     try:
         # Check if yt-dlp is available
         import subprocess
         yt_dlp_path = get_yt_dlp_path()
+        
+        # Use temp directory if provided, otherwise fall back to videos_dir
+        if temp_videos_dir is None:
+            temp_videos_dir = videos_dir
         
         # Use just the filename for output to avoid path issues
         output_filename_only = os.path.basename(output_path)
@@ -10346,7 +10358,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            cwd=videos_dir,
+            cwd=temp_videos_dir,
             bufsize=1,
             universal_newlines=True
         )
@@ -10432,10 +10444,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 
                 # Clean previous temp files
                 try:
-                    for f in os.listdir(videos_dir):
+                    for f in os.listdir(temp_videos_dir):
                         if f.startswith('temp_'):
                             try:
-                                os.remove(os.path.join(videos_dir, f))
+                                os.remove(os.path.join(temp_videos_dir, f))
                             except Exception:
                                 pass
                 except Exception:
@@ -10446,7 +10458,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=videos_dir,
+                    cwd=temp_videos_dir,
                     bufsize=1,
                     universal_newlines=True
                 )
@@ -10512,10 +10524,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 task.update_progress(f"  🔁 First attempt without cookies failed, trying with cookies...")
                 # Clean previous temp files
                 try:
-                    for f in os.listdir(videos_dir):
+                    for f in os.listdir(temp_videos_dir):
                         if f.startswith('temp_'):
                             try:
-                                os.remove(os.path.join(videos_dir, f))
+                                os.remove(os.path.join(temp_videos_dir, f))
                             except Exception:
                                 pass
                 except Exception:
@@ -10528,7 +10540,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=videos_dir,
+                    cwd=temp_videos_dir,
                     bufsize=1,
                     universal_newlines=True
                 )
@@ -10611,10 +10623,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 
                 # Clean previous temp files
                 try:
-                    for f in os.listdir(videos_dir):
+                    for f in os.listdir(temp_videos_dir):
                         if f.startswith('temp_'):
                             try:
-                                os.remove(os.path.join(videos_dir, f))
+                                os.remove(os.path.join(temp_videos_dir, f))
                             except Exception:
                                 pass
                 except Exception:
@@ -10626,7 +10638,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    cwd=videos_dir,
+                    cwd=temp_videos_dir,
                     bufsize=1,
                     universal_newlines=True
                 )
@@ -10700,7 +10712,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT,
                             text=True,
-                            cwd=videos_dir,
+                            cwd=temp_videos_dir,
                             bufsize=1,
                             universal_newlines=True
                         )
@@ -10782,13 +10794,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
 
         
         # Find the downloaded file
-        temp_files = [f for f in os.listdir(videos_dir) if f.startswith('temp_')]
+        temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_')]
         if not temp_files:
             task.update_progress(f"  ❌ No temporary file found for {game_name}")
             return False
         
         temp_file = temp_files[0]
-        temp_path = os.path.join(videos_dir, temp_file)
+        temp_path = os.path.join(temp_videos_dir, temp_file)
         
         # Apply video processing (crop and/or resize) if needed
         # If we downloaded full video (full fallback or PO token), cut to section
