@@ -423,11 +423,71 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
             if not required_role_name:
                 return True, None
             
-            # For OAuth2 applications, we can only check guild membership
-            # Role checking requires bot permissions which are not available in OAuth2
-            print(f"[DISCORD DEBUG] OAuth2 scope limitation: Cannot verify specific roles, only guild membership")
-            print(f"[DISCORD DEBUG] User is member of required guild. Auto-creation approved (role verification disabled for OAuth2)")
-            return True, None
+            # Check user's roles in the specific guild
+            try:
+                # Get guild member info to check roles
+                print(f"[DISCORD DEBUG] Getting guild member info for role verification...")
+                guild_member_response = requests.get(
+                    f'https://discord.com/api/guilds/{required_guild_id}/members/{discord_id}',
+                    headers=headers,
+                    timeout=10
+                )
+                
+                print(f"[DISCORD DEBUG] Guild member response: {guild_member_response.status_code}")
+                
+                if guild_member_response.status_code == 429:  # Rate limited
+                    return False, "Discord API rate limited. Please try again later."
+                elif guild_member_response.status_code != 200:
+                    print(f"[DISCORD DEBUG] Guild member API failed: {guild_member_response.text}")
+                    return False, "Failed to verify your Discord roles"
+                
+                member_data = guild_member_response.json()
+                user_roles = member_data.get('roles', [])
+                print(f"[DISCORD DEBUG] User roles in guild: {user_roles}")
+                
+                # Get guild roles to find the role ID for the required role name
+                print(f"[DISCORD DEBUG] Getting guild roles...")
+                guild_roles_response = requests.get(
+                    f'https://discord.com/api/guilds/{required_guild_id}/roles',
+                    headers=headers,
+                    timeout=10
+                )
+                
+                print(f"[DISCORD DEBUG] Guild roles response: {guild_roles_response.status_code}")
+                
+                if guild_roles_response.status_code == 429:  # Rate limited
+                    return False, "Discord API rate limited. Please try again later."
+                elif guild_roles_response.status_code != 200:
+                    print(f"[DISCORD DEBUG] Guild roles API failed: {guild_roles_response.text}")
+                    return False, "Failed to verify Discord server roles"
+                
+                guild_roles = guild_roles_response.json()
+                print(f"[DISCORD DEBUG] Available roles in guild: {[role['name'] for role in guild_roles]}")
+                
+                # Find the role ID for the required role name
+                required_role_id = None
+                for role in guild_roles:
+                    if role['name'].lower() == required_role_name.lower():
+                        required_role_id = role['id']
+                        print(f"[DISCORD DEBUG] Found required role '{required_role_name}' with ID: {required_role_id}")
+                        break
+                
+                if not required_role_id:
+                    return False, f"Required role '{required_role_name}' not found in Discord server"
+                
+                # Check if user has the required role
+                print(f"[DISCORD DEBUG] Checking if user has role {required_role_id} in roles {user_roles}")
+                if required_role_id in user_roles:
+                    print(f"[DISCORD DEBUG] User has required role! Auto-creation approved.")
+                    return True, None
+                else:
+                    print(f"[DISCORD DEBUG] User does not have required role. Denying auto-creation.")
+                    return False, f"You must have the '{required_role_name}' role in the Discord server to create an account"
+                
+            except requests.exceptions.Timeout:
+                return False, "Discord API request timed out. Please try again."
+            except requests.exceptions.RequestException as e:
+                return False, "Failed to verify Discord roles due to network error"
             
         except requests.exceptions.Timeout:
             return False, "Discord API request timed out. Please try again."
