@@ -10009,6 +10009,7 @@ def run_youtube_download_task(task_id, data):
         # Create temp directory for video processing
         temp_videos_dir = os.path.join('var', 'temp', 'videos')
         os.makedirs(temp_videos_dir, exist_ok=True)
+        task.update_progress(f"Created temp directory: {temp_videos_dir}")
         
         # Full output path
         output_path = os.path.join(videos_dir, output_filename)
@@ -10126,6 +10127,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         # Create temp directory for video processing
         temp_videos_dir = os.path.join('var', 'temp', 'videos')
         os.makedirs(temp_videos_dir, exist_ok=True)
+        task.update_progress(f"Created temp directory: {temp_videos_dir}")
         
         # Process each game
         successful_downloads = 0
@@ -10250,6 +10252,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Use temp directory if provided, otherwise fall back to videos_dir
         if temp_videos_dir is None:
             temp_videos_dir = videos_dir
+        
+        task.update_progress(f"  📁 Using temp directory: {temp_videos_dir}")
         
         # Use just the filename for output to avoid path issues
         output_filename_only = os.path.basename(output_path)
