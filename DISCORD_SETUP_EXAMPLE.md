@@ -1,6 +1,10 @@
-# Discord OAuth2 Setup Example
+# Discord Authentication Setup
 
-## Step-by-Step Discord OAuth2 Configuration
+> **📚 For comprehensive documentation, see [DISCORD_AUTHENTICATION_GUIDE.md](DISCORD_AUTHENTICATION_GUIDE.md)**
+> 
+> **⚡ For quick reference, see [DISCORD_TOKENS_QUICK_REFERENCE.md](DISCORD_TOKENS_QUICK_REFERENCE.md)**
+
+## Quick Setup Guide
 
 ### 1. Create Discord Application
 
@@ -13,13 +17,25 @@
 
 1. In your Discord application, go to "OAuth2" → "General"
 2. Copy the "Client ID" and "Client Secret"
-3. Go to "OAuth2" → "URL Generator"
-4. Select scopes: `identify` and `email`
-5. Add redirect URI: `http://localhost:5000/discord/callback` (for development)
+3. Add redirect URI: `http://localhost:5000/discord/callback` (for development)
 
-### 3. Update var/config/config.json
+### 3. Create Bot for Role Verification
 
-Replace the placeholder values in your `var/config/config.json`:
+1. Go to "Bot" section in your Discord application
+2. Click "Add Bot" → "Yes, do it!"
+3. Click "Reset Token" and copy the Bot Token
+4. Enable "SERVER MEMBERS INTENT" in Privileged Gateway Intents
+5. Use OAuth2 → URL Generator to add bot to your server
+
+### 4. Configure GameManager
+
+**Option A: Using Web Interface (Recommended)**
+1. Start GameManager and go to Application Configuration
+2. Navigate to Discord Configuration section
+3. Fill in all Discord settings
+
+**Option B: Using credentials.json**
+Create `var/config/credentials.json`:
 
 ```json
 {
@@ -27,50 +43,58 @@ Replace the placeholder values in your `var/config/config.json`:
         "client_id": "1234567890123456789",
         "client_secret": "abcdefghijklmnopqrstuvwxyz123456",
         "redirect_uri": "http://localhost:5000/discord/callback",
-        "scope": "identify email"
+        "scope": "identify email guilds guilds.members.read",
+        "bot_token": "MTA0NjI3MjM3MTQ5MDM5NjE4MA.G9aIXX.xxx",
+        "auto_create": {
+            "enabled": true,
+            "guild_id": "1006854943157788722",
+            "role_name": "Creator"
+        }
     }
 }
 ```
 
-### 4. Production Configuration
+### 5. Get Server Information
 
-For production, update the redirect URI:
+1. Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)
+2. Right-click your server name → "Copy Server ID" (this is your Guild ID)
+3. Create a role in your server (e.g., "Creator") for access control
 
-```json
-{
-    "discord": {
-        "client_id": "1234567890123456789",
-        "client_secret": "abcdefghijklmnopqrstuvwxyz123456",
-        "redirect_uri": "https://yourdomain.com/discord/callback",
-        "scope": "identify email"
-    }
-}
-```
+### 6. Test Discord Authentication
 
-### 5. Test Discord Login
-
-1. Start the application: `python3 app.py`
+1. Start GameManager: `python3 app.py`
 2. Go to `http://localhost:5000/login`
 3. Click "Login with Discord"
-4. You should be redirected to Discord for authorization
-5. After authorization, you'll be redirected back to the application
+4. Complete Discord authorization
+5. Verify you're logged in and user is created (if auto-create enabled)
 
-### 6. Troubleshooting
+### 7. Production Configuration
+
+For production, update the redirect URI in both:
+- Discord Developer Portal: `https://yourdomain.com/discord/callback`
+- GameManager configuration: `https://yourdomain.com/discord/callback`
+
+### 8. Troubleshooting
 
 **Common Issues:**
 
-- **"Invalid redirect URI"**: Make sure the redirect URI in Discord Developer Portal exactly matches the one in var/config/config.json
-- **"Invalid client"**: Check that the client_id and client_secret are correct
-- **"Access denied"**: Ensure the Discord application is not in development mode (if required)
+- **"Invalid client"**: Check Client ID and Client Secret
+- **"Redirect URI mismatch"**: Ensure redirect URI matches exactly
+- **"Role verification failed"**: Enable SERVER MEMBERS INTENT and add bot to server
+- **"Rate limited"**: Wait and retry, implement backoff
 
-**Development vs Production:**
+**For detailed troubleshooting, see [DISCORD_AUTHENTICATION_GUIDE.md](DISCORD_AUTHENTICATION_GUIDE.md)**
 
-- **Development**: Use `http://localhost:5000/discord/callback`
-- **Production**: Use `https://yourdomain.com/discord/callback`
-- Make sure to update both Discord Developer Portal and var/config/config.json
+### 9. Security Notes
 
-### 7. Security Notes
+- 🔒 Keep Bot Token and Client Secret secure
+- 🔒 Never commit credentials to version control
+- 🔒 Use environment variables in production
+- 🔒 Enable HTTPS in production
+- 🔒 Limit bot permissions to minimum required
 
-- Keep your client_secret secure and never commit it to version control
-- Use environment variables or secure configuration management in production
-- Consider using different Discord applications for development and production
+## Next Steps
+
+- 📖 Read the [comprehensive guide](DISCORD_AUTHENTICATION_GUIDE.md) for detailed setup
+- ⚡ Use the [quick reference](DISCORD_TOKENS_QUICK_REFERENCE.md) for token lookup
+- 🔧 Configure additional settings in GameManager web interface
