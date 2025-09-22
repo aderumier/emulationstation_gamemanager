@@ -12035,7 +12035,7 @@ def discord_callback():
                     if should_auto_create_discord_user(discord_id, access_token, discord_config):
                         print(f"[DISCORD DEBUG] User meets auto-creation criteria, creating account...")
                         # Auto-create user
-                        new_username = f"discord_{username}"  # Prefix to avoid conflicts
+                        new_username = username  # Use Discord username directly
                         user_email = email or f"{discord_id}@discord.local"
                         
                         user, error = create_user(new_username, None, user_email, discord_id)
