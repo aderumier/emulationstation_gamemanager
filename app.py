@@ -255,7 +255,8 @@ def users_exist():
     try:
         users = load_users()
         return len(users) > 0
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        print(f"Error checking if users exist: {e}")
         return False
 
 def save_users(users):
