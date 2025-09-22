@@ -395,11 +395,10 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
         if not required_guild_id:
             return False, "No Discord server configured for auto-creation"
         
-        # Get bot token from environment (like in PHP implementation)
-        import os
-        bot_token = os.getenv('DISCORD_BOT_TOKEN')
+        # Get bot token from Discord credentials
+        bot_token = discord_config.get('bot_token', '')
         if not bot_token:
-            print(f"[DISCORD DEBUG] No bot token found - falling back to guild membership only")
+            print(f"[DISCORD DEBUG] No bot token found in credentials - falling back to guild membership only")
             # Fall back to guild membership check only
             return _check_guild_membership_only(discord_id, access_token, required_guild_id, required_role_name)
         
@@ -3492,6 +3491,7 @@ def manage_discord_credentials():
                 'client_secret': discord_creds.get('client_secret', ''),
                 'redirect_uri': discord_creds.get('redirect_uri', ''),
                 'scope': discord_creds.get('scope', ''),
+                'bot_token': discord_creds.get('bot_token', ''),
                 'auto_create': discord_creds.get('auto_create', {})
             })
         elif request.method == 'PUT':
@@ -3505,6 +3505,7 @@ def manage_discord_credentials():
                 client_secret=data.get('client_secret', ''),
                 redirect_uri=data.get('redirect_uri', ''),
                 scope=data.get('scope', ''),
+                bot_token=data.get('bot_token', ''),
                 auto_create=data.get('auto_create', {})
             )
             

@@ -89,6 +89,7 @@ class CredentialManager:
             'client_secret': '',
             'redirect_uri': '',
             'scope': '',
+            'bot_token': '',
             'auto_create': {
                 'enabled': False,
                 'guild_id': '',
@@ -178,7 +179,7 @@ class CredentialManager:
         
         print("ScreenScraper user credentials updated in regular file")
     
-    def save_discord_credentials(self, client_id: str, client_secret: str, redirect_uri: str, scope: str, auto_create: Dict):
+    def save_discord_credentials(self, client_id: str, client_secret: str, redirect_uri: str, scope: str, bot_token: str, auto_create: Dict):
         """Save Discord credentials to regular credentials file"""
         # Load existing credentials
         credentials = {}
@@ -195,6 +196,7 @@ class CredentialManager:
             'client_secret': client_secret,
             'redirect_uri': redirect_uri,
             'scope': scope,
+            'bot_token': bot_token,
             'auto_create': auto_create
         }
         
