@@ -2778,6 +2778,24 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="youtubeSkipCookieDuration" class="form-label">Skip Cookies for Videos Longer Than (minutes)</label>
+                                <input type="number" class="form-control" id="youtubeSkipCookieDuration" min="0" max="9999" placeholder="60">
+                                <div class="form-text">For videos longer than this duration, try downloading without cookies first. If it fails, fallback to using cookies.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Current Setting</label>
+                                <div class="form-control-plaintext" id="currentYoutubeSkipCookieDuration">
+                                    <span class="badge bg-secondary">Not loaded</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="alert alert-warning">
                         <i class="bi bi-exclamation-triangle me-2"></i>
                         <strong>Setup Required:</strong> You need to install the bgutil token provider Docker container with the following command:

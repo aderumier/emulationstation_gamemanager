@@ -10877,6 +10877,14 @@ class GameCollectionManager {
                 this.saveVideoConfiguration();
             });
         }
+        
+        // Auto-save when YouTube skip cookie duration changes
+        const youtubeSkipCookieDuration = document.getElementById('youtubeSkipCookieDuration');
+        if (youtubeSkipCookieDuration) {
+            youtubeSkipCookieDuration.addEventListener('change', () => {
+                this.saveVideoConfiguration();
+            });
+        }
 
         // Save YouTube cookies button
         const saveCookieBtn = document.getElementById('saveYoutubeCookieBtn');
@@ -10981,6 +10989,19 @@ class GameCollectionManager {
                     const providerUrl = config.youtube_po_token_provider || 'http://127.0.0.1:4416';
                     currentYoutubePoTokenProvider.innerHTML = `<span class="badge bg-info">${providerUrl}</span>`;
                 }
+                
+                // Update YouTube skip cookie duration input
+                const youtubeSkipCookieDuration = document.getElementById('youtubeSkipCookieDuration');
+                if (youtubeSkipCookieDuration) {
+                    youtubeSkipCookieDuration.value = config.youtube_skip_cookie_for_video_duration_bigger_than || 60;
+                }
+                
+                // Update current YouTube skip cookie duration display
+                const currentYoutubeSkipCookieDuration = document.getElementById('currentYoutubeSkipCookieDuration');
+                if (currentYoutubeSkipCookieDuration) {
+                    const duration = config.youtube_skip_cookie_for_video_duration_bigger_than || 60;
+                    currentYoutubeSkipCookieDuration.innerHTML = `<span class="badge bg-info">${duration} minutes</span>`;
+                }
 
                 // Update YouTube cookie status
                 const cookieStatus = document.getElementById('youtubeCookieStatus');
@@ -11017,12 +11038,16 @@ class GameCollectionManager {
             const youtubePoTokenProvider = document.getElementById('youtubePoTokenProvider');
             const youtubePoTokenProviderUrl = youtubePoTokenProvider ? youtubePoTokenProvider.value : 'http://127.0.0.1:4416';
             
+            const youtubeSkipCookieDuration = document.getElementById('youtubeSkipCookieDuration');
+            const youtubeSkipCookieDurationValue = youtubeSkipCookieDuration ? parseInt(youtubeSkipCookieDuration.value) || 60 : 60;
+            
             const configData = {
                 force_video_resolution: forceVideoResolution,
                 enable_fadin_fadout: enableFadeInFadeOut,
                 enable_cuda: enableCuda,
                 enable_youtube_po_token: enableYoutubePoToken,
-                youtube_po_token_provider: youtubePoTokenProviderUrl
+                youtube_po_token_provider: youtubePoTokenProviderUrl,
+                youtube_skip_cookie_for_video_duration_bigger_than: youtubeSkipCookieDurationValue
             };
             
             console.log('Saving video configuration:', configData);

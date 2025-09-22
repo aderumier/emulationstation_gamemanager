@@ -3196,6 +3196,7 @@ def manage_video_config():
                 'enable_cuda': video_config.get('enable_cuda', False),
                 'enable_youtube_po_token': video_config.get('enable_youtube_po_token', False),
                 'youtube_po_token_provider': video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416'),
+                'youtube_skip_cookie_for_video_duration_bigger_than': video_config.get('youtube_skip_cookie_for_video_duration_bigger_than', 60),
                 'available_resolutions': available_resolutions,
                 'youtube_cookie_exists': youtube_cookie_exists
             })
@@ -3213,6 +3214,7 @@ def manage_video_config():
             config['video']['enable_cuda'] = new_config.get('enable_cuda', False)
             config['video']['enable_youtube_po_token'] = new_config.get('enable_youtube_po_token', False)
             config['video']['youtube_po_token_provider'] = new_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
+            config['video']['youtube_skip_cookie_for_video_duration_bigger_than'] = new_config.get('youtube_skip_cookie_for_video_duration_bigger_than', 60)
             
             # Save configuration
             save_config()
@@ -3224,7 +3226,8 @@ def manage_video_config():
                 'enable_fadin_fadout': config['video']['enable_fadin_fadout'],
                 'enable_cuda': config['video']['enable_cuda'],
                 'enable_youtube_po_token': config['video']['enable_youtube_po_token'],
-                'youtube_po_token_provider': config['video']['youtube_po_token_provider']
+                'youtube_po_token_provider': config['video']['youtube_po_token_provider'],
+                'youtube_skip_cookie_for_video_duration_bigger_than': config['video']['youtube_skip_cookie_for_video_duration_bigger_than']
             })
     except Exception as e:
         return jsonify({'error': f'Failed to manage video configuration: {str(e)}'}), 500
@@ -10202,6 +10205,33 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
 
+def get_youtube_video_duration(video_url):
+    """Get the duration of a YouTube video in seconds using yt-dlp"""
+    try:
+        import subprocess
+        import json
+        yt_dlp_path = get_yt_dlp_path()
+        
+        # Use yt-dlp to get video info as JSON
+        cmd = [
+            yt_dlp_path,
+            '--dump-json',
+            '--no-download',
+            video_url
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            video_info = json.loads(result.stdout)
+            duration = video_info.get('duration', 0)
+            return duration
+        else:
+            print(f"Failed to get video duration: {result.stderr}")
+            return None
+    except Exception as e:
+        print(f"Error getting video duration: {e}")
+        return None
+
 def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1):
     """Download a single YouTube video for a game (helper function)"""
     try:
@@ -10224,7 +10254,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         video_config = config.get('video', {})
         is_youtube_url = 'youtu' in video_url.lower()
 
-        def build_download_cmd(mode: str) -> list:
+        def build_download_cmd(mode: str, use_cookies: bool = True) -> list:
             # mode: 'sections' | 'full' | 'po'
             cmd = [
                 yt_dlp_path,
@@ -10236,13 +10266,14 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 '--max-sleep-interval', '10'
             ]
             # Cookies support
-            try:
-                youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
-                if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
-                    abs_cookie = os.path.abspath(youtube_cookie_path)
-                    cmd.extend(['--cookies', abs_cookie])
-            except Exception:
-                pass
+            if use_cookies:
+                try:
+                    youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+                    if os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0:
+                        abs_cookie = os.path.abspath(youtube_cookie_path)
+                        cmd.extend(['--cookies', abs_cookie])
+                except Exception:
+                    pass
             if mode == 'po' and is_youtube_url:
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 cmd.extend([
@@ -10266,12 +10297,33 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             cookies_present = os.path.isfile(cookie_path_check) and os.path.getsize(cookie_path_check) > 0
         except Exception:
             cookies_present = False
+        
+        # Check if we should skip cookies for long videos
+        skip_cookies_for_long_videos = False
+        if cookies_present and is_youtube_url:
+            skip_duration_threshold = video_config.get('youtube_skip_cookie_for_video_duration_bigger_than', 60)
+            task.update_progress(f"  📏 Checking video duration (skip cookies threshold: {skip_duration_threshold} minutes)...")
+            
+            video_duration = get_youtube_video_duration(video_url)
+            if video_duration is not None:
+                duration_minutes = video_duration / 60
+                task.update_progress(f"  ⏱️  Video duration: {duration_minutes:.1f} minutes")
+                
+                if duration_minutes > skip_duration_threshold:
+                    skip_cookies_for_long_videos = True
+                    task.update_progress(f"  🍪 Video is longer than {skip_duration_threshold} minutes, will try without cookies first")
+                else:
+                    task.update_progress(f"  🍪 Video is shorter than {skip_duration_threshold} minutes, will use cookies")
+            else:
+                task.update_progress(f"  ⚠️  Could not determine video duration, will use cookies")
+        
         # Choose first attempt: sections only if no cookies; otherwise full
         first_mode = 'full' if cookies_present else 'sections'
+        use_cookies_first = cookies_present and not skip_cookies_for_long_videos
 
         used_full_download_without_sections = True if cookies_present else False                                                
 
-        download_cmd = build_download_cmd(first_mode)
+        download_cmd = build_download_cmd(first_mode, use_cookies_first)
         if is_steam_store:
             task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
         task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
@@ -10350,12 +10402,12 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             return False
         
         if process.returncode != 0:
-            # Fallback: try PO token directly if enabled and YouTube URL
-            if video_config.get('enable_youtube_po_token', False) and is_youtube_url:
-                used_po_token = True
-                used_full_download_without_sections = True
-                youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
-                task.update_progress(f"  🔁 Fallback with YouTube PO token provider: {youtube_po_token_provider}")
+            # Fallback logic: try different approaches based on the situation
+            fallback_success = False
+            
+            # If we tried without cookies for a long video and it failed, try with cookies
+            if skip_cookies_for_long_videos and cookies_present:
+                task.update_progress(f"  🔁 First attempt without cookies failed, trying with cookies...")
                 # Clean previous temp files
                 try:
                     for f in os.listdir(videos_dir):
@@ -10366,7 +10418,91 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                                 pass
                 except Exception:
                     pass
-                download_cmd = build_download_cmd('po')
+                
+                download_cmd = build_download_cmd(first_mode, use_cookies=True)
+                task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                process = subprocess.Popen(
+                    download_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=videos_dir,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+                # Read output again
+                stdout_lines = []
+                try:
+                    import select
+                    import sys
+                    while True:
+                        if is_task_stopped():
+                            process.terminate()
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                            task.update_progress(f"  🛑 Download cancelled for {game_name}")
+                            return False
+                        if sys.platform != 'win32':
+                            ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                            if ready:
+                                line = process.stdout.readline()
+                                if not line:
+                                    break
+                            else:
+                                if process.poll() is not None:
+                                    break
+                                continue
+                        else:
+                            line = process.stdout.readline()
+                            if not line:
+                                break
+                        line = line.strip()
+                        if line:
+                            if line.startswith('[download]') or line.startswith('[info]') or line.startswith('[youtube]'):
+                                task.update_progress(f"  📥 {line}")
+                            elif any(keyword in line.lower() for keyword in ['progress', 'eta', '%', 'mb', 'gb', 'kb']) and not any(skip in line.lower() for skip in ['metadata:', 'stream #', 'input #', 'libx264', 'consecutive b-frames', 'mb i', '8x8 transform', 'coded y,uv', 'i16 v,h', 'i8 v,h', 'i4 v,h', 'i8c dc', 'weighted p-frames', 'ref p l0', 'ref b l0', 'kb/s:', '[out#0/mp4', 'muxing overhead', 'frame=']):
+                                task.update_progress(f"  📥 {line}")
+                            stdout_lines.append(line)
+                    process.wait()
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    task.update_progress(f"  ⏰ Download timeout for {game_name}")
+                    return False
+                except Exception as e:
+                    try:
+                        process.terminate()
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    task.update_progress(f"  ❌ Download error for {game_name}: {str(e)}")
+                    return False
+                if process.returncode == 0:
+                    fallback_success = True
+                    task.update_progress(f"  ✅ Download succeeded with cookies fallback for {game_name}")
+                else:
+                    task.update_progress(f"  ❌ Download failed even with cookies fallback (code: {process.returncode})")
+                    if stdout_lines:
+                        task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
+            
+            # If cookie fallback failed or wasn't applicable, try PO token
+            if not fallback_success and video_config.get('enable_youtube_po_token', False) and is_youtube_url:
+                used_po_token = True
+                used_full_download_without_sections = True
+                youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
+                task.update_progress(f"  🔁 Trying YouTube PO token provider: {youtube_po_token_provider}")
+                # Clean previous temp files
+                try:
+                    for f in os.listdir(videos_dir):
+                        if f.startswith('temp_'):
+                            try:
+                                os.remove(os.path.join(videos_dir, f))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                download_cmd = build_download_cmd('po', use_cookies=True)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
                 process = subprocess.Popen(
                     download_cmd,
@@ -10430,7 +10566,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     if stdout_lines:
                         task.update_progress(f"  Error details: {' '.join(stdout_lines[-3:])}")
                     return False
-            else:
+                else:
+                    fallback_success = True
+                    task.update_progress(f"  ✅ Download succeeded with PO token for {game_name}")
+            
+            if not fallback_success:
                 # Log error details for debugging
                 task.update_progress(f"  ❌ Download failed for {game_name} (return code: {process.returncode})")
                 if stdout_lines:
