@@ -10761,13 +10761,42 @@ class GameCollectionManager {
                 
                 document.getElementById('maxTasksToKeep').value = config.max_tasks_to_keep || 30;
                 
+                // Authentication settings
+                document.getElementById('disableLocalAuth').checked = config.authentication?.disable_local_auth || false;
                 
                 console.log('Configuration loaded:', config);
             } else {
                 console.error('Failed to load configuration');
             }
+            
+            // Load Discord credentials separately
+            await this.loadDiscordCredentials();
         } catch (error) {
             console.error('Error loading configuration:', error);
+        }
+    }
+    
+    async loadDiscordCredentials() {
+        try {
+            const response = await fetch('/api/discord-credentials');
+            if (response.ok) {
+                const discordConfig = await response.json();
+                
+                // Populate Discord form fields
+                document.getElementById('discordClientId').value = discordConfig.client_id || '';
+                document.getElementById('discordClientSecret').value = discordConfig.client_secret || '';
+                document.getElementById('discordRedirectUri').value = discordConfig.redirect_uri || '';
+                document.getElementById('discordScope').value = discordConfig.scope || '';
+                document.getElementById('discordAutoCreate').checked = discordConfig.auto_create?.enabled || false;
+                document.getElementById('discordGuildId').value = discordConfig.auto_create?.guild_id || '';
+                document.getElementById('discordRoleName').value = discordConfig.auto_create?.role_name || '';
+                
+                console.log('Discord credentials loaded:', discordConfig);
+            } else {
+                console.error('Failed to load Discord credentials');
+            }
+        } catch (error) {
+            console.error('Error loading Discord credentials:', error);
         }
     }
     
@@ -10780,7 +10809,10 @@ class GameCollectionManager {
                     port: parseInt(document.getElementById('serverPort').value),
                     debug: document.getElementById('serverDebug').checked
                 },
-                max_tasks_to_keep: parseInt(document.getElementById('maxTasksToKeep').value)
+                max_tasks_to_keep: parseInt(document.getElementById('maxTasksToKeep').value),
+                authentication: {
+                    disable_local_auth: document.getElementById('disableLocalAuth').checked
+                }
             };
             
             console.log('Saving configuration:', configData);
@@ -10797,6 +10829,9 @@ class GameCollectionManager {
                 const result = await response.json();
                 console.log('Configuration saved:', result);
                 
+                // Save Discord credentials separately
+                await this.saveDiscordCredentials();
+                
                 // Show success message
                 this.showToast('Configuration saved successfully! Server restart required for path changes.', 'success');
                 
@@ -10811,6 +10846,44 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error saving configuration:', error);
             this.showToast('Error saving configuration', 'error');
+        }
+    }
+    
+    async saveDiscordCredentials() {
+        try {
+            const discordData = {
+                client_id: document.getElementById('discordClientId').value,
+                client_secret: document.getElementById('discordClientSecret').value,
+                redirect_uri: document.getElementById('discordRedirectUri').value,
+                scope: document.getElementById('discordScope').value,
+                auto_create: {
+                    enabled: document.getElementById('discordAutoCreate').checked,
+                    guild_id: document.getElementById('discordGuildId').value,
+                    role_name: document.getElementById('discordRoleName').value
+                }
+            };
+            
+            console.log('Saving Discord credentials:', discordData);
+            
+            const response = await fetch('/api/discord-credentials', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(discordData)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Discord credentials saved:', result);
+            } else {
+                const error = await response.text();
+                console.error('Failed to save Discord credentials:', error);
+                this.showToast('Failed to save Discord credentials', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving Discord credentials:', error);
+            this.showToast('Error saving Discord credentials', 'error');
         }
     }
     

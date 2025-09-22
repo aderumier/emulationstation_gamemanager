@@ -1801,6 +1801,55 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-shield-lock me-2"></i>Authentication</h6>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="disableLocalAuth">
+                                    <label class="form-check-label" for="disableLocalAuth">
+                                        Disable Local Authentication
+                                    </label>
+                                    <div class="form-text">Disable username/password login and force Discord authentication only</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-discord me-2"></i>Discord Configuration</h6>
+                                <div class="mb-3">
+                                    <label for="discordClientId" class="form-label">Client ID</label>
+                                    <input type="text" class="form-control" id="discordClientId" placeholder="Your Discord Client ID">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="discordClientSecret" class="form-label">Client Secret</label>
+                                    <input type="password" class="form-control" id="discordClientSecret" placeholder="Your Discord Client Secret">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="discordRedirectUri" class="form-label">Redirect URI</label>
+                                    <input type="text" class="form-control" id="discordRedirectUri" placeholder="http://localhost:5000/discord/callback">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="discordScope" class="form-label">Scope</label>
+                                    <input type="text" class="form-control" id="discordScope" placeholder="identify email guilds guilds.members.read">
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="discordAutoCreate">
+                                    <label class="form-check-label" for="discordAutoCreate">
+                                        Auto-create users
+                                    </label>
+                                    <div class="form-text">Automatically create users from Discord authentication</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="discordGuildId" class="form-label">Guild ID</label>
+                                    <input type="text" class="form-control" id="discordGuildId" placeholder="Discord Server ID">
+                                    <div class="form-text">Required for auto-creation (Discord server ID)</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="discordRoleName" class="form-label">Role Name</label>
+                                    <input type="text" class="form-control" id="discordRoleName" placeholder="Creator">
+                                    <div class="form-text">Required role for auto-creation</div>
+                                </div>
+                            </div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">

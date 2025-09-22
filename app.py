@@ -3426,6 +3426,42 @@ def get_screenscraper_credentials_values():
         print(f"Error getting ScreenScraper credential values: {e}")
         return jsonify({'error': f'Failed to get ScreenScraper credential values: {str(e)}'}), 500
 
+@app.route('/api/discord-credentials', methods=['GET', 'PUT'])
+@login_required
+def manage_discord_credentials():
+    """Get or update Discord credentials"""
+    try:
+        from credential_manager import credential_manager
+        
+        if request.method == 'GET':
+            discord_creds = credential_manager.get_discord_credentials()
+            return jsonify({
+                'client_id': discord_creds.get('client_id', ''),
+                'client_secret': discord_creds.get('client_secret', ''),
+                'redirect_uri': discord_creds.get('redirect_uri', ''),
+                'scope': discord_creds.get('scope', ''),
+                'auto_create': discord_creds.get('auto_create', {})
+            })
+        elif request.method == 'PUT':
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            # Update Discord credentials
+            credential_manager.save_discord_credentials(
+                client_id=data.get('client_id', ''),
+                client_secret=data.get('client_secret', ''),
+                redirect_uri=data.get('redirect_uri', ''),
+                scope=data.get('scope', ''),
+                auto_create=data.get('auto_create', {})
+            )
+            
+            return jsonify({'success': True, 'message': 'Discord credentials updated successfully'})
+    
+    except Exception as e:
+        print(f"Error managing Discord credentials: {e}")
+        return jsonify({'error': f'Failed to manage Discord credentials: {str(e)}'}), 500
+
 @app.route('/api/screenscraper-systems', methods=['GET'])
 @login_required
 def get_screenscraper_systems():
