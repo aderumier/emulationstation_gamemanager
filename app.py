@@ -11836,22 +11836,60 @@ def discord_login():
     discord_redirect_uri = discord_config.get('redirect_uri', url_for('discord_callback', _external=True))
     discord_scope = discord_config.get('scope', 'identify email')
     
+    print(f"[DISCORD DEBUG] Starting Discord login process")
+    print(f"[DISCORD DEBUG] Client ID: {discord_client_id}")
+    print(f"[DISCORD DEBUG] Redirect URI: {discord_redirect_uri}")
+    print(f"[DISCORD DEBUG] Scope: {discord_scope}")
+    
+    # Check if Discord is properly configured
+    if discord_client_id == 'your_discord_client_id':
+        print(f"[DISCORD DEBUG] ERROR: Discord client_id not configured (using default value)")
+        flash('Discord authentication not configured. Please contact an administrator.', 'error')
+        return redirect(url_for('login'))
+    
     discord_url = f"https://discord.com/api/oauth2/authorize?client_id={discord_client_id}&redirect_uri={discord_redirect_uri}&response_type=code&scope={discord_scope}"
+    print(f"[DISCORD DEBUG] Redirecting to Discord URL: {discord_url}")
     return redirect(discord_url)
 
 
 @app.route('/discord/callback')
 def discord_callback():
+    print(f"[DISCORD DEBUG] Discord callback received")
+    print(f"[DISCORD DEBUG] Request args: {dict(request.args)}")
+    
     code = request.args.get('code')
-    if not code:
-        flash('Discord authentication failed', 'error')
+    error = request.args.get('error')
+    error_description = request.args.get('error_description')
+    
+    if error:
+        print(f"[DISCORD DEBUG] ERROR: Discord returned error: {error}")
+        print(f"[DISCORD DEBUG] ERROR DESCRIPTION: {error_description}")
+        flash(f'Discord authentication failed: {error_description or error}', 'error')
         return redirect(url_for('login'))
+    
+    if not code:
+        print(f"[DISCORD DEBUG] ERROR: No authorization code received from Discord")
+        flash('Discord authentication failed: No authorization code received', 'error')
+        return redirect(url_for('login'))
+    
+    print(f"[DISCORD DEBUG] Authorization code received: {code[:10]}...")
     
     # Exchange code for access token
     discord_config = config.get('discord', {})
     discord_client_id = discord_config.get('client_id', 'your_discord_client_id')
     discord_client_secret = discord_config.get('client_secret', 'your_discord_client_secret')
     discord_redirect_uri = discord_config.get('redirect_uri', url_for('discord_callback', _external=True))
+    
+    print(f"[DISCORD DEBUG] Token exchange configuration:")
+    print(f"[DISCORD DEBUG] - Client ID: {discord_client_id}")
+    print(f"[DISCORD DEBUG] - Client Secret: {'*' * len(discord_client_secret) if discord_client_secret != 'your_discord_client_secret' else 'NOT CONFIGURED'}")
+    print(f"[DISCORD DEBUG] - Redirect URI: {discord_redirect_uri}")
+    
+    # Check if Discord is properly configured
+    if discord_client_id == 'your_discord_client_id' or discord_client_secret == 'your_discord_client_secret':
+        print(f"[DISCORD DEBUG] ERROR: Discord not properly configured")
+        flash('Discord authentication not configured. Please contact an administrator.', 'error')
+        return redirect(url_for('login'))
     
     token_data = {
         'client_id': discord_client_id,
@@ -11862,45 +11900,124 @@ def discord_callback():
     }
     
     try:
+        print(f"[DISCORD DEBUG] Sending token exchange request to Discord...")
         response = requests.post('https://discord.com/api/oauth2/token', data=token_data)
+        print(f"[DISCORD DEBUG] Token exchange response status: {response.status_code}")
+        print(f"[DISCORD DEBUG] Token exchange response headers: {dict(response.headers)}")
+        
         if response.status_code == 200:
             token_info = response.json()
-            access_token = token_info['access_token']
+            print(f"[DISCORD DEBUG] Token exchange successful")
+            print(f"[DISCORD DEBUG] Token info keys: {list(token_info.keys())}")
+            
+            access_token = token_info.get('access_token')
+            if not access_token:
+                print(f"[DISCORD DEBUG] ERROR: No access token in response")
+                flash('Discord authentication failed: No access token received', 'error')
+                return redirect(url_for('login'))
+            
+            print(f"[DISCORD DEBUG] Access token received: {access_token[:10]}...")
             
             # Get user info from Discord
             headers = {'Authorization': f'Bearer {access_token}'}
+            print(f"[DISCORD DEBUG] Requesting user info from Discord...")
             user_response = requests.get('https://discord.com/api/users/@me', headers=headers)
+            print(f"[DISCORD DEBUG] User info response status: {user_response.status_code}")
+            print(f"[DISCORD DEBUG] User info response headers: {dict(user_response.headers)}")
             
             if user_response.status_code == 200:
                 discord_user = user_response.json()
-                discord_id = discord_user['id']
-                username = discord_user['username']
+                print(f"[DISCORD DEBUG] User info received successfully")
+                print(f"[DISCORD DEBUG] Discord user data: {discord_user}")
+                
+                discord_id = discord_user.get('id')
+                username = discord_user.get('username')
                 email = discord_user.get('email')
                 
+                print(f"[DISCORD DEBUG] Extracted user info:")
+                print(f"[DISCORD DEBUG] - Discord ID: {discord_id}")
+                print(f"[DISCORD DEBUG] - Username: {username}")
+                print(f"[DISCORD DEBUG] - Email: {email}")
+                
+                if not discord_id:
+                    print(f"[DISCORD DEBUG] ERROR: No Discord ID in user data")
+                    flash('Discord authentication failed: Invalid user data', 'error')
+                    return redirect(url_for('login'))
+                
                 # Check if user already exists
+                print(f"[DISCORD DEBUG] Checking if user exists in database...")
                 user = get_user_by_discord_id(discord_id)
                 if user:
+                    print(f"[DISCORD DEBUG] User found in database: {user.username}")
+                    print(f"[DISCORD DEBUG] User status - Active: {user.is_active}, Validated: {user.is_validated}")
+                    
                     if user.is_active and user.is_validated:
+                        print(f"[DISCORD DEBUG] User is active and validated, logging in...")
                         login_user(user)
                         update_user_last_login(user.id)
                         flash(f'Welcome back, {user.username}!', 'success')
                         return redirect(url_for('index'))
                     else:
+                        print(f"[DISCORD DEBUG] User account is not active or not validated")
                         flash('Your account is pending validation. Please contact an administrator.', 'warning')
                         return redirect(url_for('login'))
                 else:
+                    print(f"[DISCORD DEBUG] User not found in database")
                     # User doesn't exist - only allow first user setup
                     flash('Discord account not found. Please contact an administrator to create your account.', 'error')
                     return redirect(url_for('login'))
             else:
-                flash('Failed to get Discord user information', 'error')
+                print(f"[DISCORD DEBUG] ERROR: Failed to get Discord user information")
+                print(f"[DISCORD DEBUG] Response content: {user_response.text}")
+                flash(f'Failed to get Discord user information (HTTP {user_response.status_code})', 'error')
         else:
-            flash('Discord authentication failed', 'error')
+            print(f"[DISCORD DEBUG] ERROR: Token exchange failed")
+            print(f"[DISCORD DEBUG] Response content: {response.text}")
+            try:
+                error_data = response.json()
+                print(f"[DISCORD DEBUG] Error data: {error_data}")
+                error_message = error_data.get('error_description', error_data.get('error', 'Unknown error'))
+                flash(f'Discord authentication failed: {error_message}', 'error')
+            except:
+                flash(f'Discord authentication failed (HTTP {response.status_code})', 'error')
     except Exception as e:
-        print(f"Discord authentication error: {e}")
-        flash('Discord authentication failed', 'error')
+        print(f"[DISCORD DEBUG] EXCEPTION: Discord authentication error: {e}")
+        print(f"[DISCORD DEBUG] Exception type: {type(e).__name__}")
+        import traceback
+        print(f"[DISCORD DEBUG] Traceback: {traceback.format_exc()}")
+        flash(f'Discord authentication failed: {str(e)}', 'error')
     
     return redirect(url_for('login'))
+
+@app.route('/discord/debug')
+def discord_debug():
+    """Debug route to check Discord configuration (admin only)"""
+    if not current_user.is_authenticated or not current_user.is_validated:
+        flash('Access denied', 'error')
+        return redirect(url_for('login'))
+    
+    discord_config = config.get('discord', {})
+    debug_info = {
+        'client_id': discord_config.get('client_id', 'NOT CONFIGURED'),
+        'client_secret': 'CONFIGURED' if discord_config.get('client_secret', 'your_discord_client_secret') != 'your_discord_client_secret' else 'NOT CONFIGURED',
+        'redirect_uri': discord_config.get('redirect_uri', 'NOT CONFIGURED'),
+        'scope': discord_config.get('scope', 'NOT CONFIGURED'),
+        'current_redirect_uri': url_for('discord_callback', _external=True),
+        'discord_login_url': url_for('discord_login', _external=True),
+        'discord_callback_url': url_for('discord_callback', _external=True)
+    }
+    
+    return f"""
+    <h1>Discord Configuration Debug</h1>
+    <h2>Configuration from config.json:</h2>
+    <pre>{json.dumps(debug_info, indent=2)}</pre>
+    
+    <h2>Test Discord Login:</h2>
+    <a href="{url_for('discord_login')}">Try Discord Login</a>
+    
+    <h2>Discord OAuth2 URL:</h2>
+    <pre>https://discord.com/api/oauth2/authorize?client_id={discord_config.get('client_id', 'your_discord_client_id')}&redirect_uri={url_for('discord_callback', _external=True)}&response_type=code&scope={discord_config.get('scope', 'identify email')}</pre>
+    """
 
 # User Management Routes (for admins)
 @app.route('/admin/users')
