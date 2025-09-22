@@ -10258,7 +10258,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Use just the filename for output to avoid path issues
         output_filename_only = os.path.basename(output_path)
         temp_filename = f"temp_{output_filename_only}"
-        output_template = temp_filename.replace('.mp4', '.%(ext)s')
+        output_template = os.path.join(temp_videos_dir, temp_filename.replace('.mp4', '.%(ext)s'))
         
         # Calculate end time for the 30-second section
         end_time = start_time + 30
