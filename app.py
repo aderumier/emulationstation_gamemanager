@@ -12024,25 +12024,25 @@ def discord_callback():
                 else:
                     print(f"[DISCORD DEBUG] User not found in database")
                     print(f"[DISCORD DEBUG] Discord ID: {discord_id}")
-                    print(f"[DISCORD DEBUG] Discord Username: {discord_username}")
-                    print(f"[DISCORD DEBUG] Discord Email: {discord_email}")
+                    print(f"[DISCORD DEBUG] Discord Username: {username}")
+                    print(f"[DISCORD DEBUG] Discord Email: {email}")
                     
                     # Check if user should be auto-created based on Discord server membership and role
                     print(f"[DISCORD DEBUG] Checking auto-creation criteria...")
                     if should_auto_create_discord_user(discord_id, access_token, discord_config):
                         print(f"[DISCORD DEBUG] User meets auto-creation criteria, creating account...")
                         # Auto-create user
-                        username = f"discord_{discord_username}"  # Prefix to avoid conflicts
-                        email = discord_email or f"{discord_id}@discord.local"
+                        new_username = f"discord_{username}"  # Prefix to avoid conflicts
+                        user_email = email or f"{discord_id}@discord.local"
                         
-                        user, error = create_user(username, None, email, discord_id)
+                        user, error = create_user(new_username, None, user_email, discord_id)
                         if user:
                             # Auto-validate the user since they met the criteria
                             users = load_users()
                             if user.id in users:
                                 users[user.id]['is_validated'] = True
                                 save_users(users)
-                                print(f"[DISCORD DEBUG] Auto-created and validated user: {username}")
+                                print(f"[DISCORD DEBUG] Auto-created and validated user: {new_username}")
                                 
                                 # Log the user in
                                 login_user(user)
