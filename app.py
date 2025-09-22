@@ -424,8 +424,21 @@ def load_config():
     
     return default_config
 
+def load_scrappers_config():
+    """Load scrappers configuration from scrappers.json"""
+    try:
+        with open('var/config/scrappers.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print("Scrappers configuration file not found. Using default configuration.")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"Error parsing scrappers configuration file: {e}")
+        return {}
+
 # Load configuration
 config = load_config()
+scrappers_config = load_scrappers_config()
 
 # yt-dlp management functions
 def ensure_yt_dlp_binary():
@@ -3426,7 +3439,7 @@ def manage_screenscraper_credentials():
         if request.method == 'GET':
             # Return current ScreenScraper credentials (without exposing the actual values)
             config = load_config()
-            screenscraper_config = config.get('screenscraper', {})
+            screenscraper_config = scrappers_config.get('screenscraper', {})
             
             # Load credentials using secure credential manager
             from credential_manager import credential_manager
@@ -3672,7 +3685,7 @@ def manage_launchbox_mappings():
     try:
         if request.method == 'GET':
             # Return current mappings and available media fields
-            launchbox_mappings = config.get('launchbox', {}).get('image_type_mappings', {})
+            launchbox_mappings = scrappers_config.get('launchbox', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
             return jsonify({
                 'success': True, 
@@ -3751,7 +3764,7 @@ def manage_igdb_mappings():
     try:
         if request.method == 'GET':
             # Return current mappings and available media fields
-            igdb_mappings = config.get('igdb', {}).get('image_type_mappings', {})
+            igdb_mappings = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
             return jsonify({
                 'success': True, 
@@ -3826,7 +3839,7 @@ def manage_screenscraper_mappings():
     try:
         if request.method == 'GET':
             # Return current mappings and available media fields
-            screenscraper_mappings = config.get('screenscraper', {}).get('image_type_mappings', {})
+            screenscraper_mappings = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
             return jsonify({
                 'success': True, 
@@ -3906,7 +3919,7 @@ def manage_steamgriddb_mappings():
     try:
         if request.method == 'GET':
             # Return current mappings and available media fields
-            steamgriddb_mappings = config.get('steamgriddb', {}).get('image_type_mappings', {})
+            steamgriddb_mappings = scrappers_config.get('steamgriddb', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
             return jsonify({
                 'success': True, 
@@ -4285,7 +4298,7 @@ def search_screenscraper_games():
         
         # Load config
         config = load_config()
-        screenscraper_config = config.get('screenscraper', {})
+        screenscraper_config = scrappers_config.get('screenscraper', {})
         
         # Get system configuration
         systems_config = config.get('systems', {})
@@ -4299,7 +4312,7 @@ def search_screenscraper_games():
         from screenscraper_service import ScreenScraperService
         
         # Create ScreenScraper service using the credentials we already loaded
-        screenscraper_service = ScreenScraperService(config, screenscraper_creds)
+        screenscraper_service = ScreenScraperService(config, screenscraper_creds, scrappers_config)
         
         # Search for games using the new search_games_by_name method
         import asyncio
@@ -4421,7 +4434,7 @@ def manage_steam_mappings():
     try:
         if request.method == 'GET':
             # Return current mappings and available media fields
-            steam_mappings = config.get('steam', {}).get('image_type_mappings', {})
+            steam_mappings = scrappers_config.get('steam', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
             return jsonify({
                 'success': True, 
@@ -4712,7 +4725,7 @@ def load_launchbox_config():
     global platform_metadata_cache, current_system_platform
     
     # Load from consolidated config
-    mapping_config = config.get('launchbox', {}).get('mapping', {})
+    mapping_config = scrappers_config.get('launchbox', {}).get('mapping', {})
     system_platform_mapping = config.get('systems', {})
     
     
@@ -4747,7 +4760,7 @@ def parse_launchbox_metadata(metadata_path, target_platform, skip_global_cache=F
             # Parse basic game fields from cached element
             # Get the fields to load from mapping configuration
             fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
-            mapping_config = config.get('launchbox', {}).get('mapping', {})
+            mapping_config = scrappers_config.get('launchbox', {}).get('mapping', {})
             if mapping_config:
                 # Add all LaunchBox fields from the mapping configuration
                 fields_to_load.update(mapping_config.keys())
@@ -5685,14 +5698,14 @@ def get_media_directory(gamelist_field):
 def load_image_mappings():
     """Load image type mappings from consolidated config.json"""
     return {
-        'image_type_mappings': config.get('launchbox', {}).get('image_type_mappings', {}),
-        'launchbox_image_base_url': config.get('launchbox', {}).get('image_base_url', 'https://images.launchbox-app.com/'),
+        'image_type_mappings': scrappers_config.get('launchbox', {}).get('image_type_mappings', {}),
+        'launchbox_image_base_url': scrappers_config.get('launchbox', {}).get('image_base_url', 'https://images.launchbox-app.com/'),
         'download_settings': config.get('download', {})
     }
 
 def load_region_config():
     """Load region priority configuration from consolidated config.json"""
-    return config.get('launchbox', {}).get('region', {})
+    return scrappers_config.get('launchbox', {}).get('region', {})
 
 def get_launchbox_box_image_url(launchbox_id):
     """Get Box - Front image URL for a LaunchBox game"""
@@ -7689,8 +7702,8 @@ async def scrape_igdb_manual(game, system_name, system_config):
         
         # Get field mappings
         config = load_config()
-        igdb_mapping = config.get('igdb', {}).get('mapping', {})
-        igdb_image_mapping = config.get('igdb', {}).get('image_type_mappings', {})
+        igdb_mapping = scrappers_config.get('igdb', {}).get('mapping', {})
+        igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
         
         # Extract text fields
         text_fields = {}
@@ -7849,7 +7862,7 @@ async def scrape_steam_manual(game, system_name):
         
         # Extract media fields (arrays), using config mapping if present
         media_fields: Dict[str, List[str]] = {}
-        steam_image_mapping = config.get('steam', {}).get('image_type_mappings', {})
+        steam_image_mapping = scrappers_config.get('steam', {}).get('image_type_mappings', {})
 
         # Build known Steam CDN URLs by steam_id
         capsule_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg"
@@ -7914,7 +7927,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
         else:
             system_id = screenscraper_config.get('system_id')
         
-        screenscraper_service = ScreenScraperService(config, screenscraper_credentials)
+        screenscraper_service = ScreenScraperService(config, screenscraper_credentials, scrappers_config)
         
         if not system_id:
             return None
@@ -7985,7 +7998,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
         
         # Extract media fields grouped by configured gamelist media fields
         media_fields: Dict[str, List[str]] = {}
-        ss_image_mapping = config.get('screenscraper', {}).get('image_type_mappings', {})
+        ss_image_mapping = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
         if detailed_data.get('medias'):
             for media in detailed_data['medias']:
                 media_type = media.get('type')
@@ -8043,7 +8056,7 @@ async def scrape_steamgriddb_manual(game, system_name):
         
         # Extract media fields as arrays, using mapping
         media_fields: Dict[str, List[str]] = {}
-        sgd_image_mapping = config.get('steamgriddb', {}).get('image_type_mappings', {})
+        sgd_image_mapping = scrappers_config.get('steamgriddb', {}).get('image_type_mappings', {})
 
         def map_and_append(items: List[Dict], sgd_type: str, default_field: str):
             if not items:
@@ -8131,7 +8144,7 @@ async def scrape_launchbox_manual(game, system_name):
         
         # Get mapping configuration
         config = load_config()
-        mapping_config = config.get('launchbox', {}).get('mapping', {})
+        mapping_config = scrappers_config.get('launchbox', {}).get('mapping', {})
         
         # Extract text fields using common logic
         text_fields = extract_launchbox_text_fields(game_elem, mapping_config)
@@ -11989,7 +12002,7 @@ def change_password():
 def _matches_media_type(image_type, requested_media_type, media_directory):
     """Check if an image type matches the requested media type using config mappings"""
     # Load the LaunchBox configuration from config
-    launchbox_config = config.get('launchbox', {})
+    launchbox_config = scrappers_config.get('launchbox', {})
     image_type_mappings = launchbox_config.get('image_type_mappings', {})
     
     # Check if this image type maps to the requested media type
@@ -12258,7 +12271,7 @@ def get_igdb_config():
     try:
         # Load base configuration from config.json
         config = load_config()
-        igdb_config = config.get('igdb', {})
+        igdb_config = scrappers_config.get('igdb', {})
         
         # Try to load credentials from credentials.json
         credentials = {}
@@ -12846,7 +12859,7 @@ def get_igdb_region_priority():
     """Get IGDB region priority from config"""
     try:
         config = load_config()
-        igdb_config = config.get('igdb', {})
+        igdb_config = scrappers_config.get('igdb', {})
         return igdb_config.get('region_priority', [
             "World",
             "North America", 
@@ -13089,7 +13102,7 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         
         # Create appropriate directory for the system using config mappings
         config = load_config()
-        igdb_config = config.get('igdb', {})
+        igdb_config = scrappers_config.get('igdb', {})
         image_type_mappings = igdb_config.get('image_type_mappings', {})
         # Map IGDB image type to gamelist field using config
         # image_type should now be a config key (artworks, screenshots, logos, cover)
@@ -13748,8 +13761,8 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
     try:
         # Load IGDB field mappings from config
         config = load_config()
-        igdb_mapping = config.get('igdb', {}).get('mapping', {})
-        igdb_image_mapping = config.get('igdb', {}).get('image_type_mappings', {})
+        igdb_mapping = scrappers_config.get('igdb', {}).get('mapping', {})
+        igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
         
         # Get game name
         name_elem = game.find('name')
@@ -14210,8 +14223,8 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             system_config = systems_config.get(system_name, {})
             
             # Get IGDB field mappings from config
-            igdb_mapping = config.get('igdb', {}).get('mapping', {})
-            igdb_image_mapping = config.get('igdb', {}).get('image_type_mappings', {})
+            igdb_mapping = scrappers_config.get('igdb', {}).get('mapping', {})
+            igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
             
             if not system_config:
                 result_q.put({
@@ -14634,10 +14647,10 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             print(f"🔧 ScreenScraper max_connections set to: {max_connections}")
             
             # Initialize ScreenScraper service with dynamic max_connections
-            service = ScreenScraperService(config, screenscraper_creds, max_connections)
+            service = ScreenScraperService(config, screenscraper_creds, scrappers_config, max_connections)
             
             # Add field selection settings to config
-            screenscraper_config = config.get('screenscraper', {})
+            screenscraper_config = scrappers_config.get('screenscraper', {})
             screenscraper_config['selected_fields'] = selected_fields or []
             screenscraper_config['overwrite_text_fields'] = overwrite_text_fields
             screenscraper_config['overwrite_media_fields'] = overwrite_media_fields
@@ -14957,7 +14970,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 raise e
             
             roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
-            steam_config = config.get('steam', {})
+            steam_config = scrappers_config.get('steam', {})
             image_type_mappings = steam_config.get('image_type_mappings', {
                 'capsule': 'boxart',
                 'logo': 'marquee',
@@ -15649,7 +15662,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                 config = json.load(f)
             
             roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
-            steamgriddb_config = config.get('steamgriddb', {})
+            steamgriddb_config = scrappers_config.get('steamgriddb', {})
             image_type_mappings = steamgriddb_config.get('image_type_mappings', {
                 'grids': 'boxart',
                 'logos': 'marquee',

@@ -379,9 +379,10 @@ async def close_screenscraper_async_client():
         _screenscraper_async_client = None
 
 class ScreenScraperService:
-    def __init__(self, config: Dict, credentials: Dict, max_connections: int = 2):
+    def __init__(self, config: Dict, credentials: Dict, scrappers_config: Dict = None, max_connections: int = 2):
         self.config = config
         self.credentials = credentials
+        self.scrappers_config = scrappers_config or {}
         self.logger = logging.getLogger(__name__)
         # Static ScreenScraper configuration
         self.api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
@@ -1087,7 +1088,7 @@ class ScreenScraperService:
         Returns:
             Local media field name (e.g., 'marquee', 'thumbnail') or None if not mapped
         """
-        screenscraper_config = self.config.get('screenscraper', {})
+        screenscraper_config = self.scrappers_config.get('screenscraper', {})
         image_mappings = screenscraper_config.get('image_type_mappings', {})
         return image_mappings.get(media_type)
     
@@ -1231,7 +1232,7 @@ class ScreenScraperService:
             print(f"📁 Directory exists: {os.path.exists(media_dir)}")
             
             # Select the best media by region priority
-            region_priority = self.config.get('screenscraper', {}).get('region_priority', ['World', 'USA', 'Europe', 'Japan'])
+            region_priority = self.scrappers_config.get('screenscraper', {}).get('region_priority', ['World', 'USA', 'Europe', 'Japan'])
             game_filename = os.path.basename(game_data.get('path', ''))
             game_region_priority = get_region_priority_for_game(game_filename, region_priority)
             

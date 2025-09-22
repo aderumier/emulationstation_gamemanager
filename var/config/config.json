@@ -99,99 +99,6 @@
             ]
         }
     },
-    "launchbox": {
-        "mapping": {
-            "Name": "name",
-            "Overview": "desc",
-            "Developer": "developer",
-            "Publisher": "publisher",
-            "Genres": "genre",
-            "CommunityRating": "rating",
-            "MaxPlayers": "players",
-            "VideoURL": "youtubeurl"
-        },
-        "image_base_url": "https://images.launchbox-app.com/",
-        "image_type_mappings": {
-            "Box - Front": "boxart",
-            "Box - Back": "boxback",
-            "Box - 3D": "thumbnail",
-            "Clear Logo": "marquee",
-            "Screenshot - Game Title": "titleshot",
-            "Screenshot - Gameplay": "image",
-            "Fanart - Background": "fanart",
-            "Cart - Front": "cartridge"
-        },
-        "region": {
-            "priority": [
-                "World",
-                "North America",
-                "Europe",
-                "Japan"
-            ],
-            "description": "Region priority order for image downloads. Images are selected by type and region priority, with only one image per type being downloaded."
-        }
-    },
-    "igdb": {
-        "database_directory": "var/db/igdb",
-        "mapping": {
-            "name": "name",
-            "summary": "desc",
-            "developer": "developer",
-            "publisher": "publisher",
-            "genre": "genre",
-            "rating": "rating",
-            "players": "players",
-            "release_date": "releasedate",
-            "youtubeurl": "youtubeurl"
-        },
-        "image_type_mappings": {
-            "cover": "thumbnail",
-            "screenshots": "image",
-            "artworks": "fanart",
-            "logos": "marquee"
-        },
-        "region_priority": [
-            "World",
-            "North America",
-            "Europe",
-            "Japan"
-        ]
-    },
-    "screenscraper": {
-        "region_priority": [
-            "World",
-            "USA",
-            "Europe",
-            "Japan"
-        ],
-        "image_type_mappings": {
-            "wheel": "marquee",
-            "box-2D": "boxart",
-            "box-3D": "thumbnail",
-            "box-2D-back": "boxback",
-            "ss": "image",
-            "sstitle": "titleshot",
-            "manuel": "manual",
-            "video": "video",
-            "fanart": "fanart",
-            "support-2D": "cartridge"
-        }
-    },
-    "steamgriddb": {
-        "image_type_mappings": {
-            "grids": "boxart",
-            "logos": "marquee",
-            "heroes": "fanart"
-        }
-    },
-    "steam": {
-        "image_type_mappings": {
-            "capsule": "boxart",
-            "logo": "marquee",
-            "hero": "fanart",
-            "screenshot": "image"
-        }
-    },
     "2dboxgenerator": {
         "media_field": "boxart",
         "source_fields": {
@@ -2904,8 +2811,8 @@
         }
     },
     "video": {
-        "force_video_resolution": "1080",
-        "enable_fadin_fadout": true,
+        "force_video_resolution": "720",
+        "enable_fadin_fadout": false,
         "enable_cuda": false,
         "enable_youtube_po_token": true,
         "youtube_po_token_provider": "http://127.0.0.1:4416",
