@@ -3680,9 +3680,13 @@ def manage_screenscraper_credentials():
 def manage_systems():
     """Manage systems configuration"""
     try:
+        # Load current systems configuration
+        current_systems_config = load_systems_config()
+        current_config = load_config()
+        
         if request.method == 'GET':
             # Return all systems
-            systems = systems_config
+            systems = current_systems_config
             return jsonify({'success': True, 'systems': systems})
         
         elif request.method == 'POST':
@@ -3702,14 +3706,14 @@ def manage_systems():
                 return jsonify({'error': 'System name must be lowercase with no spaces'}), 400
             
             # Check if system already exists
-            if system_name in systems_config:
+            if system_name in current_systems_config:
                 return jsonify({'error': 'System already exists'}), 400
             
             # Add new system
-            if 'systems' not in config:
-                config['systems'] = {}
+            if 'systems' not in current_config:
+                current_config['systems'] = {}
             
-            config['systems'][system_name] = {
+            current_config['systems'][system_name] = {
                 'launchbox': launchbox_platform,
                 'screenscraper': screenscraper_platform,
                 'igdb': igdb_platform,
@@ -3718,7 +3722,7 @@ def manage_systems():
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+                json.dump(current_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'System added successfully'})
         
@@ -3735,11 +3739,11 @@ def manage_systems():
             extensions = data.get('extensions', [])
             
             # Check if system exists
-            if system_name not in systems_config:
+            if system_name not in current_systems_config:
                 return jsonify({'error': 'System not found'}), 404
             
             # Update system
-            config['systems'][system_name] = {
+            current_config['systems'][system_name] = {
                 'launchbox': launchbox_platform,
                 'screenscraper': screenscraper_platform,
                 'igdb': igdb_platform,
@@ -3748,7 +3752,7 @@ def manage_systems():
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+                json.dump(current_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'System updated successfully'})
         
@@ -3759,15 +3763,15 @@ def manage_systems():
                 return jsonify({'error': 'System name is required'}), 400
             
             # Check if system exists
-            if system_name not in systems_config:
+            if system_name not in current_systems_config:
                 return jsonify({'error': 'System not found'}), 404
             
             # Delete system
-            del config['systems'][system_name]
+            del current_config['systems'][system_name]
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+                json.dump(current_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'System deleted successfully'})
     
