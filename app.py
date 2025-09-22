@@ -10281,8 +10281,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
                 ])
             elif mode == 'sections':
-                # Sections mode disabled when using cookies; simplify to full download
-                pass
+                # Sections mode: download only the specific time segment
+                cmd.extend([
+                    '--download-sections', f'*{start_time}-{end_time}',
+                    '--force-keyframes-at-cuts'
+                ])
             # mode 'full' adds neither sections nor keyframe forcing
             if is_steam_store:
                 cmd.extend(['--playlist-items', str(playlist_index)])
