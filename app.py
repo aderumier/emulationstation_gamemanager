@@ -11830,7 +11830,7 @@ def login():
     if is_local_auth_disabled():
         if not is_discord_auth_enabled():
             flash('Authentication is not properly configured. Please contact an administrator.', 'error')
-            return render_template('login.html', discord_only=True, discord_disabled=True)
+            return render_template('login.html', discord_only=True, discord_disabled=True, discord_enabled=False)
         else:
             # Redirect to Discord login if local auth is disabled
             return redirect(url_for('discord_login'))
@@ -11846,15 +11846,15 @@ def login():
             
             if not username or not password or not confirm_password:
                 flash('Please fill in all required fields', 'error')
-                return render_template('login.html', is_first_user=True, discord_only=False)
+                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
             
             if password != confirm_password:
                 flash('Passwords do not match', 'error')
-                return render_template('login.html', is_first_user=True, discord_only=False)
+                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
             
             if len(password) < 6:
                 flash('Password must be at least 6 characters long', 'error')
-                return render_template('login.html', is_first_user=True, discord_only=False)
+                return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
             
             # Create the first admin user
             admin_user, error = create_user(username, password, email)
@@ -11871,7 +11871,7 @@ def login():
             else:
                 flash(f'Failed to create admin user: {error}', 'error')
         
-        return render_template('login.html', is_first_user=True, discord_only=False)
+        return render_template('login.html', is_first_user=True, discord_only=False, discord_enabled=is_discord_auth_enabled())
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -11880,7 +11880,7 @@ def login():
         
         if not username or not password:
             flash('Please fill in all fields', 'error')
-            return render_template('login.html', discord_only=False)
+            return render_template('login.html', discord_only=False, discord_enabled=is_discord_auth_enabled())
         
         # Check if user exists and password is correct
         users = load_users()
@@ -11915,7 +11915,7 @@ def login():
         else:
             flash('Invalid username or password', 'error')
     
-    return render_template('login.html', discord_only=False)
+    return render_template('login.html', discord_only=False, discord_enabled=is_discord_auth_enabled())
 
 
 @app.route('/logout')
