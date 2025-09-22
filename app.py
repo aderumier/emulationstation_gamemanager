@@ -3119,8 +3119,40 @@ def get_cache_statistics():
 def parse_gamelist_xml(file_path):
     """Parse gamelist.xml file and return list of games"""
     try:
+        # Check if file exists and is readable
+        if not os.path.exists(file_path):
+            print(f"Gamelist file does not exist: {file_path}")
+            return []
+        
+        # Check file size
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            print(f"Gamelist file is empty: {file_path}")
+            return []
+        
+        # Try to read the file content first to check for corruption
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                if not content.strip():
+                    print(f"Gamelist file contains only whitespace: {file_path}")
+                    return []
+        except UnicodeDecodeError as e:
+            print(f"Gamelist file has encoding issues: {file_path} - {e}")
+            return []
+        except Exception as e:
+            print(f"Error reading gamelist file: {file_path} - {e}")
+            return []
+        
+        # Parse XML
         tree = ET.parse(file_path)
         root = tree.getroot()
+        
+        # Check if root element is correct
+        if root.tag != 'gameList':
+            print(f"Invalid gamelist format: expected 'gameList' root, got '{root.tag}' in {file_path}")
+            return []
+        
         games = []
         
         for game in root.findall('game'):
@@ -3207,9 +3239,27 @@ def parse_gamelist_xml(file_path):
             
             games.append(game_data)
         
+        print(f"Successfully parsed {len(games)} games from {file_path}")
         return games
+        
+    except ET.ParseError as e:
+        print(f"XML parsing error in gamelist.xml: {e}")
+        print(f"File: {file_path}")
+        print(f"File size: {os.path.getsize(file_path) if os.path.exists(file_path) else 'N/A'} bytes")
+        
+        # Try to create a backup of the corrupted file
+        try:
+            backup_path = f"{file_path}.corrupted.{int(time.time())}"
+            import shutil
+            shutil.copy2(file_path, backup_path)
+            print(f"Created backup of corrupted file: {backup_path}")
+        except Exception as backup_error:
+            print(f"Failed to create backup: {backup_error}")
+        
+        return []
     except Exception as e:
-        print(f"Error parsing gamelist.xml: {e}")
+        print(f"Unexpected error parsing gamelist.xml: {e}")
+        print(f"File: {file_path}")
         return []
 
 @app.route('/test-session')
@@ -6720,13 +6770,12 @@ def format_xml_for_readability(xml_content):
                 xml_content_clean = xml_content[end_decl + 2:].strip()
         
         # Parse XML and use lxml's pretty_print
-        from lxml import etree
-        root = etree.XML(xml_content_clean)
+        root = ET.XML(xml_content_clean)
         
         # Use BytesIO to get proper XML declaration with pretty_print
         import io
         xml_bytes = io.BytesIO()
-        etree.ElementTree(root).write(xml_bytes, pretty_print=True, encoding='utf-8', xml_declaration=True)
+        ET.ElementTree(root).write(xml_bytes, pretty_print=True, encoding='utf-8', xml_declaration=True)
         formatted_xml = xml_bytes.getvalue().decode('utf-8')
         
         return formatted_xml
@@ -6738,25 +6787,77 @@ def format_xml_for_readability(xml_content):
 def save_formatted_gamelist_xml(tree, gamelist_path):
     """Save gamelist.xml with proper formatting using the common formatting function"""
     try:
+        # Create backup of existing file if it exists
+        if os.path.exists(gamelist_path):
+            backup_path = f"{gamelist_path}.backup.{int(time.time())}"
+            import shutil
+            shutil.copy2(gamelist_path, backup_path)
+            print(f"Created backup: {backup_path}")
+        
         # Write to a temporary string to get the raw XML
         import io
         xml_bytes = io.BytesIO()
         tree.write(xml_bytes, encoding='utf-8', xml_declaration=True)
         xml_content = xml_bytes.getvalue().decode('utf-8')
         
+        # Verify the XML content is complete
+        if not xml_content.strip():
+            raise Exception("Generated XML content is empty")
+        
+        # Check if XML is properly closed
+        if not xml_content.strip().endswith('</gameList>'):
+            raise Exception("Generated XML content is incomplete - missing closing tag")
+        
         # Format the XML content for better readability
         formatted_xml = format_xml_for_readability(xml_content)
         
-        # Write the formatted XML to file
-        with open(gamelist_path, 'w', encoding='utf-8') as f:
-            f.write(formatted_xml)
+        # Verify formatted XML is complete
+        if not formatted_xml.strip():
+            raise Exception("Formatted XML content is empty")
+        
+        if not formatted_xml.strip().endswith('</gameList>'):
+            raise Exception("Formatted XML content is incomplete - missing closing tag")
+        
+        # Write the formatted XML to file atomically
+        temp_path = f"{gamelist_path}.tmp.{int(time.time())}"
+        try:
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                f.write(formatted_xml)
+                f.flush()  # Ensure data is written to disk
+                os.fsync(f.fileno())  # Force OS to write to disk
             
-        print(f"Successfully saved formatted gamelist.xml to {gamelist_path}")
+            # Verify the written file
+            if os.path.getsize(temp_path) == 0:
+                raise Exception("Written file is empty")
+            
+            # Move temp file to final location
+            import shutil
+            shutil.move(temp_path, gamelist_path)
+            
+            # Final verification
+            if not os.path.exists(gamelist_path):
+                raise Exception("Final file does not exist after move")
+            
+            if os.path.getsize(gamelist_path) == 0:
+                raise Exception("Final file is empty")
+            
+            print(f"Successfully saved formatted gamelist.xml to {gamelist_path} ({os.path.getsize(gamelist_path)} bytes)")
+            
+        except Exception as write_error:
+            # Clean up temp file if it exists
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise write_error
         
     except Exception as e:
         print(f"Error saving formatted gamelist.xml: {e}")
         # Fallback to direct write if formatting fails
-        tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+        try:
+            tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+            print(f"Fallback: Direct write completed to {gamelist_path}")
+        except Exception as fallback_error:
+            print(f"Fallback write also failed: {fallback_error}")
+            raise fallback_error
 
 
 
@@ -9638,7 +9739,29 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
         
         # Remove games with missing ROMs
         games_removed = 0
-        existing_games = [game for game in existing_games if game not in missing_roms]
+        # Create a set of missing game paths for efficient lookup
+        missing_game_paths = set()
+        for missing_game in missing_roms:
+            rom_path = missing_game.get('path', '')
+            if rom_path:
+                # Normalize path (remove ./ prefix if present)
+                normalized_path = rom_path.lstrip('./')
+                missing_game_paths.add(normalized_path)
+        
+        # Filter out games with missing ROMs
+        filtered_games = []
+        for game in existing_games:
+            rom_path = game.get('path', '')
+            if rom_path:
+                # Normalize path (remove ./ prefix if present)
+                normalized_path = rom_path.lstrip('./')
+                if normalized_path not in missing_game_paths:
+                    filtered_games.append(game)
+            else:
+                # Keep games without paths (shouldn't happen, but be safe)
+                filtered_games.append(game)
+        
+        existing_games = filtered_games
         games_removed = len(missing_roms)
         
         # Write updated gamelist
@@ -9830,21 +9953,21 @@ def run_rom_scan_task(system_name):
             else:
                 task.update_progress(f"No existing gamelist found, will create new one with {len(rom_files)} ROM files")
         
-        # Create a set of existing ROM paths for quick lookup
-        existing_roms = set()
+        # Create a mapping of ROM filenames to their full paths for lookup
+        existing_roms_by_filename = {}
         for game in existing_games:
             rom_path = game.get('path', '')
             if rom_path:
                 # Normalize path (remove ./ prefix if present)
                 normalized_path = rom_path.lstrip('./')
-                existing_roms.add(normalized_path)
+                filename = os.path.basename(normalized_path)
+                existing_roms_by_filename[filename] = normalized_path
         
         # Find new ROMs to add
         new_roms = []
         for rom_file in rom_files:
-            # Normalize path for comparison
-            normalized_rom_file = rom_file.lstrip('./')
-            if normalized_rom_file not in existing_roms:
+            filename = os.path.basename(rom_file)
+            if filename not in existing_roms_by_filename:
                 new_roms.append(rom_file)
         
         # Find games with missing ROM files
@@ -9855,6 +9978,8 @@ def run_rom_scan_task(system_name):
                 # Normalize path (remove ./ prefix if present)
                 normalized_path = rom_path.lstrip('./')
                 rom_file_path = os.path.join(system_path, normalized_path)
+                
+                # Simply check if the file exists at the specified path
                 if not os.path.exists(rom_file_path):
                     missing_roms.append(game)
         
@@ -10013,10 +10138,13 @@ def scan_rom_files_confirm(system_name):
                 for game in existing_games:
                     rom_path = game.get('path', '')
                     if rom_path:
-                        rom_filename = os.path.basename(rom_path)
-                        rom_file_path = os.path.join(system_path, rom_filename)
+                        # Normalize path (remove ./ prefix if present)
+                        normalized_path = rom_path.lstrip('./')
+                        rom_file_path = os.path.join(system_path, normalized_path)
+                        
+                        # Simply check if the file exists at the specified path
                         if not os.path.exists(rom_file_path):
-                            task.update_progress(f"Removing game with missing ROM: {game.get('name', 'Unknown')} ({rom_filename})")
+                            task.update_progress(f"Removing game with missing ROM: {game.get('name', 'Unknown')} ({normalized_path})")
                         else:
                             valid_games.append(game)
                     else:
@@ -11227,7 +11355,6 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
 def update_gamelist_video_field(gamelist_path, rom_path, video_filename):
     """Update the video field in gamelist.xml for a specific game"""
     try:
-        from lxml import etree as ET
         
         # Parse the gamelist
         tree = ET.parse(gamelist_path)
@@ -13602,7 +13729,6 @@ def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refr
             data = response.json()
         except:
             # If not JSON, try to parse as XML and extract maxthreads
-            from lxml import etree as ET
             try:
                 root = ET.fromstring(response.text)
                 data = {}

@@ -432,15 +432,15 @@
         "screenscraper": 133
     },
     "3do": {
+        "launchbox": "3DO Interactive Multiplayer",
+        "screenscraper": 29,
+        "igdb": 50,
         "extensions": [
             ".iso",
             ".cue",
             ".ISO",
             ".CUE"
-        ],
-        "launchbox": "3DO Interactive Multiplayer",
-        "igdb": 50,
-        "screenscraper": 29
+        ]
     },
     "amigacd32": {
         "extensions": [
@@ -1058,7 +1058,7 @@
         "screenscraper": "29",
         "igdb": "139",
         "extensions": [
-            ".zip zip2"
+            ".zip zip3"
         ]
     },
     "pcvr": {
