@@ -385,38 +385,54 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
             print(f"[DISCORD DEBUG] Auto-create disabled or no configuration found")
             return False
         
+        # Add rate limiting protection
+        import time
+        time.sleep(1)  # Wait 1 second to avoid rate limiting
+        
         # Get user's guild memberships
         headers = {'Authorization': f'Bearer {access_token}'}
         print(f"[DISCORD DEBUG] Checking user guild memberships...")
         
-        guilds_response = requests.get('https://discord.com/api/users/@me/guilds', headers=headers)
-        print(f"[DISCORD DEBUG] Guilds response status: {guilds_response.status_code}")
-        
-        if guilds_response.status_code != 200:
-            print(f"[DISCORD DEBUG] ERROR: Failed to get user guilds: {guilds_response.text}")
-            return False
-        
-        user_guilds = guilds_response.json()
-        print(f"[DISCORD DEBUG] User is member of {len(user_guilds)} guilds")
-        
-        # Check if user is member of required guild
-        user_guild_ids = [guild['id'] for guild in user_guilds]
-        if required_guild_id not in user_guild_ids:
-            print(f"[DISCORD DEBUG] User is not member of required guild {required_guild_id}")
-            return False
-        
-        print(f"[DISCORD DEBUG] User is member of required guild {required_guild_id}")
-        
-        # If no specific role required, just guild membership is enough
-        if not required_role_name:
-            print(f"[DISCORD DEBUG] No specific role required, auto-creating user")
+        try:
+            guilds_response = requests.get('https://discord.com/api/users/@me/guilds', headers=headers, timeout=10)
+            print(f"[DISCORD DEBUG] Guilds response status: {guilds_response.status_code}")
+            
+            if guilds_response.status_code == 429:  # Rate limited
+                print(f"[DISCORD DEBUG] ERROR: Rate limited by Discord API")
+                print(f"[DISCORD DEBUG] Response: {guilds_response.text}")
+                return False
+            elif guilds_response.status_code != 200:
+                print(f"[DISCORD DEBUG] ERROR: Failed to get user guilds: {guilds_response.text}")
+                return False
+            
+            user_guilds = guilds_response.json()
+            print(f"[DISCORD DEBUG] User is member of {len(user_guilds)} guilds")
+            
+            # Check if user is member of required guild
+            user_guild_ids = [guild['id'] for guild in user_guilds]
+            if required_guild_id not in user_guild_ids:
+                print(f"[DISCORD DEBUG] User is not member of required guild {required_guild_id}")
+                return False
+            
+            print(f"[DISCORD DEBUG] User is member of required guild {required_guild_id}")
+            
+            # If no specific role required, just guild membership is enough
+            if not required_role_name:
+                print(f"[DISCORD DEBUG] No specific role required, auto-creating user")
+                return True
+            
+            # For now, just check guild membership without role verification
+            # Role checking requires bot permissions which are more complex to implement
+            print(f"[DISCORD DEBUG] User is member of required guild, auto-creating user")
+            print(f"[DISCORD DEBUG] Note: Role verification requires bot permissions and is not implemented yet")
             return True
-        
-        # For now, just check guild membership without role verification
-        # Role checking requires bot permissions which are more complex to implement
-        print(f"[DISCORD DEBUG] User is member of required guild, auto-creating user")
-        print(f"[DISCORD DEBUG] Note: Role verification requires bot permissions and is not implemented yet")
-        return True
+            
+        except requests.exceptions.Timeout:
+            print(f"[DISCORD DEBUG] ERROR: Discord API request timed out")
+            return False
+        except requests.exceptions.RequestException as e:
+            print(f"[DISCORD DEBUG] ERROR: Discord API request failed: {e}")
+            return False
             
     except Exception as e:
         print(f"[DISCORD DEBUG] EXCEPTION in should_auto_create_discord_user: {e}")
@@ -11984,9 +12000,26 @@ def discord_callback():
             # Get user info from Discord
             headers = {'Authorization': f'Bearer {access_token}'}
             print(f"[DISCORD DEBUG] Requesting user info from Discord...")
-            user_response = requests.get('https://discord.com/api/users/@me', headers=headers)
-            print(f"[DISCORD DEBUG] User info response status: {user_response.status_code}")
-            print(f"[DISCORD DEBUG] User info response headers: {dict(user_response.headers)}")
+            
+            try:
+                user_response = requests.get('https://discord.com/api/users/@me', headers=headers, timeout=10)
+                print(f"[DISCORD DEBUG] User info response status: {user_response.status_code}")
+                print(f"[DISCORD DEBUG] User info response headers: {dict(user_response.headers)}")
+                
+                if user_response.status_code == 429:  # Rate limited
+                    print(f"[DISCORD DEBUG] ERROR: Rate limited by Discord API")
+                    print(f"[DISCORD DEBUG] Response: {user_response.text}")
+                    flash('Discord authentication failed: Rate limited. Please try again later.', 'error')
+                    return redirect(url_for('login'))
+                    
+            except requests.exceptions.Timeout:
+                print(f"[DISCORD DEBUG] ERROR: Discord API request timed out")
+                flash('Discord authentication failed: Request timed out. Please try again.', 'error')
+                return redirect(url_for('login'))
+            except requests.exceptions.RequestException as e:
+                print(f"[DISCORD DEBUG] ERROR: Discord API request failed: {e}")
+                flash('Discord authentication failed: Network error. Please try again.', 'error')
+                return redirect(url_for('login'))
             
             if user_response.status_code == 200:
                 discord_user = user_response.json()
