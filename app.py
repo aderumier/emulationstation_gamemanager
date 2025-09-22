@@ -3743,6 +3743,9 @@ def manage_systems():
                 return jsonify({'error': 'System not found'}), 404
             
             # Update system
+            if 'systems' not in current_config:
+                current_config['systems'] = {}
+            
             current_config['systems'][system_name] = {
                 'launchbox': launchbox_platform,
                 'screenscraper': screenscraper_platform,
@@ -3767,7 +3770,8 @@ def manage_systems():
                 return jsonify({'error': 'System not found'}), 404
             
             # Delete system
-            del current_config['systems'][system_name]
+            if 'systems' in current_config:
+                del current_config['systems'][system_name]
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
