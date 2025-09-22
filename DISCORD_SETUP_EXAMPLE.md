@@ -1,8 +1,6 @@
 # Discord Authentication Setup
 
 > **📚 For comprehensive documentation, see [DISCORD_AUTHENTICATION_GUIDE.md](DISCORD_AUTHENTICATION_GUIDE.md)**
-> 
-> **⚡ For quick reference, see [DISCORD_TOKENS_QUICK_REFERENCE.md](DISCORD_TOKENS_QUICK_REFERENCE.md)**
 
 ## Quick Setup Guide
 
@@ -96,5 +94,4 @@ For production, update the redirect URI in both:
 ## Next Steps
 
 - 📖 Read the [comprehensive guide](DISCORD_AUTHENTICATION_GUIDE.md) for detailed setup
-- ⚡ Use the [quick reference](DISCORD_TOKENS_QUICK_REFERENCE.md) for token lookup
 - 🔧 Configure additional settings in GameManager web interface
