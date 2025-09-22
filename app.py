@@ -10007,7 +10007,7 @@ def run_youtube_download_task(task_id, data):
         task.update_progress(f"Created videos directory: {videos_dir}")
         
         # Create temp directory for video processing
-        temp_videos_dir = os.path.join('var', 'temp', 'videos')
+        temp_videos_dir = os.path.abspath(os.path.join('var', 'temp', 'videos'))
         os.makedirs(temp_videos_dir, exist_ok=True)
         task.update_progress(f"Created temp directory: {temp_videos_dir}")
         
@@ -10125,7 +10125,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
         os.makedirs(videos_dir, exist_ok=True)
         
         # Create temp directory for video processing
-        temp_videos_dir = os.path.join('var', 'temp', 'videos')
+        temp_videos_dir = os.path.abspath(os.path.join('var', 'temp', 'videos'))
         os.makedirs(temp_videos_dir, exist_ok=True)
         task.update_progress(f"Created temp directory: {temp_videos_dir}")
         
@@ -11085,7 +11085,7 @@ def run_manual_crop_task(task_id, data):
         os.makedirs(videos_dir, exist_ok=True)
         
         # Create temp directory for video processing
-        temp_videos_dir = os.path.join('var', 'temp', 'videos')
+        temp_videos_dir = os.path.abspath(os.path.join('var', 'temp', 'videos'))
         os.makedirs(temp_videos_dir, exist_ok=True)
         
         # Use original filename (replace the original video)
