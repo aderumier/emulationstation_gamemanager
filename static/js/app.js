@@ -5132,42 +5132,6 @@ class GameCollectionManager {
         }
     }
     
-    async getLaunchboxBoxImage(launchboxId) {
-        // Get Box - Front image URL for a LaunchBox game
-        if (!launchboxId) {
-            console.log('No LaunchBox ID provided');
-            return null;
-        }
-        
-        try {
-            console.log(`Fetching LaunchBox box image for ID: ${launchboxId}`);
-            const response = await fetch(`/api/launchbox-media/${launchboxId}/boxart`, {
-                credentials: 'include'
-            });
-            
-            console.log(`LaunchBox API response status: ${response.status}`);
-            
-            if (response.ok) {
-                const data = await response.json();
-                console.log('LaunchBox API response data:', data);
-                
-                if (data.success && data.media && data.media.length > 0) {
-                    console.log(`Found ${data.media.length} box images, using first one:`, data.media[0].url);
-                    // Return the first (best) box image URL
-                    return data.media[0].url;
-                } else {
-                    console.log('No box images found in LaunchBox response');
-                }
-            } else {
-                console.log('LaunchBox API request failed with status:', response.status);
-            }
-            
-            return null;
-        } catch (error) {
-            console.error('Error fetching LaunchBox box image:', error);
-            return null;
-        }
-    }
     
     async findBestMatchForSelected() {
         try {
@@ -13409,15 +13373,15 @@ class GameCollectionManager {
         console.log('Modal content populated with matches');
     }
 
-    async createMatchCards(matches, matchesList) {
-        // Create match cards asynchronously
+    createMatchCards(matches, matchesList) {
+        // Create match cards synchronously
         for (let i = 0; i < matches.length; i++) {
-            const matchCard = await this.createMatchCard(matches[i], i);
+            const matchCard = this.createMatchCard(matches[i], i);
             matchesList.appendChild(matchCard);
         }
     }
 
-    async createMatchCard(match, index) {
+    createMatchCard(match, index) {
         console.log('createMatchCard called with:', match, index);
         
         const scoreClass = match.score >= 0.9 ? 'bg-success' : 
@@ -13427,45 +13391,17 @@ class GameCollectionManager {
             '<i class="bi bi-arrow-repeat text-info" title="Matched via alternate name"></i>' : 
             '<i class="bi bi-check-circle text-success" title="Matched via main name"></i>';
         
-        // Get box image if we have a database_id
+        // Use box image URL directly from backend
         let boxImageHtml = '';
-        if (match.database_id) {
-            try {
-                const boxImageUrl = await this.getLaunchboxBoxImage(match.database_id);
-                if (boxImageUrl) {
-                    boxImageHtml = `
-                        <div class="mb-2 text-center">
-                            <img src="${boxImageUrl}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
-                                 onerror="handleLaunchboxImageError(this)" 
-                                 onload="console.log('LaunchBox box image loaded successfully:', this.src)" 
-                                 alt="Game box art" loading="lazy">
-                        </div>
-                    `;
-                } else {
-                    boxImageHtml = `
-                        <div class="mb-2 text-center">
-                            <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
-                                <div class="text-muted">
-                                    <i class="bi bi-image" style="font-size: 2rem;"></i>
-                                    <div class="small">No box art available</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error fetching box image:', error);
-                boxImageHtml = `
-                    <div class="mb-2 text-center">
-                        <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
-                            <div class="text-muted">
-                                <i class="bi bi-image" style="font-size: 2rem;"></i>
-                                <div class="small">No box art available</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
+        if (match.box_image_url) {
+            boxImageHtml = `
+                <div class="mb-2 text-center">
+                    <img src="${match.box_image_url}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="handleLaunchboxImageError(this)" 
+                         onload="console.log('LaunchBox box image loaded successfully:', this.src)" 
+                         alt="Game box art" loading="lazy">
+                </div>
+            `;
         } else {
             boxImageHtml = `
                 <div class="mb-2 text-center">

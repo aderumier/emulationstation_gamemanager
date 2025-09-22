@@ -5012,17 +5012,22 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
             similarity = calculate_similarity(normalized_name, item['normalized'])
             print(f"🔍 DEBUG: Item {i+1}: '{item['name']}' -> similarity: {similarity:.4f}")
         
+            # Get box image URL for this game
+            database_id = item['game'].get('DatabaseID', '')
+            box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
+            
             # Create match info
             match_info = {
                 'game': item['game'],
                 'score': similarity,
                 'match_type': item['type'],
                 'matched_name': item['name'],
-                'database_id': item['game'].get('DatabaseID', ''),
+                'database_id': database_id,
                 'name': item['game'].get('Name', ''),
                 'overview': item['game'].get('Overview', ''),
                 'developer': item['game'].get('Developer', ''),
-                'publisher': item['game'].get('Publisher', '')
+                'publisher': item['game'].get('Publisher', ''),
+                'box_image_url': box_image_url
             }
             
             # Add mapped fields dynamically based on mapping configuration
@@ -5685,6 +5690,43 @@ def load_image_mappings():
 def load_region_config():
     """Load region priority configuration from consolidated config.json"""
     return config.get('launchbox', {}).get('region', {})
+
+def get_launchbox_box_image_url(launchbox_id):
+    """Get Box - Front image URL for a LaunchBox game"""
+    if not launchbox_id:
+        return None
+    
+    try:
+        # Use the global metadata cache
+        if not global_metadata_cache:
+            load_metadata_cache()
+        
+        game_metadata = global_metadata_cache.get(launchbox_id)
+        if not game_metadata:
+            return None
+        
+        # Load image config for base URL
+        image_config = load_image_mappings()
+        base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
+        
+        # Look for Box - Front images in the metadata
+        if 'images' in game_metadata:
+            for image_element in game_metadata['images']:
+                type_elem = image_element.find('Type')
+                if type_elem is not None and type_elem.text:
+                    image_type = type_elem.text.strip()
+                    
+                    # Check if this is a Box - Front image
+                    if image_type == 'Box - Front':
+                        filename_elem = image_element.find('FileName')
+                        if filename_elem is not None and filename_elem.text:
+                            return base_url + filename_elem.text
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error getting LaunchBox box image for ID {launchbox_id}: {e}")
+        return None
 async def download_launchbox_image_httpx(image_url, local_path, media_type=None, target_field=None, timeout=30, retry_attempts=10, client=None, game_name=None):
     """Download a single image from LaunchBox using HTTPX with HTTP/2 support"""
     import time
