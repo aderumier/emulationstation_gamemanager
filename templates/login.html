@@ -127,7 +127,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             <div class="d-flex align-items-center justify-content-center mb-3">
                 <img src="{{ url_for('static', filename='images/pixel-nostalgia-logo.png') }}" alt="Pixel Nostalgia" style="height: 50px; width: auto; max-width: 100%;">
             </div>
-            {% if is_first_user %}
+            {% if discord_only and discord_disabled %}
+                <h2 class="mb-2">Authentication Disabled</h2>
+                <p class="mb-0">Authentication is not properly configured</p>
+            {% elif discord_only %}
+                <h2 class="mb-2">Game Collection Manager</h2>
+                <p class="mb-0">Login with Discord to access your collection</p>
+            {% elif is_first_user %}
                 <h2 class="mb-2">Welcome to Game Collection Manager</h2>
                 <p class="mb-0">Create your first admin account</p>
             {% else %}
@@ -148,7 +154,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 {% endif %}
             {% endwith %}
             
-            {% if is_first_user %}
+            {% if discord_only and discord_disabled %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Configuration Error:</strong> Discord authentication is not properly configured. Please contact an administrator.
+                </div>
+            {% elif discord_only %}
+                <div class="text-center">
+                    <p class="mb-4">Please use Discord to authenticate and access your account.</p>
+                    <a href="{{ url_for('discord_login') }}" class="btn btn-discord text-white btn-lg">
+                        <i class="bi bi-discord me-2"></i>Login with Discord
+                    </a>
+                </div>
+            {% elif is_first_user %}
                 <form method="POST" action="{{ url_for('login') }}">
                     <div class="mb-3">
                         <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
@@ -223,7 +241,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </form>
             {% endif %}
             
-            {% if not is_first_user %}
+            {% if not is_first_user and not discord_only %}
                 <div class="divider">
                     <span>or</span>
                 </div>

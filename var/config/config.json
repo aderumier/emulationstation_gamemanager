@@ -11,6 +11,10 @@
         "level": "INFO",
         "file": "app.log"
     },
+    "authentication": {
+        "disable_local_auth": false,
+        "discord_only": false
+    },
     "media": {
         "scan_settings": {
             "recursive_search": true,
