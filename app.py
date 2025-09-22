@@ -10272,9 +10272,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
 
         def build_download_cmd(mode: str, use_cookies: bool = True) -> list:
             # mode: 'sections' | 'full' | 'po'
+            # Get video resolution from config
+            video_config = config.get('video', {})
+            force_resolution = video_config.get('force_video_resolution', '1080')
+            
             cmd = [
                 yt_dlp_path,
-                '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                '-f', f'bestvideo[height<={force_resolution}]+bestaudio/best[height<={force_resolution}]/bestvideo+bestaudio/best',
                 '-o', output_template,
                 '--progress',
                 '--newline',
