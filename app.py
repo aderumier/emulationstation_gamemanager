@@ -4361,12 +4361,14 @@ def search_steam_games():
         
         if match_result and 'app' in match_result:
             app = match_result['app']
+            steam_id = app.get('appid')
             games = [{
-                'appid': app.get('appid'),
+                'appid': steam_id,
                 'name': app.get('name', game_name),
                 'description': 'Steam game',  # Steam API doesn't provide descriptions in the basic app list
                 'price': 'Unknown',  # Would need additional API call
-                'release_date': 'Unknown'  # Would need additional API call
+                'release_date': 'Unknown',  # Would need additional API call
+                'capsule_image': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg" if steam_id else None
             }]
         else:
             games = []

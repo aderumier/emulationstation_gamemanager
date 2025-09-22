@@ -4843,11 +4843,20 @@ class GameCollectionManager {
             const description = game.description ? (game.description.length > 200 ? game.description.substring(0, 200) + '...' : game.description) : 'No description available';
             const price = game.price || 'Free';
             const releaseDate = game.release_date || 'Unknown';
+            const capsuleImage = game.capsule_image || null;
+            
+            // Create image HTML if capsule image is available
+            const imageHtml = capsuleImage ? 
+                `<div class="mb-2 text-center">
+                    <img src="${capsuleImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="this.style.display='none'" alt="Game capsule">
+                </div>` : '';
             
             html += `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card h-100">
                         <div class="card-body">
+                            ${imageHtml}
                             <h6 class="card-title">${game.name}</h6>
                             <p class="card-text small text-muted">${description}</p>
                             <div class="d-flex justify-content-between align-items-center mb-2">
