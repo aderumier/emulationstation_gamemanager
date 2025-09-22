@@ -588,6 +588,16 @@ def load_systems_config():
         print(f"Error parsing systems configuration file: {e}")
         return {}
 
+def save_systems_config(systems_config):
+    """Save systems configuration to systems.json"""
+    try:
+        with open('var/config/systems.json', 'w', encoding='utf-8') as f:
+            json.dump(systems_config, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error saving systems configuration: {e}")
+        return False
+
 # Load configuration
 config = load_config()
 scrappers_config = load_scrappers_config()
@@ -3682,7 +3692,6 @@ def manage_systems():
     try:
         # Load current systems configuration
         current_systems_config = load_systems_config()
-        current_config = load_config()
         
         if request.method == 'GET':
             # Return all systems
@@ -3709,20 +3718,17 @@ def manage_systems():
             if system_name in current_systems_config:
                 return jsonify({'error': 'System already exists'}), 400
             
-            # Add new system
-            if 'systems' not in current_config:
-                current_config['systems'] = {}
-            
-            current_config['systems'][system_name] = {
+            # Add new system to systems config
+            current_systems_config[system_name] = {
                 'launchbox': launchbox_platform,
                 'screenscraper': screenscraper_platform,
                 'igdb': igdb_platform,
                 'extensions': extensions
             }
             
-            # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(current_config, f, indent=4)
+            # Save to systems.json
+            if not save_systems_config(current_systems_config):
+                return jsonify({'error': 'Failed to save systems configuration'}), 500
             
             return jsonify({'success': True, 'message': 'System added successfully'})
         
@@ -3742,20 +3748,17 @@ def manage_systems():
             if system_name not in current_systems_config:
                 return jsonify({'error': 'System not found'}), 404
             
-            # Update system
-            if 'systems' not in current_config:
-                current_config['systems'] = {}
-            
-            current_config['systems'][system_name] = {
+            # Update system in systems config
+            current_systems_config[system_name] = {
                 'launchbox': launchbox_platform,
                 'screenscraper': screenscraper_platform,
                 'igdb': igdb_platform,
                 'extensions': extensions
             }
             
-            # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(current_config, f, indent=4)
+            # Save to systems.json
+            if not save_systems_config(current_systems_config):
+                return jsonify({'error': 'Failed to save systems configuration'}), 500
             
             return jsonify({'success': True, 'message': 'System updated successfully'})
         
@@ -3769,13 +3772,12 @@ def manage_systems():
             if system_name not in current_systems_config:
                 return jsonify({'error': 'System not found'}), 404
             
-            # Delete system
-            if 'systems' in current_config:
-                del current_config['systems'][system_name]
+            # Delete system from systems config
+            del current_systems_config[system_name]
             
-            # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(current_config, f, indent=4)
+            # Save to systems.json
+            if not save_systems_config(current_systems_config):
+                return jsonify({'error': 'Failed to save systems configuration'}), 500
             
             return jsonify({'success': True, 'message': 'System deleted successfully'})
     
