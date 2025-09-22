@@ -49,6 +49,8 @@ cp -r templates/* debian/opt/gamemanager/templates/
 
 # Configuration files
 cp var/config/config.json debian/opt/gamemanager/var/config/config.json
+cp var/config/scrappers.json debian/opt/gamemanager/var/config/scrappers.json
+cp var/config/systems.json debian/opt/gamemanager/var/config/systems.json
 
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
@@ -65,6 +67,10 @@ cp -r tools/yt-dlp-plugins debian/opt/gamemanager/tools/yt-dlp-plugins
 # Fix paths in config.json for production environment
 echo "🔧 Updating paths for production environment..."
 sed -i 's|"roms_root_directory": "/home/aderumier/cursorscraper/roms"|"roms_root_directory": "/opt/gamemanager/roms"|g' debian/opt/gamemanager/var/config/config.json
+
+# Force disable_local_auth to false for fresh installs
+echo "🔧 Forcing disable_local_auth to false for fresh installs..."
+sed -i 's|"disable_local_auth": true|"disable_local_auth": false|g' debian/opt/gamemanager/var/config/config.json
 
 # Documentation files
 cp README.md debian/opt/gamemanager/README.md
@@ -119,6 +125,16 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/var/config/credentials.enc" ]; then
     echo "❌ ERROR: credentials.enc not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/var/config/scrappers.json" ]; then
+    echo "❌ ERROR: scrappers.json not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/var/config/systems.json" ]; then
+    echo "❌ ERROR: systems.json not found in package!"
     exit 1
 fi
 

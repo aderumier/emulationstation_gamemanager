@@ -1,0 +1,11 @@
+gamemanager (2.2.1) stable; urgency=medium
+
+  * Add Discord authentication and configuration management
+  * Add application configuration modal with authentication settings
+  * Add Discord OAuth2 integration with auto-user creation
+  * Add option to disable local authentication
+  * Move Discord configuration to credentials.json for security
+  * Add comprehensive error handling and rate limiting
+  * Remove debug logging for production readiness
+
+ -- CursorScraper <admin@cursorscraper.local>  Mon, 23 Sep 2024 20:00:00 +0000
