@@ -415,9 +415,54 @@ def should_auto_create_discord_user(discord_id, access_token, discord_config):
             if not required_role_name:
                 return True
             
-            # For now, just check guild membership without role verification
-            # Role checking requires bot permissions which are more complex to implement
-            return True
+            # Check user's roles in the specific guild
+            try:
+                # Get guild member info to check roles
+                guild_member_response = requests.get(
+                    f'https://discord.com/api/guilds/{required_guild_id}/members/{discord_id}',
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if guild_member_response.status_code == 429:  # Rate limited
+                    return False
+                elif guild_member_response.status_code != 200:
+                    return False
+                
+                member_data = guild_member_response.json()
+                user_roles = member_data.get('roles', [])
+                
+                # Get guild roles to find the role ID for the required role name
+                guild_roles_response = requests.get(
+                    f'https://discord.com/api/guilds/{required_guild_id}/roles',
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if guild_roles_response.status_code == 429:  # Rate limited
+                    return False
+                elif guild_roles_response.status_code != 200:
+                    return False
+                
+                guild_roles = guild_roles_response.json()
+                
+                # Find the role ID for the required role name
+                required_role_id = None
+                for role in guild_roles:
+                    if role['name'].lower() == required_role_name.lower():
+                        required_role_id = role['id']
+                        break
+                
+                if not required_role_id:
+                    return False
+                
+                # Check if user has the required role
+                return required_role_id in user_roles
+                
+            except requests.exceptions.Timeout:
+                return False
+            except requests.exceptions.RequestException as e:
+                return False
             
         except requests.exceptions.Timeout:
             return False
