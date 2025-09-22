@@ -10815,17 +10815,27 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         if not processing_success:
             task.update_progress(f"  ⚠️ Video processing failed for {game_name}, using original video")
         
-        # Move temporary file to final location
-        if os.path.exists(temp_path):
+        # Move processed file to final location
+        # Check if processing created a processed file
+        processed_path = os.path.join(temp_videos_dir, f"{os.path.splitext(temp_file)[0]}_processed.mp4")
+        final_source_path = processed_path if os.path.exists(processed_path) else temp_path
+        
+        if os.path.exists(final_source_path):
             # Remove existing file if it exists (for overwrite case)
             if os.path.exists(output_path):
                 os.remove(output_path)
                 task.update_progress(f"  🗑️ Removed existing file: {output_filename_only}")
             
-            os.rename(temp_path, output_path)
-            task.update_progress(f"  📁 Moved {temp_file} to final location: {output_filename_only}")
+            # Move the final processed file to destination
+            os.rename(final_source_path, output_path)
+            task.update_progress(f"  📁 Moved {os.path.basename(final_source_path)} to final location: {output_filename_only}")
+            
+            # Clean up any remaining temp files
+            if os.path.exists(temp_path) and temp_path != final_source_path:
+                os.remove(temp_path)
+                task.update_progress(f"  🗑️ Cleaned up original temp file: {temp_file}")
         else:
-            task.update_progress(f"  ❌ Temporary file not found: {temp_file}")
+            task.update_progress(f"  ❌ No processed file found: {os.path.basename(final_source_path)}")
             return False
         
         return True
@@ -11070,13 +11080,17 @@ def run_manual_crop_task(task_id, data):
         videos_dir = os.path.join(system_path, 'media', 'videos')
         os.makedirs(videos_dir, exist_ok=True)
         
+        # Create temp directory for video processing
+        temp_videos_dir = os.path.join('var', 'temp', 'videos')
+        os.makedirs(temp_videos_dir, exist_ok=True)
+        
         # Use original filename (replace the original video)
         original_filename = os.path.basename(video_path)
         output_path = os.path.join(videos_dir, original_filename)
         
         # Create temporary filename for crop
         temp_filename = f"temp_crop_{original_filename}"
-        temp_path = os.path.join(videos_dir, temp_filename)
+        temp_path = os.path.join(temp_videos_dir, temp_filename)
         
         task.update_progress(f"Output path: {output_path}")
         task.update_progress(f"Temporary path: {temp_path}")
