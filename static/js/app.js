@@ -4846,14 +4846,16 @@ class GameCollectionManager {
             const price = game.price || 'Free';
             const releaseDate = game.release_date || 'Unknown';
             const capsuleImage = game.capsule_image || null;
-            console.log(`Game: ${game.name}, Steam ID: ${game.appid}, Capsule Image: ${capsuleImage}`);
+            const capsuleImageFallback = game.capsule_image_fallback || null;
+            const similarityScore = game.similarity_score ? Math.round(game.similarity_score * 100) : 0;
+            console.log(`Game: ${game.name}, Steam ID: ${game.appid}, Capsule Image: ${capsuleImage}, Fallback: ${capsuleImageFallback}, Similarity: ${similarityScore}%`);
             
-            // Create image HTML - always show a placeholder
+            // Create image HTML with fallback logic
             const imageHtml = `
                 <div class="mb-2 text-center">
                     <img src="${capsuleImage || ''}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
-                         onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDIwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xMDAgMTUwTDEyMCAxNzBIMTAwVjE1MFoiIGZpbGw9IiNEOUQ5RDkiLz4KPHBhdGggZD0iTTEwMCAxNTBMMTgwIDEzMEgxMDBWMTUwWiIgZmlsbD0iI0Q5RDlEOSIvPgo8dGV4dCB4PSIxMDAiIHk9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OTk5OSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0Ij5JbWFnZSBub3QgZm91bmQ8L3RleHQ+Cjwvc3ZnPgo='; this.alt='Image not found';" 
-                         onload="console.log('Image loaded successfully:', this.src)" 
+                         onerror="handleSteamImageError(this, '${capsuleImageFallback || ''}')" 
+                         onload="console.log('Steam image loaded successfully:', this.src)" 
                          alt="Game capsule" loading="lazy">
                 </div>`;
             
@@ -4870,6 +4872,9 @@ class GameCollectionManager {
                             </div>
                             <div class="d-flex justify-content-between align-items-center">
                                 <small class="badge bg-success">${releaseDate}</small>
+                                <small class="badge bg-info">${similarityScore}% match</small>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
                                 <small class="text-muted">Steam</small>
                             </div>
                         </div>
@@ -14573,6 +14578,29 @@ class GameCollectionManager {
             this.showAlert('Error saving configuration', 'error');
         }
     }
+}
+
+// Handle Steam image loading with fallback
+function handleSteamImageError(img, fallbackUrl) {
+    console.log('Steam primary image failed, trying fallback:', fallbackUrl);
+    
+    // Prevent infinite loop
+    if (img.onerror === null) {
+        return;
+    }
+    
+    // If we have a fallback URL, try it
+    if (fallbackUrl && fallbackUrl.trim() !== '') {
+        img.onerror = null; // Prevent infinite loop
+        img.src = fallbackUrl;
+        return;
+    }
+    
+    // If no fallback or fallback also failed, show placeholder
+    img.onerror = null;
+    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDIwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xMDAgMTUwTDEyMCAxNzBIMTAwVjE1MFoiIGZpbGw9IiNEOUQ5RDkiLz4KPHBhdGggZD0iTTEwMCAxNTBMMTgwIDEzMEgxMDBWMTUwWiIgZmlsbD0iI0Q5RDlEOSIvPgo8dGV4dCB4PSIxMDAiIHk9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OTk5OSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0Ij5JbWFnZSBub3QgZm91bmQ8L3RleHQ+Cjwvc3ZnPgo=';
+    img.alt = 'Image not found';
+    console.log('Steam image fallback also failed, showing placeholder');
 }
 
 // Initialize the game manager when the DOM is loaded

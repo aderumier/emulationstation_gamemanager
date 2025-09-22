@@ -4356,22 +4356,8 @@ def search_steam_games():
         if not apps:
             return jsonify({'error': 'Failed to load Steam apps list'}), 500
         
-        # Search for games using the existing find_best_match method
-        match_result = steam_service.find_best_match(game_name, apps)
-        
-        if match_result and 'app' in match_result:
-            app = match_result['app']
-            steam_id = app.get('appid')
-            games = [{
-                'appid': steam_id,
-                'name': app.get('name', game_name),
-                'description': 'Steam game',  # Steam API doesn't provide descriptions in the basic app list
-                'price': 'Unknown',  # Would need additional API call
-                'release_date': 'Unknown',  # Would need additional API call
-                'capsule_image': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg" if steam_id else None
-            }]
-        else:
-            games = []
+        # Use similarity algorithm to find best matches
+        games = steam_service.find_similarity_matches(game_name, apps, limit)
         
         return jsonify({
             'success': True,

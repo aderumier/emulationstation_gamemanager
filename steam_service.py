@@ -548,6 +548,104 @@ class SteamService:
         except Exception as e:
             return None
 
+    def find_similarity_matches(self, game_name: str, steam_apps: List[Dict], limit: int = 10) -> List[Dict]:
+        """Find Steam games using similarity algorithm with partitioned index like LaunchBox search"""
+        if not steam_apps or not game_name:
+            return []
+        
+        from game_utils import normalize_game_name, calculate_similarity
+        
+        # Normalize the search name
+        normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+        if not normalized_name:
+            return []
+        
+        print(f"🔍 DEBUG: Steam similarity search for '{game_name}' -> normalized: '{normalized_name}'")
+        
+        # Build partitioned similarity index if not exists or if steam_apps changed
+        if not hasattr(self, '_similarity_index') or self._cached_steam_apps is not steam_apps:
+            print(f"🔍 DEBUG: Building partitioned Steam similarity index for {len(steam_apps)} apps...")
+            self._similarity_index = {}
+            self._cached_steam_apps = steam_apps
+            
+            indexed_count = 0
+            for app in steam_apps:
+                app_name = app.get('name', '')
+                if not app_name:
+                    continue
+                    
+                # Normalize the app name
+                normalized_app = normalize_game_name(app_name, remove_paranthesis=True, remove_articles=True)
+                if not normalized_app:
+                    continue
+                
+                # Get first character for partitioning
+                first_char = normalized_app[0] if normalized_app else 'other'
+                if first_char not in self._similarity_index:
+                    self._similarity_index[first_char] = []
+                
+                self._similarity_index[first_char].append({
+                    'name': app_name,
+                    'normalized': normalized_app,
+                    'app': app
+                })
+                indexed_count += 1
+            
+            print(f"🔍 DEBUG: Indexed {indexed_count} Steam apps")
+            
+            # Log partition distribution
+            total_entries = sum(len(items) for items in self._similarity_index.values())
+            print(f"🔍 DEBUG: Built partitioned Steam similarity index with {total_entries} entries")
+            print(f"🔍 DEBUG: Steam partition distribution:")
+            for char, items in sorted(self._similarity_index.items()):
+                print(f"🔍 DEBUG:   '{char}': {len(items)} items")
+        
+        # Get the first character to search in the right partition
+        first_char = normalized_name[0]
+        print(f"🔍 DEBUG: Searching Steam partition '{first_char}'")
+        
+        matches = []
+        
+        # Search only in the matching partition
+        if first_char in self._similarity_index:
+            partition_items = self._similarity_index[first_char]
+            print(f"🔍 DEBUG: Found {len(partition_items)} Steam items in partition '{first_char}'")
+            
+            for i, item in enumerate(partition_items):
+                # Calculate similarity using configured algorithm
+                similarity = calculate_similarity(normalized_name, item['normalized'])
+                print(f"🔍 DEBUG: Steam Item {i+1}: '{item['name']}' -> similarity: {similarity:.4f}")
+            
+                # Only include matches with reasonable similarity (threshold of 0.3)
+                if similarity >= 0.3:
+                    app = item['app']
+                    steam_id = app.get('appid')
+                    matches.append({
+                        'appid': steam_id,
+                        'name': item['name'],
+                        'description': 'Steam game',  # Steam API doesn't provide descriptions in the basic app list
+                        'price': 'Unknown',  # Would need additional API call
+                        'release_date': 'Unknown',  # Would need additional API call
+                        'capsule_image': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg" if steam_id else None,
+                        'capsule_image_fallback': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900.jpg" if steam_id else None,
+                        'similarity_score': similarity,
+                        'matched_name': item['name']
+                    })
+        else:
+            print(f"🔍 DEBUG: No Steam partition found for character '{first_char}'")
+        
+        print(f"🔍 DEBUG: Found {len(matches)} Steam matches before sorting")
+        
+        # Sort by similarity score (highest first) and return top N
+        matches.sort(key=lambda x: x['similarity_score'], reverse=True)
+        result = matches[:limit]
+        
+        print(f"🔍 DEBUG: Found {len(result)} Steam matches (requested: {limit})")
+        for i, match in enumerate(result[:5]):  # Log top 5 matches
+            print(f"🔍 DEBUG: Steam Match {i+1}: '{match['matched_name']}' (score: {match['similarity_score']:.4f})")
+        
+        return result
+
 
 def get_media_directory_and_extensions(gamelist_field: str) -> Tuple[Optional[str], Optional[List[str]]]:
     """Get media directory and extensions for a gamelist field"""
