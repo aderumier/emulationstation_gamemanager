@@ -4345,11 +4345,20 @@ def scrap_screenscraper_system(system_name):
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
         
+        # Get overwrite settings from cookies
+        overwrite_text_fields = request.cookies.get('overwriteTextFieldsScreenscraper', 'false').lower() == 'true'
+        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsScreenscraper', 'false').lower() == 'true'
+        
+        print(f"🍪 DEBUG: ScreenScraper cookie values - overwriteTextFieldsScreenscraper: '{request.cookies.get('overwriteTextFieldsScreenscraper', 'NOT_SET')}', overwriteMediaFieldsScreenscraper: '{request.cookies.get('overwriteMediaFieldsScreenscraper', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: ScreenScraper parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
-            'selected_fields': selected_fields
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
