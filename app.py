@@ -1330,6 +1330,8 @@ def process_single_game_worker(args):
         
         # Find best match in Launchbox metadata
         existing_launchboxid = game_data.get('launchboxid', '')
+        print(f"🔧 DEBUG: Game '{game_name}' - existing_launchboxid: '{existing_launchboxid}' (type: {type(existing_launchboxid)})")
+        print(f"🔧 DEBUG: platform_cache available: {platform_cache is not None}")
         best_match, score = find_best_match(game_name, metadata_games, current_system_platform, existing_launchboxid, platform_cache, mapping_config)
         
         # Generate detailed progress message
@@ -1423,9 +1425,9 @@ def process_single_game_worker(args):
                     # Check if we should update this field based on overwrite_text_fields setting
                     should_update = False
                     if overwrite_text_fields:
-                        # If overwrite is enabled, always update if values are different
-                        should_update = (old_value != new_value)
-                        print(f"🔧 DEBUG: overwrite_text_fields=True - comparing '{old_value}' vs '{new_value}' -> should_update: {should_update}")
+                        # If overwrite is enabled, update if we have a new value and it's different from current
+                        should_update = bool(new_value) and (old_value != new_value)
+                        print(f"🔧 DEBUG: overwrite_text_fields=True - update if different: '{old_value}' vs '{new_value}' -> should_update: {should_update}")
                     else:
                         # If overwrite is disabled, only update if old value is empty
                         should_update = (old_value == '' or old_value is None) and new_value
@@ -3321,7 +3323,10 @@ def list_rom_systems():
 def get_config():
     """Get or update application configuration"""
     if request.method == 'GET':
-        return jsonify(config)
+        # Include scrapers configuration in the response
+        full_config = config.copy()
+        full_config.update(scrappers_config)
+        return jsonify(full_config)
     elif request.method == 'PUT':
         try:
             new_config = request.get_json()
@@ -5061,16 +5066,23 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
     
     # If we have a launchboxid, try to find the exact match first via cache
     if existing_launchboxid:
+        print(f"🔧 DEBUG: Looking up existing launchboxid: {existing_launchboxid}")
         try:
-            # Use platform-specific cache if provided, otherwise fall back to global cache
+            # Use platform-specific cache if provided
             if platform_cache:
                 games_cache = platform_cache.get('games_cache', {})
                 alternate_names_cache = platform_cache.get('alternate_names_cache', {})
-                game_elem = games_cache.get(existing_launchboxid)
-                alt_names_elements = alternate_names_cache.get(existing_launchboxid, [])
-   
+                # Convert existing_launchboxid to string for cache lookup
+                launchboxid_str = str(existing_launchboxid)
+                game_elem = games_cache.get(launchboxid_str)
+                alt_names_elements = alternate_names_cache.get(launchboxid_str, [])
+            else:
+                # No platform cache available, cannot lookup by launchboxid
+                game_elem = None
+                alt_names_elements = []
             
             if game_elem is not None:
+                print(f"🔧 DEBUG: Found game with launchboxid {existing_launchboxid}: {game_elem.get('Name', 'Unknown') if hasattr(game_elem, 'get') else 'XML Element'}")
                 # Build a minimal game dict consistent with metadata_games entries
                 game_data = {}
                 
@@ -5095,9 +5107,11 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
                 # Annotate match info for downstream logic
                 game_data['_match_type'] = 'launchboxid'
                 game_data['_matched_name'] = game_data.get('Name', '')
+                print(f"🔧 DEBUG: Returning launchboxid match: {game_data.get('Name', 'Unknown')} (ID: {existing_launchboxid})")
                 return game_data, 1.0
-        except Exception:
+        except Exception as e:
             # Fall back to scanning metadata_games on any issue
+            print(f"🔧 DEBUG: Error looking up launchboxid {existing_launchboxid}: {e}")
             pass
     
     # Create indexed lookups for O(1) exact matches instead of O(n) linear searches
@@ -8334,9 +8348,7 @@ async def scrape_steamgriddb_manual(game, system_name):
     try:
         steam_id = game.get('steamid')
         steamgrid_id = game.get('steamgridid')
-        print(f"DEBUG: SteamGridDB manual scrap - steamgrid_id: {steamgrid_id}, steam_id: {steam_id}")
         if not steamgrid_id and not steam_id:
-            print("DEBUG: SteamGridDB manual scrap - No steamgridid or steam_id found")
             return None
         
         # Get SteamGridDB service
@@ -8860,7 +8872,6 @@ def stop_task_endpoint(task_id):
                 if '_steamgrid_cancel_maps' not in globals():
                     _steamgrid_cancel_maps = {}
                 _steamgrid_cancel_maps[task_id] = True
-                print(f"DEBUG: Set SteamGridDB cancel flag for task {task_id}")
             except Exception as e:
                 print(f"Warning: could not set SteamGridDB cancel flag: {e}")
         
@@ -8886,7 +8897,6 @@ def stop_task_endpoint(task_id):
                 if '_steamgriddb_cancel_maps' not in globals():
                     _steamgriddb_cancel_maps = {}
                 _steamgriddb_cancel_maps[task_id] = True
-                print(f"DEBUG: Set SteamGridDB cancel flag for task {task_id}")
             except Exception as e:
                 print(f"Warning: could not set SteamGridDB cancel flag: {e}")
         
@@ -16145,7 +16155,6 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                     return
                 
                 batch = all_games_to_process[i:i + batch_size]
-                print(f"🔧 DEBUG: Processing SteamGridDB ID lookup batch {i//batch_size + 1} with {len(batch)} games")
                 
                 # Process batch in parallel
                 lookup_tasks = []
@@ -16263,7 +16272,6 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                         break
                     
                     batch = games_data[i:i + batch_size]
-                    print(f"🔧 DEBUG: Processing SteamGridDB media download batch {i//batch_size + 1} with {len(batch)} games")
                     
                     # Create progress callback for this batch
                     def batch_progress_callback(game_name, result):
