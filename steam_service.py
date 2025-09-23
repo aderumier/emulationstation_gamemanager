@@ -248,6 +248,9 @@ class SteamService:
         }
         
         logger.info(f"🔧 DEBUG: Steam URLs for {game_name} (Steam ID: {steam_id}):")
+        logger.info(f"🔧 DEBUG: Selected fields: {selected_fields}")
+        logger.info(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
+        logger.info(f"🔧 DEBUG: Overwrite media fields: {overwrite_media_fields}")
         for media_type, url in steam_urls.items():
             logger.info(f"🔧 DEBUG:   {media_type}: {url}")
         
@@ -343,6 +346,7 @@ class SteamService:
                     rom_path = game.get('path', '')
                     
                     if steam_id:
+                        logger.info(f"🔧 DEBUG: Processing Steam media download for '{game_name}' with Steam ID: {steam_id} (type: {type(steam_id)})")
                         batch_tasks.append(self.download_steam_media(
                             steam_id, game_name, roms_root, system_name,
                             selected_fields, image_type_mappings, overwrite_media_fields, gamelist_path, None, rom_path
@@ -368,14 +372,14 @@ class SteamService:
                                     progress_callback(game_name, {})
                             elif result:
                                 results[game_name] = result
-                                logger.info(f"🔧 DEBUG: Successfully processed Steam media for {game_name}")
+                                logger.info(f"🔧 DEBUG: Successfully processed Steam media for {game_name}: {result}")
                                 
                                 # Call progress callback for each completed game
                                 if progress_callback:
                                     progress_callback(game_name, result)
                             else:
                                 # No media downloaded, but still call progress callback
-                                logger.info(f"🔧 DEBUG: No media downloaded for {game_name}")
+                                logger.info(f"🔧 DEBUG: No media downloaded for {game_name} - result was empty or None")
                                 if progress_callback:
                                     progress_callback(game_name, {})
                 
@@ -401,6 +405,7 @@ class SteamService:
             
             # Check if media already exists and we're not overwriting
             if not overwrite_media_fields and gamelist_path:
+                logger.info(f"🔧 DEBUG: Checking if {target_field} already exists for {game_name} (overwrite_media_fields: {overwrite_media_fields})")
                 # Check if media already exists in gamelist.xml
                 if os.path.exists(gamelist_path):
                     import xml.etree.ElementTree as ET
@@ -415,9 +420,13 @@ class SteamService:
                                 # Check if this media field already has a value (not empty)
                                 media_elem = game.find(target_field)
                                 if media_elem is not None and media_elem.text and media_elem.text.strip():
+                                    logger.info(f"🔧 DEBUG: Skipping {target_field} for {game_name} - already exists: {media_elem.text}")
                                     return None
+                                else:
+                                    logger.info(f"🔧 DEBUG: {target_field} for {game_name} is empty or missing - will download")
                                 break
                     except Exception as e:
+                        logger.error(f"🔧 DEBUG: Error checking existing media: {e}")
                         pass
             
             # Handle screenshots differently - need to parse HTML and extract image URL

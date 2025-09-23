@@ -4374,11 +4374,20 @@ def scrap_steam_system(system_name):
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
         
+        # Get overwrite settings from cookies
+        overwrite_text_fields = request.cookies.get('overwriteTextFieldsSteam', 'false').lower() == 'true'
+        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteam', 'false').lower() == 'true'
+        
+        print(f"🍪 DEBUG: Steam cookie values - overwriteTextFieldsSteam: '{request.cookies.get('overwriteTextFieldsSteam', 'NOT_SET')}', overwriteMediaFieldsSteam: '{request.cookies.get('overwriteMediaFieldsSteam', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: Steam parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
-            'selected_fields': selected_fields
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
@@ -6042,8 +6051,6 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
     
     log_prefix = f"[{' | '.join(prefix_parts)}]" if prefix_parts else ""
     
-    print(f"DEBUG: {log_prefix} Starting download: {image_url} -> {local_path}")
-    
     for attempt in range(retry_attempts):
         try:
             if attempt > 0:
@@ -6051,7 +6058,6 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                 threading.Thread(target=update_task_progress, args=(f"{log_prefix} 🔄 Retry {attempt + 1}/{retry_attempts}",), daemon=True).start()
             
             # Ensure directory exists
-            print(f"DEBUG: {log_prefix} Creating directory: {os.path.dirname(local_path)}")
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             
             # Start timing for HTTP request with detailed metrics
@@ -6059,18 +6065,10 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
             import threading
             threading.Thread(target=update_task_progress, args=(f"{log_prefix} ⏱️  Starting HTTPX HTTP/2 request to: {os.path.basename(image_url)} (attempt {attempt + 1}/{retry_attempts})",), daemon=True).start()
             
-            print(f"DEBUG: {log_prefix} Making HTTP request to: {image_url}")
             # Use HTTPX client for async download with HTTP/2
             response = await client.get(image_url, headers=headers)
-            print(f"DEBUG: {log_prefix} HTTP response status: {response.status_code}")
             response.raise_for_status()
             
-            # Get file size from response headers if available
-            content_length = response.headers.get('content-length')
-            if content_length:
-                print(f"DEBUG: {log_prefix} Content-Length: {content_length} bytes")
-            
-            print(f"DEBUG: {log_prefix} Starting file write to: {local_path}")
             # Download the file
             bytes_written = 0
             async with aiofiles.open(local_path, 'wb') as f:
@@ -6078,12 +6076,9 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                     await f.write(chunk)
                     bytes_written += len(chunk)
             
-            print(f"DEBUG: {log_prefix} File write completed. Bytes written: {bytes_written}")
-            
             # Verify file was created and has content
             if os.path.exists(local_path):
                 file_size = os.path.getsize(local_path)
-                print(f"DEBUG: {log_prefix} File verification: exists={True}, size={file_size} bytes")
                 if file_size > 0:
                     # Convert image if field has target_extension configured
                     # Use target_field parameter if available, otherwise fall back to media_type
@@ -6097,31 +6092,14 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                             # Conversion successful, update path and filename
                             local_path = new_path
                             filename = os.path.basename(local_path)
-                            print(f"DEBUG: {log_prefix} ✅ Converted to {target_extension}: {filename}")
-                        elif status == "already_target":
-                            # File was already in target format, no conversion needed
-                            print(f"DEBUG: {log_prefix} ✅ Already {target_extension} format: {filename}")
-                        else:
-                            # Conversion failed
-                            print(f"DEBUG: {log_prefix} ⚠️ Failed to convert to {target_extension}, keeping original: {filename}")
-                    elif should_convert:
-                        # Field should be converted but file is already in target format
-                        print(f"DEBUG: {log_prefix} ✅ Already {target_extension} format: {filename}")
-                    else:
-                        # No conversion needed for this field
-                        print(f"DEBUG: {log_prefix} ✅ No conversion needed for field: {field_to_check}")
                     
-                    print(f"DEBUG: {log_prefix} ✅ Download successful: {filename} ({file_size} bytes)")
                     return True, f"Downloaded {filename} ({file_size} bytes)"
                 else:
-                    print(f"DEBUG: {log_prefix} ❌ File created but empty: {local_path}")
                     return False, f"File created but empty: {filename}"
             else:
-                print(f"DEBUG: {log_prefix} ❌ File not created: {local_path}")
                 return False, f"File not created: {filename}"
             
         except httpx.RequestError as e:
-            print(f"DEBUG: {log_prefix} HTTP request error: {e}")
             if attempt < retry_attempts - 1:
                 # Exponential backoff: 1s, 2s, 4s, 8s, etc. (capped at 10s)
                 retry_delay = min(2 ** attempt, 10)
@@ -6129,15 +6107,10 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                 threading.Thread(target=update_task_progress, args=(f"{log_prefix} ⏳ Waiting {retry_delay}s before retry {attempt + 1}/{retry_attempts}",), daemon=True).start()
                 await asyncio.sleep(retry_delay)
             else:
-                print(f"DEBUG: {log_prefix} ❌ Connection failed after {retry_attempts} attempts: {e}")
                 return False, f"Connection failed after {retry_attempts} attempts: {e}"
         except Exception as e:
-            print(f"DEBUG: {log_prefix} ❌ Unexpected error: {e}")
-            import traceback
-            traceback.print_exc()
             return False, f"Error: {e}"
     
-    print(f"DEBUG: {log_prefix} ❌ Failed after {retry_attempts} attempts")
     return False, f"Failed after {retry_attempts} attempts"
 
 def get_region_priority_from_game_name(game_name, default_priority):
@@ -15472,9 +15445,11 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 
                 if existing_steamid:
                     print(f"⏭️ Game '{game_name}' already has Steam ID ({existing_steamid}) - will download media")
+                    steam_id_int = int(existing_steamid)
+                    print(f"🔧 DEBUG: Steam ID type: {type(existing_steamid)}, converted to int: {steam_id_int}")
                     games_with_steam_ids.append({
                         'game': game,
-                        'steam_id': int(existing_steamid),
+                        'steam_id': steam_id_int,
                         'name': game_name
                     })
                 else:
@@ -15578,16 +15553,16 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                         t.log_message(f"Set YouTube URL for '{game_name}': {youtube_url}")
                                 else:
                                     print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
-                    
-                    # Also update the corresponding game in all_games
-                    for all_game in all_games:
-                        if all_game['path'] == game['path']:
-                            for media_field, media_path in downloaded_media.items():
-                                all_game[media_field] = media_path
-                            # Also update YouTube URL if it was set
-                            if 'youtubeurl' in game and game['youtubeurl']:
-                                all_game['youtubeurl'] = game['youtubeurl']
-                            break
+                            
+                            # Also update the corresponding game in all_games
+                            for all_game in all_games:
+                                if all_game['path'] == game['path']:
+                                    for media_field, media_path in downloaded_media.items():
+                                        all_game[media_field] = media_path
+                                    # Also update YouTube URL if it was set
+                                    if 'youtubeurl' in game and game['youtubeurl']:
+                                        all_game['youtubeurl'] = game['youtubeurl']
+                                    break
                             
                             # Media download progress is now handled by the progress callback
                 
