@@ -4296,11 +4296,18 @@ def scrap_steamgriddb_system(system_name):
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
         
+        # Get overwrite settings from cookies
+        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsSteamGridDB', 'false').lower() == 'true'
+        
+        print(f"🍪 DEBUG: SteamGridDB cookie values - overwriteMediaFieldsSteamGridDB: '{request.cookies.get('overwriteMediaFieldsSteamGridDB', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: SteamGridDB parsed values - overwrite_media_fields: {overwrite_media_fields}")
+        
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
-            'selected_fields': selected_fields
+            'selected_fields': selected_fields,
+            'overwrite_media_fields': overwrite_media_fields
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
