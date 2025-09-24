@@ -13727,9 +13727,17 @@ def get_igdb_rate_limiter():
     """Get or create global rate limiter for IGDB API"""
     global _igdb_rate_limiter
     if _igdb_rate_limiter is None:
+        # Add current directory to Python path to find local pyrate_limiter
+        import sys
+        import os
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        
         from pyrate_limiter import Limiter, Rate
         # Create rate limiter: 4 requests per second
         _igdb_rate_limiter = Limiter(Rate(4, 1.0))
+        print("✅ IGDB rate limiter initialized (using local pyrate_limiter)")
     return _igdb_rate_limiter
 
 def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refresh=False):
@@ -13827,9 +13835,6 @@ async def get_igdb_async_client():
     global _igdb_async_client
     if _igdb_async_client is None:
         import httpx
-        from pyrate_limiter import Limiter, Rate
-        
-        # Create rate limiter: 4 requests per second
         rate_limiter = get_igdb_rate_limiter()
         
         # Create async client with HTTP/2 and connection pooling

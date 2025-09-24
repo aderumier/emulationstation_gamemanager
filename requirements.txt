@@ -28,6 +28,7 @@ python-dotenv>=1.0.0
 Wand>=0.6.0
 
 # IGDB API integration (using httpx directly)
+# Note: pyrate_limiter is deployed locally in the app directory
 
 # Standard library packages (included with Python 3.8+)
 # - os
