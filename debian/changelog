@@ -1,3 +1,19 @@
+gamemanager (2.2.3) stable; urgency=medium
+
+  * Fix LaunchBox scrapper overwrite_text_fields logic
+  * Fix LaunchBox scrapper launchboxid priority lookup
+  * Remove SteamGridDB scrapper task debug logs
+  * Remove LaunchBox image download task debug logs
+  * Fix Steam scraping task downloaded_media variable scope error
+  * Fix Steam and SteamGridDB scraping endpoints to read overwrite settings from cookies
+  * Fix ScreenScraper scraping endpoint to read overwrite settings from cookies
+  * Fix video download cross-device link error with symlinks
+  * Simplify file operations using shutil.move()
+  * Improve systems management API robustness
+  * Use global shutil import for cleaner code
+
+ -- CursorScraper <admin@cursorscraper.local>  Mon, 23 Sep 2024 20:00:00 +0000
+
 gamemanager (2.2.2) stable; urgency=medium
 
   * Fix video download cross-device link error with symlinks

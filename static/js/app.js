@@ -82,9 +82,14 @@ class GameCollectionManager {
         
         // Media mappings cache
         this.mediaMappingsCache = null;
+        this.select2Instance = null; // Select2 instance
         
         this.initializeEventListeners();
         this.loadState();
+        
+        // Initialize Select2 immediately to apply styling
+        this.initializeSelect2();
+        
         this.checkExistingTask();
         
         // Initialize media mappings cache (don't await to avoid blocking constructor)
@@ -287,7 +292,9 @@ class GameCollectionManager {
     async checkTaskQueue() {
         // Check the current task queue status
         try {
-            const response = await fetch('/api/task/queue');
+            const response = await fetch('/api/task/queue', {
+                credentials: 'same-origin'
+            });
             if (response.ok) {
                 const queueStatus = await response.json();
                 return queueStatus;
@@ -321,7 +328,19 @@ class GameCollectionManager {
 
     async refreshTasks() {
         try {
-            const response = await fetch('/api/tasks');
+            const response = await fetch('/api/tasks', {
+                redirect: 'manual', // Don't follow redirects automatically
+                credentials: 'same-origin' // Include cookies for authentication
+            });
+            
+            // Check if we're being redirected to login (authentication required)
+            if (response.type === 'opaqueredirect' || response.status === 0 || 
+                (response.redirected && response.url.includes('/login'))) {
+                console.log('User not authenticated, stopping task refresh');
+                this.stopTaskAutoRefresh();
+                return;
+            }
+            
             if (response.ok) {
                 let tasks = await response.json();
                 
@@ -350,7 +369,9 @@ class GameCollectionManager {
                     try {
                         const needsHistory = Object.values(tasks).some(t => !t?.data?.system_name || (!t.total_steps && !t.progress_percentage));
                         if (needsHistory) {
-                            const histResp = await fetch('/api/tasks/history');
+                            const histResp = await fetch('/api/tasks/history', {
+                                credentials: 'same-origin'
+                            });
                             if (histResp.ok) {
                                 const history = await histResp.json();
                                 for (const [tid, h] of Object.entries(history)) {
@@ -377,8 +398,11 @@ class GameCollectionManager {
                 this.displayTasksInGrid(tasks);
                 // Check for completed tasks that need grid refresh
                 this.checkForGridRefresh(tasks);
+            } else if (response.status === 401) {
+                console.log('User not authenticated (401), stopping task refresh');
+                this.stopTaskAutoRefresh();
             } else {
-                console.error('Failed to fetch tasks');
+                console.error('Failed to fetch tasks:', response.status, response.statusText);
             }
         } catch (error) {
             console.error('Error refreshing tasks:', error);
@@ -1429,12 +1453,32 @@ class GameCollectionManager {
     }
 
     startTaskAutoRefresh() {
-        // Auto-refresh tasks every second
-        if (!this.taskRefreshInterval) {
-            this.taskRefreshInterval = setInterval(() => {
-                this.refreshTasks();
-                // Removed extra per-second YouTube completion check to avoid constant reloads
-            }, 1000);
+        // Auto-refresh tasks every second, but only if we're on the main page and authenticated
+        if (!this.taskRefreshInterval && window.location.pathname === '/') {
+            // First, check if we're authenticated by making a test request
+            this.checkAuthenticationAndStartRefresh();
+        }
+    }
+    
+    async checkAuthenticationAndStartRefresh() {
+        try {
+            const response = await fetch('/api/tasks', {
+                method: 'HEAD', // Just check if we can access the endpoint
+                redirect: 'manual',
+                credentials: 'same-origin' // Include cookies for authentication
+            });
+            
+            // If we get a successful response or a 401 (which means we're authenticated but no tasks)
+            if (response.ok || response.status === 401) {
+                console.log('User appears to be authenticated, starting task refresh');
+                this.taskRefreshInterval = setInterval(() => {
+                    this.refreshTasks();
+                }, 1000);
+            } else {
+                console.log('User not authenticated, not starting task refresh');
+            }
+        } catch (error) {
+            console.log('Authentication check failed, not starting task refresh:', error);
         }
     }
 
@@ -1472,13 +1516,23 @@ class GameCollectionManager {
         
         // Remove from DOM after hiding
         toast.addEventListener('hidden.bs.toast', () => {
-            document.body.removeChild(toast);
+            if (toast.parentNode) {
+                document.body.removeChild(toast);
+            }
         });
     }
     initializeEventListeners() {
-        // System selection
-        document.getElementById('systemSelect').addEventListener('change', (e) => {
+        // System selection - support both old select and new searchable combobox
+        const systemSelect = document.getElementById('systemSelect');
+        if (systemSelect) {
+            systemSelect.addEventListener('change', (e) => {
             this.loadRomSystem(e.target.value);
+            });
+        }
+        
+        // Listen for system selection from searchable combobox
+        document.addEventListener('systemSelected', (e) => {
+            this.loadRomSystem(e.detail.system.name);
         });
 
         // Button event listeners
@@ -2193,7 +2247,9 @@ class GameCollectionManager {
     async checkExistingTask() {
         // Check if there's an existing task running when the page loads
         try {
-            const response = await fetch('/api/task/status');
+            const response = await fetch('/api/task/status', {
+                credentials: 'same-origin'
+            });
             if (response.ok) {
                 const task = await response.json();
                 if (task.status === 'running') {
@@ -13851,17 +13907,16 @@ class GameCollectionManager {
     }
 
     async loadAvailableSystems() {
-        console.log('loadAvailableSystems called');
         try {
-            console.log('Fetching from /api/rom-systems...');
-            const response = await fetch('/api/rom-systems');
-            console.log('Response status:', response.status);
+            const response = await fetch('/api/rom-systems', {
+                credentials: 'same-origin'
+            });
+            
             if (response.ok) {
                 const systems = await response.json();
-                console.log('Systems received:', systems);
                 this.populateSystemDropdown(systems);
             } else {
-                console.error('Response not ok:', response.status, response.statusText);
+                console.error('Error loading available systems:', response.status, response.statusText);
             }
         } catch (error) {
             console.error('Error loading available systems:', error);
@@ -13869,31 +13924,92 @@ class GameCollectionManager {
     }
 
     populateSystemDropdown(systems) {
-        console.log('populateSystemDropdown called with:', systems);
-        const systemSelect = document.getElementById('systemSelect');
-        console.log('systemSelect element:', systemSelect);
+        // Store systems data
+        this.allSystems = systems || [];
+        this.selectedSystem = null;
         
-        if (!systemSelect) {
-            console.error('systemSelect element not found!');
+        // Update Select2 with new systems
+        this.updateSelect2Options();
+    }
+    
+    initializeSelect2() {
+        const selectElement = document.getElementById('systemSelect');
+        
+        if (!selectElement) {
+            console.error('System select element not found!');
             return;
         }
         
-        // Clear existing options except the first placeholder
-        while (systemSelect.children.length > 1) {
-            systemSelect.removeChild(systemSelect.lastChild);
-        }
+        console.log('Initializing Select2...');
         
-        // Add system options
-        systems.forEach(system => {
-            const option = document.createElement('option');
-            option.value = system.name;
-            option.textContent = `${system.name} (${system.rom_count} games)`;
-            systemSelect.appendChild(option);
-            console.log('Added option:', system.name);
+        // Initialize Select2
+        this.select2Instance = $(selectElement).select2({
+            placeholder: 'Select System...',
+            allowClear: true,
+            width: '200px',
+            dropdownAutoWidth: true,
+            language: {
+                noResults: function() {
+                    return "No systems found";
+                }
+            }
         });
         
-        console.log(`Loaded ${systems.length} systems into dropdown`);
+        // Handle selection change
+        $(selectElement).on('select2:select', (e) => {
+            const value = e.params.data.id;
+            if (value) {
+                const system = this.allSystems.find(s => s.name === value);
+                if (system) {
+                    this.selectSystem(system);
+                }
+            }
+        });
+        
+        // Handle clearing selection
+        $(selectElement).on('select2:clear', () => {
+            this.selectedSystem = null;
+        });
+        
+        console.log('Select2 initialized');
     }
+    
+    updateSelect2Options() {
+        if (!this.select2Instance) {
+            console.error('Select2 not initialized yet');
+            return;
+        }
+        
+        console.log('Updating Select2 options with', this.allSystems?.length || 0, 'systems');
+        
+        const selectElement = document.getElementById('systemSelect');
+        
+        // Clear existing options
+        $(selectElement).empty();
+        $(selectElement).append('<option value="">Select System...</option>');
+        
+        // Add system options
+        if (this.allSystems && this.allSystems.length > 0) {
+            this.allSystems.forEach(system => {
+                $(selectElement).append(`<option value="${system.name}">${system.name} (${system.rom_count} games)</option>`);
+            });
+        }
+        
+        // Trigger change to update Select2
+        $(selectElement).trigger('change');
+        console.log('Select2 options updated');
+    }
+    
+    selectSystem(system) {
+        this.selectedSystem = system;
+        
+        // Dispatch custom event for system selection
+        const event = new CustomEvent('systemSelected', {
+            detail: { system: system }
+        });
+        document.dispatchEvent(event);
+    }
+    
     
     focusFirstRow() {
         // Focus on the first row of the grid
@@ -14891,6 +15007,7 @@ function handleLaunchboxImageError(img) {
     // Replace the image with placeholder
     img.parentNode.replaceChild(placeholder, img);
 }
+
 
 // Initialize the game manager when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

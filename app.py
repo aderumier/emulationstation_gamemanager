@@ -2291,6 +2291,8 @@ def process_next_queued_task():
         selected_fields = task_data.get('selected_fields', [])
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        
+        print(f"🔧 DEBUG: ScreenScraper task data - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
         if system_name:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -3315,6 +3317,9 @@ def list_rom_systems():
                 })
     except Exception as e:
         print(f"Error listing ROM systems: {e}")
+    
+    # Sort systems alphabetically by name
+    systems.sort(key=lambda x: x['name'].lower())
     
     return jsonify(systems)
 
@@ -15014,6 +15019,7 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
     print(f"DEBUG: IGDB result listener ended for process {process.pid}")
 
 def run_screenscraper_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
+    print(f"🔧 DEBUG: run_screenscraper_task called with - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
     """Run ScreenScraper task for a specific system"""
     import asyncio
     import threading
@@ -15569,16 +15575,16 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                         t.log_message(f"Set YouTube URL for '{game_name}': {youtube_url}")
                                 else:
                                     print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
-                            
-                            # Also update the corresponding game in all_games
-                            for all_game in all_games:
-                                if all_game['path'] == game['path']:
-                                    for media_field, media_path in downloaded_media.items():
-                                        all_game[media_field] = media_path
-                                    # Also update YouTube URL if it was set
-                                    if 'youtubeurl' in game and game['youtubeurl']:
-                                        all_game['youtubeurl'] = game['youtubeurl']
-                                    break
+                    
+                    # Also update the corresponding game in all_games
+                    for all_game in all_games:
+                        if all_game['path'] == game['path']:
+                            for media_field, media_path in downloaded_media.items():
+                                all_game[media_field] = media_path
+                            # Also update YouTube URL if it was set
+                            if 'youtubeurl' in game and game['youtubeurl']:
+                                all_game['youtubeurl'] = game['youtubeurl']
+                            break
                             
                             # Media download progress is now handled by the progress callback
                 
