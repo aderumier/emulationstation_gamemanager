@@ -9374,9 +9374,11 @@ class GameCollectionManager {
             ).join('');
             
             // Create IGDB platforms combobox options
-            const igdbOptions = igdbPlatforms.map(platform => 
-                `<option value="${platform.id}" ${platform.id == systemData.igdb ? 'selected' : ''}>${platform.name}</option>`
-            ).join('');
+            const igdbOptions = igdbPlatforms.length > 0 
+                ? igdbPlatforms.map(platform => 
+                    `<option value="${platform.id}" ${platform.id == systemData.igdb ? 'selected' : ''}>${platform.name}</option>`
+                ).join('')
+                : '<option value="" disabled>No IGDB platforms available (configure credentials to load)</option>';
             
             row.innerHTML = `
                 <td>
@@ -9459,7 +9461,7 @@ class GameCollectionManager {
         }
     }
     
-    async loadIgdbPlatforms() {
+    async loadIgdbPlatforms(retryCount = 0) {
         try {
             console.log('Loading IGDB platforms...');
             const response = await fetch('/api/igdb-platforms');
@@ -9478,6 +9480,14 @@ class GameCollectionManager {
             
             if (data.platforms) {
                 console.log(`Loaded ${data.platforms.length} IGDB platforms`);
+                
+                // If platforms are empty but we have a message about cache creation, retry once
+                if (data.platforms.length === 0 && data.message && data.message.includes('Cache will be created automatically') && retryCount === 0) {
+                    console.log('🔄 IGDB platforms empty but cache creation in progress, retrying in 2 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    return this.loadIgdbPlatforms(1); // Retry once
+                }
+                
                 return data.platforms || [];
             } else {
                 console.error('Failed to load IGDB platforms:', data.error);

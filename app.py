@@ -3685,7 +3685,72 @@ def get_igdb_platforms():
         
         # Check if platforms file exists
         if not os.path.exists(platforms_file):
-            return jsonify({'error': 'IGDB platforms cache not found'}), 404
+            # Check if IGDB credentials are configured
+            igdb_creds = credential_manager.get_igdb_credentials()
+            has_credentials = igdb_creds.get('client_id') and igdb_creds.get('client_secret')
+            
+            if has_credentials:
+                # Try to create the cache synchronously with timeout
+                print("🔄 IGDB platforms cache not found, attempting to create cache...")
+                try:
+                    import asyncio
+                    
+                    async def create_cache_with_timeout():
+                        try:
+                            # Create cache with 10-second timeout
+                            cache_result = await asyncio.wait_for(
+                                ensure_igdb_platform_cache(), 
+                                timeout=10.0
+                            )
+                            return cache_result
+                        except asyncio.TimeoutError:
+                            print("⚠️ IGDB platform cache creation timed out")
+                            return None
+                        except Exception as e:
+                            print(f"⚠️ Failed to create IGDB cache: {e}")
+                            return None
+                    
+                    # Create cache synchronously
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        cache_result = loop.run_until_complete(create_cache_with_timeout())
+                        
+                        if cache_result and os.path.exists(platforms_file):
+                            print("✅ IGDB platform cache created successfully")
+                            # Reload the cache file
+                            with open(platforms_file, 'r') as f:
+                                data = json.load(f)
+                            
+                            # Convert to format expected by GUI (id -> name)
+                            platforms_list = []
+                            for platform_id, platform_name in data['platforms'].items():
+                                platforms_list.append({
+                                    'id': platform_id,
+                                    'name': platform_name
+                                })
+                            
+                            # Sort by name for better UX
+                            platforms_list.sort(key=lambda x: x['name'])
+                            
+                            return jsonify({
+                                'platforms': platforms_list,
+                                'count': len(platforms_list)
+                            })
+                        else:
+                            print("⚠️ IGDB platform cache creation failed or incomplete")
+                    finally:
+                        loop.close()
+                        
+                except Exception as e:
+                    print(f"⚠️ Failed to start IGDB cache creation: {e}")
+            
+            # Return empty list instead of error for clean installs
+            return jsonify({
+                'platforms': [],
+                'count': 0,
+                'message': 'IGDB platforms cache not found. Cache will be created automatically if credentials are configured.'
+            })
         
         # Load platforms from cache
         with open(platforms_file, 'r') as f:

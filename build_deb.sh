@@ -57,7 +57,11 @@ cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
 
 # Remove user-specific config file (should not be in package)
 rm -f debian/opt/gamemanager/var/config/user.cfg
-cp -r pyrate_limiter debian/opt/gamemanager/pyrate_limiter
+
+# Copy pyrate_limiter correctly (avoid double nesting)
+echo "📦 Copying pyrate_limiter..."
+rm -rf debian/opt/gamemanager/pyrate_limiter
+cp -r pyrate_limiter debian/opt/gamemanager/
 
 # Tools and plugins
 mkdir -p debian/opt/gamemanager/tools
@@ -140,6 +144,19 @@ fi
 
 if [ ! -d "debian/opt/gamemanager/pyrate_limiter" ]; then
     echo "❌ ERROR: pyrate_limiter directory not found in package!"
+    exit 1
+fi
+
+# Verify pyrate_limiter structure is correct (not double-nested)
+if [ -d "debian/opt/gamemanager/pyrate_limiter/pyrate_limiter" ]; then
+    echo "❌ ERROR: pyrate_limiter has double-nested structure!"
+    echo "   Found: debian/opt/gamemanager/pyrate_limiter/pyrate_limiter/"
+    echo "   Expected: debian/opt/gamemanager/pyrate_limiter/"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/pyrate_limiter/__init__.py" ]; then
+    echo "❌ ERROR: pyrate_limiter/__init__.py not found!"
     exit 1
 fi
 

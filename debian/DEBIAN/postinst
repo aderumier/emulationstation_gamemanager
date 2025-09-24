@@ -105,6 +105,13 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     mkdir -p /opt/gamemanager/var/config
     mkdir -p /opt/gamemanager/roms
     
+    # Clean up old double-nested pyrate_limiter structure if it exists
+    if [ -d "/opt/gamemanager/pyrate_limiter/pyrate_limiter" ]; then
+        echo "Cleaning up old double-nested pyrate_limiter structure..."
+        rm -rf /opt/gamemanager/pyrate_limiter/pyrate_limiter
+        echo "Removed old pyrate_limiter/pyrate_limiter directory"
+    fi
+    
     # Handle configuration files - restore user modifications if they exist
     echo "Checking for user-modified configuration files..."
     
