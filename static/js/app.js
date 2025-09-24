@@ -13946,7 +13946,7 @@ class GameCollectionManager {
         this.select2Instance = $(selectElement).select2({
             placeholder: 'Select System...',
             allowClear: true,
-            width: '200px',
+            width: '300px',
             dropdownAutoWidth: true,
             language: {
                 noResults: function() {
@@ -13969,6 +13969,7 @@ class GameCollectionManager {
         // Handle clearing selection
         $(selectElement).on('select2:clear', () => {
             this.selectedSystem = null;
+            localStorage.removeItem('selectedSystem');
         });
         
         console.log('Select2 initialized');
@@ -13988,20 +13989,65 @@ class GameCollectionManager {
         $(selectElement).empty();
         $(selectElement).append('<option value="">Select System...</option>');
         
-        // Add system options
+        // Add system options grouped by ROM count
         if (this.allSystems && this.allSystems.length > 0) {
-            this.allSystems.forEach(system => {
-                $(selectElement).append(`<option value="${system.name}">${system.name} (${system.rom_count} games)</option>`);
-            });
+            // Sort systems: those with ROMs first, then those without
+            const systemsWithRoms = this.allSystems.filter(system => system.rom_count > 0);
+            const systemsWithoutRoms = this.allSystems.filter(system => system.rom_count === 0);
+            
+            // Add systems with ROMs group
+            if (systemsWithRoms.length > 0) {
+                $(selectElement).append('<optgroup label="Systems with ROMs">');
+                systemsWithRoms.forEach(system => {
+                    $(selectElement).append(`<option value="${system.name}">${system.name} (${system.rom_count} games)</option>`);
+                });
+                $(selectElement).append('</optgroup>');
+            }
+            
+            // Add systems without ROMs group
+            if (systemsWithoutRoms.length > 0) {
+                $(selectElement).append('<optgroup label="Empty Systems">');
+                systemsWithoutRoms.forEach(system => {
+                    $(selectElement).append(`<option value="${system.name}">${system.name} (${system.rom_count} games)</option>`);
+                });
+                $(selectElement).append('</optgroup>');
+            }
+        }
+        
+        // Restore previously selected system
+        const savedSystem = localStorage.getItem('selectedSystem');
+        if (savedSystem) {
+            // Check if the saved system exists in the current systems list
+            const systemExists = this.allSystems.some(system => system.name === savedSystem);
+            if (systemExists) {
+                $(selectElement).val(savedSystem).trigger('change');
+                // Find and set the selected system object
+                const system = this.allSystems.find(s => s.name === savedSystem);
+                if (system) {
+                    this.selectedSystem = system;
+                    console.log('Restored selected system:', savedSystem);
+                }
+            } else {
+                // Clear saved system if it no longer exists
+                localStorage.removeItem('selectedSystem');
+                console.log('Cleared saved system - no longer exists:', savedSystem);
+            }
         }
         
         // Trigger change to update Select2
         $(selectElement).trigger('change');
-        console.log('Select2 options updated');
+        console.log('Select2 options updated with grouped systems');
     }
     
     selectSystem(system) {
         this.selectedSystem = system;
+        
+        // Save the selected system to localStorage
+        if (system) {
+            localStorage.setItem('selectedSystem', system.name);
+        } else {
+            localStorage.removeItem('selectedSystem');
+        }
         
         // Dispatch custom event for system selection
         const event = new CustomEvent('systemSelected', {
