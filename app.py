@@ -3861,6 +3861,48 @@ def manage_screenscraper_credentials():
         print(f"Error managing ScreenScraper credentials: {e}")
         return jsonify({'error': f'Failed to manage ScreenScraper credentials: {str(e)}'}), 500
 
+@app.route('/api/systems/missing', methods=['GET'])
+@login_required
+def get_missing_systems():
+    """Get systems that exist in roms/ directory but are not configured"""
+    try:
+        # Load current systems configuration
+        current_systems_config = load_systems_config()
+        configured_systems = set(current_systems_config.keys())
+        
+        # Get all systems from roms/ directory
+        rom_systems = []
+        if os.path.exists(ROMS_FOLDER):
+            for system_name in os.listdir(ROMS_FOLDER):
+                system_path = os.path.join(ROMS_FOLDER, system_name)
+                if os.path.isdir(system_path) and system_name not in configured_systems:
+                    # Count ROM files in the directory
+                    rom_count = 0
+                    try:
+                        for root, dirs, files in os.walk(system_path):
+                            for file in files:
+                                if any(file.lower().endswith(ext.lower()) for ext in ['.zip', '.7z', '.rar', '.iso', '.bin', '.cue', '.chd', '.gcm', '.wbfs', '.ciso', '.wad', '.nsp', '.xci', '.3ds', '.cia', '.nds', '.gba', '.gb', '.gbc', '.nes', '.smc', '.sfc', '.md', '.gen', '.sms', '.gg', '.pce', '.sgx', '.ws', '.wsc', '.ngp', '.ngc', '.vb', '.lynx', '.jag', '.a26', '.a52', '.a78', '.col', '.int', '.cv', '.sg', '.fds', '.msx', '.c64', '.amiga', '.pc', '.dos', '.win', '.mac', '.linux', '.android', '.ios', '.psp', '.psvita', '.psx', '.ps2', '.ps3', '.ps4', '.xbox', '.xbox360', '.xboxone', '.wii', '.wiiu', '.switch', '.ds', '.3ds', '.gb', '.gbc', '.gba', '.nds', '.wsquashfs']):
+                                    rom_count += 1
+                    except Exception as e:
+                        print(f"Error counting ROMs in {system_path}: {e}")
+                    
+                    rom_systems.append({
+                        'name': system_name,
+                        'rom_count': rom_count,
+                        'path': system_path
+                    })
+        
+        # Sort by name
+        rom_systems.sort(key=lambda x: x['name'].lower())
+        
+        return jsonify({
+            'success': True,
+            'missing_systems': rom_systems,
+            'count': len(rom_systems)
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to get missing systems: {str(e)}'}), 500
+
 @app.route('/api/systems', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def manage_systems():
@@ -3875,38 +3917,84 @@ def manage_systems():
             return jsonify({'success': True, 'systems': systems})
         
         elif request.method == 'POST':
-            # Add new system
+            # Add new system(s)
             data = request.get_json()
-            if not data or 'system_name' not in data:
-                return jsonify({'error': 'System name is required'}), 400
+            if not data:
+                return jsonify({'error': 'Request data is required'}), 400
             
-            system_name = data['system_name']
-            launchbox_platform = data.get('launchbox_platform', '')
-            screenscraper_platform = data.get('screenscraper_platform', '')
-            igdb_platform = data.get('igdb_platform', '')
-            extensions = data.get('extensions', [])
+            # Check if this is a bulk add operation
+            if 'system_names' in data:
+                # Bulk add multiple systems
+                system_names = data['system_names']
+                if not isinstance(system_names, list):
+                    return jsonify({'error': 'system_names must be a list'}), 400
+                
+                added_systems = []
+                failed_systems = []
+                
+                for system_name in system_names:
+                    # Validate system name (lowercase, no spaces)
+                    if not system_name.islower() or ' ' in system_name:
+                        failed_systems.append({'name': system_name, 'error': 'System name must be lowercase with no spaces'})
+                        continue
+                    
+                    # Check if system already exists
+                    if system_name in current_systems_config:
+                        failed_systems.append({'name': system_name, 'error': 'System already exists'})
+                        continue
+                    
+                    # Add new system to systems config with default values
+                    current_systems_config[system_name] = {
+                        'launchbox': '',
+                        'screenscraper': '',
+                        'igdb': '',
+                        'extensions': []
+                    }
+                    added_systems.append(system_name)
+                
+                # Save to systems.json
+                if not save_systems_config(current_systems_config):
+                    return jsonify({'error': 'Failed to save systems configuration'}), 500
+                
+                return jsonify({
+                    'success': True, 
+                    'message': f'Added {len(added_systems)} systems successfully',
+                    'added_systems': added_systems,
+                    'failed_systems': failed_systems
+                })
             
-            # Validate system name (lowercase, no spaces)
-            if not system_name.islower() or ' ' in system_name:
-                return jsonify({'error': 'System name must be lowercase with no spaces'}), 400
-            
-            # Check if system already exists
-            if system_name in current_systems_config:
-                return jsonify({'error': 'System already exists'}), 400
-            
-            # Add new system to systems config
-            current_systems_config[system_name] = {
-                'launchbox': launchbox_platform,
-                'screenscraper': screenscraper_platform,
-                'igdb': igdb_platform,
-                'extensions': extensions
-            }
-            
-            # Save to systems.json
-            if not save_systems_config(current_systems_config):
-                return jsonify({'error': 'Failed to save systems configuration'}), 500
-            
-            return jsonify({'success': True, 'message': 'System added successfully'})
+            else:
+                # Single system add (existing functionality)
+                if 'system_name' not in data:
+                    return jsonify({'error': 'System name is required'}), 400
+                
+                system_name = data['system_name']
+                launchbox_platform = data.get('launchbox_platform', '')
+                screenscraper_platform = data.get('screenscraper_platform', '')
+                igdb_platform = data.get('igdb_platform', '')
+                extensions = data.get('extensions', [])
+                
+                # Validate system name (lowercase, no spaces)
+                if not system_name.islower() or ' ' in system_name:
+                    return jsonify({'error': 'System name must be lowercase with no spaces'}), 400
+                
+                # Check if system already exists
+                if system_name in current_systems_config:
+                    return jsonify({'error': 'System already exists'}), 400
+                
+                # Add new system to systems config
+                current_systems_config[system_name] = {
+                    'launchbox': launchbox_platform,
+                    'screenscraper': screenscraper_platform,
+                    'igdb': igdb_platform,
+                    'extensions': extensions
+                }
+                
+                # Save to systems.json
+                if not save_systems_config(current_systems_config):
+                    return jsonify({'error': 'Failed to save systems configuration'}), 500
+                
+                return jsonify({'success': True, 'message': 'System added successfully'})
         
         elif request.method == 'PUT':
             # Update existing system

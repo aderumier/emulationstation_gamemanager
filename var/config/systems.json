@@ -2678,5 +2678,11 @@
             ".7z",
             ".zip"
         ]
+    },
+    "toto": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "extensions": []
     }
 }

@@ -9590,7 +9590,201 @@ class GameCollectionManager {
         }
     }
     
+    async showAddMissingSystemsModal() {
+        try {
+            // Fetch missing systems
+            const response = await fetch('/api/systems/missing', {
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            
+            if (!data.success) {
+                this.showAlert(data.error || 'Failed to load missing systems', 'danger');
+                return;
+            }
+            
+            const missingSystems = data.missing_systems || [];
+            
+            if (missingSystems.length === 0) {
+                this.showAlert('No missing systems found. All systems in roms/ directory are already configured.', 'info');
+                return;
+            }
+            
+            // Create modal content
+            const modalHtml = `
+                <div class="modal fade" id="addMissingSystemsModal" tabindex="-1" aria-labelledby="addMissingSystemsModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="addMissingSystemsModalLabel">
+                                    <i class="bi bi-folder-plus me-2"></i>Add Missing Systems
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-muted mb-3">
+                                    The following systems were found in your <code>roms/</code> directory but are not configured yet:
+                                </p>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>
+                                                    <input type="checkbox" id="selectAllMissing" class="form-check-input">
+                                                </th>
+                                                <th>System Name</th>
+                                                <th>ROM Count</th>
+                                                <th>Path</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${missingSystems.map(system => `
+                                                <tr>
+                                                    <td>
+                                                        <input type="checkbox" class="form-check-input missing-system-checkbox" 
+                                                               value="${system.name}" data-rom-count="${system.rom_count}">
+                                                    </td>
+                                                    <td><strong>${system.name}</strong></td>
+                                                    <td>
+                                                        <span class="badge ${system.rom_count > 0 ? 'bg-success' : 'bg-secondary'}">
+                                                            ${system.rom_count} ROMs
+                                                        </span>
+                                                    </td>
+                                                    <td><code>${system.path}</code></td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="alert alert-info mt-3">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <strong>Note:</strong> Systems will be added with default empty configurations. 
+                                    You can configure LaunchBox, ScreenScraper, and IGDB mappings after adding them.
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-success" id="addSelectedMissingSystems">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Selected Systems
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if it exists
+            const existingModal = document.getElementById('addMissingSystemsModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to DOM
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('addMissingSystemsModal'));
+            modal.show();
+            
+            // Add event listeners
+            this.setupMissingSystemsModalEvents();
+            
+        } catch (error) {
+            console.error('Error showing add missing systems modal:', error);
+            this.showAlert('Error loading missing systems', 'danger');
+        }
+    }
+    
+    setupMissingSystemsModalEvents() {
+        // Select all checkbox
+        const selectAllCheckbox = document.getElementById('selectAllMissing');
+        const systemCheckboxes = document.querySelectorAll('.missing-system-checkbox');
+        
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                systemCheckboxes.forEach(checkbox => {
+                    checkbox.checked = e.target.checked;
+                });
+            });
+        }
+        
+        // Add selected systems button
+        const addSelectedBtn = document.getElementById('addSelectedMissingSystems');
+        if (addSelectedBtn) {
+            addSelectedBtn.addEventListener('click', () => {
+                this.addSelectedMissingSystems();
+            });
+        }
+        
+        // Update select all checkbox when individual checkboxes change
+        systemCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const checkedCount = document.querySelectorAll('.missing-system-checkbox:checked').length;
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = checkedCount === systemCheckboxes.length;
+                    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < systemCheckboxes.length;
+                }
+            });
+        });
+    }
+    
+    async addSelectedMissingSystems() {
+        const selectedCheckboxes = document.querySelectorAll('.missing-system-checkbox:checked');
+        const selectedSystems = Array.from(selectedCheckboxes).map(cb => cb.value);
+        
+        if (selectedSystems.length === 0) {
+            this.showAlert('Please select at least one system to add', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/systems', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    system_names: selectedSystems
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(data.message, 'success');
+                
+                // Show details if there were any failures
+                if (data.failed_systems && data.failed_systems.length > 0) {
+                    const failedDetails = data.failed_systems.map(f => `${f.name}: ${f.error}`).join(', ');
+                    this.showAlert(`Some systems failed to add: ${failedDetails}`, 'warning');
+                }
+                
+                // Close modal and refresh systems data
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addMissingSystemsModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                this.loadSystemsData();
+            } else {
+                this.showAlert(data.error || 'Failed to add systems', 'danger');
+            }
+        } catch (error) {
+            console.error('Error adding missing systems:', error);
+            this.showAlert('Error adding systems', 'danger');
+        }
+    }
+    
     initializeSystemsModal() {
+        // Add missing systems button
+        const addMissingSystemsBtn = document.getElementById('addMissingSystemsBtn');
+        if (addMissingSystemsBtn) {
+            addMissingSystemsBtn.addEventListener('click', () => {
+                this.showAddMissingSystemsModal();
+            });
+        }
+        
         // Add system button
         const addSystemBtn = document.getElementById('addSystemBtn');
         if (addSystemBtn) {
