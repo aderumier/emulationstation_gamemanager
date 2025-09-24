@@ -739,6 +739,57 @@ def get_gamelist_path(system_name):
     os.makedirs(gamelist_dir, exist_ok=True)
     return os.path.join(gamelist_dir, 'gamelist.xml')
 
+def get_roms_gamelist_path(system_name):
+    """Get the path to the gamelist.xml file in the ROMs directory for a system"""
+    return os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
+
+def ensure_gamelist_exists(system_name):
+    """Ensure gamelist.xml exists in var/gamelists, copy from ROMs if needed"""
+    var_gamelist_path = get_gamelist_path(system_name)
+    roms_gamelist_path = get_roms_gamelist_path(system_name)
+    
+    # If var gamelist doesn't exist but ROMs gamelist does, copy it
+    if not os.path.exists(var_gamelist_path) and os.path.exists(roms_gamelist_path):
+        try:
+            # Create the directory if it doesn't exist
+            os.makedirs(os.path.dirname(var_gamelist_path), exist_ok=True)
+            
+            # Copy the gamelist.xml from ROMs to var
+            shutil.copy2(roms_gamelist_path, var_gamelist_path)
+            print(f"📋 Copied gamelist.xml from ROMs to var for system: {system_name}")
+            return True
+        except Exception as e:
+            print(f"❌ Error copying gamelist.xml for {system_name}: {e}")
+            return False
+    
+    return True
+
+def sync_all_gamelists():
+    """Sync all gamelist.xml files from ROMs to var/gamelists if needed"""
+    print("🔄 Syncing gamelist.xml files from ROMs to var/gamelists...")
+    
+    synced_count = 0
+    error_count = 0
+    
+    try:
+        # Get all system directories in ROMs folder
+        for system_name in os.listdir(ROMS_FOLDER):
+            system_path = os.path.join(ROMS_FOLDER, system_name)
+            
+            # Only process directories
+            if os.path.isdir(system_path):
+                if ensure_gamelist_exists(system_name):
+                    synced_count += 1
+                else:
+                    error_count += 1
+        
+        print(f"✅ Gamelist sync completed: {synced_count} systems processed, {error_count} errors")
+        
+    except Exception as e:
+        print(f"❌ Error during gamelist sync: {e}")
+    
+    return synced_count, error_count
+
 
 def compare_gamelist_files(system_name):
     """Compare gamelist files between var/gamelists and roms directories"""
@@ -16396,6 +16447,9 @@ if __name__ == '__main__':
         print(f"✅ yt-dlp binary ready: {yt_dlp_path}")
     else:
         print("⚠️  yt-dlp binary not available, YouTube downloads may fail")
+    
+    # Sync gamelist.xml files from ROMs to var/gamelists
+    sync_all_gamelists()
     
     # Start server immediately, then load cache in background
     print("Starting server...")
