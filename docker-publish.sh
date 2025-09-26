@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 IMAGE_NAME="gamemanager"
-VERSION="1.6-1"
+VERSION="2.2.5-1"
 DOCKERHUB_USERNAME=""
 
 # Colors for output
