@@ -7576,14 +7576,13 @@ def upload_game_media(system_name):
         new_filename = create_media_filename(rom_path, file_extension)
         file_path = os.path.join(category_dir, new_filename)
         
-        # Check if file already exists and handle conflicts
-        counter = 1
-        original_file_path = file_path
-        while os.path.exists(file_path):
-            name_part = os.path.splitext(rom_filename)[0]
-            new_filename = f"{name_part}_{counter}{file_extension}"
-            file_path = os.path.join(category_dir, new_filename)
-            counter += 1
+        # Remove existing file if it exists (replace instead of creating _1 suffix)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                print(f"🗑️ Removed existing media file: {new_filename}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not remove existing file {file_path}: {e}")
         
         # Save the uploaded file
         file.save(file_path)
