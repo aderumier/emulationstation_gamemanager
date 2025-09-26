@@ -154,7 +154,7 @@
             ".ISO",
             ".CSO"
         ],
-        "launchbox": "Sony Playstation Portable",
+        "launchbox": "Sony PSP",
         "igdb": 38,
         "screenscraper": 61
     },
@@ -272,7 +272,7 @@
             ".MD",
             ".SMD"
         ],
-        "launchbox": "Sega Mega Drive",
+        "launchbox": "Sega Genesis",
         "igdb": 29,
         "screenscraper": 1
     },
@@ -449,7 +449,7 @@
             ".ISO",
             ".CUE"
         ],
-        "launchbox": "Amiga CD32",
+        "launchbox": "Commodore Amiga",
         "igdb": 114,
         "screenscraper": 130
     },
@@ -461,7 +461,7 @@
             ".TAP",
             ".m3u"
         ],
-        "launchbox": "Amstrad CPC",
+        "launchbox": "Commodore Amiga",
         "igdb": 25,
         "screenscraper": 65
     },
@@ -535,7 +535,7 @@
             ".MX1",
             ".MX2"
         ],
-        "launchbox": "MSX",
+        "launchbox": "Microsoft MSX",
         "igdb": 27,
         "screenscraper": 113
     },
@@ -548,7 +548,7 @@
             ".MX1",
             ".MX2"
         ],
-        "launchbox": "MSX2",
+        "launchbox": "Microsoft MSX2",
         "igdb": 53,
         "screenscraper": 116
     },
@@ -559,7 +559,7 @@
             ".PCE",
             ".CUE"
         ],
-        "launchbox": "TurboGrafx-16",
+        "launchbox": "NEC TurboGrafx-16",
         "igdb": 86,
         "screenscraper": 31
     },
@@ -570,7 +570,7 @@
             ".CUE",
             ".ISO"
         ],
-        "launchbox": "TurboGrafx-CD",
+        "launchbox": "NEC TurboGrafx-CD",
         "igdb": 150,
         "screenscraper": 114
     },
@@ -579,7 +579,7 @@
             ".zip",
             ".ZIP"
         ],
-        "launchbox": "SNK Neo Geo",
+        "launchbox": "SNK Neo Geo AES",
         "igdb": 79,
         "screenscraper": 142
     },
@@ -617,7 +617,7 @@
             ".ws",
             ".WS"
         ],
-        "launchbox": "Bandai WonderSwan",
+        "launchbox": "WonderSwan",
         "igdb": 57,
         "screenscraper": 45
     },
@@ -626,7 +626,7 @@
             ".wsc",
             ".WSC"
         ],
-        "launchbox": "Bandai WonderSwan Color",
+        "launchbox": "WonderSwan Color",
         "igdb": 123,
         "screenscraper": 46
     },
@@ -644,7 +644,7 @@
             ".mgw",
             ".MGW"
         ],
-        "launchbox": "Nintendo Game & Watch",
+        "launchbox": "Nintendo Game &amp; Watch",
         "igdb": 307,
         "screenscraper": 52
     },
@@ -653,7 +653,7 @@
             ".zip",
             ".ZIP"
         ],
-        "launchbox": "LCD Games",
+        "launchbox": "Nintendo Game &amp; Watch",
         "igdb": 52,
         "screenscraper": 52
     },
@@ -667,7 +667,7 @@
         "screenscraper": 75
     },
     "c16": {
-        "launchbox": "",
+        "launchbox": "Commodore VIC-20",
         "screenscraper": 73,
         "igdb": null,
         "extensions": [
@@ -680,7 +680,7 @@
         ]
     },
     "hikaru": {
-        "launchbox": "",
+        "launchbox": "Sega Hikaru",
         "screenscraper": 75,
         "igdb": null,
         "extensions": [
@@ -709,7 +709,7 @@
         ]
     },
     "typex": {
-        "launchbox": "",
+        "launchbox": "Taito Type X",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -742,7 +742,7 @@
         ]
     },
     "namco10": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
@@ -831,7 +831,7 @@
         ]
     },
     "pinballfx3": {
-        "launchbox": "",
+        "launchbox": "Pinball",
         "screenscraper": 201,
         "igdb": "",
         "extensions": [
@@ -839,7 +839,7 @@
         ]
     },
     "namco23": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
@@ -885,7 +885,7 @@
         ]
     },
     "saturnjp": {
-        "launchbox": "",
+        "launchbox": "Sea Saturn",
         "screenscraper": 22,
         "igdb": null,
         "extensions": [
@@ -951,7 +951,7 @@
         ]
     },
     "actionmax": {
-        "launchbox": "",
+        "launchbox": "WoW Action Max",
         "screenscraper": 81,
         "igdb": "",
         "extensions": [
@@ -1044,7 +1044,7 @@
         ]
     },
     "nesicax2": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -1084,7 +1084,7 @@
         ]
     },
     "segaer": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -1152,7 +1152,7 @@
         ]
     },
     "jupace": {
-        "launchbox": "",
+        "launchbox": "Jupiter Ace",
         "screenscraper": 126,
         "igdb": null,
         "extensions": [
@@ -1195,7 +1195,7 @@
         ]
     },
     "amiga3000": {
-        "launchbox": "",
+        "launchbox": "Commodore Amiga",
         "screenscraper": 111,
         "igdb": null,
         "extensions": [
@@ -1213,7 +1213,7 @@
         ]
     },
     "genh": {
-        "launchbox": "",
+        "launchbox": "Sega Genesis",
         "screenscraper": 1,
         "igdb": null,
         "extensions": [
@@ -1237,7 +1237,7 @@
         ]
     },
     "triforce": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": null,
         "extensions": [
@@ -1252,7 +1252,7 @@
         ]
     },
     "cave3rd": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 47,
         "igdb": null,
         "extensions": [
@@ -1293,7 +1293,7 @@
         ]
     },
     "snescd": {
-        "launchbox": "",
+        "launchbox": "Super Nintendo Entertainment System",
         "screenscraper": 210,
         "igdb": null,
         "extensions": [
@@ -1310,7 +1310,7 @@
         ]
     },
     "ngage": {
-        "launchbox": "",
+        "launchbox": "Nokia N-Gage",
         "screenscraper": 30,
         "igdb": null,
         "extensions": [
@@ -1349,7 +1349,7 @@
         ]
     },
     "dreamcastjp": {
-        "launchbox": "",
+        "launchbox": "Sega Dreamcast",
         "screenscraper": 23,
         "igdb": null,
         "extensions": [
@@ -1382,7 +1382,7 @@
         ]
     },
     "cps3": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 8,
         "igdb": null,
         "extensions": [
@@ -1391,7 +1391,7 @@
         ]
     },
     "gaelco": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 194,
         "igdb": null,
         "extensions": [
@@ -1400,7 +1400,7 @@
         ]
     },
     "chihiro": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": null,
         "extensions": [
@@ -1433,7 +1433,7 @@
         ]
     },
     "exl100": {
-        "launchbox": "",
+        "launchbox": "Exelvision EXL 100",
         "screenscraper": 96,
         "igdb": null,
         "extensions": [
@@ -1462,7 +1462,7 @@
         ]
     },
     "unis": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -1480,7 +1480,7 @@
         ]
     },
     "pspminis": {
-        "launchbox": "",
+        "launchbox": "Sony PSP Minis",
         "screenscraper": 61,
         "igdb": null,
         "extensions": [
@@ -1501,7 +1501,7 @@
         ]
     },
     "model1": {
-        "launchbox": "",
+        "launchbox": "Sega Model 1",
         "screenscraper": null,
         "igdb": null,
         "extensions": [
@@ -1519,7 +1519,7 @@
         ]
     },
     "pinballfx2": {
-        "launchbox": "",
+        "launchbox": "Pinball",
         "screenscraper": 143,
         "igdb": "",
         "extensions": [
@@ -1535,7 +1535,7 @@
         ]
     },
     "tgcd": {
-        "launchbox": "",
+        "launchbox": "NEC TurboGrafx-CD",
         "screenscraper": 114,
         "igdb": null,
         "extensions": [
@@ -1548,7 +1548,7 @@
         ]
     },
     "palm": {
-        "launchbox": "",
+        "launchbox": "219",
         "screenscraper": 219,
         "igdb": null,
         "extensions": [
@@ -1581,7 +1581,7 @@
         ]
     },
     "konamipc": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": null,
         "igdb": null,
         "extensions": [
@@ -1591,7 +1591,7 @@
         ]
     },
     "neogeo64": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 142,
         "igdb": "",
         "extensions": [
@@ -1600,7 +1600,7 @@
         ]
     },
     "tg16": {
-        "launchbox": "",
+        "launchbox": "NEC TurboGrafx-16",
         "screenscraper": 31,
         "igdb": null,
         "extensions": [
@@ -1631,7 +1631,7 @@
         ]
     },
     "segastv": {
-        "launchbox": "",
+        "launchbox": "Sega ST-V",
         "screenscraper": "",
         "igdb": "",
         "extensions": [
@@ -1684,7 +1684,7 @@
         ]
     },
     "android": {
-        "launchbox": "",
+        "launchbox": "Android",
         "screenscraper": 63,
         "igdb": null,
         "extensions": [
@@ -1732,7 +1732,7 @@
         ]
     },
     "rawthrills": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
@@ -1758,7 +1758,7 @@
         ]
     },
     "namco11": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
@@ -1809,7 +1809,7 @@
         ]
     },
     "famicom": {
-        "launchbox": "",
+        "launchbox": "Nintendo Entertainment System",
         "screenscraper": 3,
         "igdb": null,
         "extensions": [
@@ -1903,7 +1903,7 @@
         ]
     },
     "sfc": {
-        "launchbox": "",
+        "launchbox": "Super Nintendo Entertainment System",
         "screenscraper": 4,
         "igdb": null,
         "extensions": [
@@ -1930,7 +1930,7 @@
         ]
     },
     "namco12": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
@@ -1939,7 +1939,7 @@
         ]
     },
     "megacd": {
-        "launchbox": "",
+        "launchbox": "Sega CD",
         "screenscraper": 20,
         "igdb": null,
         "extensions": [
@@ -1961,7 +1961,7 @@
         ]
     },
     "igspgm": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 176,
         "igdb": null,
         "extensions": [
@@ -2014,7 +2014,7 @@
         ]
     },
     "n64h": {
-        "launchbox": "",
+        "launchbox": "Nintendo 64",
         "screenscraper": 14,
         "igdb": null,
         "extensions": [
@@ -2058,7 +2058,7 @@
         ]
     },
     "p2000t": {
-        "launchbox": "",
+        "launchbox": "287",
         "screenscraper": 287,
         "igdb": null,
         "extensions": [
@@ -2168,7 +2168,7 @@
         ]
     },
     "sc3000": {
-        "launchbox": "",
+        "launchbox": "Sega SC-3000",
         "screenscraper": null,
         "igdb": null,
         "extensions": [
@@ -2190,7 +2190,7 @@
         ]
     },
     "segaalls": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -2200,7 +2200,7 @@
         ]
     },
     "pinballfx": {
-        "launchbox": "",
+        "launchbox": "Pinball",
         "screenscraper": 143,
         "igdb": "",
         "extensions": [
@@ -2259,7 +2259,7 @@
         ]
     },
     "nesicax": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -2300,7 +2300,7 @@
         ]
     },
     "videopac": {
-        "launchbox": "",
+        "launchbox": "Philips VG 5000",
         "screenscraper": 104,
         "igdb": null,
         "extensions": [
@@ -2325,7 +2325,7 @@
         ]
     },
     "segarw": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -2335,7 +2335,7 @@
         ]
     },
     "amiga600": {
-        "launchbox": "",
+        "launchbox": "Commodore Amiga",
         "screenscraper": 64,
         "igdb": null,
         "extensions": [
@@ -2362,7 +2362,7 @@
         ]
     },
     "amiga4000": {
-        "launchbox": "",
+        "launchbox": "Commodore Amiga",
         "screenscraper": 111,
         "igdb": null,
         "extensions": [
@@ -2380,7 +2380,7 @@
         ]
     },
     "typex2": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -2390,7 +2390,7 @@
         ]
     },
     "vg5k": {
-        "launchbox": "",
+        "launchbox": "Philips VG 5000",
         "screenscraper": 261,
         "igdb": null,
         "extensions": [
@@ -2401,7 +2401,7 @@
         ]
     },
     "zinc": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
@@ -2508,7 +2508,7 @@
         ]
     },
     "segare": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -2535,7 +2535,7 @@
         ]
     },
     "cps2": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 7,
         "igdb": null,
         "extensions": [
@@ -2544,7 +2544,7 @@
         ]
     },
     "namco22": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
@@ -2581,7 +2581,7 @@
         ]
     },
     "n64jp": {
-        "launchbox": "",
+        "launchbox": "Nintendo 64",
         "screenscraper": 14,
         "igdb": null,
         "extensions": [
@@ -2617,7 +2617,7 @@
         ]
     },
     "dragon32": {
-        "launchbox": "",
+        "launchbox": "Dragon 32/64",
         "screenscraper": 91,
         "igdb": null,
         "extensions": [
@@ -2669,7 +2669,7 @@
         ]
     },
     "pv2000": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 48,
         "igdb": null,
         "extensions": [
