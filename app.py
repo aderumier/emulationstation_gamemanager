@@ -876,6 +876,8 @@ def save_gamelist_to_roms(system_name):
             backup_path = f"{roms_gamelist_path}.backup.{int(time.time())}"
             shutil.copy2(roms_gamelist_path, backup_path)
             print(f"Created backup: {backup_path}")
+            # Clean up old backups, keeping only the last 10
+            cleanup_old_backups(roms_gamelist_path, max_backups=10)
         
         # Copy the gamelist
         shutil.copy2(gamelist_path, roms_gamelist_path)
@@ -1100,6 +1102,8 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                 try:
                     backup_path = f"{gamelist_path}.backup.{int(time.time())}"
                     shutil.copy2(gamelist_path, backup_path)
+                    # Clean up old backups, keeping only the last 10
+                    cleanup_old_backups(gamelist_path, max_backups=10)
                 except Exception:
                     pass
                 write_gamelist_xml(original_games, gamelist_path)
@@ -1219,6 +1223,8 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     try:
         backup_path = f"{gamelist_path}.backup.{int(time.time())}"
         shutil.copy2(gamelist_path, backup_path)
+        # Clean up old backups, keeping only the last 10
+        cleanup_old_backups(gamelist_path, max_backups=10)
     except Exception:
         pass
     try:
@@ -2076,6 +2082,44 @@ def cleanup_temp_files():
             
     except Exception as e:
         print(f"❌ Error during temp file cleanup: {e}")
+
+def cleanup_old_backups(file_path, max_backups=10):
+    """Clean up old backup files, keeping only the last max_backups files"""
+    try:
+        if not os.path.exists(file_path):
+            return
+        
+        # Get directory and base filename
+        directory = os.path.dirname(file_path)
+        base_filename = os.path.basename(file_path)
+        
+        # Find all backup files for this gamelist
+        backup_files = []
+        for filename in os.listdir(directory):
+            if filename.startswith(base_filename + '.backup.'):
+                backup_path = os.path.join(directory, filename)
+                if os.path.isfile(backup_path):
+                    # Get file modification time for sorting
+                    mtime = os.path.getmtime(backup_path)
+                    backup_files.append((mtime, backup_path))
+        
+        # Sort by modification time (oldest first)
+        backup_files.sort(key=lambda x: x[0])
+        
+        # Remove old backups if we have more than max_backups
+        if len(backup_files) > max_backups:
+            files_to_remove = backup_files[:-max_backups]  # Keep the last max_backups files
+            for _, backup_path in files_to_remove:
+                try:
+                    os.remove(backup_path)
+                    print(f"🗑️ Removed old backup: {os.path.basename(backup_path)}")
+                except Exception as e:
+                    print(f"❌ Error removing old backup {backup_path}: {e}")
+            
+            print(f"✅ Cleaned up {len(files_to_remove)} old backup files, kept {max_backups} most recent")
+        
+    except Exception as e:
+        print(f"❌ Error during backup cleanup for {file_path}: {e}")
 
 def create_media_filename(rom_path, media_extension):
     """
@@ -6870,37 +6914,46 @@ def scan_media_files(system_name):
             if none_fields:
                 task.update_progress(f"Converted None to empty string for fields in '{game.get('name', 'Unknown')}': {', '.join(none_fields)}")
             
-            # Check each media field
+            # First, validate existing media fields and clean up broken references
             for gamelist_field, field_data in media_fields.items():
-                media_type = field_data['directory']
-                media_dir = os.path.join(system_path, 'media', media_type)
-                
-                # Look for media files with matching name
-                found_media = None
-                if os.path.exists(media_dir):
-                    for ext in field_data.get('extensions', []):
-                        media_filename = create_media_filename(rom_path, ext)
-                        media_file = os.path.join(media_dir, media_filename)
-                        if os.path.exists(media_file):
-                            found_media = f'./media/{media_type}/{media_filename}'
-                            break
-                
-                # Update gamelist field - only update if the path actually changes
                 current_media = game.get(gamelist_field, '')
-                if found_media:
-                    # Only update if the media path is different from current
-                    if current_media != found_media:
+                if current_media:
+                    # Check if the existing media file still exists
+                    if current_media.startswith('./media/'):
+                        # Extract the relative path and check if file exists
+                        relative_path = current_media[2:]  # Remove './'
+                        full_path = os.path.join(system_path, relative_path)
+                        if not os.path.exists(full_path):
+                            # Media file doesn't exist, remove the reference
+                            game[gamelist_field] = ''
+                            game_updated = True
+                            removed_media += 1
+                            task.update_progress(f"Removed broken {gamelist_field} for '{game.get('name', 'Unknown')}': {current_media}")
+            
+            # Then, only add new media if the field is currently empty
+            for gamelist_field, field_data in media_fields.items():
+                current_media = game.get(gamelist_field, '')
+                
+                # Only look for new media if the field is empty
+                if not current_media:
+                    media_type = field_data['directory']
+                    media_dir = os.path.join(system_path, 'media', media_type)
+                    
+                    # Look for media files with matching name
+                    found_media = None
+                    if os.path.exists(media_dir):
+                        for ext in field_data.get('extensions', []):
+                            media_filename = create_media_filename(rom_path, ext)
+                            media_file = os.path.join(media_dir, media_filename)
+                            if os.path.exists(media_file):
+                                found_media = f'./media/{media_type}/{media_filename}'
+                                break
+                    
+                    # Only add new media if field is empty and we found media
+                    if found_media:
                         game[gamelist_field] = found_media
                         game_updated = True
-                        # Always log media updates, regardless of game number
-                        task.update_progress(f"Updated {gamelist_field} for '{game.get('name', 'Unknown')}': {found_media}")
-                elif current_media:
-                    # Remove media reference if file doesn't exist (regardless of whether directory exists)
-                    game[gamelist_field] = ''  # Set to empty string to preserve the field
-                    game_updated = True
-                    removed_media += 1
-                    # Always log media removals, regardless of game number
-                    task.update_progress(f"Removed {gamelist_field} for '{game.get('name', 'Unknown')}': {current_media}")
+                        task.update_progress(f"Added {gamelist_field} for '{game.get('name', 'Unknown')}': {found_media}")
             
             # Also check for orphaned media entries that might not be in the media_fields
             # This handles cases where the gamelist has media fields that aren't in the current config
@@ -6996,6 +7049,8 @@ def save_gamelist_xml(file_path, games):
             import shutil
             shutil.copy2(file_path, backup_path)
             print(f"Created backup: {backup_path}")
+            # Clean up old backups, keeping only the last 10
+            cleanup_old_backups(file_path, max_backups=10)
         
         # Save the file with proper formatting
         # First write to a temporary string to get the raw XML
@@ -7060,6 +7115,8 @@ def save_formatted_gamelist_xml(tree, gamelist_path):
             import shutil
             shutil.copy2(gamelist_path, backup_path)
             print(f"Created backup: {backup_path}")
+            # Clean up old backups, keeping only the last 10
+            cleanup_old_backups(gamelist_path, max_backups=10)
         
         # Write to a temporary string to get the raw XML
         import io
@@ -7300,6 +7357,8 @@ def update_metadata_endpoint():
             if os.path.exists(metadata_path):
                 backup_path = f"{metadata_path}.backup.{int(time.time())}"
                 shutil.copy2(metadata_path, backup_path)
+                # Clean up old backups, keeping only the last 10
+                cleanup_old_backups(metadata_path, max_backups=10)
             
             # Copy the new metadata file
             shutil.copy2(extracted_metadata, metadata_path)
