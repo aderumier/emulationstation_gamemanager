@@ -1,8 +1,10 @@
 {
     "mame": {
         "extensions": [
-            ".zip",
-            ".7z"
+            ".7Z",
+            ".7z",
+            ".ZIP",
+            ".zip"
         ],
         "launchbox": "Arcade",
         "igdb": 52,
@@ -10,9 +12,10 @@
     },
     "nes": {
         "extensions": [
+            ".7z",
+            ".NES",
             ".nes",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo Entertainment System",
         "igdb": 18,
@@ -20,18 +23,20 @@
     },
     "snes": {
         "extensions": [
-            ".smc",
-            ".sfc",
-            ".mgd",
-            ".zip",
             ".7z",
+            ".SFC",
+            ".SMC",
+            ".bsx",
+            ".dx2",
             ".fig",
             ".gd3",
             ".gd7",
-            ".dx2",
-            ".bsx",
+            ".mgd",
+            ".rom",
+            ".sfc",
+            ".smc",
             ".swc",
-            ".rom"
+            ".zip"
         ],
         "launchbox": "Super Nintendo Entertainment System",
         "igdb": 19,
@@ -42,24 +47,25 @@
         "screenscraper": 138,
         "igdb": 6,
         "extensions": [
-            ".plus",
-            ".wine",
-            ".pc",
+            ".bat",
+            ".cmd",
             ".exe",
-            ".wsquashfs",
-            ".wtgz",
             ".lnk",
+            ".pc",
+            ".plus",
             ".win",
             ".windows",
-            ".cmd",
-            ".bat"
+            ".wine",
+            ".wsquashfs",
+            ".wtgz"
         ]
     },
     "gba": {
         "extensions": [
-            ".zip",
+            ".7z",
+            ".GBA2",
             ".gba",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo Game Boy Advance",
         "igdb": 24,
@@ -67,10 +73,11 @@
     },
     "gbc": {
         "extensions": [
+            ".7z",
+            ".GBC",
             ".gb",
             ".gbc",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo Game Boy Color",
         "igdb": 22,
@@ -78,9 +85,10 @@
     },
     "gb": {
         "extensions": [
-            ".zip",
+            ".7z",
+            ".GB",
             ".gb",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo Game Boy",
         "igdb": 33,
@@ -88,14 +96,17 @@
     },
     "n64": {
         "extensions": [
+            ".7z",
+            ".N64",
+            ".V64",
+            ".Z64",
+            ".bin",
             ".n64",
+            ".ndd",
+            ".u1",
             ".v64",
             ".z64",
-            ".bin",
-            ".u1",
-            ".ndd",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo 64",
         "igdb": 4,
@@ -103,17 +114,25 @@
     },
     "psx": {
         "extensions": [
-            ".iso",
-            ".img",
-            ".pbp",
-            ".cue",
-            ".ccd",
+            ".7z",
+            ".BIN",
+            ".CUE",
+            ".IMG",
+            ".ISO",
+            ".MDF",
+            ".MDS",
+            ".bin",
             ".cbn",
-            ".m3u",
+            ".ccd",
             ".chd",
+            ".cue",
+            ".img",
+            ".iso",
+            ".m3u",
             ".mdf",
-            ".zip",
-            ".7z"
+            ".mds",
+            ".pbp",
+            ".zip"
         ],
         "launchbox": "Sony Playstation",
         "igdb": 7,
@@ -121,19 +140,26 @@
     },
     "ps2": {
         "extensions": [
-            ".iso",
-            ".img",
-            ".pbp",
-            ".cue",
-            ".ccd",
+            ".BIN",
+            ".CUE",
+            ".IMG",
+            ".ISO",
+            ".MDF",
+            ".MDS",
             ".bin",
-            ".mdf",
+            ".ccd",
+            ".chd",
             ".cso",
-            ".ima",
-            ".nrg",
+            ".cue",
             ".dump",
             ".gz",
-            ".chd"
+            ".ima",
+            ".img",
+            ".iso",
+            ".mdf",
+            ".mds",
+            ".nrg",
+            ".pbp"
         ],
         "launchbox": "Sony Playstation 2",
         "igdb": 8,
@@ -141,22 +167,25 @@
     },
     "ps3": {
         "extensions": [
-            ".iso",
-            ".img",
-            ".pbp",
-            ".cue",
-            ".ccd",
+            ".ISO",
+            ".PKG",
             ".bin",
-            ".mdf",
+            ".ccd",
             ".cso",
-            ".ima",
-            ".nrg",
+            ".cue",
             ".dump",
             ".gz",
+            ".ima",
+            ".img",
+            ".iso",
+            ".m3u",
+            ".mdf",
+            ".nrg",
+            ".pbp",
+            ".pkg",
             ".ps3",
             ".psn",
-            ".squashfs",
-            ".m3u"
+            ".squashfs"
         ],
         "launchbox": "Sony Playstation 3",
         "igdb": 9,
@@ -164,22 +193,24 @@
     },
     "ps4": {
         "extensions": [
-            ".iso",
-            ".img",
-            ".pbp",
-            ".cue",
-            ".ccd",
+            ".PKG",
             ".bin",
-            ".mdf",
+            ".ccd",
             ".cso",
-            ".ima",
-            ".nrg",
+            ".cue",
             ".dump",
             ".gz",
+            ".ima",
+            ".img",
+            ".iso",
+            ".m3u",
+            ".mdf",
+            ".nrg",
+            ".pbp",
+            ".pkg",
             ".ps4",
             ".psn",
-            ".squashfs",
-            ".m3u"
+            ".squashfs"
         ],
         "launchbox": "Sony Playstation 4",
         "igdb": 48,
@@ -196,11 +227,13 @@
     },
     "psp": {
         "extensions": [
+            ".CSO",
+            ".ISO",
+            ".chd",
             ".cso",
+            ".elf",
             ".iso",
             ".pbp",
-            ".chd",
-            ".elf",
             ".prx"
         ],
         "launchbox": "Sony PSP",
@@ -209,8 +242,9 @@
     },
     "psvita": {
         "extensions": [
-            ".zip",
-            ".vpk"
+            ".VPK",
+            ".vpk",
+            ".zip"
         ],
         "launchbox": "Sony Playstation Vita",
         "igdb": 46,
@@ -218,9 +252,11 @@
     },
     "xbox": {
         "extensions": [
+            ".ISO",
+            ".XBE",
             ".iso",
-            ".xbe",
-            ".squashfs"
+            ".squashfs",
+            ".xbe"
         ],
         "launchbox": "Microsoft Xbox",
         "igdb": 11,
@@ -228,12 +264,14 @@
     },
     "xbox360": {
         "extensions": [
+            ".ISO",
+            ".XEX",
             ".iso",
-            ".xex",
+            ".m3u",
+            ".squashfs",
             ".x360",
             ".xcp",
-            ".m3u",
-            ".squashfs"
+            ".xex"
         ],
         "launchbox": "Microsoft Xbox 360",
         "igdb": 12,
@@ -267,13 +305,16 @@
     },
     "wii": {
         "extensions": [
-            ".iso",
-            ".wbfs",
-            ".wad",
-            ".rvz",
-            ".gcz",
+            ".CISO",
+            ".ISO",
+            ".WBFS",
             ".ciso",
-            ".cso"
+            ".cso",
+            ".gcz",
+            ".iso",
+            ".rvz",
+            ".wad",
+            ".wbfs"
         ],
         "launchbox": "Nintendo Wii",
         "igdb": 5,
@@ -281,16 +322,18 @@
     },
     "wiiu": {
         "extensions": [
-            ".wud",
-            ".wux",
-            ".iso",
-            ".wad",
-            ".rpx",
+            ".WUD",
+            ".WUX",
             ".elf",
-            ".wup",
-            ".squashfs",
+            ".iso",
             ".m3u",
-            ".wua"
+            ".rpx",
+            ".squashfs",
+            ".wad",
+            ".wua",
+            ".wud",
+            ".wup",
+            ".wux"
         ],
         "launchbox": "Nintendo Wii U",
         "igdb": 41,
@@ -298,12 +341,14 @@
     },
     "switch": {
         "extensions": [
-            ".nso",
-            ".nro",
+            ".NSP",
+            ".XCI",
+            ".kip",
             ".nca",
-            ".xci",
+            ".nro",
+            ".nso",
             ".nsp",
-            ".kip"
+            ".xci"
         ],
         "launchbox": "Nintendo Switch",
         "igdb": 130,
@@ -311,12 +356,15 @@
     },
     "genesis": {
         "extensions": [
+            ".7z",
+            ".GEN",
+            ".MD",
+            ".SMD",
+            ".bin",
             ".gen",
             ".md",
             ".smd",
-            ".bin",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Sega Genesis",
         "igdb": 29,
@@ -326,6 +374,10 @@
         "extensions": [
             ".32x",
             ".68k",
+            ".7z",
+            ".GEN",
+            ".MD",
+            ".SMD",
             ".bin",
             ".bms",
             ".chd",
@@ -340,7 +392,6 @@
             ".sgd",
             ".smd",
             ".sms",
-            ".7z",
             ".zip"
         ],
         "launchbox": "Sega Genesis",
@@ -349,17 +400,21 @@
     },
     "saturn": {
         "extensions": [
-            ".cue",
-            ".toc",
-            ".m3u",
+            ".7z",
+            ".BIN",
+            ".CUE",
+            ".ISO",
+            ".bin",
             ".ccd",
             ".chd",
-            ".iso",
-            ".mds",
-            ".zip",
-            ".7z",
             ".cso",
-            ".mdf"
+            ".cue",
+            ".iso",
+            ".m3u",
+            ".mdf",
+            ".mds",
+            ".toc",
+            ".zip"
         ],
         "launchbox": "Sega Saturn",
         "igdb": 32,
@@ -367,13 +422,17 @@
     },
     "dreamcast": {
         "extensions": [
-            ".gdi",
+            ".CDI",
+            ".GDI",
+            ".ISO",
             ".cdi",
             ".chd",
+            ".cue",
+            ".gdi",
+            ".iso",
             ".m3u",
-            ".mds",
             ".mdf",
-            ".cue"
+            ".mds"
         ],
         "launchbox": "Sega Dreamcast",
         "igdb": 23,
@@ -381,10 +440,11 @@
     },
     "gamegear": {
         "extensions": [
-            ".gg",
-            ".zip",
             ".7z",
-            ".bin"
+            ".GG",
+            ".bin",
+            ".gg",
+            ".zip"
         ],
         "launchbox": "Sega Game Gear",
         "igdb": 35,
@@ -392,10 +452,11 @@
     },
     "mastersystem": {
         "extensions": [
-            ".sms",
-            ".zip",
             ".7z",
-            ".bin"
+            ".SMS",
+            ".bin",
+            ".sms",
+            ".zip"
         ],
         "launchbox": "Sega Master System",
         "igdb": 64,
@@ -403,8 +464,10 @@
     },
     "sega32x": {
         "extensions": [
+            ".32X",
             ".32x",
             ".68k",
+            ".7z",
             ".bin",
             ".bms",
             ".chd",
@@ -419,7 +482,6 @@
             ".sgd",
             ".smd",
             ".sms",
-            ".7z",
             ".zip"
         ],
         "launchbox": "Sega 32X",
@@ -429,6 +491,10 @@
     "segaCD": {
         "extensions": [
             ".68k",
+            ".7z",
+            ".BIN",
+            ".CUE",
+            ".ISO",
             ".bin",
             ".bms",
             ".chd",
@@ -443,7 +509,6 @@
             ".sgd",
             ".smd",
             ".sms",
-            ".7z",
             ".zip"
         ],
         "launchbox": "Sega CD",
@@ -452,11 +517,13 @@
     },
     "atari2600": {
         "extensions": [
+            ".7z",
+            ".A26",
+            ".BIN",
             ".a26",
             ".bin",
-            ".zip",
-            ".7z",
-            ".rom"
+            ".rom",
+            ".zip"
         ],
         "launchbox": "Atari 2600",
         "igdb": 59,
@@ -464,16 +531,18 @@
     },
     "atari5200": {
         "extensions": [
-            ".xfd",
+            ".A52",
+            ".BIN",
+            ".a52",
             ".atr",
             ".atx",
-            ".cdm",
-            ".cas",
             ".bin",
-            ".a52",
+            ".cas",
+            ".cdm",
+            ".rom",
             ".xex",
-            ".zip",
-            ".rom"
+            ".xfd",
+            ".zip"
         ],
         "launchbox": "Atari 5200",
         "igdb": 66,
@@ -481,10 +550,12 @@
     },
     "atari7800": {
         "extensions": [
+            ".7z",
+            ".A78",
+            ".BIN",
             ".a78",
             ".bin",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Atari 7800",
         "igdb": 60,
@@ -492,15 +563,17 @@
     },
     "atarijaguar": {
         "extensions": [
+            ".7z",
+            ".J64",
+            ".JAG",
+            ".abs",
+            ".bin",
+            ".cof",
             ".j64",
             ".jag",
-            ".rom",
-            ".abs",
-            ".cof",
-            ".bin",
             ".prg",
-            ".zip",
-            ".7z"
+            ".rom",
+            ".zip"
         ],
         "launchbox": "Atari Jaguar",
         "igdb": 62,
@@ -508,9 +581,10 @@
     },
     "atarilynx": {
         "extensions": [
+            ".7z",
+            ".LNX",
             ".lnx",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Atari Lynx",
         "igdb": 61,
@@ -521,20 +595,22 @@
         "screenscraper": 102,
         "igdb": 70,
         "extensions": [
-            ".vec",
-            ".zip",
-            ".bin",
             ".7z",
-            ".gam"
+            ".VEC",
+            ".bin",
+            ".gam",
+            ".vec",
+            ".zip"
         ]
     },
     "intellivision": {
         "extensions": [
+            ".7z",
+            ".INT",
+            ".bin",
             ".int",
             ".rom",
-            ".bin",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Mattel Intellivision",
         "igdb": 67,
@@ -542,9 +618,10 @@
     },
     "colecovision": {
         "extensions": [
+            ".COL",
             ".col",
-            ".zip",
-            ".rom"
+            ".rom",
+            ".zip"
         ],
         "launchbox": "ColecoVision",
         "igdb": 68,
@@ -552,9 +629,11 @@
     },
     "odyssey2": {
         "extensions": [
+            ".7z",
+            ".O2",
             ".bin",
-            ".zip",
-            ".7z"
+            ".o2",
+            ".zip"
         ],
         "launchbox": "Magnavox Odyssey 2",
         "igdb": 133,
@@ -565,34 +644,38 @@
         "screenscraper": 29,
         "igdb": 50,
         "extensions": [
-            ".iso",
-            ".cue",
+            ".CUE",
+            ".ISO",
             ".chd",
+            ".cue",
+            ".iso",
             ".m3u"
         ]
     },
     "amigacd32": {
         "extensions": [
-            ".iso",
-            ".bin",
+            ".CUE",
+            ".ISO",
             ".adf",
-            ".uae",
-            ".lha",
-            ".zip",
-            ".ipf",
-            ".dms",
-            ".mds",
             ".adz",
-            ".rp9",
-            ".fdi",
+            ".bin",
+            ".ccd",
+            ".chd",
             ".cso",
             ".cue",
-            ".ccd",
-            ".nrg",
+            ".dms",
+            ".fdi",
             ".hdf",
             ".hdz",
+            ".ipf",
+            ".iso",
+            ".lha",
             ".m3u",
-            ".chd"
+            ".mds",
+            ".nrg",
+            ".rp9",
+            ".uae",
+            ".zip"
         ],
         "launchbox": "Commodore Amiga",
         "igdb": 114,
@@ -600,16 +683,19 @@
     },
     "amstradcpc": {
         "extensions": [
-            ".dsk",
-            ".zip",
-            ".cpc",
+            ".7z",
+            ".DSK",
+            ".TAP",
             ".cdt",
+            ".cpc",
+            ".dsk",
             ".kcr",
-            ".sna",
-            "tap",
-            ".voc",
             ".m3u",
-            ".7z"
+            ".sna",
+            ".tap",
+            ".voc",
+            ".zip",
+            "tap"
         ],
         "launchbox": "Commodore Amiga",
         "igdb": 25,
@@ -617,11 +703,14 @@
     },
     "apple2": {
         "extensions": [
-            ".nib",
+            ".DO",
+            ".DSK",
+            ".PO",
             ".do",
-            ".po",
             ".dsk",
-            ".m3u"
+            ".m3u",
+            ".nib",
+            ".po"
         ],
         "launchbox": "Apple II",
         "igdb": 75,
@@ -655,14 +744,16 @@
     },
     "amiga": {
         "extensions": [
+            ".ADF",
+            ".IPF",
             ".adf",
-            ".uae",
-            ".lha",
-            ".zip",
-            ".ipf",
+            ".adz",
             ".dms",
+            ".ipf",
+            ".lha",
             ".mds",
-            ".adz"
+            ".uae",
+            ".zip"
         ],
         "launchbox": "Commodore Amiga",
         "igdb": 16,
@@ -670,15 +761,17 @@
     },
     "atarist": {
         "extensions": [
-            ".st",
-            ".stx",
-            ".ipf",
-            ".zip",
             ".7z",
+            ".MSA",
+            ".ST",
+            ".dim",
+            ".hd",
+            ".ipf",
             ".m3u",
             ".msa",
-            ".dim",
-            ".hd"
+            ".st",
+            ".stx",
+            ".zip"
         ],
         "launchbox": "Atari ST",
         "igdb": 63,
@@ -686,14 +779,17 @@
     },
     "msx": {
         "extensions": [
-            ".rom",
+            ".7z",
+            ".MX1",
+            ".MX2",
+            ".ROM",
+            ".cas",
+            ".dsk",
+            ".m3u",
             ".mx1",
             ".mx2",
-            ".dsk",
-            ".cas",
-            ".m3u",
-            ".zip",
-            ".7z"
+            ".rom",
+            ".zip"
         ],
         "launchbox": "Microsoft MSX",
         "igdb": 27,
@@ -701,14 +797,17 @@
     },
     "msx2": {
         "extensions": [
-            ".rom",
+            ".7z",
+            ".MX1",
+            ".MX2",
+            ".ROM",
+            ".cas",
+            ".dsk",
+            ".m3u",
             ".mx1",
             ".mx2",
-            ".dsk",
-            ".cas",
-            ".m3u",
-            ".zip",
-            ".7z"
+            ".rom",
+            ".zip"
         ],
         "launchbox": "Microsoft MSX2",
         "igdb": 53,
@@ -716,12 +815,14 @@
     },
     "pcengine": {
         "extensions": [
-            ".pce",
-            ".cue",
+            ".7z",
+            ".CUE",
+            ".PCE",
             ".ccd",
+            ".cue",
+            ".pce",
             ".sgx",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "NEC TurboGrafx-16",
         "igdb": 86,
@@ -729,15 +830,17 @@
     },
     "pcenginecd": {
         "extensions": [
-            ".cue",
+            ".7z",
+            ".CUE",
+            ".ISO",
             ".ccd",
             ".chd",
-            ".pce",
-            ".iso",
             ".cso",
+            ".cue",
             ".img",
-            ".zip",
-            ".7z"
+            ".iso",
+            ".pce",
+            ".zip"
         ],
         "launchbox": "NEC TurboGrafx-CD",
         "igdb": 150,
@@ -745,8 +848,9 @@
     },
     "neogeo": {
         "extensions": [
-            ".zip",
-            ".7z"
+            ".7z",
+            ".ZIP",
+            ".zip"
         ],
         "launchbox": "SNK Neo Geo AES",
         "igdb": 79,
@@ -754,11 +858,13 @@
     },
     "neogeocd": {
         "extensions": [
+            ".CUE",
+            ".ISO",
+            ".chd",
+            ".cso",
             ".cue",
             ".iso",
-            ".chd",
-            ".m3u",
-            ".cso"
+            ".m3u"
         ],
         "launchbox": "SNK Neo Geo CD",
         "igdb": 136,
@@ -784,9 +890,10 @@
     },
     "wonderswan": {
         "extensions": [
+            ".7z",
+            ".WS",
             ".ws",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "WonderSwan",
         "igdb": 57,
@@ -794,9 +901,10 @@
     },
     "wonderswancolor": {
         "extensions": [
+            ".7z",
+            ".WSC",
             ".wsc",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "WonderSwan Color",
         "igdb": 123,
@@ -804,11 +912,12 @@
     },
     "virtualboy": {
         "extensions": [
+            ".7z",
+            ".VB",
+            ".bin",
             ".vb",
             ".vboy",
-            ".bin",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo Virtual Boy",
         "igdb": 87,
@@ -816,9 +925,10 @@
     },
     "gameandwatch": {
         "extensions": [
+            ".7z",
+            ".MGW",
             ".mgw",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo Game &amp; Watch",
         "igdb": 307,
@@ -826,9 +936,10 @@
     },
     "lcdgames": {
         "extensions": [
+            ".7z",
+            ".ZIP",
             ".mgw",
-            ".zip",
-            ".7z"
+            ".zip"
         ],
         "launchbox": "Nintendo Game &amp; Watch",
         "igdb": 52,
@@ -837,9 +948,10 @@
     "fbneo": {
         "extensions": [
             ".7z",
+            ".ZIP",
             ".fba",
-            ".zip",
-            ".iso"
+            ".iso",
+            ".zip"
         ],
         "launchbox": "Arcade",
         "igdb": 52,
@@ -850,32 +962,33 @@
         "screenscraper": 73,
         "igdb": null,
         "extensions": [
-            ".nib",
+            ".7",
+            ".7z",
+            ".bin",
+            ".cmd",
+            ".crt",
             ".d64",
+            ".d6z",
             ".d71",
+            ".d7z",
             ".d80",
             ".d81",
             ".d82",
-            ".g64",
+            ".d8z",
             ".g41",
-            ".x64",
+            ".g4z",
+            ".g64",
+            ".g6z",
+            ".gz",
+            ".m3u",
+            ".nib",
+            ".p00",
+            ".prg",
             ".t64",
             ".tap",
-            ".prg",
-            ".p00",
-            ".crt",
-            ".bin",
-            ".gz",
-            ".d6z",
-            ".d7z",
-            ".d8z",
-            ".g6z",
-            ".g4z",
+            ".x64",
             ".x6z",
-            ".cmd",
-            ".m3u",
-            ".zip",
-            ".7"
+            ".zip"
         ]
     },
     "hikaru": {
@@ -883,8 +996,8 @@
         "screenscraper": 75,
         "igdb": null,
         "extensions": [
-            ".zip",
-            ".7z"
+            ".7z",
+            ".zip"
         ]
     },
     "captpower": {
@@ -912,6 +1025,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -1032,6 +1147,7 @@
         "screenscraper": 201,
         "igdb": "",
         "extensions": [
+            ".bat",
             ".pxp"
         ]
     },
@@ -1040,8 +1156,8 @@
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
-            ".zip",
-            ".7z"
+            ".7z",
+            ".zip"
         ]
     },
     "segasystem32": {
@@ -1086,17 +1202,17 @@
         "screenscraper": 22,
         "igdb": null,
         "extensions": [
-            ".cue",
-            ".toc",
-            ".m3u",
+            ".7z",
             ".ccd",
             ".chd",
-            ".iso",
-            ".mds",
-            ".zip",
-            ".7z",
             ".cso",
-            ".mdf"
+            ".cue",
+            ".iso",
+            ".m3u",
+            ".mdf",
+            ".mds",
+            ".toc",
+            ".zip"
         ]
     },
     "smc777": {
@@ -1156,11 +1272,12 @@
         "screenscraper": 81,
         "igdb": "",
         "extensions": [
-            ".daphne",
             ".7z",
-            ".zip",
+            ".daphne",
             ".rar",
-            ".squashfs"
+            ".s.quashfs",
+            ".squashfs",
+            ".zip"
         ]
     },
     "wahlap": {
@@ -1252,6 +1369,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -1290,6 +1409,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -1356,11 +1477,11 @@
         "screenscraper": 126,
         "igdb": null,
         "extensions": [
-            ".zip",
             ".7z",
+            ".ace",
             ".tap",
             ".wav",
-            ".ace"
+            ".zip"
         ]
     },
     "nesaladdin": {
@@ -1401,24 +1522,26 @@
         "screenscraper": 111,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".adf",
-            ".uae",
-            ".lha",
-            ".zip",
-            ".ipf",
-            ".dms",
-            ".mds",
             ".adz",
-            ".rp9",
-            ".fdi",
-            ".iso",
-            ".cue",
             ".ccd",
-            ".nrg",
+            ".cue",
+            ".dms",
+            ".dmz",
+            ".exe",
+            ".fdi",
             ".hdf",
             ".hdz",
+            ".ipf",
+            ".iso",
+            ".lha",
             ".m3u",
-            ".7z"
+            ".mds",
+            ".nrg",
+            ".rp9",
+            ".uae",
+            ".zip"
         ]
     },
     "genh": {
@@ -1450,15 +1573,16 @@
         "screenscraper": 75,
         "igdb": null,
         "extensions": [
-            ".iso",
-            ".zip",
+            ".ciso",
             ".cue",
+            ".dol",
+            ".elf",
             ".gcm",
             ".gcz",
-            ".ciso",
+            ".iso",
+            ".m3u",
             ".wbfs",
-            ".dol",
-            ".m3u"
+            ".zip"
         ]
     },
     "cave3rd": {
@@ -1466,9 +1590,9 @@
         "screenscraper": 47,
         "igdb": null,
         "extensions": [
-            ".zip",
             ".7z",
-            ".wsquashfs"
+            ".wsquashfs",
+            ".zip"
         ]
     },
     "vidbrain": {
@@ -1508,15 +1632,19 @@
         "screenscraper": 210,
         "igdb": null,
         "extensions": [
-            ".smc",
-            ".sfc",
-            ".mgd",
-            ".zip",
-            ".bin",
             ".7z",
+            ".bin",
             ".bs",
+            ".bsx",
+            ".dx2",
             ".fig",
-            ".swc"
+            ".gd3",
+            ".gd7",
+            ".mgd",
+            ".sfc",
+            ".smc",
+            ".swc",
+            ".zip"
         ]
     },
     "ngage": {
@@ -1524,6 +1652,11 @@
         "screenscraper": 30,
         "igdb": null,
         "extensions": [
+            ".exe",
+            ".pc",
+            ".wine",
+            ".wsquashfs",
+            ".wtgz",
             ".zip"
         ]
     },
@@ -1559,13 +1692,13 @@
         "screenscraper": 23,
         "igdb": null,
         "extensions": [
-            ".gdi",
             ".cdi",
             ".chd",
+            ".cue",
+            ".gdi",
             ".m3u",
-            ".mds",
             ".mdf",
-            ".cue"
+            ".mds"
         ]
     },
     "wiiusky": {
@@ -1594,9 +1727,9 @@
         "screenscraper": 8,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".fba",
-            ".zip",
-            ".7z"
+            ".zip"
         ]
     },
     "gaelco": {
@@ -1604,9 +1737,9 @@
         "screenscraper": 194,
         "igdb": null,
         "extensions": [
-            ".zip",
             ".7z",
-            ".wsquashfs"
+            ".wsquashfs",
+            ".zip"
         ]
     },
     "chihiro": {
@@ -1614,8 +1747,10 @@
         "screenscraper": 75,
         "igdb": null,
         "extensions": [
+            ".iso",
+            ".squashfs",
             ".xbe",
-            ".iso"
+            ".xiso"
         ]
     },
     "nomad": {
@@ -1646,9 +1781,10 @@
         "screenscraper": 96,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".bin",
-            ".zip",
-            ".7z"
+            ".rom",
+            ".zip"
         ]
     },
     "cbm2": {
@@ -1674,6 +1810,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -1711,8 +1849,9 @@
         "screenscraper": null,
         "igdb": null,
         "extensions": [
-            ".zip",
-            ".plus"
+            ".7z",
+            ".plus",
+            ".zip"
         ]
     },
     "avgn": {
@@ -1745,15 +1884,15 @@
         "screenscraper": 114,
         "igdb": null,
         "extensions": [
-            ".cue",
+            ".7z",
             ".ccd",
             ".chd",
-            ".pce",
-            ".iso",
             ".cso",
+            ".cue",
             ".img",
-            ".zip",
-            ".7z"
+            ".iso",
+            ".pce",
+            ".zip"
         ]
     },
     "palm": {
@@ -1761,10 +1900,15 @@
         "screenscraper": 219,
         "igdb": null,
         "extensions": [
-            ".prc",
+            ".exe",
+            ".img",
+            ".pc",
             ".pdb",
             ".pqa",
-            ".img"
+            ".prc",
+            ".wine",
+            ".wsquashfs",
+            ".wtgz"
         ]
     },
     "arcadepc": {
@@ -1793,6 +1937,8 @@
         "screenscraper": null,
         "igdb": null,
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -1801,8 +1947,8 @@
         "screenscraper": 142,
         "igdb": "",
         "extensions": [
-            ".zip",
-            ".7z"
+            ".7z",
+            ".zip"
         ]
     },
     "tg16": {
@@ -1810,12 +1956,13 @@
         "screenscraper": 31,
         "igdb": null,
         "extensions": [
-            ".pce",
-            ".cue",
+            ".7z",
+            ".bin",
             ".ccd",
+            ".cue",
+            ".pce",
             ".sgx",
-            ".zip",
-            ".7z"
+            ".zip"
         ]
     },
     "win11": {
@@ -1896,7 +2043,12 @@
         "screenscraper": 63,
         "igdb": null,
         "extensions": [
-            ".apk"
+            ".apk",
+            ".exe",
+            ".pc",
+            ".wine",
+            ".wsquashfs",
+            ".wtgz"
         ]
     },
     "aleck64": {
@@ -1940,6 +2092,8 @@
         "screenscraper": 75,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -1983,8 +2137,13 @@
         "screenscraper": null,
         "igdb": null,
         "extensions": [
-            ".jar",
             ".7z",
+            ".exe",
+            ".jar",
+            ".pc",
+            ".wine",
+            ".wsquashfs",
+            ".wtgz",
             ".zip"
         ]
     },
@@ -2013,9 +2172,11 @@
         "screenscraper": 3,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".nes",
-            ".zip",
-            ".7z"
+            ".unf",
+            ".unif",
+            ".zip"
         ]
     },
     "hec2hr": {
@@ -2096,9 +2257,9 @@
     "cps1": {
         "launchbox": "Arcade",
         "extensions": [
+            ".7z",
             ".fba",
-            ".zip",
-            ".7z"
+            ".zip"
         ]
     },
     "sfc": {
@@ -2106,19 +2267,19 @@
         "screenscraper": 4,
         "igdb": null,
         "extensions": [
-            ".smc",
-            ".sfc",
-            ".mgd",
-            ".zip",
-            ".bin",
             ".7z",
+            ".bin",
             ".bs",
-            ".fig",
-            ".swc",
-            ".gd7",
-            ".dx2",
             ".bsx",
-            ".gd3"
+            ".dx2",
+            ".fig",
+            ".gd3",
+            ".gd7",
+            ".mgd",
+            ".sfc",
+            ".smc",
+            ".swc",
+            ".zip"
         ]
     },
     "sv8000": {
@@ -2146,6 +2307,7 @@
         "igdb": null,
         "extensions": [
             ".68k",
+            ".7z",
             ".bin",
             ".bms",
             ".chd",
@@ -2160,7 +2322,6 @@
             ".sgd",
             ".smd",
             ".sms",
-            ".7z",
             ".zip"
         ]
     },
@@ -2254,7 +2415,10 @@
         "screenscraper": null,
         "igdb": null,
         "extensions": [
-            ".vms"
+            ".7z",
+            ".bin",
+            ".vms",
+            ".zip"
         ]
     },
     "gog": {
@@ -2274,7 +2438,10 @@
         "screenscraper": 287,
         "igdb": null,
         "extensions": [
-            ".cas"
+            ".7z",
+            ".cas",
+            ".wav",
+            ".zip"
         ]
     },
     "zaccariapinball": {
@@ -2403,6 +2570,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -2470,6 +2639,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -2509,6 +2680,7 @@
         "screenscraper": 104,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".bin",
             ".zip"
         ]
@@ -2533,6 +2705,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -2542,22 +2716,24 @@
         "igdb": null,
         "extensions": [
             ".adf",
-            ".uae",
-            ".lha",
-            ".zip",
-            ".ipf",
-            ".dms",
-            ".mds",
             ".adz",
-            ".rp9",
-            ".fdi",
-            ".iso",
-            ".cue",
             ".ccd",
-            ".nrg",
+            ".cue",
+            ".dms",
+            ".dmz",
+            ".exe",
+            ".fdi",
             ".hdf",
             ".hdz",
-            ".m3u"
+            ".ipf",
+            ".iso",
+            ".lha",
+            ".m3u",
+            ".mds",
+            ".nrg",
+            ".rp9",
+            ".uae",
+            ".zip"
         ]
     },
     "elektronika": {
@@ -2574,24 +2750,26 @@
         "screenscraper": 111,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".adf",
-            ".uae",
-            ".lha",
-            ".zip",
-            ".ipf",
-            ".dms",
-            ".mds",
             ".adz",
-            ".rp9",
-            ".fdi",
-            ".iso",
-            ".cue",
             ".ccd",
-            ".nrg",
+            ".cue",
+            ".dms",
+            ".dmz",
+            ".exe",
+            ".fdi",
             ".hdf",
             ".hdz",
+            ".ipf",
+            ".iso",
+            ".lha",
             ".m3u",
-            ".7z"
+            ".mds",
+            ".nrg",
+            ".rp9",
+            ".uae",
+            ".zip"
         ]
     },
     "typex2": {
@@ -2599,6 +2777,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -2607,7 +2787,9 @@
         "screenscraper": 261,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".k7",
+            ".wav",
             ".zip"
         ]
     },
@@ -2685,6 +2867,8 @@
         "screenscraper": "",
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -2721,6 +2905,8 @@
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
+            ".pc",
+            ".wine",
             ".wsquashfs"
         ]
     },
@@ -2746,9 +2932,9 @@
         "screenscraper": 7,
         "igdb": null,
         "extensions": [
+            ".7z",
             ".fba",
-            ".zip",
-            ".7z"
+            ".zip"
         ]
     },
     "namco22": {
@@ -2793,14 +2979,14 @@
         "screenscraper": 14,
         "igdb": null,
         "extensions": [
+            ".7z",
+            ".bin",
             ".n64",
+            ".ndd",
+            ".u1",
             ".v64",
             ".z64",
-            ".bin",
-            ".u1",
-            ".ndd",
-            ".zip",
-            ".7z"
+            ".zip"
         ]
     },
     "bigfish": {
@@ -2832,18 +3018,33 @@
         "screenscraper": 91,
         "igdb": null,
         "extensions": [
-            ".cas",
+            ".7z",
+            ".asc",
             ".bas",
-            ".dmk",
-            ".jvc",
-            ".os9",
-            ".dsk",
-            ".vdk",
-            ".rom",
+            ".cas",
             ".ccc",
-            ".sna",
+            ".cqi",
+            ".cqm",
+            ".d77",
+            ".d88",
+            ".dfi",
+            ".dmk",
+            ".dsk",
+            ".hfe",
+            ".imd",
+            ".jvc",
+            ".ldd",
             ".m3u",
-            ".asc"
+            ".mfi",
+            ".mfm",
+            ".os9",
+            ".rom",
+            ".sdf",
+            ".sna",
+            ".td0",
+            ".vdk",
+            ".wav",
+            ".zip"
         ]
     },
     "bml3": {
@@ -2885,25 +3086,25 @@
         "screenscraper": "89",
         "igdb": "",
         "extensions": [
-            ".wav",
-            ".ddp",
-            ".mfi",
-            ".dfi",
-            ".hfe",
-            ".mfm",
-            ".td0",
-            ".imd",
+            ".1dd",
+            ".7z",
+            ".bin",
+            ".col",
+            ".cqi",
+            ".cqm",
             ".d77",
             ".d88",
-            ".1dd",
-            ".cqm",
-            ".cqi",
+            ".ddp",
+            ".dfi",
             ".dsk",
+            ".hfe",
+            ".imd",
+            ".mfi",
+            ".mfm",
             ".rom",
-            ".col",
-            ".bin",
-            ".zip",
-            ".7z"
+            ".td0",
+            ".wav",
+            ".zip"
         ]
     }
 }
