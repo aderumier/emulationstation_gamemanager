@@ -376,7 +376,8 @@ class SteamGridService:
                                      image_type_mappings: Dict[str, str] = None,
                                      api_key: str = None,
                                      overwrite_media_fields: bool = False,
-                                     gamelist_path: str = None) -> Dict[str, str]:
+                                     gamelist_path: str = None,
+                                     rom_path: str = None) -> Dict[str, str]:
         """Download media from SteamGridDB for a specific game"""
         if not steamgrid_id or not game_name:
             return {}
@@ -484,7 +485,7 @@ class SteamGridService:
             # Download the image
             try:
                 downloaded_path = await self._download_steamgrid_image(
-                    image_url, game_name, full_media_dir, target_field, extensions
+                    image_url, game_name, full_media_dir, target_field, extensions, rom_path
                 )
                 
                 if downloaded_path:
@@ -500,13 +501,9 @@ class SteamGridService:
     
     async def _download_steamgrid_image(self, image_url: str, game_name: str, 
                                       media_dir: str, target_field: str, 
-                                      extensions: List[str]) -> Optional[str]:
+                                      extensions: List[str], rom_path: str = None) -> Optional[str]:
         """Download a single image from SteamGridDB"""
         try:
-            # Generate safe filename
-            safe_filename = re.sub(r'[<>:"/\\|?*]', '_', game_name)
-            safe_filename = safe_filename.strip()
-            
             # Determine file extension from URL
             if image_url.lower().endswith('.png'):
                 ext = '.png'
@@ -515,7 +512,12 @@ class SteamGridService:
             else:
                 ext = '.png'  # Default to PNG
             
-            filename = f"{safe_filename}{ext}"
+            # Generate filename using common function
+            from app import create_media_filename
+            if not rom_path:
+                # Fallback to game_name if no ROM path provided
+                rom_path = f"/roms/{game_name}"
+            filename = create_media_filename(rom_path, ext)
             file_path = os.path.join(media_dir, filename)
             
             # Download image
@@ -597,11 +599,13 @@ class SteamGridService:
                 for game_data in batch:
                     steamgrid_id = game_data.get('steamgrid_id')
                     game_name = game_data.get('name', 'Unknown')
+                    game_obj = game_data.get('game', {})
+                    rom_path = game_obj.get('path', f"/roms/{game_name}")
                     
                     if steamgrid_id:
                         batch_tasks.append(self.download_steamgrid_media(
                             steamgrid_id, game_name, roms_root, system_name,
-                            selected_fields, image_type_mappings, api_key, overwrite_media_fields, gamelist_path
+                            selected_fields, image_type_mappings, api_key, overwrite_media_fields, gamelist_path, rom_path
                         ))
                     else:
                         logger.warning(f"🔧 DEBUG: No SteamGridDB ID for game: {game_name}")

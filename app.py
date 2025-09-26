@@ -2043,6 +2043,59 @@ def cleanup_old_tasks(max_tasks=100):
             # Remove from tasks dict
             del tasks[task_id]
 
+def cleanup_temp_files():
+    """Clean up any remaining .temp files from failed downloads"""
+    try:
+        import glob
+        temp_files = []
+        
+        # Find all .temp files in the var/temp/medias directory
+        temp_medias_dir = os.path.join('var', 'temp', 'medias')
+        if os.path.exists(temp_medias_dir):
+            for file in os.listdir(temp_medias_dir):
+                if '.temp' in file:  # Handle both .temp and .temp.{extension} formats
+                    temp_files.append(os.path.join(temp_medias_dir, file))
+        
+        # Also check for any remaining .temp files in ROMS_FOLDER (legacy cleanup)
+        for root, dirs, files in os.walk(ROMS_FOLDER):
+            for file in files:
+                if '.temp' in file:  # Handle both .temp and .temp.{extension} formats
+                    temp_files.append(os.path.join(root, file))
+        
+        if temp_files:
+            print(f"🧹 Found {len(temp_files)} temporary files to clean up")
+            for temp_file in temp_files:
+                try:
+                    os.remove(temp_file)
+                    print(f"🗑️ Cleaned up: {temp_file}")
+                except Exception as e:
+                    print(f"⚠️ Failed to clean up {temp_file}: {e}")
+            print(f"✅ Cleanup completed: {len(temp_files)} files removed")
+        else:
+            print("✅ No temporary files found")
+            
+    except Exception as e:
+        print(f"❌ Error during temp file cleanup: {e}")
+
+def create_media_filename(rom_path, media_extension):
+    """
+    Create a media filename based on ROM path and media extension.
+    Uses the ROM filename as-is since it's already validated.
+    
+    Args:
+        rom_path: Path to the ROM file
+        media_extension: Extension for the media file (e.g., '.jpg', '.png', '.mp4')
+        
+    Returns:
+        Media filename using ROM name + media extension
+    """
+    # Extract ROM filename without extension
+    rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+    
+    # Use ROM filename as-is since it's already validated
+    # Add the media extension
+    return f"{rom_filename}{media_extension}"
+
 def is_task_running():
     """Check if any task is currently running"""
     global current_task_id
@@ -2813,9 +2866,10 @@ def run_image_download_task(system_name, data):
                     found_file = None
                     
                     for ext in extensions:
-                        potential_file = os.path.join(media_dir, f"{rom_filename}{ext}")
+                        potential_filename = create_media_filename(rom_path, ext)
+                        potential_file = os.path.join(media_dir, potential_filename)
                         if os.path.exists(potential_file):
-                            found_file = f"./media/{media_type}/{os.path.basename(potential_file)}"
+                            found_file = f"./media/{media_type}/{potential_filename}"
                             break
                     
                     # Update gamelist field if file exists
@@ -6577,7 +6631,7 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
             base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
             download_url = base_url + best_image['filename']
             file_extension = os.path.splitext(best_image['filename'])[1]
-            local_filename = f"{rom_filename}{file_extension}"
+            local_filename = create_media_filename(rom_filename, file_extension)
             local_path = os.path.join(system_path, 'media', media_directory, local_filename)
             
             # Create media directory if it doesn't exist
@@ -6825,9 +6879,10 @@ def scan_media_files(system_name):
                 found_media = None
                 if os.path.exists(media_dir):
                     for ext in field_data.get('extensions', []):
-                        media_file = os.path.join(media_dir, rom_filename + ext)
+                        media_filename = create_media_filename(rom_path, ext)
+                        media_file = os.path.join(media_dir, media_filename)
                         if os.path.exists(media_file):
-                            found_media = f'./media/{media_type}/{rom_filename}{ext}'
+                            found_media = f'./media/{media_type}/{media_filename}'
                             break
                 
                 # Update gamelist field - only update if the path actually changes
@@ -7459,7 +7514,7 @@ def upload_game_media(system_name):
         
         # Generate filename using ROM name and original extension
         file_extension = os.path.splitext(file.filename)[1].lower()
-        new_filename = f"{rom_filename}{file_extension}"
+        new_filename = create_media_filename(rom_path, file_extension)
         file_path = os.path.join(category_dir, new_filename)
         
         # Check if file already exists and handle conflicts
@@ -8137,7 +8192,8 @@ def apply_manual_scrap(system_name):
             parsed = urlparse(selected_url)
             guessed_ext = os.path.splitext(parsed.path)[1] or '.png'
             target_ext = ext or guessed_ext
-            target_path = os.path.join(target_dir, f'{rom_filename}{target_ext}')
+            target_filename = create_media_filename(rom_path, target_ext)
+            target_path = os.path.join(target_dir, target_filename)
 
             try:
                 resp = requests.get(selected_url, timeout=30)
@@ -8145,7 +8201,7 @@ def apply_manual_scrap(system_name):
                     with open(target_path, 'wb') as f:
                         f.write(resp.content)
                     # Update game field with relative path
-                    rel_path = f'./media/{directory}/{rom_filename}{target_ext}'
+                    rel_path = f'./media/{directory}/{target_filename}'
                     game[media_field] = rel_path
                     media_updates[media_field] = rel_path
                 else:
@@ -8285,7 +8341,8 @@ async def scrape_igdb_manual(game, system_name, system_config):
         def add_media(mapped_field: str, url: str):
             if not mapped_field or not url:
                 return
-            media_fields.setdefault(mapped_field, []).append(normalize_igdb_url(url))
+            normalized_url = normalize_igdb_url(url)
+            media_fields.setdefault(mapped_field, []).append(normalized_url)
 
         # Covers: use helper to select best cover and its url
         try:
@@ -8295,27 +8352,33 @@ async def scrape_igdb_manual(game, system_name, system_config):
         except Exception as e:
             print(f"Error getting IGDB cover: {e}")
 
-        # Screenshots: use helper (returns one)
+        # Screenshots: use helper (returns all)
         try:
-            screenshot = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            if screenshot and screenshot.get('url'):
-                add_media(igdb_image_mapping.get('screenshots', 'image'), screenshot.get('url'))
+            screenshots = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            if screenshots:
+                for screenshot in screenshots:
+                    if screenshot and screenshot.get('url'):
+                        add_media(igdb_image_mapping.get('screenshots', 'image'), screenshot.get('url'))
         except Exception as e:
             print(f"Error getting IGDB screenshots: {e}")
 
-        # Artworks: use helper (returns one landscape)
+        # Artworks: use helper (returns all landscape)
         try:
-            artwork = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            if artwork and artwork.get('url'):
-                add_media(igdb_image_mapping.get('artworks', 'fanart'), artwork.get('url'))
+            artworks = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            if artworks:
+                for artwork in artworks:
+                    if artwork and artwork.get('url'):
+                        add_media(igdb_image_mapping.get('artworks', 'fanart'), artwork.get('url'))
         except Exception as e:
             print(f"Error getting IGDB artworks: {e}")
 
-        # Logos: use helper if available
+        # Logos: use helper if available (returns all)
         try:
-            logo = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            if logo and logo.get('url'):
-                add_media(igdb_image_mapping.get('logos', 'marquee'), logo.get('url'))
+            logos = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            if logos:
+                for logo in logos:
+                    if logo and logo.get('url'):
+                        add_media(igdb_image_mapping.get('logos', 'marquee'), logo.get('url'))
         except Exception as e:
             print(f"Error getting IGDB logos: {e}")
         
@@ -8856,6 +8919,19 @@ def cleanup_tasks_endpoint():
         })
     except Exception as e:
         return jsonify({'error': f'Failed to cleanup tasks: {str(e)}'}), 500
+
+@app.route('/api/cleanup-temp-files', methods=['POST'])
+@login_required
+def cleanup_temp_files_endpoint():
+    """Clean up temporary files from failed downloads"""
+    try:
+        cleanup_temp_files()
+        return jsonify({
+            'success': True,
+            'message': 'Temporary files cleanup completed'
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to cleanup temporary files: {str(e)}'}), 500
 
 @app.route('/api/tasks/<task_id>/ack-refresh', methods=['POST'])
 @login_required
@@ -10713,8 +10789,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 task.update_progress(f"Processing {i+1}/{total_games}: {game_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
                 
                 # Generate output filename from ROM path
-                rom_basename = os.path.splitext(os.path.basename(rom_path))[0]
-                output_filename = f"{rom_basename}.mp4"
+                output_filename = create_media_filename(rom_path, '.mp4')
                 output_path = os.path.join(videos_dir, output_filename)
                 
                 # Check if video already exists
@@ -11937,7 +12012,7 @@ def run_2d_box_generation_task(system_name, selected_games):
                 continue
             
             # Generate 2D box
-            output_filename = f"{rom_filename}.png"
+            output_filename = create_media_filename(game_path, '.png')
             output_path = os.path.join(box2d_dir, output_filename)
             print(f"🔧 DEBUG: Generating 2D box for {game_name}")
             print(f"🔧 DEBUG: Output path: {output_path}")
@@ -12835,7 +12910,7 @@ def download_launchbox_media():
             file_extension = '.jpg'  # Default to jpg
         
         # Create local filename
-        local_filename = f"{rom_filename}{file_extension}"
+        local_filename = create_media_filename(rom_path_elem.text, file_extension)
         local_path = os.path.join(media_dir, local_filename)
         
         # Download the media file
@@ -13239,14 +13314,13 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
             
             print(f"🎨 DEBUG: Found {len(landscape_artworks)} landscape artworks")
             
-            # Return the first landscape artwork
+            # Return all landscape artworks
             if landscape_artworks:
-                selected = landscape_artworks[0]
-                print(f"🎨 DEBUG: Selected artwork: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
-                return selected
+                print(f"🎨 DEBUG: Returning {len(landscape_artworks)} landscape artworks")
+                return landscape_artworks
             else:
                 print(f"🎨 DEBUG: No landscape artworks found for game {game_id}")
-                return None
+                return []
         else:
             if response:
                 print(f"🎨 DEBUG: IGDB artworks API error: {response.status_code} - {response.text}")
@@ -13291,14 +13365,13 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
                 artwork_type = logo.get('artwork_type', 'N/A')
                 print(f"🏷️ DEBUG: Logo {i+1}: id={logo.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}, artwork_type={artwork_type}")
             
-            # Return the first logo if any exist (use original format)
+            # Return all logos
             if logos:
-                selected = logos[0]
-                print(f"🏷️ DEBUG: Selected logo: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
-                return selected
+                print(f"🏷️ DEBUG: Returning {len(logos)} logos")
+                return logos
             else:
                 print(f"🏷️ DEBUG: No logos found for game {game_id}")
-                return None
+                return []
         else:
             if response:
                 print(f"🏷️ DEBUG: IGDB logos API error: {response.status_code} - {response.text}")
@@ -13399,14 +13472,13 @@ async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id)
                 url = screenshot.get('url', 'N/A')
                 print(f"📸 DEBUG: Screenshot {i+1}: id={screenshot.get('id')}, image_id={image_id}, width={width}, height={height}, url={url}")
             
-            # Return the first screenshot
+            # Return all screenshots
             if screenshots:
-                selected = screenshots[0]
-                print(f"📸 DEBUG: Selected screenshot: {selected.get('id')} with image_id: {selected.get('image_id')} and url: {selected.get('url')}")
-                return selected
+                print(f"📸 DEBUG: Returning {len(screenshots)} screenshots")
+                return screenshots
             else:
                 print(f"📸 DEBUG: No screenshots found for game {game_id}")
-                return None
+                return []
         else:
             if response:
                 print(f"📸 DEBUG: IGDB screenshots API error: {response.status_code} - {response.text}")
@@ -13701,6 +13773,8 @@ async def fetch_igdb_covers(async_client, access_token, client_id, game_id, game
 
 async def download_igdb_image(image_data, system_name, rom_filename, image_type="fanart"):
     """Download image from IGDB and save it to the appropriate directory"""
+    import time
+    temp_file_path = None
     try:
         image_id = image_data.get('image_id')
         image_url = image_data.get('url')
@@ -13763,13 +13837,8 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         print(f"{emoji} DEBUG: Media directory: {media_dir}")
         os.makedirs(media_dir, exist_ok=True)
         
-        # Create filename from ROM filename (without extension)
-        rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
-        # We'll determine the final extension after download and conversion
-        filename = rom_name_without_ext
-        file_path = os.path.join(media_dir, filename)
-        print(f"{emoji} DEBUG: Safe filename: {filename}")
-        print(f"{emoji} DEBUG: Full file path: {file_path}")
+        # We'll determine the final filename after download and conversion
+        print(f"{emoji} DEBUG: Will determine filename after download and conversion")
         
         # Download the image using httpx with separate connection pool
         print(f"{emoji} DEBUG: Starting image download with httpx...")
@@ -13796,8 +13865,37 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             content_type = response.headers.get('content-type', '').lower()
             print(f"{emoji} DEBUG: Content type: {content_type}")
             
-            # Write the raw image data to a temporary file first
-            temp_file_path = file_path + '.temp'
+            # Create temporary directory for downloads
+            temp_medias_dir = os.path.join('var', 'temp', 'medias')
+            os.makedirs(temp_medias_dir, exist_ok=True)
+            
+            # Determine file extension from content type or URL
+            file_extension = '.png'  # Default to PNG
+            if content_type:
+                if 'jpeg' in content_type or 'jpg' in content_type:
+                    file_extension = '.jpg'
+                elif 'png' in content_type:
+                    file_extension = '.png'
+                elif 'webp' in content_type:
+                    file_extension = '.webp'
+                elif 'gif' in content_type:
+                    file_extension = '.gif'
+            elif image_url:
+                # Fallback to URL extension
+                if image_url.endswith('.jpg') or image_url.endswith('.jpeg'):
+                    file_extension = '.jpg'
+                elif image_url.endswith('.png'):
+                    file_extension = '.png'
+                elif image_url.endswith('.webp'):
+                    file_extension = '.webp'
+                elif image_url.endswith('.gif'):
+                    file_extension = '.gif'
+            
+            # Write the raw image data to a temporary file first in var/temp/medias/
+            # Use .temp.{extension} format for better identification
+            rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
+            temp_filename = f"{rom_name_without_ext}_{image_type}_{int(time.time())}.temp{file_extension}"
+            temp_file_path = os.path.join(temp_medias_dir, temp_filename)
             with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
             
@@ -13815,20 +13913,24 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                     filename = os.path.basename(temp_file_path)
                     print(f"{emoji} DEBUG: ✅ Converted to {target_extension}: {filename}")
                 elif status == "already_target":
+                    filename = os.path.basename(temp_file_path)
                     print(f"{emoji} DEBUG: ✅ Already {target_extension} format: {filename}")
                 else:
+                    filename = os.path.basename(temp_file_path)
                     print(f"{emoji} DEBUG: ⚠️ Failed to convert to {target_extension}, keeping original: {filename}")
             elif should_convert:
+                filename = os.path.basename(temp_file_path)
                 print(f"{emoji} DEBUG: ✅ Already {target_extension} format: {filename}")
             else:
                 print(f"{emoji} DEBUG: ✅ No conversion needed for field: {gamelist_field}")
             
-            # Determine final filename and path
-            final_filename = os.path.basename(temp_file_path)
+            # Determine final filename and path using common function
+            final_filename = create_media_filename(rom_filename, file_extension)
             final_file_path = os.path.join(media_dir, final_filename)
             
-            # Move the temp file to the final file
+            # Move the temp file to the final file using shutil.move() to handle symlinks
             shutil.move(temp_file_path, final_file_path)
+            temp_file_path = None  # Mark as successfully moved so it won't be cleaned up
             print(f"{emoji} DEBUG: ✅ Downloaded file: {final_filename}")
             
             # Check if file was written successfully
@@ -13868,6 +13970,14 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         import traceback
         traceback.print_exc()
         return None
+    finally:
+        # Clean up temporary file if it exists and wasn't successfully moved
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+                print(f"{emoji} DEBUG: 🗑️ Cleaned up temporary file: {temp_file_path}")
+            except Exception as cleanup_error:
+                print(f"{emoji} DEBUG: ⚠️ Failed to clean up temporary file {temp_file_path}: {cleanup_error}")
 # =============================================================================
 # IGDB HTTP Client and Rate Limiter
 # =============================================================================
@@ -14416,7 +14526,8 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
         
         # Get ROM filename for media downloads
         path_elem = game.find('path')
-        rom_filename = path_elem.text if path_elem is not None and path_elem.text else game_name
+        rom_path = path_elem.text if path_elem is not None and path_elem.text else f"/roms/{game_name}"
+        rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
         
         # Check if already has IGDB ID
         igdbid_elem = game.find('igdbid')
@@ -14489,10 +14600,12 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                     try:
                         # Add timeout to artwork fetching as well
                         import asyncio
-                        artwork = await asyncio.wait_for(
+                        artworks = await asyncio.wait_for(
                             fetch_igdb_artworks(async_client, access_token, client_id, igdb_game['id']),
                             timeout=15.0  # 15 second timeout for API call
                         )
+                        # For automatic scraping, use only the first artwork
+                        artwork = artworks[0] if artworks else None
                     except asyncio.TimeoutError:
                         print(f"⏰ Timeout fetching artworks for '{game_name}' (15s limit)")
                         artwork = None
@@ -14513,7 +14626,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     artwork, 
                                     system_name, 
-                                    rom_filename,
+                                    rom_path,
                                     "artworks"
                                 ),
                                 timeout=30.0  # 30 second timeout
@@ -14556,10 +14669,12 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                     try:
                         # Add timeout to screenshot fetching as well
                         import asyncio
-                        screenshot = await asyncio.wait_for(
+                        screenshots = await asyncio.wait_for(
                             fetch_igdb_screenshots(async_client, access_token, client_id, igdb_game['id']),
                             timeout=15.0  # 15 second timeout for API call
                         )
+                        # For automatic scraping, use only the first screenshot
+                        screenshot = screenshots[0] if screenshots else None
                     except asyncio.TimeoutError:
                         print(f"⏰ Timeout fetching screenshots for '{game_name}' (15s limit)")
                         screenshot = None
@@ -14579,7 +14694,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     screenshot, 
                                     system_name, 
-                                    rom_filename,
+                                    rom_path,
                                     "screenshots"
                                 ),
                                 timeout=30.0  # 30 second timeout
@@ -14645,7 +14760,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     cover, 
                                     system_name, 
-                                    rom_filename,
+                                    rom_path,
                                     "cover"
                                 ),
                                 timeout=30.0  # 30 second timeout
@@ -14688,10 +14803,12 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                     try:
                         # Add timeout to logo fetching as well
                         import asyncio
-                        logo = await asyncio.wait_for(
+                        logos = await asyncio.wait_for(
                             fetch_igdb_logos(async_client, access_token, client_id, igdb_game['id']),
                             timeout=15.0  # 15 second timeout for API call
                         )
+                        # For automatic scraping, use only the first logo
+                        logo = logos[0] if logos else None
                     except asyncio.TimeoutError:
                         print(f"⏰ Timeout fetching logos for '{game_name}' (15s limit)")
                         logo = None
@@ -14711,7 +14828,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                                 download_igdb_image(
                                     logo, 
                                     system_name, 
-                                    rom_filename,
+                                    rom_path,
                                     "logos"
                                 ),
                                 timeout=30.0  # 30 second timeout
@@ -16608,6 +16725,9 @@ if __name__ == '__main__':
     
     # Sync gamelist.xml files from ROMs to var/gamelists
     sync_all_gamelists()
+    
+    # Clean up any remaining temporary files from previous runs
+    cleanup_temp_files()
     
     # Start server immediately, then load cache in background
     print("Starting server...")

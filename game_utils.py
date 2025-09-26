@@ -125,13 +125,31 @@ def convert_image_replace(file_path: str, target_extension: str = '.png') -> tup
         - "failed": Conversion failed
     """
     try:
-        # Check if file is already in target format
-        file_extension = os.path.splitext(file_path)[1].lower()
-        if file_extension == target_extension.lower():
-            return file_path, "already_target"  # Already in target format, no conversion needed
-        
-        # Create target path with target extension
-        target_path = os.path.splitext(file_path)[0] + target_extension
+        # Handle .temp.{extension} format
+        if '.temp' in file_path:
+            # Extract the actual file extension (after .temp)
+            parts = file_path.split('.temp')
+            if len(parts) == 2 and parts[1]:
+                actual_extension = parts[1]
+                if actual_extension.lower() == target_extension.lower():
+                    return file_path, "already_target"  # Already in target format
+                
+                # Create target path with .temp.{target_extension}
+                target_path = parts[0] + '.temp' + target_extension
+            else:
+                # Fallback to original logic if format is unexpected
+                file_extension = os.path.splitext(file_path)[1].lower()
+                if file_extension == target_extension.lower():
+                    return file_path, "already_target"
+                target_path = os.path.splitext(file_path)[0] + target_extension
+        else:
+            # Original logic for files without .temp
+            file_extension = os.path.splitext(file_path)[1].lower()
+            if file_extension == target_extension.lower():
+                return file_path, "already_target"  # Already in target format, no conversion needed
+            
+            # Create target path with target extension
+            target_path = os.path.splitext(file_path)[0] + target_extension
         
         # Convert to target format
         if convert_image_to_format(file_path, target_path, target_extension):

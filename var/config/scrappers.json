@@ -45,7 +45,7 @@
             "youtubeurl": "youtubeurl"
         },
         "image_type_mappings": {
-            "cover": "thumbnail",
+            "cover": "boxart",
             "screenshots": "image",
             "artworks": "fanart",
             "logos": "marquee"

@@ -458,9 +458,6 @@ class SteamService:
                 full_media_dir = os.path.join(roms_root, system_name, "media", media_dir)
                 os.makedirs(full_media_dir, exist_ok=True)
                 
-                # Generate filename from ROM path (always available as it's the game key)
-                rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
-                
                 # Determine file extension from content type
                 content_type = response.headers.get('content-type', '')
                 
@@ -471,7 +468,9 @@ class SteamService:
                 else:
                     ext = '.jpg'  # Default to jpg for Steam images
                 
-                filename = f"{rom_filename}{ext}"
+                # Generate filename using common function
+                from app import create_media_filename
+                filename = create_media_filename(rom_path, ext)
                 file_path = os.path.join(full_media_dir, filename)
                 
                 # Write file
