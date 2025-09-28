@@ -12,7 +12,7 @@
         "file": "app.log"
     },
     "authentication": {
-        "disable_local_auth": true
+        "disable_local_auth": false
     },
     "media": {
         "scan_settings": {

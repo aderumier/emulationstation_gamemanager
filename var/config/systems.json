@@ -288,7 +288,7 @@
     },
     "xboxseries": {
         "launchbox": "Microsoft Xbox Series X|S",
-        "screenscraper": 169,
+        "screenscraper": "34",
         "igdb": 169,
         "extensions": [
             ".xvc",
@@ -296,12 +296,12 @@
         ]
     },
     "xbla": {
-        "extensions": [
-            ".x360",
-            ".X360"
-        ],
         "launchbox": "Microsoft Xbox 360",
-        "igdb": 12
+        "screenscraper": "",
+        "igdb": 12,
+        "extensions": [
+            ".x360"
+        ]
     },
     "wii": {
         "extensions": [
@@ -653,6 +653,9 @@
         ]
     },
     "amigacd32": {
+        "launchbox": "Commodore Amiga CD32",
+        "screenscraper": 130,
+        "igdb": 114,
         "extensions": [
             ".CUE",
             ".ISO",
@@ -676,12 +679,12 @@
             ".rp9",
             ".uae",
             ".zip"
-        ],
-        "launchbox": "Commodore Amiga",
-        "igdb": 114,
-        "screenscraper": 130
+        ]
     },
     "amstradcpc": {
+        "launchbox": "Amstrad CPC",
+        "screenscraper": 65,
+        "igdb": 25,
         "extensions": [
             ".7z",
             ".DSK",
@@ -696,10 +699,7 @@
             ".voc",
             ".zip",
             "tap"
-        ],
-        "launchbox": "Commodore Amiga",
-        "igdb": 25,
-        "screenscraper": 65
+        ]
     },
     "apple2": {
         "extensions": [
@@ -900,15 +900,15 @@
         "screenscraper": 45
     },
     "wonderswancolor": {
+        "launchbox": "WonderSwan Color",
+        "screenscraper": 46,
+        "igdb": 123,
         "extensions": [
             ".7z",
             ".WSC",
             ".wsc",
             ".zip"
-        ],
-        "launchbox": "WonderSwan Color",
-        "igdb": 123,
-        "screenscraper": 46
+        ]
     },
     "virtualboy": {
         "extensions": [
@@ -993,8 +993,8 @@
     },
     "hikaru": {
         "launchbox": "Sega Hikaru",
-        "screenscraper": 75,
-        "igdb": null,
+        "screenscraper": "258",
+        "igdb": "",
         "extensions": [
             ".7z",
             ".zip"
@@ -1031,9 +1031,9 @@
         ]
     },
     "apogee": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Apogee BK-01",
+        "screenscraper": "",
+        "igdb": "",
         "extensions": [
             ".wav",
             ".flac",
@@ -1099,9 +1099,9 @@
         ]
     },
     "bk001001": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Apogee BK-01",
+        "screenscraper": "",
+        "igdb": "",
         "extensions": [
             ".wav",
             ".zip",
@@ -1161,8 +1161,8 @@
         ]
     },
     "segasystem32": {
-        "launchbox": "",
-        "screenscraper": "",
+        "launchbox": "Arcade",
+        "screenscraper": "75",
         "igdb": "",
         "extensions": [
             ".zip",
@@ -1170,8 +1170,8 @@
         ]
     },
     "win311": {
-        "launchbox": "",
-        "screenscraper": "",
+        "launchbox": "Windows 3.X",
+        "screenscraper": "136",
         "igdb": "",
         "extensions": [
             ".pc",
@@ -1198,9 +1198,9 @@
         ]
     },
     "saturnjp": {
-        "launchbox": "Sea Saturn",
+        "launchbox": "Sega Saturn",
         "screenscraper": 22,
-        "igdb": null,
+        "igdb": "",
         "extensions": [
             ".7z",
             ".ccd",
@@ -1246,9 +1246,9 @@
         ]
     },
     "cpc464p": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Amstrad CPC",
+        "screenscraper": "",
+        "igdb": "",
         "extensions": [
             ".mfi",
             ".dfi",
@@ -1281,8 +1281,8 @@
         ]
     },
     "wahlap": {
-        "launchbox": "",
-        "screenscraper": "",
+        "launchbox": "Arcade",
+        "screenscraper": "269",
         "igdb": "",
         "extensions": [
             ".wsquashfs",
@@ -1317,9 +1317,9 @@
         ]
     },
     "wiiueshop": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Wii U",
+        "screenscraper": "18",
+        "igdb": "",
         "extensions": [
             ".wua",
             ".wup",
@@ -1375,8 +1375,8 @@
         ]
     },
     "3dsen": {
-        "launchbox": "3DO Interactive Multiplayer",
-        "screenscraper": "29",
+        "launchbox": "Nintendo Entertainment System",
+        "screenscraper": "3",
         "igdb": "139",
         "extensions": [
             ".zip",
@@ -1396,9 +1396,9 @@
         ]
     },
     "batoparrot": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Windows",
+        "screenscraper": "",
+        "igdb": "",
         "extensions": [
             ".pc",
             ".wsquashfs"
@@ -1451,9 +1451,9 @@
         ]
     },
     "gbh": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Game Boy",
+        "screenscraper": "9",
+        "igdb": "",
         "extensions": [
             ".gb",
             ".zip",
@@ -1461,9 +1461,9 @@
         ]
     },
     "nesh": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Entertainment System",
+        "screenscraper": "3",
+        "igdb": "",
         "extensions": [
             ".nes",
             ".unif",
@@ -1496,9 +1496,9 @@
         ]
     },
     "namcoes3": {
-        "launchbox": "",
+        "launchbox": "Arcade",
         "screenscraper": 269,
-        "igdb": null,
+        "igdb": "",
         "extensions": [
             ".pc",
             ".wsquashfs",
@@ -1506,9 +1506,9 @@
         ]
     },
     "neshd": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Entertainment System",
+        "screenscraper": "3",
+        "igdb": "",
         "extensions": [
             ".nes",
             ".unif",
@@ -1661,9 +1661,9 @@
         ]
     },
     "c64gs": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Commodore 64",
+        "screenscraper": "66",
+        "igdb": "",
         "extensions": [
             ".crt"
         ]
@@ -1702,9 +1702,9 @@
         ]
     },
     "wiiusky": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Wii U",
+        "screenscraper": "18",
+        "igdb": "",
         "extensions": [
             ".pc",
             ".bat",
@@ -1872,7 +1872,7 @@
         ]
     },
     "pinballm": {
-        "launchbox": "",
+        "launchbox": "Pinball",
         "screenscraper": "",
         "igdb": "",
         "extensions": [
@@ -1912,9 +1912,9 @@
         ]
     },
     "arcadepc": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Arcade",
+        "screenscraper": "269",
+        "igdb": "",
         "extensions": [
             ".wine",
             ".wsquashfs",
@@ -1922,9 +1922,9 @@
         ]
     },
     "megacd32x": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Sega 32X",
+        "screenscraper": "19",
+        "igdb": "",
         "extensions": [
             ".cue",
             ".iso",
@@ -1934,8 +1934,8 @@
     },
     "konamipc": {
         "launchbox": "Arcade",
-        "screenscraper": null,
-        "igdb": null,
+        "screenscraper": "269",
+        "igdb": "",
         "extensions": [
             ".pc",
             ".wine",
@@ -1944,7 +1944,7 @@
     },
     "neogeo64": {
         "launchbox": "Arcade",
-        "screenscraper": 142,
+        "screenscraper": "75",
         "igdb": "",
         "extensions": [
             ".7z",
@@ -1966,8 +1966,8 @@
         ]
     },
     "win11": {
-        "launchbox": "",
-        "screenscraper": "",
+        "launchbox": "Windows 3.X",
+        "screenscraper": "136",
         "igdb": "",
         "extensions": [
             ".wsquashfs",
@@ -1976,9 +1976,9 @@
         ]
     },
     "gbah": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Game Boy Advance",
+        "screenscraper": "12",
+        "igdb": "",
         "extensions": [
             ".gba",
             ".zip",
@@ -1987,7 +1987,7 @@
     },
     "segastv": {
         "launchbox": "Sega ST-V",
-        "screenscraper": "",
+        "screenscraper": "69",
         "igdb": "",
         "extensions": [
             ".zip",
@@ -2006,9 +2006,9 @@
         ]
     },
     "gbch": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Game Boy Color",
+        "screenscraper": "10",
+        "igdb": "",
         "extensions": [
             ".gbc",
             ".zip",
@@ -2052,9 +2052,9 @@
         ]
     },
     "aleck64": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Arcade",
+        "screenscraper": "75",
+        "igdb": "",
         "extensions": [
             ".z64",
             ".n64",
@@ -2098,9 +2098,9 @@
         ]
     },
     "msxlaserdisk": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Microsoft MSX",
+        "screenscraper": "113",
+        "igdb": "",
         "extensions": [
             ".dsk",
             ".mx1",
@@ -2220,8 +2220,8 @@
         ]
     },
     "win95": {
-        "launchbox": "",
-        "screenscraper": "",
+        "launchbox": "Windows",
+        "screenscraper": "137",
         "igdb": "",
         "extensions": [
             ".pc",
@@ -2256,6 +2256,8 @@
     },
     "cps1": {
         "launchbox": "Arcade",
+        "screenscraper": "6",
+        "igdb": "",
         "extensions": [
             ".7z",
             ".fba",
@@ -2372,9 +2374,9 @@
         ]
     },
     "wiiware": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Wii",
+        "screenscraper": "16",
+        "igdb": "",
         "extensions": [
             ".gcm",
             ".iso",
@@ -2411,9 +2413,9 @@
         ]
     },
     "svmu": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Sega Dreamcast VMU",
+        "screenscraper": "23",
+        "igdb": "",
         "extensions": [
             ".7z",
             ".bin",
@@ -2422,7 +2424,7 @@
         ]
     },
     "gog": {
-        "launchbox": "",
+        "launchbox": "Windows",
         "screenscraper": null,
         "igdb": null,
         "extensions": [
@@ -2445,7 +2447,7 @@
         ]
     },
     "zaccariapinball": {
-        "launchbox": "",
+        "launchbox": "Pinball",
         "screenscraper": "",
         "igdb": "",
         "extensions": [
@@ -2453,9 +2455,9 @@
         ]
     },
     "fightcade2": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Arcade",
+        "screenscraper": "75",
+        "igdb": "",
         "extensions": [
             ".sh",
             ".squashfs"
@@ -2473,9 +2475,9 @@
         ]
     },
     "gamecubejp": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo GameCube",
+        "screenscraper": "13",
+        "igdb": "",
         "extensions": [
             ".gcm",
             ".iso",
@@ -2521,9 +2523,9 @@
         ]
     },
     "neogeomvs": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "SNK Neo Geo MVS",
+        "screenscraper": "68",
+        "igdb": "",
         "extensions": [
             ".bin",
             ".neo",
@@ -2577,7 +2579,7 @@
     },
     "pinballfx": {
         "launchbox": "Pinball",
-        "screenscraper": 143,
+        "screenscraper": "",
         "igdb": "",
         "extensions": [
             ".bat"
@@ -2607,9 +2609,9 @@
         ]
     },
     "nesmsu": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo Entertainment System",
+        "screenscraper": "3",
+        "igdb": "",
         "extensions": [
             ".smc",
             ".sfc",
@@ -2618,9 +2620,9 @@
         ]
     },
     "tduo": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "NEC TurboGrafx-CD",
+        "screenscraper": "114",
+        "igdb": "",
         "extensions": [
             ".pce",
             ".cue",
@@ -2686,8 +2688,8 @@
         ]
     },
     "win98": {
-        "launchbox": "",
-        "screenscraper": "",
+        "launchbox": "Windows",
+        "screenscraper": "137",
         "igdb": "",
         "extensions": [
             ".pc",
@@ -2773,7 +2775,7 @@
         ]
     },
     "typex2": {
-        "launchbox": "Arcade",
+        "launchbox": "Taito Type X",
         "screenscraper": 269,
         "igdb": "",
         "extensions": [
@@ -2863,8 +2865,8 @@
         ]
     },
     "adrenaline": {
-        "launchbox": "",
-        "screenscraper": "",
+        "launchbox": "Arcade",
+        "screenscraper": "269",
         "igdb": "",
         "extensions": [
             ".pc",
@@ -2911,9 +2913,9 @@
         ]
     },
     "snesh": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Super Nintendo Entertainment System",
+        "screenscraper": "4",
+        "igdb": "",
         "extensions": [
             ".smc",
             ".fig",
@@ -2947,9 +2949,9 @@
         ]
     },
     "gamecubeh": {
-        "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "launchbox": "Nintendo GameCube",
+        "screenscraper": "13",
+        "igdb": "",
         "extensions": [
             ".gcm",
             ".iso",
@@ -3070,9 +3072,9 @@
         ]
     },
     "pv2000": {
-        "launchbox": "Arcade",
-        "screenscraper": 48,
-        "igdb": null,
+        "launchbox": "Casio PV-1000",
+        "screenscraper": "74",
+        "igdb": "",
         "extensions": [
             ".col",
             ".rom",

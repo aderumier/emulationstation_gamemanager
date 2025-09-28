@@ -1,0 +1,605 @@
+lindbergh|.game
+3DO Interactive Multiplayer|.iso;.cue;.chd;.m3u
+3do|.iso;.cue;.chd;.m3u
+3ds|.squashfs
+64dd|.ndd;.v64;.z65;.n64;.wad;.zip;.7Z
+a2600|.a26;.bin;.zip;.7z;.rom
+a5200|.xfd;.atr;.atx;.cdm;.cas;.bin;.a52;.xex;.zip;.rom
+a7800|.a78;.bin;.zip;.7z
+a800|.xfd;.atr;.atx;.cdm;.cas;.bin;.xex;.zip;.m3u;.rom
+Aamber Pegasus|.zip;.cpr;.rar;.bin;.a26;.a52;.a78;.lnx;.snp;.rom;.int;.cue;.iso;.chd;.st2;.sg;.7z;.dsk;.lbr;.bas;.com;.md5;.sad;.ticart
+ace4000|.zip;.7z;.tap;.wav;.ace
+Acorn Archimedes|.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ima;.img;.ufi;.360;.ipf;.adf;.apd;.jfd;.ads;.adm;.adl;.ssd;.bbc;.dsd;.st;.msa;.chd;.zip;.7z
+Acorn Atom|.wav;.tap;.csw;.uef;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.40t;.atm;.bin;.rom;.zip;.7z
+Acorn Electron|.wav;.csw;.uef;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ssd;.bbc;.img;.dsd;.adf;.ads;.adm;.adl;.rom;.bin;.zip;.7z
+actionmax|.daphne;.7z;.zip;.rar;.squashfs
+adam|.wav;.ddp;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.rom;.col;.bin;.zip;.7z
+advision|.bin;.zip;.7z
+ags|.bat;.lnk
+svmu|.vms
+amiga1000|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.7z
+amiga1200|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.m3u;.dmz;.7z
+amiga3000|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.7z
+amiga4000|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.7z
+amiga500+|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.7z
+amiga500|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.m3u;.dmz;.7z
+amiga600|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u
+amigacd32|.iso;.bin;.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.cso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.chd
+amigacdtv|.iso;.adf;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.cso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.bin;.chd
+amiga|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz
+Amstrad CPC|.dsk;.zip;.cpc;.cdt;.kcr;.sna;tap;.voc;.m3u;.7z
+Amstrad GX4000|.cpr;.m3u;.zip;.7z;.dsk
+amstradcpc|.dsk;.zip;.cpc;.cdt;.kcr;.sna;tap;.voc;.m3u;.7z
+apfm1000|.bin;.zip;.7z
+Apple IIGS|.2mg;.m3u;.po;.dsk;.hdv
+Apple II|.nib;.do;.po;.dsk;.m3u
+Apple Mac OS|.dsk;.zip;.7z;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ima;.img;.ufi;.ipf;.dc42;.woz;.2mg;.360;.chd;.cue;.toc;.nrg;.gdi;.iso;.cdr;.hd;.hdv;.2mg;.hdi
+apple2gs|.2mg;.m3u;.po;.dsk;.hdv
+apple2|.nib;.do;.po;.dsk;.m3u
+arcade|.zip;.lst;.fba;.bin;.dat;.7z
+arcadia|.bin;.zip;.7z
+archimedes|.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ima;.img;.ufi;.360;.ipf;.adf;.apd;.jfd;.ads;.adm;.adl;.ssd;.bbc;.dsd;.st;.msa;.chd;.zip;.7z
+arduboy|.hex;.zip;.7z
+astrocade|.bin;.zip;.7z
+astrocde|.bin;.zip;.7z
+Atari 2600|.a26;.bin;.zip;.7z;.rom
+Atari 5200|.xfd;.atr;.atx;.cdm;.cas;.bin;.a52;.xex;.zip;.rom
+Atari 7800|.a78;.bin;.zip;.7z
+Atari 800|.xfd;.atr;.atx;.cdm;.cas;.bin;.xex;.zip;.m3u;.rom
+Atari Jaguar CD|.j64;.jag;.rom;.abs;.cof;.bin;.prg;.zip;.7z
+Atari Jaguar|.j64;.jag;.rom;.abs;.cof;.bin;.prg;.zip;.7z
+Atari Lynx|.lnx;.zip;.7z;.o
+Atari ST|.st;.stx;.ipf;.zip;.7z;.m3u;.msa;.dim
+atari2600|.a26;.bin;.zip;.7z;.rom
+atari5200|.xfd;.atr;.atx;.cdm;.cas;.bin;.a52;.xex;.zip;.rom
+atari7800|.a78;.bin;.zip;.7z
+atari800|.xfd;.atr;.atx;.cdm;.cas;.bin;.xex;.zip;.m3u;.rom
+atarijaguarcd|.j64;.jag;.rom;.abs;.cof;.bin;.prg;.zip;.7z
+atarijaguar|.j64;.jag;.rom;.abs;.cof;.bin;.prg;.zip;.7z
+atarilynx|.lnx;.zip;.7z
+atarist|.st;.stx;.ipf;.zip;.7z;.m3u;.msa;.dim;.hd
+atomiswave|.dat;.lst;.zip;.7z;.bin
+atom|.wav;.tap;.csw;.uef;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.40t;.atm;.bin;.rom;.zip;.7z
+Bally Astrocade|.bin;.zip;.7z
+BBC Microcomputer System|.adf;.adl;.csw;.dsd;.m3u;.ssd;.uef;.zip;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ima;.img;.ufi;.360;.ipf;.ssd;.bbc;.dsd;.adf;.ads;.adm;.adl;.fsd;.wav;.tap;.bin;.zip;.7z
+bbcmicro|.adf;.adl;.csw;.dsd;.m3u;.ssd;.uef;.zip
+bbc|.adf;.adl;.csw;.dsd;.m3u;.ssd;.uef;.zip;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ima;.img;.ufi;.360;.ipf;.ssd;.bbc;.dsd;.adf;.ads;.adm;.adl;.fsd;.wav;.tap;.bin;.zip;.7z
+bk|.bin;.zip;.7z
+c128|.d64;.d81;.prg;.lnx;.zip
+c20|.a0;.b0;.crt;.d64;.d81;.prg;.tap;.t64;.zip
+c64|.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7z
+camplynx|.wav;.tap;.zip;.7z
+Camputers Lynx|.wav;.tap;.zip;.7z
+cannonball|.cannonball
+Capcom Play System III|.fba;.zip;.7z
+Capcom Play System II|.fba;.zip;.7z
+Capcom Play System|.fba;.zip;.7z
+Casio Loopy|.bin;.zip;.7z
+Casio PV-1000|.bin;.zip;.7z
+cave3rd|.zip;.7z;.wsquashfs
+cavestory|.zip;.exe;.m3u;.libretro
+cave|.fba;.zip;.7z
+cd-i|.chd;.cue;.toc;.nrg;.gdi;.iso;.cdr
+cdimono1|.chd;.cue;.iso
+cdi|.chd;.cue;.toc;.nrg;.gdi;.iso;.cdr
+cgenius|.zip
+chailove|.chai;.chailove;.7z;.zip
+channel-f|.bin;.rom;.zip;.7z;.chf
+channelf|.bin;.rom;.zip;.7z;.chf
+chihiro|.xbe;.iso
+coco|.wav;.cas;.ccc;.rom;.zip;.7z
+Coleco ADAM|.wav;.ddp;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.rom;.col;.bin;.zip;.7z
+colecovision|.col;.zip;.rom
+Commodore 64|.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7z
+Commodore Amiga CD32|.iso;.bin;.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.cso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.chd
+Commodore Amiga|.adf;.uae;.lha;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.iso;.cue;.ccd;.nrg;.hdf;.m3u;.dmz;.7z
+Commodore CDTV|.iso;.adf;.zip;.ipf;.dms;.mds;.adz;.rp9;.fdi;.cso;.cue;.ccd;.nrg;.hdf;.hdz;.m3u;.bin;.chd
+Commodore Plus 4|.d64;.prg;.tap;.m3u;.zip;.7z
+Commodore VIC-20|.a0;.b0;.crt;.d64;.d81;.prg;.tap;.t64;.zip
+consolearcade|.arcadedef;.bat;.iso;.lnk;.xbe;.7z;.zip
+cplus4|.d64;.prg;.tap;.m3u;.zip;.7z
+cps1|.fba;.zip;.7z
+cps2|.fba;.zip;.7z
+cps3|.fba;.zip;.7z
+creativision|.bin;.rom;.zip;.7z
+crvision|.bin;.rom;.zip;.7z
+daphne|.daphne;.7z;.zip;.rar;.squashfs
+desktop|.bat;.lnk
+devilutionx|.mpq
+doom|.wad;.iwad
+dos|.pc;.dos;.dosz;.squashfs;.dosbox;.zip
+Dragon 32-64|.cas;.bas;.dmk;.jvc;.os9;.dsk;.vdk;.rom;.ccc;.sna;.m3u;.asc
+dragon32|.cas;.bas;.dmk;.jvc;.os9;.dsk;.vdk;.rom;.ccc;.sna;.m3u;.asc
+dragon|.cas;.bas;.dmk;.jvc;.os9;.dsk;.vdk;.rom;.ccc;.sna;.m3u;.asc
+dreamcast|.gdi;.cdi;.chd;.m3u;.mds;.mdf;.cue
+dreamcastjp|.gdi;.cdi;.chd;.m3u;.mds;.mdf;.cue
+EACA EG2000 Colour Genie|.bin;.zip;.7z
+easyrpg|.easyrpg;.zip;.ini;.lbd;.7z;.rar;.squashfs
+ecwolf|.ecwolf;.pk3;.squashfs
+electron|.wav;.csw;.uef;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ssd;.bbc;.img;.dsd;.adf;.ads;.adm;.adl;.rom;.bin;.zip;.7z
+Elektronika BK|.bin;.zip;.7z
+Emerson Arcadia 2001|.bin;.zip;.7z
+emulators|.bat;.lnk
+Entex Adventure Vision|.bin;.zip;.7z
+Epoch Game Pocket Computer|.bin;.zip;.7z
+Epoch Super Cassette Vision|.bin;.sv;.zip;.7z
+Exelvision EXL 100|.bin;.zip;.7z
+Fairchild Channel F|.bin;.rom;.zip;.7z;.chf
+fba_libretro|.7z;.zip;.fba
+fba|.7z;.fba;.zip;.chd
+fbneo|.7z;.fba;.zip;.iso
+fds|.fds;.zip;.7z
+flash|.swf
+flatpak|.flatpak
+fm-7|.wav;.t77;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.zip;.7z
+fm7|.wav;.t77;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.zip;.7z
+fmtmarty|.bin;.m3u;.cue;.d88;.d77;.xdf;.iso;.game
+fmtowns|.bin;.m3u;.cue;.d88;.d77;.xdf;.iso;.game
+fpinball|.fpt
+Fujitsu FM-7|.wav;.t77;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.zip;.7z
+Funtech Super Acan|.bin;.zip;.7z
+gaelco|.zip;.7z;.wsquashfs
+nesicax|.wsquashfs
+nesicax2|.wsquashfs
+typex|.wsquashfs
+typex2|.wsquashfs
+segarw|.wsquashfs
+segare|.wsquashfs
+rawthrills|.wsquashfs
+konamipc|.wsquashfs
+segaalls|.wsquashfs
+segaer|.wsquashfs
+seganu|.wsquashfs
+adrenaline|.wsquashfs
+unis|.wsquashfs
+gamate|.bin;.zip;.7z
+Game & Watch|.mgw;.zip;.7z
+gameandwatch|.mgw;.zip;.7z
+gamecom|.bin;.tgc;.zip;.7z
+gamecube|.iso;.gc;.gcz;.gcm;.rvz;.ciso;.cso;.m3u;.elf;.dol;.wbfs
+gamegear|.gg;.zip;.7z;.bin
+gamepock|.bin;.zip;.7z
+gb2players|.zip;.gb;.7z;.gbc2
+gba|.zip;.gba;.7z
+gbc2players|.gb;.gbc;.zip;.7z;.gbc2
+gbc|.gb;.gbc;.zip;.7z
+gb|.zip;.gb;.7z
+GCE Vectrex|.vec;.zip;.bin;.7z;.gam
+gc|.elf;.dol;.gcm;.iso;.wbfs;.ciso;.cso;.gcz;.wad;.rvz;.m3u;.gc
+genesis|.gen;.md;.smd;.bin;.zip;.7z
+gmaster|.bin;.zip;.7z
+gp32|.smc;.zip;.7z
+gw|.mgw;.zip;.7z
+gx4000|.cpr;.m3u;.zip;.7z;.dsk
+Hartung Game Master|.bin;.zip;.7z
+hbmame|.zip;.7z
+hikaru|.zip;.7z
+intellivision|.int;.rom;.bin;.zip;.7z
+internet|.txt
+j2me|.jar;.7z;.zip
+jaguarcd|.j64;.jag;.rom;.abs;.cof;.bin;.prg;.zip;.7z
+jaguar|.j64;.jag;.rom;.abs;.cof;.bin;.prg;.zip;.7z
+jupace|.zip;.7z;.tap;.wav;.ace
+Jupiter Ace|.bin;.zip;.7z
+laser310|.vz;.wav;.cas;.zip;.7z
+laserdisc|.daphne;.dirksimple;.ogv;.singe;.7z;.zip
+lcdgames|.mgw;.zip;.7z
+lightgun|.zip;.7z
+linux|.pc;.plus
+love|.zip;.7z;.lua;.love;.lutro;.exe
+lowresnx|.nx;.zip;.7z
+lutro|.lua;.lutro;.zip;.love;.7z
+lynx|.lnx;.zip;.7z;.o
+macintosh|.dsk;.zip;.7z;.mfi;.dfi;.hfe;.mfm;.td0;.imd;.d77;.d88;.1dd;.cqm;.cqi;.dsk;.ima;.img;.ufi;.ipf;.dc42;.woz;.2mg;.360;.chd;.cue;.toc;.nrg;.gdi;.iso;.cdr;.hd;.hdv;.2mg;.hdi
+Magnavox Odyssey 2|.bin;.zip;.7z
+mame-advmame|.zip
+mame-libretro|.zip
+mame-mame4all|.zip
+mame|.zip;.7z
+mastersystem|.sms;.zip;.7z;.bin
+Mattel Intellivision|.int;.rom;.bin;.zip;.7z
+Mega Duck|.bin;.zip;.7z
+megacdjp|.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+megacd|.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+megadrive-msu|.32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip;
+megadrivejp|.32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+megadrive|.32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip;
+megaduck|.bin;.zip;.7z
+mess|.chd;.7z;.zip
+MGT SAM Coupé|.dsk;.sad;.mgt;.sdf;.td0;.sbt;.cpm;.zip;.m3u
+Microsoft MSX2+|.dsk;.mx2;.rom;.zip;.7z;.cas;.m3u
+Microsoft MSX2|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+Microsoft MSX|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+Microsoft Xbox 360|.iso;.xex;.x360
+Microsoft Xbox|.iso;.xbe;.squashfs
+model1|.zip;.plus
+model2|.zip;.plus
+model3|.zip;.plus
+moonlight|.moonlight
+moto|.fd;.k7;.m5;.m7;.rom;.sap;.7z;.zip
+mrboom|.libretro
+MS-DOS|.pc;.dos;.dosz
+msu-md|.md;.zip;.7z
+msx1|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+msx2+|.dsk;.mx2;.rom;.zip;.7z;.cas;.m3u
+msx2|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+msxturbor|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+msx|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+mugen|.plus;.pc;.cmd;.bat;.squashfs;.7z;.win;.lnk
+multivision|.mv;.bin;.zip;.7z
+n-gage|.zip
+n3ds|.squashfs
+n64dd|.z64;.v64;.n64;.wad;.zip;.7z;.ndd
+n64|.n64;.v64;.z64;.bin;.u1;.ndd;.zip;.7z
+n64jp|.n64;.v64;.z64;.bin;.u1;.ndd;.zip;.7z
+Namco System 22|.zip;.7z
+namco23|.zip;.7z
+naomi2|.zip;.lst;.bin;.dat;.7z
+naomigd|.lst;.dat;.7z;.zip;.bin
+naomi|.lst;.dat;.7z;.zip;.bin
+nds|.nds;.zip;.7z
+NEC PC Engine-CD|.cue;.ccd;.chd;.pce;.iso;.cso;.img;.zip;.7z
+NEC PC-FX|.cue;.ccd;.toc;.chd
+NEC TurboGrafx-16|.pce;.cue;.ccd;.sgx;.zip;.7z
+neogeo64|.zip;.7z
+neogeocdjp|.chd;.cue;.iso;.m3u
+neogeocd|.cue;.iso;.chd;.m3u;.cso
+neogeomini|.zip;.fba;.7z
+neogeox|.zip;.7z;.iso;.bin;.chd;.cue
+neogeo|.zip;.7z
+nesmini|.nes;.zip;.fds;7z;.unif;.unf
+nes|.nes;.zip;.7z
+ngage|.zip
+ngc|.ngp;.ngc;.ngpc;.npc;.zip;.7z
+ngpc|.ngp;.ngc;.ngpc;.npc;.zip;.7z
+ngp|.ngp;.ngc;.ngpc;.npc;.zip;.7z
+Nintendo 3DS|.squashfs
+Nintendo 64DD|.ndd;.v64;.z65;.n64;.wad;.zip;.7Z
+Nintendo 64|.n64;.v64;.z64;.bin;.u1;.ndd;.zip;.7z
+Nintendo DS|.nds;.zip;.7z
+Nintendo Entertainment System|.nes;.zip;.7z
+Nintendo Famicom Disk System|.fds;.zip;.7z
+Nintendo Game Boy Advance|.zip;.gba;.7z
+Nintendo Game Boy Color|.gb;.gbc;.zip;.7z
+Nintendo Game Boy|.zip;.gb;.7z
+Nintendo GameCube|.elf;.dol;.gcm;.iso;.wbfs;.ciso;.cso;.gcz;.wad;.rvz;.m3u;.gc
+Nintendo Satellaview|.bs;.smc;.sfc;.zip;.7z;.st;.fig
+Nintendo Switch|.nso;.nro;.nca;.xci;.nsp;.kip
+Nintendo Virtual Boy|.vb;.vboy;.bin;.zip;.7z
+Nintendo Wii U|.wud;.wux;.iso;.wad;.rpx;.elf;.wup;.squashfs;.m3u;.wua
+Nintendo Wii|.iso;.wbfs;.wad;.rvz;.gcz;.ciso;.cso
+Nokia N-Gage|.zip
+np2pi|.d98;.d98d;.fdi;.fdd;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.hdi;.thd;.nhd;.hdd;.hdn;.zip;.7z
+o2em|.bin;.zip;.7z
+odyssey2|.bin;.zip;.7z
+openbor|.pak;.exe
+Oric Atmos|.dsk;.tap;.m3u
+oricatmos|.dsk;.tap;.m3u
+oric|.dsk;.tap;.m3u
+palm|.prc;.pdb;.pqa;.img
+PC Engine SuperGrafx|.pce;.sgx;.zip;.ccd;.cue;.7z;.chd;.fba
+pc88|.d98;.98d;.fdi;.fdd;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.hdi;.thd;.nhd;.hdd;.hdn;.m3u;.zip;.7z
+pc98|.d98;.98d;.fdi;.fdd;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.hdi;.thd;.nhd;.hdd;.hdn;.m3u;.zip;.7z
+pcarcade|.bat;.lnk
+pce-cd|.cue;.ccd;.chd;.pce;.iso;.cso;.img;.zip;.7z
+pcenginecd|.cue;.ccd;.chd;.pce;.iso;.cso;.img;.zip;.7z
+tgcd|.cue;.ccd;.chd;.pce;.iso;.cso;.img;.zip;.7z
+pcengine|.pce;.cue;.ccd;.sgx;.zip;.7z
+pce|.pce;.cue;.ccd;.sgx;.zip;.7z
+pcfx|.cue;.ccd;.toc;.chd
+pcv2|.pc2;.zip;.7z
+pc|.pc;.dos;.dosz
+pdp1|.zip;.7z;.tap;.rim;.drm
+pet|.a0;.b0;.crt;.d64;.d81;.prg;.tap;.t64;.zip
+Philips CD-i|.chd;.cue;.toc;.nrg;.gdi;.iso;.cdr
+pico8|.p8;.png;.exe;.zip;.7z;.m3u
+pinballfx3|.pxp
+pinball|.iso;.chd;.nds;.gba;.smc;.nes;.fig
+plugnplay|.zip;.7z
+plus4|.d64;.prg;.tap;.m3u;.zip;.7z
+pokemini|.min;.zip;.7z
+ports|.sh;.pk3;.exe;.game;.wad;.iwad;.pwad;.lmp;.7z;.map;.aba;.seq;.88;.pak;.zip;.libretro
+prboom|.wad;.iwad;.pwad
+ps2|.iso;.img;.pbp;.cue;.ccd;.bin;.mdf;.cso;.ima;.nrg;.dump;.gz;.chd
+ps3|.iso;.img;.pbp;.cue;.ccd;.bin;.mdf;.cso;.ima;.nrg;.dump;.gz;.ps3;.psn;.squashfs;.m3u
+pspminis|.cso;.iso;.pbp
+psp|.cso;.iso;.pbp;.chd;.elf;.prx
+psvita|.zip;.vpk
+psxmini|.iso;.img;.pbp;.cue;.ccd;.mdf;.chd;.cbn;.m3u;.toc;.z;.znx
+psx|.iso;.img;.pbp;.cue;.ccd;.cbn;.m3u;.chd;.mdf;.zip;.7z
+ps_vita|.zip;.vpk
+pv1000|.bin;.zip;.7z
+pygame|.pygame
+Radio-86RK Mikrosha|.rkm;.bin
+residualvm|.rvm;.residualvm
+retrobat|.menu
+samcoupe|.dsk;.sad;.mgt;.sdf;.td0;.sbt;.cpm;.zip;.m3u
+sameduck|.bin
+Sammy Atomiswave|.dat;.lst;.zip;.7z;.bin
+satellaview|.bs;.smc;.sfc;.zip;.7z;.st;.fig
+saturnjp|.cue;.toc;.m3u;.ccd;.chd;.iso;.mds;.zip;.7z;.cso;.mdf
+saturn|.cue;.toc;.m3u;.ccd;.chd;.iso;.mds;.zip;.7z;.cso;.mdf
+scummvm|.squashfs
+scummvmtmp|.squashfs
+scummvmfr|.squashfs
+scv|.bin;.zip;.7z
+sdlpop|.sdlpop
+Sega 32X|.32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+Sega CD|.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+Sega Dreamcast|.gdi;.cdi;.chd;.m3u;.mds;.mdf;.cue
+Sega Game Gear|.gg;.zip;.7z;.bin
+Sega Genesis|.gen;.md;.smd;.bin;.zip;.7z
+Sega Master System|.sms;.zip;.7z;.bin
+Sega Model 2|.zip;.plus
+Sega Model 3|.zip;.plus
+Sega Naomi 2|.zip;.lst;.bin;.dat;.7z
+Sega Naomi|.lst;.dat;.7z;.zip;.bin
+Sega Saturn|.cue;.toc;.m3u;.ccd;.chd;.iso;.mds;.zip;.7z;.cso;.mdf
+Sega SG-1000|.sg;.zip;.7z;.rom;.bin;.gg;.sms
+Sega ST-V|.zip
+sega32xjp|32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+sega32xna|32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+sega32x|.32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+segacd|.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+segacdjp|.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+segacd32x|.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+sfc|.smc;.sfc;.mgd;.zip;.bin;.7z;.bs;.fig;.swc;.gd7;.dx2;.bsx;.gd3
+sg-1000|.sg;.zip;.7z;.rom;.bin;.gg;.sms
+sg1000|.sg;.zip;.7z;.rom;.bin;.gg;.sms
+sgb|.gb;.gbc;.gb2;.gbc2;.zip;.7z
+Sharp X1|.dx1;.2d;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.zip;.7z
+Sharp X68000|.dim;.img;.d88;.88d;.hdm;.dup;.2hd;.xdf;.hdf;.cmd;.m3u;.zip;.7z
+shmups|.zip;.7z
+Sinclair ZX Spectrum|.tzx;.tap;.z80;.rzx;.scl;.trd;.zip;.7z
+Sinclair ZX-81|.tzx;.p;.zip;.7z;.tap;.z80;.rzx;.scl;.trd
+singe2|.cmd
+snes-msu1|.sfc;.smc;.bml;.m3u
+snes-msu|.sfc;.smc;.bml;.m3u
+snescd|.smc;.sfc;.mgd;.zip;.bin;.7z;.bs;.fig;.swc
+snesmini|.smc;.sfc;.mgd;.zip;.bin;.7z;.bs;.fig;.swc;.gd7;.dx2;.bsx;.gd3
+snesna|.smc;.sfc;.mgd;.zip;.7z;.fig;.gd3;.gd7;.dx2;.bsx;.swc;.rom
+snes|.smc;.sfc;.mgd;.zip;.7z;.fig;.gd3;.gd7;.dx2;.bsx;.swc;.rom
+SNK Neo Geo CD|.cue;.iso;.chd;.m3u;.cso
+SNK Neo Geo MVS|.zip;.7z
+SNK Neo Geo Pocket Color|.ngp;.ngc;.ngpc;.npc;.zip;.7z
+SNK Neo Geo Pocket|25
+SNK Neo Geo|.ngp;.ngc;.ngpc;.npc;.zip;.7z
+socrates|.bin;.zip;.7z
+solarus|.solarus;.zip
+sonicretro|.son;.scd
+Sony Playstation 2|.iso;.img;.pbp;.cue;.ccd;.bin;.mdf;.cso;.ima;.nrg;.dump;.gz;.chd
+Sony Playstation 3|.iso;.img;.pbp;.cue;.ccd;.bin;.mdf;.cso;.ima;.nrg;.dump;.gz;.ps3;.psn;.squashfs;.m3u
+Sony Playstation 4|.iso;.img;.pbp;.cue;.ccd;.bin;.mdf;.cso;.ima;.nrg;.dump;.gz;.ps3;.psn;.squashfs;.m3u
+Sony Playstation Vita|.zip;.vpk
+Sony Playstation|.iso;.img;.pbp;.cue;.ccd;.cbn;.m3u;.chd;.mdf;.zip;.7z
+Sony PSP Minis|.iso;.img;.pbp;.cue;.ccd;.mdf;.chd;.cbn;.m3u;.toc;.z;.znx
+Sony PSP|.cso;.iso;.pbp;.chd;.elf;.prx
+spectravideo|.cas;.bin;.zip;;.7z;.m3u
+steam|.steam;.bat;.lnk;.url
+stv|.zip
+sufami|.st;.smc;.sfc;.fig;.zip;.7z;.bs
+Super Nintendo Entertainment System - Mario Hacks|.smc;.sfc;.mgd;.zip;.7z;.fig;.gd3;.gd7;.dx2;.bsx;.swc;.rom
+Super Nintendo Entertainment System|.smc;.sfc;.mgd;.zip;.7z;.fig;.gd3;.gd7;.dx2;.bsx;.swc;.rom
+Super Nintendo MSU-1|.sfc;.smc;.bml;.m3u
+supergrafx|.pce;.sgx;.zip;.ccd;.cue;.7z;.chd;.fba
+supervision|.bin;.sv;.zip;.7z
+supracan|.bin;.zip;.7z
+switch|.nso;.nro;.nca;.xci;.nsp;.kip
+symbian|.sis;.sisx;.symbian
+Taito Type X|.pc;.exe;.wine;.wsquashfs;.wtgz;.bat;.lnk
+tanodragon|.cas;.bas;.dmk;.jvc;.os9;.dsk;.vdk;.rom;.ccc;.sna;.m3u;.asc
+teknoparrot|.teknoparrot;.parrot;.game
+Texas Instruments TI 99/4A|.ctg;.m3u;.rpk;.wav;.zip;.7z
+tg-cd|.cue;.ccd;.chd;.pce;.iso;.cso;.img;.zip;.7z
+tg16|.pce;.cue;.ccd;.sgx;.zip;.7z
+Thomson MO5|.fd;.k7;.m7;.sap;.rom;.m3u
+Thomson TO7|.fd;.k7;.m7;.sap;.rom;.m3u
+thomson|.fd;.k7;.m7;.sap;.rom;.zip;.7z
+ti994a|.ctg;.m3u;.rpk;.wav;.zip;.7z
+ti99|.ctg;.m3u;.rpk;.wav;.zip;.7z
+tic80|.tic;.zip;.7z
+to8|.fd;.k7;.m7;.sap;.rom;.m3u
+triforce|.iso;.zip;.cue;.gcm;.gcz;.ciso;.wbfs;.dol;.m3u
+TRS-80 Color Computer|.cas;.wav;.bas;.asc;.dmk;.jvc;.os9;.dsk;.vdk;.rom;.ccc;.m3u
+trs-80|.dsk;.m3u
+trs80coco|.cas;.wav;.bas;.asc;.dmk;.jvc;.os9;.dsk;.vdk;.rom;.ccc;.m3u
+tutor|.bin;.wav;.zip;.7z
+tvgames|.zip;.7z
+type-x|.pc;.exe;.wine;.wsquashfs;.wtgz;.bat;.lnk
+tyrquake|.pak
+uzebox|.uze;.zip;.7z
+vc4000|.bin;.rom;.pgm;.tvc;.zip;.7z
+vectrex|.vec;.zip;.bin;.7z;.gam
+vemulator|.vms;.dci;.bin
+vg5000|.k7
+vgmplay|.vgm;.vgz;.zip;.7z
+vic20|.bin;.crt;.prg;.20;.40;.60;.70;.a0;.b0;.m3u;.zip;.7z;.tap;.d64
+videopacplus|.bin;.zip;.7z
+videopac|.bin;.zip
+virtualboy|.vb;.vboy;.bin;.zip;.7z
+vpinball|.vpx
+vsmile|.u1;.u3;.bin;.zip;.7z
+wasm4|.wasm;.zip;.7z
+Watara Supervision|.sv;.zip;.7z
+wiiu|.wud;.wux;.iso;.wad;.rpx;.elf;.wup;.squashfs;.m3u;.wua
+wii|.iso;.wbfs;.wad;.rvz;.gcz;.ciso;.cso
+Windows 3.X|.plus;.wine;.pc;.exe;.wsquashfs;.wtgz;.lnk;.win;.windows;.cmd;.bat
+windows_installers|.exe;.iso
+windows|.plus;.wine;.pc;.exe;.wsquashfs;.wtgz;.lnk;.win;.windows;.cmd;.bat
+WonderSwan Color|.ws;.wsc;.pc2;.zip;.7z
+wonderswancolor|.wsc;.zip;.7z
+wonderswan|.ws;.zip;.7z
+WoW Action Max|.daphne;.7z;.zip;.rar;.squashfs
+wswanc|.ws;.wsc;.pc2;.zip;.7z
+wswan|.ws;.wsc;.pc2;.zip;.7z
+x1|.dx1;.2d;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.zip;.7z
+x360|.iso;.xex;.x360
+x68000|.dim;.img;.d88;.88d;.hdm;.dup;.2hd;.xdf;.hdf;.cmd;.m3u;.zip;.7z
+xash3d_fwgs|.game
+xbox360|.iso;.xex;.x360;.xcp;.m3u;.squashfs
+xbox|.iso;.xbe;.squashfs
+xegs|.atr;.dsk;.xfd;.bin;.rom;.car;.zip;.7z
+zmachine|.dat;.zip;.z1;.z2;.z3;.z4;.z5;.z6;.z7;.z8
+zx81|.tzx;.p;.zip;.7z;.tap;.z80;.rzx;.scl;.trd
+zxnext|.nex;.snx;.sna
+zxspectrum|.tzx;.tap;.z80;.rzx;.scl;.trd;.zip;.7z
+_test|.zip;.dsk;.m3u;.lha;.iso;.cue;.chd;.bin;.adf;.uae;.ipf;.dms;.mds;.adz;.rp9;.fdi;.ccd;.nrg;.hdf;.hdz;2mg;.lst;.fba;.dat;.cpc;.cdt;.kcr;.sna;tap;.voc;.a78;.a26;.j64;.jag;.rom;.lnx;.exe;.col;.7z;.gba;.cas;.bas;.dmk;.jvc;.os9;.vdk;.ccc;.sna;.int;.cpr;.pc;.dos;.sms;.plus;.mv;.n64;.v64;.z64;.ndd;.swf;.nes;.tap;.d98;.98d;.pce;.pbp;.cso;.rvm;.residualvm;.sad;.smc;.sfc;.toc;.32x;.sg;.solarus;.st;.sgx;.ctg;.tic;.pak;.uze;.vec;.vb;.vboy;.wbfs;.wud;.wux;.ws;.wsc;.dx1;.2d;.2hd;.tfd;.dim;.img;.tzx;;.z80;.rzx;.scl;.trd;.nes
+
+###########################################
+###
+###  ADDED On 4/7/2024 11:30:27 PM
+###
+###########################################
+
+atari|.a26;.bin;.zip;.7z;.rom;.a78;.a52
+commodore|.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7z
+corsixth|.game
+cpc|.dsk;.zip;.cpc;.cdt;.kcr;.sna;tap;.voc;.m3u;.7z
+eduke32|.eduke32
+eighthundred|.xfd;.atr;.atx;.cdm;.cas;.bin;.xex;.zip;.m3u;.rom
+etlegacy|.etl
+fairchild|.bin;.rom;.zip;.7z;.chf
+fallout1-ce|.f1ce
+fallout2-ce|.f2ce
+fba2012|.7z;.fba;.zip;.chd
+fc|.nes;.zip;.7z
+fury|.grp
+gg|.gg;.zip;.7z;.bin
+gzdoom|.wad;.iwad;.pwad;.gzdoom
+hcl|.game
+hurrican|.game
+iortcw|.rtcw
+mame2000|.zip;.7z
+md|.32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip;
+mdcd|.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+ms|.sms;.zip;.7z;.bin
+neocd|.chd;.cue;.iso;.m3u
+odcommander|.odc
+odyssey|.bin;.zip;.7z
+panasonic|.iso;.cue;.chd;.m3u
+pcecd|.cue;.ccd;.chd;.pce;.iso;.cso;.img;.zip;.7z
+pceightyeight|.d98;.98d;.fdi;.fdd;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.hdi;.thd;.nhd;.hdd;.hdn;.m3u;.zip;.7z
+pcninetyeight|.d98;.98d;.fdi;.fdd;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.hdi;.thd;.nhd;.hdd;.hdn;.m3u;.zip;.7z
+pico|.p8;.png;.exe;.zip;.7z;.m3u
+poke|.min;.zip;.7z
+ps|.iso;.img;.pbp;.cue;.ccd;.cbn;.m3u;.chd;.mdf;.zip;.7z
+raze|.raze
+segasgone|.sg;.zip;.7z;.rom;.bin;.gg;.sms
+sgfx|.pce;.sgx;.zip;.ccd;.cue;.7z;.chd;.fba
+sms|.sms;.zip;.7z;.bin
+sonic3-air|s3air
+sonic-mania|.sman
+superbroswar|.game
+thextech|.smbx
+thirtytwox|.32x;.68k;.bin;.bms;.chd;.cue;.gen;.gg;.iso;.m3u;.md;.mdx;.sg;.sgd;.smd;.sms;.7z;.zip
+tic|.ctg;.m3u;.rpk;.wav;.zip;.7z
+tyrian|.game
+vb|.vb;.vboy;.bin;.zip;.7z
+vis|.chd;.cue;.toc;.nrg;.gdi;.iso;.cdr
+vitaquake2|.pak;.zip;.7zip;.7z
+vmu|.vms;.bin
+ws|.ws;.wsc;.pc2;.zip;.7z
+xone|.dx1;.2d;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.zip;.7z
+xrick|.zip
+zc210|.qst
+zxeightyone|.tzx;.p;.zip;.7z;.tap;.z80;.rzx;.scl;.trd
+zxs|.tzx;.tap;.z80;.rzx;.scl;.trd;.zip;.7z
+
+
+###########################################
+###
+###  ADDED On 5/16/2024 7:51:33 PM
+###
+###########################################
+
+android|.apk
+Microsoft Xbox One|.dx1;.2d;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.zip;.7z
+Nintendo Entertainment System - Mario Hacks|.nes;.zip;.7z
+vircon32|.zip
+voxatron|.zip
+
+
+###########################################
+###__ADDED On 1/6/2025 5:24:31 PM__###
+alg|.alg
+Amstrad|.dsk;.zip;.cpc;.cdt;.kcr;.sna;tap;.voc;.m3u;.7z
+Atari ST-STE-TT-Falcon|.st;.stx;.ipf;.zip;.7z;.m3u;.msa;.dim
+atarixegs|.xex;.bin;.rom;.zip;.7z
+Bandai WonderSwan-Color|.ws;.wsc;.pc2;.zip;.7z
+c16|.nib;.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7
+CHIP-8|.bin;.cas;.ccc;.dsk;.rom;.wav;.zip;.7z;
+coco3|.ch8;.sc8;.xo8;.zip;.7z;
+Commodore C128|.nib;.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7z
+Commodore C64|.nib;.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7z
+Commodore CBM-II|.nib;.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7z
+Commodore PET|.nib;.d64;.d71;.d80;.d81;.d82;.g64;.g41;.x64;.t64;.tap;.prg;.p00;.crt;.bin;.gz;.d6z;.d7z;.d8z;.g6z;.g4z;.x6z;.cmd;.m3u;.zip;.7z
+enterprise|.dsk;.128;.bas;.com;.dtf;.img;.tap;.trn;.zip;.7z
+ep32|.zip
+ep64|.zip
+exl100|.bin;.zip;.7z
+Fairchild ChannelF|.bin;.rom;.zip;.7z;.chf
+famicom|.nes;.zip;.7z
+GCE-Vectrex|.vec;.zip;.bin;.7z;.gam
+Handheld Electronic - Game and Watch|.mgw;.zip;.7z
+Java J2ME|.jar
+love2d|.love
+Lowres NX|.nx;.zip;.7z
+Lua Engine|.lua;.lutro;.zip;;.7z
+mame2003|.zip;.7z
+Mattel - Intellivision|.int;.rom;.bin;.zip;.7z
+Mega Duck - Cougar Boy|.bin;.zip;.7z
+Megadrive MSU|.68k;.sgd;.smd;.bin;.gen;.md;.sg;.wad;.zip;.7z
+Microsoft - MSX|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+Microsoft - MSX2|.rom;.mx1;.mx2;.dsk;.cas;.m3u;.zip;.7z
+mtx|.zip
+mtx512|.zip
+mv|.bin
+NEC PC Engine|.pce;.cue;.ccd;.sgx;.zip;.7z
+NEC PC Engine CD|.cue;.ccd;.chd;.pce;.iso;.cso;.img;.zip;.7z
+NEC PC Engine SuperGrafx|.pce;.sgx;.zip;.ccd;.cue;.7z;.chd;.fba
+NEC PC-8000 - PC-8800 series|.d88;.u88;.m3u;.zip;.7z
+NEC PC98|.d98;.98d;.fdi;.fdd;.2hd;.tfd;.d88;.88d;.hdm;.xdf;.dup;.cmd;.hdi;.thd;.nhd;.hdd;.hdn;.m3u;.zip;.7z
+Nintendo N64|.n64;.v64;.z64;.bin;.u1;.ndd;.zip;.7z
+Nintendo NES-Famicom|.nes;.fds;.zip;.7z
+Nintendo Pokemon Mini|.min;.zip;.7z
+Nintendo SNES-SFC|.smc;.sfc;.mgd;.zip;.7z;.fig;.gd3;.gd7;.dx2;.bsx;.swc;.rom
+onscripter|.dat;.txt
+Philips CDi|.chd;.cue;.toc;.nrg;.gdi;.iso;.cdr
+PICO-8|.p8;.png;.zip;.7z
+piece|.pex;.pfi;.zip;
+pokemonmini|.min;.zip;.7z
+puzzlescript|.pz;.pzp
+RPG Maker 2000 - 2003|.easyrpg;.ldb;.zip;.7z
+Sega Atomiswave Naomi|.lst;.dat;.7z;.zip;.bin
+Sega Mega CD - Sega CD|.cue;.iso;.chd;.m3u;.cso;.zip;.7z
+Sega Mega Drive - Genesis|.gen;.md;.smd;.bin;.zip;.7z
+Sega Pico|.mdx;.md;.smd;.gen;.bin;.cue;.iso;.sms;.gg;.sg;.sgd;.68k;.chd;.zip;.7z
+Sinclair ZX 81|.tzx;.p;.zip;.7z;.tap;.z80;.rzx;.scl;.trd
+singe|.daphne;.7z;.zip;.rar;.squashfs;.cmd
+snes-hacks|.smc;.sfc;.mgd;.zip;.bin;.7z;.bs;.fig;.swc;.gd7;.dx2;.bsx;.gd3;.gd7
+snesmsu1|.sfc;.smc;.zip;.7z
+SNK Neo Geo Pocket - Color|.ngp;.ngc;.ngpc;.npc;.zip;.7z
+Sony Playstation Portable|.cso;.iso;.pbp;.chd;.elf;.prx
+spectrum|.tzx;.tap;.z80;.rzx;.scl;.trd;.zip;.7z
+Texas Instruments TI-83|.8xp;.8xk;.8xg;.zip;.7z
+The 3DO Company - 3DO|.iso;.cue;.chd;.m3u
+TIC-80|.tic;.zip;.7z
+tigerlcd|.zip;.7z
+turbografx|.pce;.cue;.chd;.sgx;.zip;.7z
+turbografxcd|.pce;.cue;.ccd;.chd;.img;.iso;.zip;.7z
+tvc|.cas;.zip;.7z
+vg5k|.k7;.zip
+vmac|.cmd;.dsk;.hvf;.img;.zip
+WASM-4|.wasm;.zip;.7z
+wolf|.wolf;.ecwolf
+
+
+###########################################
+###__ADDED On 2/5/2025 2:08:05 PM__###
+p2000t|.cas
+Port|.sh;.pk3;.exe;.game;.wad;.iwad;.pwad;.lmp;.7z;.map;.aba;.seq;.88;.pak;.zip;.libretro
+
+
+###########################################
+###__ADDED On 3/12/2025 3:55:54 PM__###
+ps4|.iso;.img;.pbp;.cue;.ccd;.bin;.mdf;.cso;.ima;.nrg;.dump;.gz;.ps4;.psn;.squashfs;.m3u
