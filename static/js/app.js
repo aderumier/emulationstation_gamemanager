@@ -10278,7 +10278,12 @@ class GameCollectionManager {
         const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
         const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
         
-        const selectedItems = Array.from(selectedTypesContainer.querySelectorAll('.selected-type-item:has(.btn:focus)'));
+        // Find items with focused remove buttons (more compatible approach)
+        const selectedItems = Array.from(selectedTypesContainer.querySelectorAll('.selected-type-item'))
+            .filter(item => {
+                const btn = item.querySelector('.btn');
+                return btn && btn === document.activeElement;
+            });
         
         selectedItems.forEach(item => {
             const type = item.getAttribute('data-type');
@@ -10292,6 +10297,14 @@ class GameCollectionManager {
             // Remove from selected types
             item.remove();
         });
+        
+        // Sort the available options alphabetically
+        if (selectedItems.length > 0) {
+            const options = Array.from(availableSelect.options);
+            options.sort((a, b) => a.textContent.localeCompare(b.textContent));
+            availableSelect.innerHTML = '';
+            options.forEach(opt => availableSelect.appendChild(opt));
+        }
         
         // Update the mapping
         this.updateLaunchboxMapping(mediaField);
@@ -10310,11 +10323,19 @@ class GameCollectionManager {
             option.textContent = type;
             availableSelect.appendChild(option);
             
+            // Sort the available options alphabetically
+            const options = Array.from(availableSelect.options);
+            options.sort((a, b) => a.textContent.localeCompare(b.textContent));
+            availableSelect.innerHTML = '';
+            options.forEach(opt => availableSelect.appendChild(opt));
+            
             // Remove from selected types
             item.remove();
             
             // Update the mapping
             this.updateLaunchboxMapping(mediaField);
+            
+            console.log(`Removed "${type}" from priority list and added back to available types`);
         }
     }
     
