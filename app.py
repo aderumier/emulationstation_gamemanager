@@ -4500,18 +4500,18 @@ def manage_screenscraper_mappings():
             if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping
-            if 'screenscraper' not in config:
-                config['screenscraper'] = {}
-            if 'image_type_mappings' not in config['screenscraper']:
-                config['screenscraper']['image_type_mappings'] = {}
+            # Update the mapping in scrappers.json
+            if 'screenscraper' not in scrappers_config:
+                scrappers_config['screenscraper'] = {}
+            if 'image_type_mappings' not in scrappers_config['screenscraper']:
+                scrappers_config['screenscraper']['image_type_mappings'] = {}
             
             # Update the mapping for this media field
-            config['screenscraper']['image_type_mappings'][media_field] = screenscraper_types
+            scrappers_config['screenscraper']['image_type_mappings'][media_field] = screenscraper_types
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'ScreenScraper mapping updated successfully'})
         
