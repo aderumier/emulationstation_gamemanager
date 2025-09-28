@@ -10339,7 +10339,7 @@ class GameCollectionManager {
         }
     }
     
-    initializeDragAndDrop(mediaField) {
+    initializeDragAndDrop(mediaField, scraperType = 'launchbox') {
         const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
         if (!selectedTypesContainer) return;
         
@@ -10351,7 +10351,7 @@ class GameCollectionManager {
         // Add new event listeners
         selectedTypesContainer.addEventListener('dragover', (e) => this.handleDragOver(e, mediaField));
         selectedTypesContainer.addEventListener('dragleave', (e) => this.handleDragLeave(e, mediaField));
-        selectedTypesContainer.addEventListener('drop', (e) => this.handleDrop(e, mediaField));
+        selectedTypesContainer.addEventListener('drop', (e) => this.handleDrop(e, mediaField, scraperType));
         
         // Make items draggable
         const items = selectedTypesContainer.querySelectorAll('.selected-type-item');
@@ -10388,7 +10388,7 @@ class GameCollectionManager {
         }
     }
     
-    handleDrop(e, mediaField) {
+    handleDrop(e, mediaField, scraperType = 'launchbox') {
         e.preventDefault();
         const draggedType = e.dataTransfer.getData('text/plain');
         const container = e.target.closest('#selectedTypes_' + mediaField);
@@ -10411,8 +10411,12 @@ class GameCollectionManager {
                     container.insertBefore(draggedElement, afterElement);
                 }
                 
-                // Update the mapping
-                this.updateLaunchboxMapping(mediaField);
+                // Update the mapping based on scraper type
+                if (scraperType === 'screenscraper') {
+                    this.saveScreenscraperMapping(mediaField);
+                } else {
+                    this.updateLaunchboxMapping(mediaField);
+                }
             }
         }
     }
@@ -10693,7 +10697,7 @@ class GameCollectionManager {
             tbody.appendChild(row);
             
             // Initialize drag and drop for this row
-            this.initializeDragAndDrop(`selectedTypes_${mediaField}`);
+            this.initializeDragAndDrop(mediaField, 'screenscraper');
         });
     }
     
@@ -10789,6 +10793,9 @@ class GameCollectionManager {
             option.remove();
         });
         
+        // Re-initialize drag and drop
+        this.initializeDragAndDrop(mediaField, 'screenscraper');
+        
         // Save the updated mapping
         this.saveScreenscraperMapping(mediaField);
     }
@@ -10825,6 +10832,9 @@ class GameCollectionManager {
         availableSelect.innerHTML = '';
         options.forEach(opt => availableSelect.appendChild(opt));
         
+        // Re-initialize drag and drop
+        this.initializeDragAndDrop(mediaField, 'screenscraper');
+        
         // Save the updated mapping
         this.saveScreenscraperMapping(mediaField);
     }
@@ -10852,6 +10862,9 @@ class GameCollectionManager {
         options.sort((a, b) => a.textContent.localeCompare(b.textContent));
         availableSelect.innerHTML = '';
         options.forEach(opt => availableSelect.appendChild(opt));
+        
+        // Re-initialize drag and drop
+        this.initializeDragAndDrop(mediaField, 'screenscraper');
         
         // Save the updated mapping
         this.saveScreenscraperMapping(mediaField);
