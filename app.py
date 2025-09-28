@@ -5652,16 +5652,40 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
     else:
         print(f"🔍 DEBUG: No partition found for character '{first_char}'")
     
-    print(f"🔍 DEBUG: Found {len(matches)} total matches before sorting")
+    print(f"🔍 DEBUG: Found {len(matches)} total matches before deduplication")
+    
+    # Deduplicate matches by DatabaseID, keeping the best score for each unique game
+    seen_database_ids = {}
+    deduplicated_matches = []
+    
+    for match in matches:
+        database_id = match.get('database_id', '')
+        if database_id and database_id in seen_database_ids:
+            # Keep the match with the higher score
+            existing_match = seen_database_ids[database_id]
+            if match['score'] > existing_match['score']:
+                # Replace the existing match with this better one
+                deduplicated_matches.remove(existing_match)
+                deduplicated_matches.append(match)
+                seen_database_ids[database_id] = match
+        elif database_id:
+            # New unique game, add it
+            deduplicated_matches.append(match)
+            seen_database_ids[database_id] = match
+        else:
+            # No database_id, add it (shouldn't happen with LaunchBox data)
+            deduplicated_matches.append(match)
+    
+    print(f"🔍 DEBUG: After deduplication: {len(deduplicated_matches)} unique matches")
     
     # Sort by score (highest first) and return top N
-    matches.sort(key=lambda x: x['score'], reverse=True)
-    result = matches[:top_n]
+    deduplicated_matches.sort(key=lambda x: x['score'], reverse=True)
+    result = deduplicated_matches[:top_n]
     print(f"🔍 DEBUG: Returning {len(result)} matches (requested: {top_n})")
     
     # Log the top matches for debugging
     for i, match in enumerate(result[:5]):  # Log top 5 matches
-        print(f"🔍 DEBUG: Match {i+1}: '{match['matched_name']}' (score: {match['score']:.4f}, type: {match['match_type']})")
+        print(f"🔍 DEBUG: Match {i+1}: '{match['matched_name']}' (score: {match['score']:.4f}, type: {match['match_type']}, ID: {match['database_id']})")
     
     return result
 
