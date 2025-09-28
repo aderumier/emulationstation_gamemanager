@@ -2012,7 +2012,7 @@ class GameCollectionManager {
                     
                     // Use AG Grid's setRowData to efficiently update the grid
                     // This will preserve selection and scroll position
-                    this.gridApi.setRowData(this.games);
+                    await this.refreshGridData();
                     // Keep our current game map in sync to ensure diff updates work later
                     this.currentGameData = new Map();
                     this.games.forEach(game => this.currentGameData.set(game.path, game));
@@ -2044,7 +2044,7 @@ class GameCollectionManager {
                     
                     // Use AG Grid's setRowData to efficiently update the grid
                     // This will preserve selection and scroll position
-                    this.gridApi.setRowData(this.games);
+                    await this.refreshGridData();
                     
                     console.log('Game data synced successfully');
                 }
@@ -2214,7 +2214,7 @@ class GameCollectionManager {
             this.gridApi.deselectAll();
             
             // Update the grid
-            this.gridApi.setRowData(this.games);
+            await this.refreshGridData();
             
             // Update the games count
             this.updateGamesCount();
@@ -6556,7 +6556,7 @@ class GameCollectionManager {
             await this.updateGamelistAfterDeletion([game.path]);
             
             // Refresh grid
-            this.gridApi.setRowData(this.games);
+            await this.refreshGridData();
             this.updateGamesCount();
             
             // Show success message
@@ -12979,7 +12979,7 @@ class GameCollectionManager {
         
         // Ensure the grid has the current game data after reinitialization
         if (this.games && this.games.length > 0) {
-            this.gridApi.setRowData(this.games);
+            await this.refreshGridData();
         }
     }
 
