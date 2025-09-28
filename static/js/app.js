@@ -10164,12 +10164,38 @@ class GameCollectionManager {
                     <span class="media-field-display fw-bold">${mediaField}</span>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm" multiple size="3" id="launchboxTypes_${mediaField}" onchange="gameManager.updateLaunchboxMapping('${mediaField}', this)">
-                        ${launchboxMediaTypes.map(type => 
-                            `<option value="${type}" ${launchboxTypes.includes(type) ? 'selected' : ''}>${type}</option>`
-                        ).join('')}
-                    </select>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple types. Order matters - first selected has highest priority.</small>
+                    <div class="row g-2">
+                        <div class="col-5">
+                            <label class="form-label small fw-bold">Available Types</label>
+                            <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}">
+                                ${launchboxMediaTypes.filter(type => !launchboxTypes.includes(type)).map(type => 
+                                    `<option value="${type}">${type}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div class="col-2 d-flex flex-column justify-content-center align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="gameManager.addLaunchboxType('${mediaField}')" title="Add selected type">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="gameManager.removeLaunchboxType('${mediaField}')" title="Remove selected type">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
+                            <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto;" id="selectedTypes_${mediaField}">
+                                ${launchboxTypes.map((type, index) => 
+                                    `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
+                                        <span class="small">${type}</span>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificLaunchboxType('${mediaField}', '${type}')" title="Remove">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <small class="text-muted">Drag items to reorder priority. First item has highest priority.</small>
                 </td>
                 <td>
                     <button class="btn btn-sm btn-outline-secondary" 
@@ -10180,13 +10206,18 @@ class GameCollectionManager {
                 </td>
             `;
             tbody.appendChild(row);
+            
+            // Initialize drag and drop for this row
+            this.initializeDragAndDrop(mediaField);
         });
     }
     
-    async updateLaunchboxMapping(mediaField, selectElement) {
+    async updateLaunchboxMapping(mediaField) {
         try {
-            // Get selected values from the multiple select
-            const selectedTypes = Array.from(selectElement.selectedOptions).map(option => option.value);
+            // Get selected types from the priority list
+            const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+            const selectedTypes = Array.from(selectedTypesContainer.querySelectorAll('.selected-type-item'))
+                .map(item => item.getAttribute('data-type'));
             
             const response = await fetch('/api/launchbox-mappings', {
                 method: 'PUT',
@@ -10215,6 +10246,150 @@ class GameCollectionManager {
             // Reload data to revert changes
             this.loadLaunchboxMappingsData();
         }
+    }
+    
+    addLaunchboxType(mediaField) {
+        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        
+        const selectedOptions = Array.from(availableSelect.selectedOptions);
+        
+        selectedOptions.forEach(option => {
+            const type = option.value;
+            
+            // Add to selected types container
+            const typeItem = document.createElement('div');
+            typeItem.className = 'selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center';
+            typeItem.setAttribute('data-type', type);
+            typeItem.style.cursor = 'move';
+            typeItem.innerHTML = `
+                <span class="small">${type}</span>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificLaunchboxType('${mediaField}', '${type}')" title="Remove">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            selectedTypesContainer.appendChild(typeItem);
+            
+            // Remove from available select
+            option.remove();
+        });
+        
+        // Re-initialize drag and drop
+        this.initializeDragAndDrop(mediaField);
+        
+        // Update the mapping
+        this.updateLaunchboxMapping(mediaField);
+    }
+    
+    removeLaunchboxType(mediaField) {
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        
+        const selectedItems = Array.from(selectedTypesContainer.querySelectorAll('.selected-type-item:has(.btn:focus)'));
+        
+        selectedItems.forEach(item => {
+            const type = item.getAttribute('data-type');
+            
+            // Add back to available select
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            availableSelect.appendChild(option);
+            
+            // Remove from selected types
+            item.remove();
+        });
+        
+        // Update the mapping
+        this.updateLaunchboxMapping(mediaField);
+    }
+    
+    removeSpecificLaunchboxType(mediaField, type) {
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        
+        // Find and remove the specific item
+        const item = selectedTypesContainer.querySelector(`[data-type="${type}"]`);
+        if (item) {
+            // Add back to available select
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            availableSelect.appendChild(option);
+            
+            // Remove from selected types
+            item.remove();
+            
+            // Update the mapping
+            this.updateLaunchboxMapping(mediaField);
+        }
+    }
+    
+    initializeDragAndDrop(mediaField) {
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        if (!selectedTypesContainer) return;
+        
+        // Remove existing event listeners
+        selectedTypesContainer.removeEventListener('dragover', this.handleDragOver);
+        selectedTypesContainer.removeEventListener('drop', this.handleDrop);
+        
+        // Add new event listeners
+        selectedTypesContainer.addEventListener('dragover', (e) => this.handleDragOver(e, mediaField));
+        selectedTypesContainer.addEventListener('drop', (e) => this.handleDrop(e, mediaField));
+        
+        // Make items draggable
+        const items = selectedTypesContainer.querySelectorAll('.selected-type-item');
+        items.forEach(item => {
+            item.draggable = true;
+            item.addEventListener('dragstart', (e) => this.handleDragStart(e, mediaField));
+        });
+    }
+    
+    handleDragStart(e, mediaField) {
+        e.dataTransfer.setData('text/plain', e.target.getAttribute('data-type'));
+        e.target.style.opacity = '0.5';
+    }
+    
+    handleDragOver(e, mediaField) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+    
+    handleDrop(e, mediaField) {
+        e.preventDefault();
+        const draggedType = e.dataTransfer.getData('text/plain');
+        const draggedElement = e.target.closest(`[data-type="${draggedType}"]`);
+        
+        if (draggedElement) {
+            draggedElement.style.opacity = '1';
+            
+            // Find the drop target
+            const afterElement = this.getDragAfterElement(e.target.closest('#selectedTypes_' + mediaField), e.clientY);
+            
+            if (afterElement == null) {
+                e.target.closest('#selectedTypes_' + mediaField).appendChild(draggedElement);
+            } else {
+                e.target.closest('#selectedTypes_' + mediaField).insertBefore(draggedElement, afterElement);
+            }
+            
+            // Update the mapping
+            this.updateLaunchboxMapping(mediaField);
+        }
+    }
+    
+    getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.selected-type-item:not(.dragging)')];
+        
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
     
     async resetLaunchboxMapping(mediaField) {

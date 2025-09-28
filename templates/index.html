@@ -88,6 +88,42 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        
+        /* Drag and Drop Styles for LaunchBox Configuration */
+        .selected-type-item {
+            transition: all 0.2s ease;
+            background-color: #f8f9fa;
+        }
+        
+        .selected-type-item:hover {
+            background-color: #e9ecef;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .selected-type-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        
+        .selected-type-item.drag-over {
+            border-color: #0d6efd;
+            background-color: #e7f1ff;
+        }
+        
+        .priority-container {
+            min-height: 100px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 2px dashed #dee2e6;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+        }
+        
+        .priority-container.drag-active {
+            border-color: #0d6efd;
+            background-color: #f8f9ff;
+        }
         #cropImage {
             display: block;
             min-width: 600px;
