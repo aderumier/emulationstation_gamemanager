@@ -4511,7 +4511,7 @@ class GameCollectionManager {
         
         // Store current modal context
         this.currentModalContext = 'gameEdit';
-        this.currentGameData = {
+        this.currentModalData = {
             name: gameName,
             system: systemName
         };
@@ -4551,7 +4551,7 @@ class GameCollectionManager {
         
         // Store current modal context
         this.currentModalContext = 'gameEdit';
-        this.currentGameData = {
+        this.currentModalData = {
             name: gameName,
             system: systemName,
             igdbPlatform: igdbPlatform
@@ -4704,7 +4704,7 @@ class GameCollectionManager {
         
         // Store current modal context
         this.currentModalContext = 'gameEdit';
-        this.currentGameData = {
+        this.currentModalData = {
             name: gameName,
             system: systemName
         };
@@ -4873,7 +4873,7 @@ class GameCollectionManager {
         
         // Store current modal context
         this.currentModalContext = 'gameEdit';
-        this.currentGameData = {
+        this.currentModalData = {
             name: gameName,
             system: systemName
         };
@@ -5040,7 +5040,7 @@ class GameCollectionManager {
         
         // Store current modal context
         this.currentModalContext = 'gameEdit';
-        this.currentGameData = {
+        this.currentModalData = {
             name: gameName,
             system: systemName
         };
@@ -13770,7 +13770,7 @@ class GameCollectionManager {
                 // Fetch matches from API (single game mode)
                 this.showModalWithLoading(gameName, modalType);
                 
-                const systemName = modalType === 'gameEdit' ? this.currentGameData.system : this.currentSystem;
+                const systemName = modalType === 'gameEdit' ? this.currentModalData.system : this.currentSystem;
                 const response = await fetch('/api/get-top-matches', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

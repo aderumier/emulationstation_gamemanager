@@ -13,10 +13,14 @@
         "image_base_url": "https://images.launchbox-app.com/",
         "image_type_mappings": {
             "boxart": [
-                "Box - Front"
+                "Box - Front",
+                "Fanart - Box - Front",
+                "Advertisement Flyer - Front"
             ],
             "boxback": [
-                "Box - Back"
+                "Box - Back",
+                "Fanart - Box - Back",
+                "Advertisement Flyer - Back"
             ],
             "thumbnail": [
                 "Box - 3D"
@@ -25,7 +29,8 @@
                 "Clear Logo"
             ],
             "titleshot": [
-                "Screenshot - Game Title"
+                "Screenshot - Game Title",
+                "Screenshot - Game Select"
             ],
             "image": [
                 "Screenshot - Gameplay"
@@ -34,7 +39,11 @@
                 "Fanart - Background"
             ],
             "cartridge": [
-                "Advertisement Flyer - Front"
+                "Cart - Front",
+                "Arcade - Cabinet",
+                "Fanart - Cart - Front",
+                "Disc",
+                "Fanart - Disc"
             ]
         },
         "region": {
