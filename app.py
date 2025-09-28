@@ -6573,7 +6573,7 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
     # Check which fields need images based on current gamelist data
     fields_to_download = []
     if current_game_data and not force_download:
-        for field_name in image_config.get('image_type_mappings', {}).values():
+        for field_name in image_config.get('image_type_mappings', {}).keys():
             current_value = current_game_data.get(field_name)
             # Consider field empty if it's None, empty string, or just whitespace
             if not current_value or (isinstance(current_value, str) and current_value.strip() == ''):
@@ -6583,17 +6583,18 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
             return []
         
     else:
-        fields_to_download = list(image_config.get('image_type_mappings', {}).values())
+        fields_to_download = list(image_config.get('image_type_mappings', {}).keys())
     
     # Filter fields based on selected_fields
-        # Create reverse mapping from gamelist field to LaunchBox image type
-        field_to_launchbox_type = {}
-        for launchbox_type, gamelist_field in image_config.get('image_type_mappings', {}).items():
-            field_to_launchbox_type[gamelist_field] = launchbox_type
+        # Create reverse mapping from gamelist field to LaunchBox image types
+        field_to_launchbox_types = {}
+        for gamelist_field, launchbox_types in image_config.get('image_type_mappings', {}).items():
+            field_to_launchbox_types[gamelist_field] = launchbox_types
         
         # Filter fields_to_download to only include selected media fields
-        selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_type.values()]
-        fields_to_download = [field for field in fields_to_download if field_to_launchbox_type.get(field) in selected_media_fields]
+        if selected_fields:
+            selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_types.keys()]
+            fields_to_download = [field for field in fields_to_download if field in selected_media_fields]
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
@@ -6627,12 +6628,14 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         image_type_mappings = image_config.get('image_type_mappings', {})
         needed_image_types = set()
         
-        # Create reverse mapping from gamelist field to LaunchBox image type
-        field_to_launchbox_type = {}
-        for launchbox_type, gamelist_field in image_type_mappings.items():
+        # Create mapping from gamelist field to LaunchBox image types (with priority order)
+        field_to_launchbox_types = {}
+        for gamelist_field, launchbox_types in image_type_mappings.items():
             if gamelist_field in fields_to_download:
-                needed_image_types.add(launchbox_type)
-                field_to_launchbox_type[gamelist_field] = launchbox_type
+                field_to_launchbox_types[gamelist_field] = launchbox_types
+                # Add all possible image types for this field to needed types
+                for launchbox_type in launchbox_types:
+                    needed_image_types.add(launchbox_type)
         
         
         # Filter and group only the needed images by type
@@ -6671,54 +6674,67 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         # Prepare download tasks for parallel execution
         download_tasks = []
         
-        for i, (image_type_text, type_images) in enumerate(images_by_type.items()):
-            # Map image type to gamelist field (we already know this mapping exists)
-            gamelist_field = image_type_mappings.get(image_type_text)
+        # Process each field that needs images
+        for gamelist_field in fields_to_download:
+            # Get the priority-ordered list of LaunchBox image types for this field
+            launchbox_types = field_to_launchbox_types.get(gamelist_field, [])
             
-            # Sort images by region priority
-            sorted_images = []
-            for img in type_images:
-                try:
-                    region_index = region_priority.index(img['region'])
-                except ValueError:
-                    region_index = len(region_priority)  # Unknown regions go last
-                sorted_images.append((region_index, img))
+            # Find the first available image type in priority order
+            best_image = None
+            best_image_type = None
             
-            sorted_images.sort(key=lambda x: x[0])  # Sort by region priority index
+            for launchbox_type in launchbox_types:
+                if launchbox_type in images_by_type and images_by_type[launchbox_type]:
+                    type_images = images_by_type[launchbox_type]
+                    
+                    # Sort images by region priority
+                    sorted_images = []
+                    for img in type_images:
+                        try:
+                            region_index = region_priority.index(img['region'])
+                        except ValueError:
+                            region_index = len(region_priority)  # Unknown regions go last
+                        sorted_images.append((region_index, img))
+                    
+                    sorted_images.sort(key=lambda x: x[0])  # Sort by region priority index
+                    
+                    # Select the best image (first in priority order)
+                    best_image = sorted_images[0][1]
+                    best_image_type = launchbox_type
+                    break  # Stop at first available image type in priority order
             
-            # Select the best image (first in priority order)
-            best_image = sorted_images[0][1]
-            
-            # Map gamelist field to media directory using new structure
-            media_directory = get_media_directory(gamelist_field)
-            
-            if not media_directory:
-                media_directory = gamelist_field  # fallback to field name if no mapping found
-            
-            # Construct download URL and local path
-            base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
-            download_url = base_url + best_image['filename']
-            file_extension = os.path.splitext(best_image['filename'])[1]
-            local_filename = create_media_filename(rom_filename, file_extension)
-            local_path = os.path.join(system_path, 'media', media_directory, local_filename)
-            
-            # Create media directory if it doesn't exist
-            media_dir = os.path.join(system_path, 'media', media_directory)
-            os.makedirs(media_dir, exist_ok=True)
-            
-            # Add download task to the list
-            download_tasks.append({
-                'gamelist_field': gamelist_field,
-                'download_url': download_url,
-                'local_path': local_path,
-                'media_type': image_type_text,
-                'target_field': gamelist_field,  # Add target field for PNG conversion
-                'region': best_image['region'],
-                'filename': best_image['filename'],
-                'media_directory': media_directory,
-                'local_filename': local_filename,
-                'game_name': game_name or rom_filename
-            })
+            # Only create download task if we found an image
+            if best_image and best_image_type:
+                # Map gamelist field to media directory using new structure
+                media_directory = get_media_directory(gamelist_field)
+                
+                if not media_directory:
+                    media_directory = gamelist_field  # fallback to field name if no mapping found
+                
+                # Construct download URL and local path
+                base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
+                download_url = base_url + best_image['filename']
+                file_extension = os.path.splitext(best_image['filename'])[1]
+                local_filename = create_media_filename(rom_filename, file_extension)
+                local_path = os.path.join(system_path, 'media', media_directory, local_filename)
+                
+                # Create media directory if it doesn't exist
+                media_dir = os.path.join(system_path, 'media', media_directory)
+                os.makedirs(media_dir, exist_ok=True)
+                
+                # Add download task to the list
+                download_tasks.append({
+                    'gamelist_field': gamelist_field,
+                    'download_url': download_url,
+                    'local_path': local_path,
+                    'media_type': best_image_type,
+                    'target_field': gamelist_field,  # Add target field for PNG conversion
+                    'region': best_image['region'],
+                    'filename': best_image['filename'],
+                    'media_directory': media_directory,
+                    'local_filename': local_filename,
+                    'game_name': game_name or rom_filename
+                })
         
         
         import threading
@@ -8834,19 +8850,21 @@ async def scrape_launchbox_manual(game, system_name):
                             
                             # Map LaunchBox image types to gamelist fields via config
                             lb_map = image_config.get('image_type_mappings', {})
-                            mapped_field = lb_map.get(image_type)
-                            # Only include if explicitly mapped in config
-                            if mapped_field:
-                                media_fields.setdefault(mapped_field, []).append(image_url)
+                            
+                            # Check all fields to see if this image type maps to any of them
+                            for gamelist_field, launchbox_types in lb_map.items():
+                                if image_type in launchbox_types:
+                                    media_fields.setdefault(gamelist_field, []).append(image_url)
                 elif isinstance(image, dict):
                     image_type = image.get('type', '').lower()
                     image_url = image.get('url')
                     
                     lb_map = image_config.get('image_type_mappings', {})
-                    mapped_field = lb_map.get(image_type)
-                    # Only include if explicitly mapped in config
-                    if mapped_field and image_url:
-                        media_fields.setdefault(mapped_field, []).append(image_url)
+                    
+                    # Check all fields to see if this image type maps to any of them
+                    for gamelist_field, launchbox_types in lb_map.items():
+                        if image_type in launchbox_types and image_url:
+                            media_fields.setdefault(gamelist_field, []).append(image_url)
         
         return {
             'text_fields': text_fields,
@@ -12802,10 +12820,12 @@ def _matches_media_type(image_type, requested_media_type, media_directory):
     image_type_mappings = launchbox_config.get('image_type_mappings', {})
     
     # Check if this image type maps to the requested media type
-    mapped_media_type = image_type_mappings.get(image_type)
+    # New structure: image_type_mappings[gamelist_field] = [list of launchbox_types]
+    for gamelist_field, launchbox_types in image_type_mappings.items():
+        if gamelist_field == requested_media_type and image_type in launchbox_types:
+            return True
     
-    # Return True if the image type maps to the requested media type
-    return mapped_media_type == requested_media_type
+    return False
 
 @app.route('/api/launchbox-media/<launchbox_id>/<media_type>', methods=['GET'])
 @login_required

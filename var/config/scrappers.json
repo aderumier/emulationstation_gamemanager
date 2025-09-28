@@ -12,14 +12,33 @@
         },
         "image_base_url": "https://images.launchbox-app.com/",
         "image_type_mappings": {
-            "Box - Front": "boxart",
-            "Box - Back": "boxback",
-            "Box - 3D": "thumbnail",
-            "Clear Logo": "marquee",
-            "Screenshot - Game Title": "titleshot",
-            "Screenshot - Gameplay": "image",
-            "Fanart - Background": "fanart",
-            "Cart - Front": "cartridge"
+            "boxart": [
+                "Box - Front"
+            ],
+            "boxback": [
+                "Box - Back"
+            ],
+            "thumbnail": [
+                "Box - 3D"
+            ],
+            "marquee": [
+                "Clear Logo"
+            ],
+            "titleshot": [
+                "Screenshot - Game Title"
+            ],
+            "image": [
+                "Screenshot - Gameplay"
+            ],
+            "fanart": [
+                "Fanart - Background"
+            ],
+            "cartridge": [
+                "Cart - Front",
+                "Disc",
+                "Fanart - Cart - Front",
+                "Arcade - Cabinet"
+            ]
         },
         "region": {
             "priority": [
