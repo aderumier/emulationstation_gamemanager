@@ -10156,25 +10156,32 @@ class GameCollectionManager {
         
         tbody.innerHTML = '';
         
-        Object.entries(launchboxMappings).forEach(([launchboxType, mediaField]) => {
+        // Get all available LaunchBox image types from the mappings
+        const allLaunchboxTypes = new Set();
+        Object.values(launchboxMappings).forEach(types => {
+            if (Array.isArray(types)) {
+                types.forEach(type => allLaunchboxTypes.add(type));
+            }
+        });
+        
+        // Create rows for each media field
+        Object.entries(launchboxMappings).forEach(([mediaField, launchboxTypes]) => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
-                    <span class="launchbox-type-display">${launchboxType}</span>
+                    <span class="media-field-display fw-bold">${mediaField}</span>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm" 
-                            data-launchbox-type="${launchboxType}" 
-                            onchange="gameManager.updateLaunchboxMapping('${launchboxType}', this.value)">
-                        <option value="">-- Select Media Field --</option>
-                        ${Object.keys(mediaFields).map(field => 
-                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
+                    <select class="form-select form-select-sm" multiple size="3" id="launchboxTypes_${mediaField}" onchange="gameManager.updateLaunchboxMapping('${mediaField}', this)">
+                        ${Array.from(allLaunchboxTypes).map(type => 
+                            `<option value="${type}" ${launchboxTypes.includes(type) ? 'selected' : ''}>${type}</option>`
                         ).join('')}
                     </select>
+                    <small class="text-muted">Hold Ctrl/Cmd to select multiple types. Order matters - first selected has highest priority.</small>
                 </td>
                 <td>
                     <button class="btn btn-sm btn-outline-secondary" 
-                            onclick="gameManager.resetLaunchboxMapping('${launchboxType}')"
+                            onclick="gameManager.resetLaunchboxMapping('${mediaField}')"
                             title="Reset to default">
                         <i class="bi bi-arrow-clockwise"></i>
                     </button>
@@ -10184,24 +10191,27 @@ class GameCollectionManager {
         });
     }
     
-    async updateLaunchboxMapping(launchboxType, mediaField) {
+    async updateLaunchboxMapping(mediaField, selectElement) {
         try {
+            // Get selected values from the multiple select
+            const selectedTypes = Array.from(selectElement.selectedOptions).map(option => option.value);
+            
             const response = await fetch('/api/launchbox-mappings', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    launchbox_type: launchboxType,
-                    media_field: mediaField
+                    media_field: mediaField,
+                    launchbox_types: selectedTypes
                 })
             });
             
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated mapping: ${launchboxType} -> ${mediaField}`);
-                this.showAlert(`Mapping updated: ${launchboxType} → ${mediaField}`, 'success');
+                console.log(`Successfully updated mapping: ${mediaField} -> [${selectedTypes.join(', ')}]`);
+                this.showAlert(`Mapping updated: ${mediaField} → [${selectedTypes.join(', ')}]`, 'success');
             } else {
                 this.showAlert(`Failed to update mapping: ${data.error}`, 'danger');
                 // Reload data to revert changes
@@ -10215,8 +10225,8 @@ class GameCollectionManager {
         }
     }
     
-    async resetLaunchboxMapping(launchboxType) {
-        if (!confirm(`Reset mapping for "${launchboxType}" to default?`)) {
+    async resetLaunchboxMapping(mediaField) {
+        if (!confirm(`Reset mapping for "${mediaField}" to default?`)) {
             return;
         }
         
@@ -10227,7 +10237,7 @@ class GameCollectionManager {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    launchbox_type: launchboxType,
+                    media_field: mediaField,
                     reset: true
                 })
             });
@@ -10235,7 +10245,7 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                this.showAlert(`Mapping reset for "${launchboxType}"`, 'success');
+                this.showAlert(`Mapping reset for "${mediaField}"`, 'success');
                 this.loadLaunchboxMappingsData(); // Reload the table
             } else {
                 this.showAlert(`Failed to reset mapping: ${data.error}`, 'danger');

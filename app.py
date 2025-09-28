@@ -4259,62 +4259,62 @@ def manage_launchbox_mappings():
         elif request.method == 'PUT':
             # Update existing mapping
             data = request.get_json()
-            if not data or 'launchbox_type' not in data:
-                return jsonify({'error': 'LaunchBox type is required'}), 400
+            if not data or 'media_field' not in data:
+                return jsonify({'error': 'Media field is required'}), 400
             
-            launchbox_type = data['launchbox_type']
-            media_field = data.get('media_field', '')
+            media_field = data['media_field']
+            launchbox_types = data.get('launchbox_types', [])
             
             # Validate that the media field exists
             if media_field and media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping
-            if 'launchbox' not in config:
-                config['launchbox'] = {}
-            if 'image_type_mappings' not in config['launchbox']:
-                config['launchbox']['image_type_mappings'] = {}
+            # Update the mapping in scrappers.json
+            if 'launchbox' not in scrappers_config:
+                scrappers_config['launchbox'] = {}
+            if 'image_type_mappings' not in scrappers_config['launchbox']:
+                scrappers_config['launchbox']['image_type_mappings'] = {}
             
-            config['launchbox']['image_type_mappings'][launchbox_type] = media_field
+            scrappers_config['launchbox']['image_type_mappings'][media_field] = launchbox_types
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'Mapping updated successfully'})
         
         elif request.method == 'POST':
             # Reset mapping to default
             data = request.get_json()
-            if not data or 'launchbox_type' not in data or not data.get('reset'):
-                return jsonify({'error': 'Reset operation requires launchbox_type and reset flag'}), 400
+            if not data or 'media_field' not in data or not data.get('reset'):
+                return jsonify({'error': 'Reset operation requires media_field and reset flag'}), 400
             
-            launchbox_type = data['launchbox_type']
+            media_field = data['media_field']
             
             # Define default mappings (these should match the original config)
             default_mappings = {
-                "Box - Front": "thumbnail",
-                "Box - Back": "boxback", 
-                "Box - 3D": "boxart",
-                "Clear Logo": "marquee",
-                "Screenshot - Game Title": "titleshot",
-                "Screenshot - Gameplay": "image",
-                "Fanart - Background": "fanart",
-                "Cart - Front": "cartridge"
+                "boxart": ["Box - Front"],
+                "boxback": ["Box - Back"],
+                "thumbnail": ["Box - 3D"],
+                "marquee": ["Clear Logo"],
+                "titleshot": ["Screenshot - Game Title"],
+                "image": ["Screenshot - Gameplay"],
+                "fanart": ["Fanart - Background"],
+                "cartridge": ["Cart - Front"]
             }
             
             # Reset to default value
-            if 'launchbox' not in config:
-                config['launchbox'] = {}
-            if 'image_type_mappings' not in config['launchbox']:
-                config['launchbox']['image_type_mappings'] = {}
+            if 'launchbox' not in scrappers_config:
+                scrappers_config['launchbox'] = {}
+            if 'image_type_mappings' not in scrappers_config['launchbox']:
+                scrappers_config['launchbox']['image_type_mappings'] = {}
             
-            default_value = default_mappings.get(launchbox_type, '')
-            config['launchbox']['image_type_mappings'][launchbox_type] = default_value
+            default_value = default_mappings.get(media_field, [])
+            scrappers_config['launchbox']['image_type_mappings'][media_field] = default_value
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'Mapping reset to default'})
     
