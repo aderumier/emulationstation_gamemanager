@@ -2914,8 +2914,15 @@ class GameCollectionManager {
     // Refresh grid data when filters change
     async refreshGridData() {
         if (this.gridApi) {
-            // Use efficient update method instead of setRowData
-            await this.updateGameGridData(this.games);
+            // Check if duplicates filter is active
+            if (this.duplicatesFilterActive) {
+                // If duplicates filter is active, reapply it
+                const duplicateGames = this.findDuplicateGames();
+                await this.updateGameGridData(duplicateGames);
+            } else {
+                // Normal refresh - use all games
+                await this.updateGameGridData(this.games);
+            }
         }
     }
 
@@ -4065,14 +4072,7 @@ class GameCollectionManager {
                 this.showAlert('Changes saved directly to gamelist.xml!', 'success');
                 
                 // Refresh the grid to show updated values, respecting current filters
-                if (this.duplicatesFilterActive) {
-                    // If duplicates filter is active, reapply it
-                    const duplicateGames = this.findDuplicateGames();
-                    await this.updateGameGridData(duplicateGames);
-                } else {
-                    // Normal refresh
-                    this.gridApi.refreshCells();
-                }
+                await this.refreshGridData();
                 
                 // Move focus away from modal before hiding it
                 const safeElement = document.querySelector('#gamesCount') || document.body;
@@ -6608,9 +6608,8 @@ class GameCollectionManager {
                 
                 // Refresh the grid data to show updated values and resort, respecting current filters
                 if (this.duplicatesFilterActive) {
-                    // If duplicates filter is active, reapply it
-                    const duplicateGames = this.findDuplicateGames();
-                    await this.updateGameGridData(duplicateGames);
+                    // If duplicates filter is active, just refresh the grid (don't reload all games)
+                    await this.refreshGridData();
                 } else {
                     // Normal refresh - reload all games
                     await this.loadRomSystem(this.currentSystem);
@@ -13992,14 +13991,7 @@ class GameCollectionManager {
                     this.markGameAsModified(updatedGame);
                     
                     // Refresh grid to show updated data, respecting current filters
-                    if (this.duplicatesFilterActive) {
-                        // If duplicates filter is active, reapply it
-                        const duplicateGames = this.findDuplicateGames();
-                        await this.updateGameGridData(duplicateGames);
-                    } else {
-                        // Normal refresh
-                        this.refreshGridData();
-                    }
+                    await this.refreshGridData();
                     
                     console.log('Grid refreshed with updated game data');
                 }
@@ -14059,14 +14051,7 @@ class GameCollectionManager {
             this.markGameAsModified(updatedGame);
             
             // Refresh grid, respecting current filters
-            if (this.duplicatesFilterActive) {
-                // If duplicates filter is active, reapply it
-                const duplicateGames = this.findDuplicateGames();
-                await this.updateGameGridData(duplicateGames);
-            } else {
-                // Normal refresh
-                this.refreshGridData();
-            }
+            await this.refreshGridData();
             
             // Update edit modal fields if it's open
             this.updateEditModalFields(updatedGame);
