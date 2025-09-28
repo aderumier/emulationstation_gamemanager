@@ -10167,7 +10167,7 @@ class GameCollectionManager {
                     <div class="row g-2">
                         <div class="col-5">
                             <label class="form-label small fw-bold">Available Types</label>
-                            <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}">
+                            <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px;">
                                 ${launchboxMediaTypes.filter(type => !launchboxTypes.includes(type)).map(type => 
                                     `<option value="${type}">${type}</option>`
                                 ).join('')}
@@ -10196,13 +10196,6 @@ class GameCollectionManager {
                         </div>
                     </div>
                     <small class="text-muted">Drag items to reorder priority. First item has highest priority.</small>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-secondary" 
-                            onclick="gameManager.resetLaunchboxMapping('${mediaField}')"
-                            title="Reset to default">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
                 </td>
             `;
             tbody.appendChild(row);
@@ -10331,10 +10324,12 @@ class GameCollectionManager {
         
         // Remove existing event listeners
         selectedTypesContainer.removeEventListener('dragover', this.handleDragOver);
+        selectedTypesContainer.removeEventListener('dragleave', this.handleDragLeave);
         selectedTypesContainer.removeEventListener('drop', this.handleDrop);
         
         // Add new event listeners
         selectedTypesContainer.addEventListener('dragover', (e) => this.handleDragOver(e, mediaField));
+        selectedTypesContainer.addEventListener('dragleave', (e) => this.handleDragLeave(e, mediaField));
         selectedTypesContainer.addEventListener('drop', (e) => this.handleDrop(e, mediaField));
         
         // Make items draggable
@@ -10342,38 +10337,62 @@ class GameCollectionManager {
         items.forEach(item => {
             item.draggable = true;
             item.addEventListener('dragstart', (e) => this.handleDragStart(e, mediaField));
+            item.addEventListener('dragend', (e) => {
+                e.target.classList.remove('dragging');
+                e.target.style.opacity = '1';
+            });
         });
     }
     
     handleDragStart(e, mediaField) {
         e.dataTransfer.setData('text/plain', e.target.getAttribute('data-type'));
+        e.target.classList.add('dragging');
         e.target.style.opacity = '0.5';
     }
     
     handleDragOver(e, mediaField) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
+        
+        const container = e.target.closest('#selectedTypes_' + mediaField);
+        if (container) {
+            container.classList.add('drag-active');
+        }
+    }
+    
+    handleDragLeave(e, mediaField) {
+        const container = e.target.closest('#selectedTypes_' + mediaField);
+        if (container && !container.contains(e.relatedTarget)) {
+            container.classList.remove('drag-active');
+        }
     }
     
     handleDrop(e, mediaField) {
         e.preventDefault();
         const draggedType = e.dataTransfer.getData('text/plain');
-        const draggedElement = e.target.closest(`[data-type="${draggedType}"]`);
+        const container = e.target.closest('#selectedTypes_' + mediaField);
         
-        if (draggedElement) {
-            draggedElement.style.opacity = '1';
+        if (container) {
+            container.classList.remove('drag-active');
             
-            // Find the drop target
-            const afterElement = this.getDragAfterElement(e.target.closest('#selectedTypes_' + mediaField), e.clientY);
+            const draggedElement = container.querySelector(`[data-type="${draggedType}"]`);
             
-            if (afterElement == null) {
-                e.target.closest('#selectedTypes_' + mediaField).appendChild(draggedElement);
-            } else {
-                e.target.closest('#selectedTypes_' + mediaField).insertBefore(draggedElement, afterElement);
+            if (draggedElement) {
+                draggedElement.classList.remove('dragging');
+                draggedElement.style.opacity = '1';
+                
+                // Find the drop target
+                const afterElement = this.getDragAfterElement(container, e.clientY);
+                
+                if (afterElement == null) {
+                    container.appendChild(draggedElement);
+                } else {
+                    container.insertBefore(draggedElement, afterElement);
+                }
+                
+                // Update the mapping
+                this.updateLaunchboxMapping(mediaField);
             }
-            
-            // Update the mapping
-            this.updateLaunchboxMapping(mediaField);
         }
     }
     
@@ -10392,36 +10411,6 @@ class GameCollectionManager {
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
     
-    async resetLaunchboxMapping(mediaField) {
-        if (!confirm(`Reset mapping for "${mediaField}" to default?`)) {
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/launchbox-mappings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    media_field: mediaField,
-                    reset: true
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showAlert(`Mapping reset for "${mediaField}"`, 'success');
-                this.loadLaunchboxMappingsData(); // Reload the table
-            } else {
-                this.showAlert(`Failed to reset mapping: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            console.error('Error resetting launchbox mapping:', error);
-            this.showAlert('Error resetting mapping', 'danger');
-        }
-    }
     
     initializeLaunchboxConfigModal() {
         // Refresh mappings button
