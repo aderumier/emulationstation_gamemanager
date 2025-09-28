@@ -8787,10 +8787,10 @@ class GameCollectionManager {
             const response = await fetch('/api/config');
             const config = await response.json();
             
-            // Get media fields from config.json media_fields section
+            // Get ScreenScraper field mappings from config
             // For text fields, use hardcoded field names since ScreenScraper doesn't have a text field mapping
             const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
-            const mediaFields = Object.keys(config.media_fields || {});
+            const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
             // Load saved field selections from cookies
@@ -8839,10 +8839,10 @@ class GameCollectionManager {
             const response = await fetch('/api/config');
             const config = await response.json();
 
-            // Get media fields from config.json media_fields section
+            // Get ScreenScraper field mappings from config
             // For text fields, use hardcoded field names since ScreenScraper doesn't have a text field mapping
             const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
-            const mediaFields = Object.keys(config.media_fields || {});
+            const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
             // Save field selections to cookies
@@ -8953,8 +8953,8 @@ class GameCollectionManager {
             const response = await fetch('/api/config');
             const config = await response.json();
             
-            // Get media fields from config.json media_fields section
-            const mediaFields = config.media_fields || {};
+            // Get ScreenScraper field mappings from config
+            const imageTypeMappings = config.screenscraper?.image_type_mappings || {};
             
             // Get the media fields container
             const mediaFieldsContainer = document.getElementById('screenscraperMediaFieldsContainer');
@@ -8964,9 +8964,9 @@ class GameCollectionManager {
             existingMediaFields.forEach(checkbox => checkbox.remove());
             
             // Add media field checkboxes dynamically
-            Object.keys(mediaFields).forEach(mediaField => {
-                // Use mediaField (gamelist field name) for checkbox ID to match save/load functions
-                const fieldId = mediaField.split(/[-_]/).map(word => 
+            Object.keys(imageTypeMappings).forEach(gamelistField => {
+                // Use gamelistField (gamelist field name) for checkbox ID to match save/load functions
+                const fieldId = gamelistField.split(/[-_]/).map(word => 
                     word.charAt(0).toUpperCase() + word.slice(1)
                 ).join('');
                 const checkboxId = `screenscraperField${fieldId}`;
@@ -8975,8 +8975,8 @@ class GameCollectionManager {
                 const checkboxDiv = document.createElement('div');
                 checkboxDiv.className = 'form-check mb-2';
                 checkboxDiv.innerHTML = `
-                    <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${mediaField}" checked>
-                    <label class="form-check-label" for="${checkboxId}">${mediaField}</label>
+                    <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${gamelistField}" checked>
+                    <label class="form-check-label" for="${checkboxId}">${gamelistField}</label>
                 `;
                 
                 mediaFieldsContainer.appendChild(checkboxDiv);
@@ -9070,9 +9070,10 @@ class GameCollectionManager {
         console.log('📋 Full config received:', config);
         console.log('📋 ScreenScraper config:', config.screenscraper);
         
-        // Get media fields from config.json media_fields section
-        // These are the actual gamelist media field names that should be used for checkboxes
-        const mediaFields = Object.keys(config.media_fields || {});
+        // Get ScreenScraper field mappings from config
+        // ScreenScraper has image_type_mappings that map gamelist field names to arrays of ScreenScraper API field names
+        // We need to use the KEYS (gamelist field names) for checkboxes, which match what the checkboxes use
+        const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
         
         // For text fields, we need to use the hardcoded field names that match the HTML checkboxes
         // since ScreenScraper doesn't have a text field mapping in the config
