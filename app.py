@@ -2663,7 +2663,7 @@ def run_image_download_task(system_name, data):
             if not force_download:
                 # Check which fields need images based on current gamelist data
                 fields_to_download = []
-                for field_name in image_config.get('image_type_mappings', {}).values():
+                for field_name in image_config.get('image_type_mappings', {}).keys():
                     current_value = game.get(field_name)
                     # Consider field empty if it's None, empty string, or just whitespace
                     if not current_value or (isinstance(current_value, str) and current_value.strip() == ''):
