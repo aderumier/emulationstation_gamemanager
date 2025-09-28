@@ -4381,6 +4381,7 @@ def refresh_launchbox_media_types():
             
     except Exception as e:
         return jsonify({'error': f'Failed to refresh media types cache: {str(e)}'}), 500
+
 @app.route('/api/igdb-mappings', methods=['GET', 'PUT', 'POST'])
 @login_required
 def manage_igdb_mappings():
@@ -4465,23 +4466,38 @@ def manage_screenscraper_mappings():
             # Return current mappings and available media fields
             screenscraper_mappings = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
+            
+            # Load ScreenScraper media types from static file
+            screenscraper_media_types = []
+            mediastype_file = os.path.join('var', 'db', 'screenscraper', 'mediastype.txt')
+            if os.path.exists(mediastype_file):
+                try:
+                    with open(mediastype_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#'):
+                                screenscraper_media_types.append(line)
+                except Exception as e:
+                    print(f"Error reading ScreenScraper media types: {e}")
+            
             return jsonify({
                 'success': True, 
                 'screenscraper_mappings': screenscraper_mappings,
-                'media_fields': media_fields
+                'media_fields': media_fields,
+                'screenscraper_media_types': sorted(screenscraper_media_types)
             })
         
         elif request.method == 'PUT':
-            # Update existing mapping
+            # Update existing mapping with new array-based structure
             data = request.get_json()
-            if not data or 'screenscraper_type' not in data:
-                return jsonify({'error': 'ScreenScraper type is required'}), 400
+            if not data or 'media_field' not in data:
+                return jsonify({'error': 'Media field is required'}), 400
             
-            screenscraper_type = data['screenscraper_type']
-            media_field = data.get('media_field', '')
+            media_field = data['media_field']
+            screenscraper_types = data.get('screenscraper_types', [])
             
             # Validate that the media field exists
-            if media_field and media_field not in config.get('media_fields', {}):
+            if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
             # Update the mapping
@@ -4490,7 +4506,8 @@ def manage_screenscraper_mappings():
             if 'image_type_mappings' not in config['screenscraper']:
                 config['screenscraper']['image_type_mappings'] = {}
             
-            config['screenscraper']['image_type_mappings'][screenscraper_type] = media_field
+            # Update the mapping for this media field
+            config['screenscraper']['image_type_mappings'][media_field] = screenscraper_types
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
@@ -8747,8 +8764,15 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                 media_url = media.get('url')
                 if not media_url:
                     continue
-                # Use mapping to determine target gamelist field; fallback heuristics
-                mapped_field = ss_image_mapping.get(media_type)
+                
+                # Find the gamelist field that this media type maps to
+                mapped_field = None
+                for gamelist_field, screenscraper_types in ss_image_mapping.items():
+                    if media_type in screenscraper_types:
+                        mapped_field = gamelist_field
+                        break
+                
+                # Fallback heuristics if no mapping found
                 if not mapped_field:
                     if media_type in ['ss', 'sstitle']:
                         mapped_field = 'image'
@@ -8756,6 +8780,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                         mapped_field = 'marquee'
                     elif media_type in ['video', 'video-normalized']:
                         mapped_field = 'video'
+                
                 if mapped_field:
                     media_fields.setdefault(mapped_field, []).append(media_url)
         

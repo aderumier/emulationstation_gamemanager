@@ -10631,7 +10631,7 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                this.populateScreenscraperMappingsTable(data.screenscraper_mappings, data.media_fields);
+                this.populateScreenscraperMappingsTable(data.screenscraper_mappings, data.media_fields, data.screenscraper_media_types);
             } else {
                 console.error('Failed to load ScreenScraper mappings:', data.error);
                 this.showAlert('Failed to load ScreenScraper mappings data', 'danger');
@@ -10642,37 +10642,58 @@ class GameCollectionManager {
         }
     }
     
-    async populateScreenscraperMappingsTable(screenscraperMappings, mediaFields) {
+    async populateScreenscraperMappingsTable(screenscraperMappings, mediaFields, screenscraperMediaTypes) {
         const tbody = document.getElementById('screenscraperMappingsTableBody');
         if (!tbody) return;
         
         tbody.innerHTML = '';
         
-        Object.entries(screenscraperMappings).forEach(([screenscraperType, mediaField]) => {
+        // Create rows for each media field
+        Object.entries(screenscraperMappings).forEach(([mediaField, screenscraperTypes]) => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
-                    <span class="screenscraper-type-display">${screenscraperType}</span>
+                    <span class="media-field-display fw-bold">${mediaField}</span>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm" 
-                            data-screenscraper-type="${screenscraperType}" 
-                            onchange="gameManager.updateScreenscraperMapping('${screenscraperType}', this.value)">
-                        <option value="">-- Select Media Field --</option>
-                        ${Object.keys(mediaFields).map(field => 
-                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
-                        ).join('')}
-                    </select>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-secondary" 
-                            onclick="gameManager.resetScreenscraperMapping('${screenscraperType}')"
-                            title="Reset to default">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
+                    <div class="row g-2">
+                        <div class="col-5">
+                            <label class="form-label small fw-bold">Available Types</label>
+                            <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px;">
+                                ${screenscraperMediaTypes.filter(type => !screenscraperTypes.includes(type)).map(type => 
+                                    `<option value="${type}">${type}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div class="col-2 d-flex flex-column justify-content-center align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="gameManager.addScreenscraperType('${mediaField}')" title="Add selected type">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="gameManager.removeScreenscraperType('${mediaField}')" title="Remove selected type">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
+                            <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto;" id="selectedTypes_${mediaField}">
+                                ${screenscraperTypes.map((type, index) => 
+                                    `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
+                                        <span class="small">${type}</span>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificScreenscraperType('${mediaField}', '${type}')" title="Remove">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <small class="text-muted">Drag items to reorder priority. First item has highest priority.</small>
                 </td>
             `;
             tbody.appendChild(row);
+            
+            // Initialize drag and drop for this row
+            this.initializeDragAndDrop(`selectedTypes_${mediaField}`);
         });
     }
     
@@ -10735,6 +10756,140 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error resetting ScreenScraper mapping:', error);
             this.showAlert('Error resetting ScreenScraper mapping', 'danger');
+        }
+    }
+    
+    // ScreenScraper type management functions
+    addScreenscraperType(mediaField) {
+        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        
+        if (!availableSelect || !selectedTypesContainer) return;
+        
+        const selectedOptions = Array.from(availableSelect.selectedOptions);
+        if (selectedOptions.length === 0) return;
+        
+        selectedOptions.forEach(option => {
+            const type = option.value;
+            
+            // Add to selected types container
+            const typeDiv = document.createElement('div');
+            typeDiv.className = 'selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center';
+            typeDiv.setAttribute('data-type', type);
+            typeDiv.style.cursor = 'move';
+            typeDiv.innerHTML = `
+                <span class="small">${type}</span>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificScreenscraperType('${mediaField}', '${type}')" title="Remove">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            selectedTypesContainer.appendChild(typeDiv);
+            
+            // Remove from available select
+            option.remove();
+        });
+        
+        // Save the updated mapping
+        this.saveScreenscraperMapping(mediaField);
+    }
+    
+    removeScreenscraperType(mediaField) {
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        
+        if (!selectedTypesContainer || !availableSelect) return;
+        
+        // Find selected items (using document.activeElement for compatibility)
+        const selectedItems = Array.from(selectedTypesContainer.children).filter(item => 
+            item.classList.contains('selected-type-item')
+        );
+        
+        if (selectedItems.length === 0) return;
+        
+        selectedItems.forEach(item => {
+            const type = item.getAttribute('data-type');
+            
+            // Add back to available select
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            availableSelect.appendChild(option);
+            
+            // Remove from selected container
+            item.remove();
+        });
+        
+        // Sort the available options alphabetically
+        const options = Array.from(availableSelect.options);
+        options.sort((a, b) => a.textContent.localeCompare(b.textContent));
+        availableSelect.innerHTML = '';
+        options.forEach(opt => availableSelect.appendChild(opt));
+        
+        // Save the updated mapping
+        this.saveScreenscraperMapping(mediaField);
+    }
+    
+    removeSpecificScreenscraperType(mediaField, type) {
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        
+        if (!selectedTypesContainer || !availableSelect) return;
+        
+        // Find and remove the specific type from selected container
+        const typeItem = selectedTypesContainer.querySelector(`[data-type="${type}"]`);
+        if (typeItem) {
+            typeItem.remove();
+        }
+        
+        // Add back to available select
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        availableSelect.appendChild(option);
+        
+        // Sort the available options alphabetically
+        const options = Array.from(availableSelect.options);
+        options.sort((a, b) => a.textContent.localeCompare(b.textContent));
+        availableSelect.innerHTML = '';
+        options.forEach(opt => availableSelect.appendChild(opt));
+        
+        // Save the updated mapping
+        this.saveScreenscraperMapping(mediaField);
+    }
+    
+    async saveScreenscraperMapping(mediaField) {
+        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        if (!selectedTypesContainer) return;
+        
+        // Get all selected types in order
+        const selectedTypes = Array.from(selectedTypesContainer.children)
+            .filter(item => item.classList.contains('selected-type-item'))
+            .map(item => item.getAttribute('data-type'));
+        
+        try {
+            // Update the mapping via API
+            const response = await fetch('/api/screenscraper-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    media_field: mediaField,
+                    screenscraper_types: selectedTypes
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log(`Successfully updated ScreenScraper mapping for ${mediaField}:`, selectedTypes);
+            } else {
+                console.error('Failed to update ScreenScraper mapping:', data.error);
+                this.showAlert(`Failed to update ScreenScraper mapping: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error updating ScreenScraper mapping:', error);
+            this.showAlert('Error updating ScreenScraper mapping', 'danger');
         }
     }
     

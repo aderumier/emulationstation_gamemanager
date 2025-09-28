@@ -90,16 +90,44 @@
             "Japan"
         ],
         "image_type_mappings": {
-            "wheel": "marquee",
-            "box-2D": "boxart",
-            "box-3D": "thumbnail",
-            "box-2D-back": "boxback",
-            "ss": "image",
-            "sstitle": "titleshot",
-            "manuel": "manual",
-            "video": "video",
-            "fanart": "fanart",
-            "support-2D": "cartridge"
+            "marquee": [
+                "wheel",
+                "screenmarquee"
+            ],
+            "boxart": [
+                "box-2D",
+                "box-texture"
+            ],
+            "thumbnail": [
+                "box-3D"
+            ],
+            "boxback": [
+                "box-2D-back",
+                "box-2D-side"
+            ],
+            "image": [
+                "ss",
+                "sstitle"
+            ],
+            "titleshot": [
+                "sstitle"
+            ],
+            "manual": [
+                "manuel"
+            ],
+            "video": [
+                "video",
+                "videotable",
+                "videotable4k"
+            ],
+            "fanart": [
+                "fanart"
+            ],
+            "cartridge": [
+                "support-2D",
+                "support-texture",
+                "support-scan"
+            ]
         }
     },
     "steamgriddb": {

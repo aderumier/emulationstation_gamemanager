@@ -1091,7 +1091,13 @@ class ScreenScraperService:
         """
         screenscraper_config = self.scrappers_config.get('screenscraper', {})
         image_mappings = screenscraper_config.get('image_type_mappings', {})
-        return image_mappings.get(media_type)
+        
+        # New structure: image_mappings[gamelist_field] = [list of screenscraper_types]
+        for gamelist_field, screenscraper_types in image_mappings.items():
+            if media_type in screenscraper_types:
+                return gamelist_field
+        
+        return None
     
     def get_media_directory(self, media_field: str, system_name: str) -> Optional[str]:
         """
