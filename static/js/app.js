@@ -8976,7 +8976,7 @@ class GameCollectionManager {
                 checkboxDiv.className = 'form-check mb-2';
                 checkboxDiv.innerHTML = `
                     <input class="form-check-input screenscraper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${mediaField}" checked>
-                    <label class="form-check-label" for="${checkboxId}">${this.formatFieldName(mediaField)}</label>
+                    <label class="form-check-label" for="${checkboxId}">${mediaField}</label>
                 `;
                 
                 mediaFieldsContainer.appendChild(checkboxDiv);
