@@ -2276,8 +2276,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <h6>LaunchBox Image Type Mappings</h6>
-                        <p class="text-muted small">Configure which media fields each LaunchBox image type maps to. These mappings determine how LaunchBox images are categorized in your gamelist.</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6>LaunchBox Image Type Mappings</h6>
+                                <p class="text-muted small">Configure which media fields each LaunchBox image type maps to. These mappings determine how LaunchBox images are categorized in your gamelist.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="refreshLaunchboxMediaTypesBtn" title="Refresh LaunchBox Media Types Cache">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh Media Types
+                            </button>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped table-hover compact-table" id="launchboxMappingsTable">

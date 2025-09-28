@@ -10139,7 +10139,7 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                this.populateLaunchboxMappingsTable(data.launchbox_mappings, data.media_fields);
+                this.populateLaunchboxMappingsTable(data.launchbox_mappings, data.media_fields, data.launchbox_media_types);
             } else {
                 console.error('Failed to load launchbox mappings:', data.error);
                 this.showAlert('Failed to load launchbox mappings data', 'danger');
@@ -10150,19 +10150,11 @@ class GameCollectionManager {
         }
     }
     
-    async populateLaunchboxMappingsTable(launchboxMappings, mediaFields) {
+    async populateLaunchboxMappingsTable(launchboxMappings, mediaFields, launchboxMediaTypes) {
         const tbody = document.getElementById('launchboxMappingsTableBody');
         if (!tbody) return;
         
         tbody.innerHTML = '';
-        
-        // Get all available LaunchBox image types from the mappings
-        const allLaunchboxTypes = new Set();
-        Object.values(launchboxMappings).forEach(types => {
-            if (Array.isArray(types)) {
-                types.forEach(type => allLaunchboxTypes.add(type));
-            }
-        });
         
         // Create rows for each media field
         Object.entries(launchboxMappings).forEach(([mediaField, launchboxTypes]) => {
@@ -10173,7 +10165,7 @@ class GameCollectionManager {
                 </td>
                 <td>
                     <select class="form-select form-select-sm" multiple size="3" id="launchboxTypes_${mediaField}" onchange="gameManager.updateLaunchboxMapping('${mediaField}', this)">
-                        ${Array.from(allLaunchboxTypes).map(type => 
+                        ${launchboxMediaTypes.map(type => 
                             `<option value="${type}" ${launchboxTypes.includes(type) ? 'selected' : ''}>${type}</option>`
                         ).join('')}
                     </select>
@@ -10257,12 +10249,55 @@ class GameCollectionManager {
     }
     
     initializeLaunchboxConfigModal() {
-        // Refresh button
+        // Refresh mappings button
         const refreshLaunchboxMappingsBtn = document.getElementById('refreshLaunchboxMappingsBtn');
         if (refreshLaunchboxMappingsBtn) {
             refreshLaunchboxMappingsBtn.addEventListener('click', () => {
                 this.loadLaunchboxMappingsData();
             });
+        }
+        
+        // Refresh media types button
+        const refreshLaunchboxMediaTypesBtn = document.getElementById('refreshLaunchboxMediaTypesBtn');
+        if (refreshLaunchboxMediaTypesBtn) {
+            refreshLaunchboxMediaTypesBtn.addEventListener('click', () => {
+                this.refreshLaunchboxMediaTypes();
+            });
+        }
+    }
+    
+    async refreshLaunchboxMediaTypes() {
+        try {
+            // Show loading state
+            const btn = document.getElementById('refreshLaunchboxMediaTypesBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Refreshing...';
+            btn.disabled = true;
+            
+            const response = await fetch('/api/launchbox-refresh-media-types', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(data.message, 'success');
+                // Reload the mappings data to get updated media types
+                this.loadLaunchboxMappingsData();
+            } else {
+                this.showAlert(`Failed to refresh media types: ${data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error refreshing LaunchBox media types:', error);
+            this.showAlert('Error refreshing media types', 'danger');
+        } finally {
+            // Restore button state
+            const btn = document.getElementById('refreshLaunchboxMediaTypesBtn');
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Media Types';
+            btn.disabled = false;
         }
     }
     

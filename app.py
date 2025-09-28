@@ -4250,10 +4250,38 @@ def manage_launchbox_mappings():
             # Return current mappings and available media fields
             launchbox_mappings = scrappers_config.get('launchbox', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
+            
+            # Load LaunchBox media types from cache
+            launchbox_media_types = []
+            try:
+                mediatype_cache_path = os.path.join('var', 'db', 'launchbox', 'mediatype.json')
+                if os.path.exists(mediatype_cache_path):
+                    with open(mediatype_cache_path, 'r', encoding='utf-8') as f:
+                        mediatype_cache = json.load(f)
+                        launchbox_media_types = mediatype_cache.get('media_types', [])
+                else:
+                    # Fallback to hardcoded list if cache doesn't exist
+                    launchbox_media_types = [
+                        "Box - Front", "Box - Back", "Box - 3D", "Clear Logo",
+                        "Screenshot - Game Title", "Screenshot - Gameplay", 
+                        "Fanart - Background", "Cart - Front", "Disc",
+                        "Arcade - Cabinet", "Fanart - Cart - Front"
+                    ]
+            except Exception as e:
+                print(f"Error loading LaunchBox media types cache: {e}")
+                # Fallback to hardcoded list
+                launchbox_media_types = [
+                    "Box - Front", "Box - Back", "Box - 3D", "Clear Logo",
+                    "Screenshot - Game Title", "Screenshot - Gameplay", 
+                    "Fanart - Background", "Cart - Front", "Disc",
+                    "Arcade - Cabinet", "Fanart - Cart - Front"
+                ]
+            
             return jsonify({
                 'success': True, 
                 'launchbox_mappings': launchbox_mappings,
-                'media_fields': media_fields
+                'media_fields': media_fields,
+                'launchbox_media_types': launchbox_media_types
             })
         
         elif request.method == 'PUT':
@@ -4320,6 +4348,43 @@ def manage_launchbox_mappings():
     
     except Exception as e:
         return jsonify({'error': f'Failed to manage launchbox mappings: {str(e)}'}), 500
+
+@app.route('/api/launchbox-refresh-media-types', methods=['POST'])
+@login_required
+def refresh_launchbox_media_types():
+    """Refresh the LaunchBox media types cache by scanning the metadata"""
+    try:
+        import subprocess
+        import sys
+        
+        # Run the media types scanner script
+        result = subprocess.run([sys.executable, 'scan_launchbox_media_types.py'], 
+                              capture_output=True, text=True, cwd=os.getcwd())
+        
+        if result.returncode == 0:
+            # Reload the cache to get the updated data
+            mediatype_cache_path = os.path.join('var', 'db', 'launchbox', 'mediatype.json')
+            if os.path.exists(mediatype_cache_path):
+                with open(mediatype_cache_path, 'r', encoding='utf-8') as f:
+                    mediatype_cache = json.load(f)
+                    media_types = mediatype_cache.get('media_types', [])
+                    total_count = mediatype_cache.get('total_count', 0)
+                
+                return jsonify({
+                    'success': True, 
+                    'message': f'Media types cache refreshed successfully. Found {total_count} unique types.',
+                    'media_types': media_types,
+                    'total_count': total_count
+                })
+            else:
+                return jsonify({'error': 'Cache file not found after refresh'}), 500
+        else:
+            return jsonify({
+                'error': f'Failed to refresh media types cache: {result.stderr}'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Failed to refresh media types cache: {str(e)}'}), 500
 @app.route('/api/igdb-mappings', methods=['GET', 'PUT', 'POST'])
 @login_required
 def manage_igdb_mappings():
