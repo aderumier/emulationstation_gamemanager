@@ -2062,11 +2062,7 @@ def cleanup_temp_files():
                 if '.temp' in file:  # Handle both .temp and .temp.{extension} formats
                     temp_files.append(os.path.join(temp_medias_dir, file))
         
-        # Also check for any remaining .temp files in ROMS_FOLDER (legacy cleanup)
-        for root, dirs, files in os.walk(ROMS_FOLDER):
-            for file in files:
-                if '.temp' in file:  # Handle both .temp and .temp.{extension} formats
-                    temp_files.append(os.path.join(root, file))
+
         
         if temp_files:
             print(f"🧹 Found {len(temp_files)} temporary files to clean up")
@@ -6650,16 +6646,15 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
     else:
         fields_to_download = list(image_config.get('image_type_mappings', {}).keys())
     
-    # Filter fields based on selected_fields
-        # Create reverse mapping from gamelist field to LaunchBox image types
-        field_to_launchbox_types = {}
-        for gamelist_field, launchbox_types in image_config.get('image_type_mappings', {}).items():
-            field_to_launchbox_types[gamelist_field] = launchbox_types
-        
-        # Filter fields_to_download to only include selected media fields
-        if selected_fields:
-            selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_types.keys()]
-            fields_to_download = [field for field in fields_to_download if field in selected_media_fields]
+    # Create reverse mapping from gamelist field to LaunchBox image types
+    field_to_launchbox_types = {}
+    for gamelist_field, launchbox_types in image_config.get('image_type_mappings', {}).items():
+        field_to_launchbox_types[gamelist_field] = launchbox_types
+    
+    # Filter fields_to_download to only include selected media fields
+    if selected_fields:
+        selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_types.keys()]
+        fields_to_download = [field for field in fields_to_download if field in selected_media_fields]
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
