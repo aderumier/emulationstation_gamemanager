@@ -1206,19 +1206,52 @@ class ScreenScraperService:
                 media_by_type[media_type] = []
             media_by_type[media_type].append(media)
         
-        # Process each media type
-        for media_type, media_list in media_by_type.items():
-            # Get the local media field name
-            local_field = self.get_media_type_mapping(media_type)
-            if not local_field:
-                print(f"⚠️ No mapping found for media type: {media_type}")
+        # Get ScreenScraper configuration for priority-based selection
+        screenscraper_config = self.scrappers_config.get('screenscraper', {})
+        image_type_mappings = screenscraper_config.get('image_type_mappings', {})
+        
+        # Process each gamelist field in priority order
+        for local_field in selected_fields:
+            if local_field not in image_type_mappings:
                 continue
+                
+            screenscraper_types = image_type_mappings[local_field]
+            if not isinstance(screenscraper_types, list):
+                screenscraper_types = [screenscraper_types]
             
-            # Check if this field is selected (use ScreenScraper API field name, not mapped name)
-            if media_type not in selected_fields:
-                print(f"⏸️ Skipping {media_type} -> {local_field} (not selected)")
-                continue
+            print(f"🔍 Processing field '{local_field}' with types: {screenscraper_types}")
             
+            # Try each ScreenScraper type in priority order, stop at first match
+            media_found = False
+            for media_type in screenscraper_types:
+                if media_type not in media_by_type:
+                    continue
+                    
+                media_list = media_by_type[media_type]
+                print(f"📋 Found {len(media_list)} media items for type '{media_type}'")
+                
+                # Process this media type
+                media_found = await self.process_media_type_for_field(
+                    media_type, media_list, local_field, game_data, system_name, 
+                    overwrite_media_fields, downloaded_media, detailed_progress_callback
+                )
+                
+                if media_found:
+                    print(f"✅ Successfully processed {media_type} for field {local_field}")
+                    break  # Stop at first successful match
+                else:
+                    print(f"❌ No media processed for type {media_type}")
+            
+            if not media_found:
+                print(f"⚠️ No media found for field '{local_field}' with any of the configured types")
+        
+        return downloaded_media
+    
+    async def process_media_type_for_field(self, media_type: str, media_list: List[Dict], local_field: str, 
+                                         game_data: Dict, system_name: str, overwrite_media_fields: bool, 
+                                         downloaded_media: Dict, detailed_progress_callback=None) -> bool:
+        """Process a specific media type for a field"""
+        try:
             # Check if we should skip this media field based on overwrite setting
             if not overwrite_media_fields:
                 # Get the current game data to check if the field already has a value
@@ -1227,13 +1260,13 @@ class ScreenScraperService:
                 # Skip download if the media field in gamelist is not empty
                 if current_value and current_value.strip():
                     print(f"⏸️ Skipping {media_type} -> {local_field} (field already has value: {current_value})")
-                    continue
+                    return False
             
             # Get the media directory
             media_dir = self.get_media_directory(local_field, system_name)
             if not media_dir:
                 print(f"❌ No media directory found for field: {local_field}")
-                continue
+                return False
             
             print(f"📁 Media directory for {local_field}: {media_dir}")
             print(f"📁 Directory exists: {os.path.exists(media_dir)}")
@@ -1246,7 +1279,7 @@ class ScreenScraperService:
             media = select_best_media_by_region(media_list, game_region_priority)
             if not media:
                 print(f"❌ No media selected for type: {media_type}")
-                continue
+                return False
             
             # Log the selected media region
             selected_region = media.get('region', 'Unknown')
@@ -1255,7 +1288,7 @@ class ScreenScraperService:
             media_url = media.get('url')
             if not media_url:
                 print(f"❌ No URL found for media type: {media_type}")
-                continue
+                return False
             
             # Generate filename (without extension - will be determined from content-type)
             from app import create_media_filename
@@ -1271,30 +1304,39 @@ class ScreenScraperService:
             if detailed_progress_callback:
                 detailed_progress_callback(f"Downloading {media_type} -> {local_field}")
             
-            # Download the media (extension will be added based on content-type)
-            if await self.download_media(media_url, file_path_base, client, media_type):
-                # Find the actual downloaded file (with correct extension)
-                # We need to check what file was actually created
-                actual_file_path = self.find_downloaded_file(file_path_base)
-                if actual_file_path:
-                    actual_filename = os.path.basename(actual_file_path)
-                    # Convert to relative path for gamelist.xml
-                    # media_dir is like "roms/vectrex/media/screenshot", so we need to get the relative path from the system root
-                    relative_path = os.path.join('.', 'media', os.path.basename(media_dir), actual_filename)
-                    downloaded_media[local_field] = relative_path
-                    print(f"✅ Downloaded {media_type} -> {local_field}: {relative_path}")
-                    if detailed_progress_callback:
-                        detailed_progress_callback(f"Downloaded {media_type} -> {local_field}: {relative_path}")
+            # Create client for downloading
+            import httpx
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Download the media (extension will be added based on content-type)
+                if await self.download_media(media_url, file_path_base, client, media_type):
+                    # Find the actual downloaded file (with correct extension)
+                    actual_file_path = self.find_downloaded_file(file_path_base)
+                    if actual_file_path:
+                        actual_filename = os.path.basename(actual_file_path)
+                        # Convert to relative path for gamelist.xml
+                        # media_dir is like "roms/vectrex/media/screenshot", so we need to get the relative path from the system root
+                        relative_path = os.path.join('.', 'media', os.path.basename(media_dir), actual_filename)
+                        downloaded_media[local_field] = relative_path
+                        print(f"✅ Downloaded {media_type} -> {local_field}: {relative_path}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Downloaded {media_type} -> {local_field}: {relative_path}")
+                        return True
+                    else:
+                        print(f"❌ Could not find downloaded file for {media_type}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Could not find downloaded file for {media_type}")
+                        return False
                 else:
-                    print(f"❌ Could not find downloaded file for {media_type}")
+                    print(f"❌ Failed to download {media_type} -> {local_field}")
                     if detailed_progress_callback:
-                        detailed_progress_callback(f"Could not find downloaded file for {media_type}")
-            else:
-                print(f"❌ Failed to download {media_type} -> {local_field}")
-                if detailed_progress_callback:
-                    detailed_progress_callback(f"Failed to download {media_type} -> {local_field}")
-        
-        return downloaded_media
+                        detailed_progress_callback(f"Failed to download {media_type} -> {local_field}")
+                    return False
+                    
+        except Exception as e:
+            print(f"❌ Error processing {media_type} for field {local_field}: {e}")
+            if detailed_progress_callback:
+                detailed_progress_callback(f"Error processing {media_type} for field {local_field}: {e}")
+            return False
     
     def find_downloaded_file(self, base_path: str) -> Optional[str]:
         """
