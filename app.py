@@ -6390,7 +6390,7 @@ def load_region_config():
     return scrappers_config.get('launchbox', {}).get('region', {})
 
 def get_launchbox_box_image_url(launchbox_id):
-    """Get Box - Front image URL for a LaunchBox game"""
+    """Get boxart image URL for a LaunchBox game using configuration mapping"""
     if not launchbox_id:
         return None
     
@@ -6403,22 +6403,28 @@ def get_launchbox_box_image_url(launchbox_id):
         if not game_metadata:
             return None
         
-        # Load image config for base URL
+        # Load image config for base URL and mappings
         image_config = load_image_mappings()
         base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
         
-        # Look for Box - Front images in the metadata
+        # Get boxart mapping from configuration
+        launchbox_config = scrappers_config.get('launchbox', {})
+        image_type_mappings = launchbox_config.get('image_type_mappings', {})
+        boxart_types = image_type_mappings.get('boxart', ['Box - Front'])  # Fallback to old behavior
+        
+        # Look for boxart images in priority order
         if 'images' in game_metadata:
-            for image_element in game_metadata['images']:
-                type_elem = image_element.find('Type')
-                if type_elem is not None and type_elem.text:
-                    image_type = type_elem.text.strip()
-                    
-                    # Check if this is a Box - Front image
-                    if image_type == 'Box - Front':
-                        filename_elem = image_element.find('FileName')
-                        if filename_elem is not None and filename_elem.text:
-                            return base_url + filename_elem.text
+            for boxart_type in boxart_types:
+                for image_element in game_metadata['images']:
+                    type_elem = image_element.find('Type')
+                    if type_elem is not None and type_elem.text:
+                        image_type = type_elem.text.strip()
+                        
+                        # Check if this matches our boxart type
+                        if image_type == boxart_type:
+                            filename_elem = image_element.find('FileName')
+                            if filename_elem is not None and filename_elem.text:
+                                return base_url + filename_elem.text
         
         return None
         
