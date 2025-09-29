@@ -9263,11 +9263,20 @@ def stop_task_endpoint(task_id):
     
     task = tasks[task_id]
     
-    if task.status != TASK_STATUS_RUNNING:
-        return jsonify({'error': 'Task is not running'}), 400
+    if task.status not in [TASK_STATUS_RUNNING, TASK_STATUS_WAITING_CONFIRMATION]:
+        return jsonify({'error': 'Task is not running or waiting for confirmation'}), 400
     
     try:
-        # Do not write from the main process; the worker will flush partial changes
+        # Handle tasks in waiting confirmation status
+        if task.status == TASK_STATUS_WAITING_CONFIRMATION:
+            task.update_progress("🛑 Task cancelled by user")
+            task.complete(False, "Task cancelled by user")
+            return jsonify({
+                'success': True,
+                'message': 'Task cancelled successfully'
+            })
+        
+        # Do not write from the main process; the worker will save partial changes
         task.update_progress("🛑 Stop requested - worker will save partial changes if needed")
 
         # Set the global stop event to signal all running tasks
