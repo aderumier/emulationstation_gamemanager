@@ -1389,6 +1389,8 @@ class GameCollectionManager {
                         const result = await response.json();
                         this.showToast(result.message || 'ROM scan cancelled successfully', 'success');
                         this.refreshTasks();
+                        // Restore scan button state when cancelling ROM scan
+                        this.restoreScanButtonState();
                         return;
                     } else {
                         const errorData = await response.json();
