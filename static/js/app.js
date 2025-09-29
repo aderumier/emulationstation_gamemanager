@@ -2857,7 +2857,7 @@ class GameCollectionManager {
                     <i class="bi bi-eye-slash"></i> Hide Selected
                 </a>
                 <a class="dropdown-item" href="#" onclick="gameManager.showSelectedGames()">
-                    <i class="bi bi-eye"></i> Show Selected
+                    <i class="bi bi-eye"></i> Unhide Selected
                 </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.deleteSelectedGames()">
