@@ -8982,6 +8982,18 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     # Convert various date formats to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(date_text)
         
+        # Extract genres from genres[noms[text]] with langue='en', concatenate with '/'
+        if detailed_data.get('genres') and isinstance(detailed_data['genres'], list):
+            genre_names = []
+            for genre in detailed_data['genres']:
+                if isinstance(genre, dict) and 'noms' in genre and isinstance(genre['noms'], list):
+                    for nom in genre['noms']:
+                        if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
+                            genre_names.append(nom['text'])
+                            break
+            if genre_names:
+                text_fields['genre'] = '/'.join(genre_names)
+        
         # Extract media fields grouped by configured gamelist media fields
         media_fields: Dict[str, List[str]] = {}
         ss_image_mapping = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
