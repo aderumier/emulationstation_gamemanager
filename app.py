@@ -18322,14 +18322,16 @@ def cleanup_on_exit():
     if _worker_process is not None and _worker_process.is_alive():
         print(f"🔄 Terminating worker process (PID: {_worker_process.pid})...")
         try:
-            _worker_process.terminate()
-            _worker_process.join(timeout=3)  # Wait up to 3 seconds
-            if _worker_process.is_alive():
-                print("⚠️  Worker process didn't terminate gracefully, forcing...")
-                _worker_process.kill()
-                _worker_process.join(timeout=2)
-                if _worker_process.is_alive():
-                    print("⚠️  Worker process still alive after kill, continuing...")
+            # Double-check that the process still exists before calling terminate
+            if _worker_process is not None:
+                _worker_process.terminate()
+                _worker_process.join(timeout=3)  # Wait up to 3 seconds
+                if _worker_process is not None and _worker_process.is_alive():
+                    print("⚠️  Worker process didn't terminate gracefully, forcing...")
+                    _worker_process.kill()
+                    _worker_process.join(timeout=2)
+                    if _worker_process is not None and _worker_process.is_alive():
+                        print("⚠️  Worker process still alive after kill, continuing...")
         except Exception as e:
             print(f"⚠️  Error terminating worker process: {e}")
     
