@@ -8410,8 +8410,8 @@ def manual_scrap_game(system_name):
         import asyncio
         
         async def scrape_all_sources(sys_config):
-            # IGDB scraping
-            if sys_config.get('igdb'):
+            # IGDB scraping - only if game has IGDB ID
+            if sys_config.get('igdb') and current_game.get('igdbid'):
                 try:
                     igdb_data = await scrape_igdb_manual(current_game, system_name, sys_config)
                     if igdb_data:
@@ -8634,41 +8634,24 @@ async def scrape_igdb_manual(game, system_name, system_config):
         if not access_token:
             return None
         
-        # Get IGDB platform ID (only required when searching by name)
-        igdb_platform_id = system_config.get('igdb')
-        
         # Get async client
         async_client = await get_igdb_async_client()
         
         # Ensure genre cache is up to date
         await ensure_igdb_genre_cache()
         
-        # Get game name
-        game_name = game.get('name', '')
-        if not game_name:
+        # Get IGDB ID (required for manual scrap)
+        existing_igdb_id = game.get('igdbid')
+        if not existing_igdb_id:
             return None
         
-        # Check if already has IGDB ID
-        existing_igdb_id = game.get('igdbid')
-        
-        # Get IGDB game data
-        if existing_igdb_id:
-            igdb_game = await fetch_igdb_game_by_id_async(
-                existing_igdb_id,
-                access_token,
-                igdb_config['client_id'],
-                async_client
-            )
-        else:
-            if not igdb_platform_id:
-                return None
-            igdb_game = await search_igdb_game_by_name_async(
-                game_name, 
-                igdb_platform_id, 
-                access_token, 
-                igdb_config['client_id'],
-                async_client
-            )
+        # Get IGDB game data by ID only
+        igdb_game = await fetch_igdb_game_by_id_async(
+            existing_igdb_id,
+            access_token,
+            igdb_config['client_id'],
+            async_client
+        )
         
         if not igdb_game:
             return None
