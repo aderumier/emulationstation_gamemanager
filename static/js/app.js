@@ -2833,7 +2833,7 @@ class GameCollectionManager {
                 </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                    <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Show' : 'Hide'} Game
+                    <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
                 </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item text-danger" href="#" onclick="gameManager.deleteGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
