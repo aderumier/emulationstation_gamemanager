@@ -94,13 +94,9 @@ class GameCollectionManager {
         
         // Initialize media mappings cache (don't await to avoid blocking constructor)
         this.initializeMediaMappingsCache();
-        
 
-        
         // Initialize task grid
-        console.log('Constructor: About to call initializeTaskGrid');
         this.initializeTaskGrid();
-        console.log('Constructor: Finished calling initializeTaskGrid');
         
         // Start auto-refresh for tasks since panel is always visible
         this.startTaskAutoRefresh();
@@ -161,7 +157,6 @@ class GameCollectionManager {
         // Clean up any stale room memberships from previous sessions
         // This helps prevent cross-system contamination
         if (this.socket && this.currentSystem) {
-            console.log(`🧹 Cleaning up stale room memberships for: ${this.currentSystem}`);
             // The WebSocket will handle the actual cleanup when it connects
         }
     }
@@ -169,73 +164,51 @@ class GameCollectionManager {
     initializeTabs() {
         // Initialize Bootstrap tabs for the combined panel
         try {
-            console.log('Initializing tabs...');
             
             // Get the tab elements
             const mediaPreviewTab = document.getElementById('media-preview-tab');
             const taskManagementTab = document.getElementById('task-management-tab');
             const mediaPreviewContent = document.getElementById('media-preview-content');
             const taskManagementContent = document.getElementById('task-management-content');
-            
-            console.log('Tab elements found:', {
-                mediaPreviewTab: !!mediaPreviewTab,
-                taskManagementTab: !!taskManagementTab,
-                mediaPreviewContent: !!mediaPreviewContent,
-                taskManagementContent: !!taskManagementContent
-            });
-            
+
             if (mediaPreviewTab && taskManagementTab && mediaPreviewContent && taskManagementContent) {
                 // Add click event listeners for manual tab switching
                 mediaPreviewTab.addEventListener('click', () => {
-                    console.log('Media preview tab clicked');
                     this.switchTab('media-preview');
                 });
                 
                 taskManagementTab.addEventListener('click', () => {
-                    console.log('Task management tab clicked');
                     this.switchTab('task-management');
                 });
                 
                 // Add Bootstrap tab event listeners for when tabs are shown
                 mediaPreviewContent.addEventListener('shown.bs.tab', () => {
-                    console.log('Media preview tab shown via Bootstrap');
                     // Always refresh media preview for currently selected game
                     if (this.gridApi) {
                         const selectedRows = this.gridApi.getSelectedRows();
                         if (selectedRows.length > 0) {
-                            console.log('Refreshing media for selected game:', selectedRows[0].name);
                             this.showMediaPreview(selectedRows[0]);
                         } else {
-                            console.log('No game selected, clearing media preview');
                             this.hideMediaPreview();
                         }
                     }
                 });
                 
                 taskManagementContent.addEventListener('shown.bs.tab', () => {
-                    console.log('Task management tab shown via Bootstrap');
                     // Clear media preview content when switching to task management to free memory
                     const mediaPreviewContent = document.getElementById('mediaPreviewContent');
                     if (mediaPreviewContent) {
                         mediaPreviewContent.innerHTML = '';
-                        console.log('Cleared media preview content when switching to task management');
                     }
                 });
                 
                 // Set initial tab state
                 this.switchTab('media-preview');
                 
-                console.log('Tabs initialized successfully');
             } else {
-                console.warn('Some tab elements not found:', {
-                    mediaPreviewTab: !!mediaPreviewTab,
-                    taskManagementTab: !!taskManagementTab,
-                    mediaPreviewContent: !!mediaPreviewContent,
-                    taskManagementContent: !!taskManagementContent
-                });
+
             }
         } catch (error) {
-            console.error('Error initializing tabs:', error);
         }
     }
     
@@ -256,10 +229,8 @@ class GameCollectionManager {
             if (this.gridApi) {
                 const selectedRows = this.gridApi.getSelectedRows();
                 if (selectedRows.length > 0) {
-                    console.log('Switching to media preview tab, refreshing media for:', selectedRows[0].name);
                     this.showMediaPreview(selectedRows[0]);
                 } else {
-                    console.log('No game selected, clearing media preview');
                     this.hideMediaPreview();
                 }
             }
@@ -271,7 +242,6 @@ class GameCollectionManager {
             const mediaPreviewContent = document.getElementById('mediaPreviewContent');
             if (mediaPreviewContent) {
                 mediaPreviewContent.innerHTML = '';
-                console.log('Cleared media preview content when switching to task management');
             }
             
         }
@@ -287,8 +257,6 @@ class GameCollectionManager {
                mediaPreviewContent.classList.contains('active');
     }
 
-
-
     async checkTaskQueue() {
         // Check the current task queue status
         try {
@@ -300,7 +268,6 @@ class GameCollectionManager {
                 return queueStatus;
             }
         } catch (error) {
-            console.error('Error checking task queue:', error);
         }
         return null;
     }
@@ -323,9 +290,6 @@ class GameCollectionManager {
         }
     }
 
-
-
-
     async refreshTasks() {
         try {
             const response = await fetch('/api/tasks', {
@@ -336,7 +300,6 @@ class GameCollectionManager {
             // Check if we're being redirected to login (authentication required)
             if (response.type === 'opaqueredirect' || response.status === 0 || 
                 (response.redirected && response.url.includes('/login'))) {
-                console.log('User not authenticated, stopping task refresh');
                 this.stopTaskAutoRefresh();
                 return;
             }
@@ -391,7 +354,6 @@ class GameCollectionManager {
                         }
                         this.historyLoaded = true; // Mark as loaded to avoid future calls
                     } catch (e) {
-                        console.warn('Task history reconstruction failed:', e);
                         this.historyLoaded = true; // Mark as loaded even on error to avoid retries
                     }
                 }
@@ -399,17 +361,12 @@ class GameCollectionManager {
                 // Check for completed tasks that need grid refresh
                 this.checkForGridRefresh(tasks);
             } else if (response.status === 401) {
-                console.log('User not authenticated (401), stopping task refresh');
                 this.stopTaskAutoRefresh();
             } else {
-                console.error('Failed to fetch tasks:', response.status, response.statusText);
             }
         } catch (error) {
-            console.error('Error refreshing tasks:', error);
         }
     }
-
-
 
     async checkForGridRefresh(tasks) {
         // Check for newly completed tasks that need grid refresh
@@ -421,12 +378,9 @@ class GameCollectionManager {
             
             // Check if this is a completed task that needs grid refresh
             if (task.status === 'completed' && task.grid_refresh_needed && task.data && task.data.system_name) {
-                console.log(`Auto-refreshing grid for completed ${task.type} task: ${taskId}`);
-                console.log(`Task was for system: ${task.data.system_name}, current user system: ${this.currentSystem}`);
                 
                 // Only refresh if the user is currently viewing the same system
                 if (this.currentSystem === task.data.system_name) {
-                    console.log(`✅ User is viewing the same system (${this.currentSystem}), refreshing grid`);
                     
                     // Mark this task as processed
                     this.processedGridRefreshTasks.add(taskId);
@@ -435,15 +389,12 @@ class GameCollectionManager {
                     await this.loadRomSystem(task.data.system_name);
                     
                     // No need for additional refresh since loadRomSystem now uses efficient updates
-                    console.log('Main grid refreshed after task completion');
                     // Acknowledge refresh so future sessions don't re-trigger
                     try {
                         await fetch(`/api/tasks/${taskId}/ack-refresh`, { method: 'POST' });
                     } catch (e) {
-                        console.warn('Failed to ack grid refresh for task', taskId, e);
                     }
                 } else {
-                    console.log(`⏭️  User is viewing different system (${this.currentSystem}), skipping grid refresh for ${task.data.system_name}`);
                     
                     // Mark this task as processed to avoid checking it again
                     this.processedGridRefreshTasks.add(taskId);
@@ -451,7 +402,6 @@ class GameCollectionManager {
                     try {
                         await fetch(`/api/tasks/${taskId}/ack-refresh`, { method: 'POST' });
                     } catch (e) {
-                        console.warn('Failed to ack grid refresh (skipped) for task', taskId, e);
                     }
                 }
             }
@@ -590,13 +540,10 @@ class GameCollectionManager {
     async updateGameGridData(newGames) {
         // Efficiently update game grid using refreshCells instead of setRowData
         if (!this.gridApi || newGames === null || newGames === undefined) return;
-        
-        console.log('updateGameGridData called with:', newGames.length, 'games');
-        
+
         // Debug: Check for hidden games in the input
         const hiddenGames = newGames.filter(game => game.hidden === 'true');
         if (hiddenGames.length > 0) {
-            console.log('Found hidden games in input:', hiddenGames.map(g => ({ name: g.name, hidden: g.hidden, path: g.path })));
         }
         
         // Filter out hidden games by default (unless hidden filter is active)
@@ -606,14 +553,11 @@ class GameCollectionManager {
             filteredGames = newGames.filter(game => {
                 const isHidden = game.hidden === 'true';
                 if (isHidden) {
-                    console.log('Filtering out hidden game:', game.name, 'hidden:', game.hidden);
                 }
                 return !isHidden;
             });
             const afterCount = filteredGames.length;
-            console.log(`Hidden filter: ${beforeCount} -> ${afterCount} games (filtered out ${beforeCount - afterCount} hidden games)`);
         } else {
-            console.log('Hidden filter is active, showing all games including hidden ones');
         }
         
         // Deduplicate input by path to avoid duplicate node ids
@@ -631,7 +575,6 @@ class GameCollectionManager {
         
         // If row count changed significantly, it's the first load, or we're clearing the grid, use setRowData
         if (currentRowCount === 0 || Math.abs(currentRowCount - newRowCount) > 5 || newRowCount === 0) {
-            console.log('Using setRowData for significant change or empty grid. Current:', currentRowCount, 'New:', newRowCount);
             this.gridApi.setRowData(dedupedGames);
         // Update our stored data
         this.currentGameData.clear();
@@ -874,32 +817,25 @@ class GameCollectionManager {
             },
             // State persistence
             onColumnMoved: () => {
-                console.log('Column moved, saving state...');
                 this.saveGridState();
             },
             onColumnResized: () => {
-                console.log('Column resized, saving state...');
                 this.saveGridState();
             },
             onSortChanged: () => {
-                console.log('Sort changed, saving state...');
                 this.saveGridState();
             },
             onFilterChanged: () => {
-                console.log('Filter changed, saving state...');
                 this.saveGridState();
             },
             onColumnVisible: () => {
-                console.log('Column visibility changed, saving state...');
                 this.saveGridState();
             },
             onColumnPinned: () => {
-                console.log('Column pinned, saving state...');
                 this.saveGridState();
             },
             // Additional events for better state capture
             onGridReady: () => {
-                console.log('Grid ready event fired');
                 setTimeout(() => this.restoreGridState(), 500);
             }
         };
@@ -908,45 +844,37 @@ class GameCollectionManager {
         this.taskGridApi = agGrid.createGrid(taskGridElement, gridOptions);
         
         // Set the height after grid creation
-        console.log('initializeTaskGrid: Setting height after grid creation');
         const savedHeight = this.getCookie('taskPanelHeight');
         if (savedHeight) {
             const height = parseInt(savedHeight);
             if (height >= 160 && height <= 800) {
                 taskGridElement.style.height = height + 'px';
-                console.log('initializeTaskGrid: Set saved height:', height);
             }
         } else {
             taskGridElement.style.height = '160px';
-            console.log('initializeTaskGrid: Set default height: 160px');
         }
         
         // Wait for grid to be ready before restoring state
         this.taskGridApi.addEventListener('gridReady', () => {
-            console.log('Task grid ready, restoring state...');
             this.restoreGridState();
         });
         
         // Also try to restore state after a short delay as fallback
         setTimeout(() => {
             if (this.taskGridApi && this.taskGridApi.isGridReady && this.taskGridApi.isGridReady()) {
-                console.log('Task grid ready (delayed check), restoring state...');
                 this.restoreGridState();
             } else {
-                console.log('Task grid not ready yet (delayed check)');
             }
         }, 1000);
         
         // Additional fallback for task grid
         setTimeout(() => {
-            console.log('Task grid fallback restore attempt...');
             this.restoreGridState();
         }, 2000);
         
         // Fallback: Enable state saving after a timeout even if restore fails
         setTimeout(() => {
             if (!this.stateSavingEnabled) {
-                console.log('Fallback: Enabling state saving for task grid after timeout');
                 this.stateSavingEnabled = true;
             }
         }, 3000);
@@ -954,12 +882,10 @@ class GameCollectionManager {
     
     saveGridState() {
         if (!this.taskGridApi) {
-            console.log('saveGridState: taskGridApi not available');
             return;
         }
         
         if (!this.stateSavingEnabled) {
-            console.log('saveGridState: State saving disabled during initialization');
             return;
         }
         
@@ -974,24 +900,19 @@ class GameCollectionManager {
             
             const stateJson = JSON.stringify(state);
             this.setCookie('taskGridState', stateJson);
-            
-            console.log('Task grid state saved successfully');
-            
+
         } catch (error) {
-            console.error('Error saving grid state:', error);
         }
     }
     
         restoreGridState() {
         if (!this.taskGridApi) {
-            console.log('restoreGridState: taskGridApi not available');
             return;
         }
         
         try {
             const savedState = this.getCookie('taskGridState');
             if (!savedState) {
-                console.log('restoreGridState: No saved state found');
             } else {
                 const state = JSON.parse(savedState);
                 
@@ -1002,9 +923,7 @@ class GameCollectionManager {
                     });
                     
                     if (success) {
-                        console.log('Task grid state restored successfully');
                     } else {
-                        console.log('Task grid state restoration failed');
                     }
                 }
             }
@@ -1013,26 +932,17 @@ class GameCollectionManager {
             this.stateSavingEnabled = true;
             
         } catch (error) {
-            console.error('Error restoring grid state:', error);
             // Even on error, enable state saving so the grid can work
             this.stateSavingEnabled = true;
         }
     }
-    
 
-    
-
-    
-
-    
     saveMainGridState() {
         if (!this.gridApi) {
-            console.log('saveMainGridState: gridApi not available');
             return;
         }
         
         if (!this.stateSavingEnabled) {
-            console.log('saveMainGridState: State saving disabled during initialization');
             return;
         }
         
@@ -1047,17 +957,13 @@ class GameCollectionManager {
             
             const stateJson = JSON.stringify(state);
             this.setCookie('mainGridState', stateJson);
-            
-            console.log('Main grid state saved successfully');
-            
+
         } catch (error) {
-            console.error('Error saving main grid state:', error);
         }
     }
     
         restoreMainGridState() {
         if (!this.gridApi) {
-            console.log('restoreMainGridState: gridApi not available');
             return;
         }
         
@@ -1065,7 +971,6 @@ class GameCollectionManager {
             const savedState = this.getCookie('mainGridState');
             
             if (!savedState) {
-                console.log('restoreMainGridState: No saved state found');
             } else {
                 const state = JSON.parse(savedState);
                 
@@ -1076,9 +981,7 @@ class GameCollectionManager {
                     });
                     
                     if (success) {
-                        console.log('Main grid state restored successfully');
                     } else {
-                        console.log('Main grid state restoration failed');
                     }
                 }
             }
@@ -1087,17 +990,10 @@ class GameCollectionManager {
             this.stateSavingEnabled = true;
             
         } catch (error) {
-            console.error('Error restoring main grid state:', error);
             // Even on error, enable state saving so the grid can work
             this.stateSavingEnabled = true;
         }
     }
-    
-
-    
-
-    
-
 
     getTaskDisplayName(taskType) {
         const names = {
@@ -1127,7 +1023,6 @@ class GameCollectionManager {
             // Get task details first to check if it's running
             const task = this.getTaskById(taskId);
             if (!task) {
-                console.error('Task not found');
                 return;
             }
 
@@ -1142,11 +1037,9 @@ class GameCollectionManager {
                     const data = await response.json();
                     this.displayTaskLogModal(taskId, data.log);
                 } else {
-                    console.error('Failed to fetch task log');
                 }
             }
         } catch (error) {
-            console.error('Error fetching task log:', error);
         }
     }
 
@@ -1173,7 +1066,6 @@ class GameCollectionManager {
                 const data = JSON.parse(event.data);
                 
                 if (data.error) {
-                    console.error('Log stream error:', data.error);
                     eventSource.close();
                     return;
                 }
@@ -1203,12 +1095,10 @@ class GameCollectionManager {
                 // Auto-scroll to bottom
                 logContent.scrollTop = logContent.scrollHeight;
             } catch (error) {
-                console.error('Error parsing log stream data:', error);
             }
         };
 
         eventSource.onerror = (error) => {
-            console.error('Log stream error:', error);
             eventSource.close();
         };
     }
@@ -1396,7 +1286,6 @@ class GameCollectionManager {
                 this.showToast(errorData.error || 'Failed to stop task', 'error');
             }
         } catch (error) {
-            console.error('Error stopping task:', error);
             this.showToast('Error stopping task', 'error');
         }
     }
@@ -1423,7 +1312,6 @@ class GameCollectionManager {
                 this.showToast(errorData.error || 'Failed to delete task', 'error');
             }
         } catch (error) {
-            console.error('Error deleting task:', error);
             this.showToast('Error deleting task', 'error');
         }
     }
@@ -1487,15 +1375,12 @@ class GameCollectionManager {
             
             // If we get a successful response or a 401 (which means we're authenticated but no tasks)
             if (response.ok || response.status === 401) {
-                console.log('User appears to be authenticated, starting task refresh');
                 this.taskRefreshInterval = setInterval(() => {
                     this.refreshTasks();
                 }, 1000);
             } else {
-                console.log('User not authenticated, not starting task refresh');
             }
         } catch (error) {
-            console.log('Authentication check failed, not starting task refresh:', error);
         }
     }
 
@@ -1562,17 +1447,12 @@ class GameCollectionManager {
         document.getElementById('scrapSteamBtn').addEventListener('click', () => this.scrapSteam());
         document.getElementById('scrapSteamgriddbBtn').addEventListener('click', () => this.scrapSteamgriddb());
         const screenscraperBtn = document.getElementById('scrapScreenscraperBtn');
-        console.log('Looking for ScreenScraper button during initialization...');
-        console.log('Button found:', screenscraperBtn);
         if (screenscraperBtn) {
             screenscraperBtn.addEventListener('click', () => {
-                console.log('ScreenScraper button clicked');
                 this.scrapScreenscraper();
             });
-            console.log('ScreenScraper button event listener added');
             
         } else {
-            console.error('ScreenScraper button not found during event listener setup!');
         }
         
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
@@ -1582,9 +1462,7 @@ class GameCollectionManager {
         
         // Initialize global algorithm selector
         this.initializeGlobalAlgorithmSelector();
-        
 
-        
         // Task log modal download button
         document.addEventListener('click', (e) => {
             if (e.target.id === 'downloadTaskLogBtn') {
@@ -1610,7 +1488,6 @@ class GameCollectionManager {
         document.getElementById('showAllColumnsBtn').addEventListener('click', () => this.showAllColumns());
         document.getElementById('hideAllColumnsBtn').addEventListener('click', () => this.hideAllColumns());
         document.getElementById('resetColumnsBtn').addEventListener('click', () => this.resetColumns());
-
 
         // Media preview is now always enabled (no checkbox needed)
 
@@ -1768,12 +1645,9 @@ class GameCollectionManager {
         const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
         if (overwriteTextFieldsCheckbox) {
             overwriteTextFieldsCheckbox.addEventListener('change', (e) => {
-                console.log('🔧 DEBUG: LaunchBox overwrite text fields checkbox changed:', e.target.checked);
                 this.setCookie('launchboxOverwriteTextFields', e.target.checked);
-                console.log('🔧 DEBUG: Cookie saved, verifying...', this.getCookie('launchboxOverwriteTextFields'));
             });
         } else {
-            console.warn('🔧 DEBUG: overwriteTextFieldsLaunchbox element not found when setting up event listener');
         }
 
         // Grid selection change - handled by grid API listener
@@ -1789,9 +1663,7 @@ class GameCollectionManager {
         
         // Confirm delete button
         document.getElementById('confirmDeleteBtn').addEventListener('click', () => this.deleteSelectedGames());
-        
 
-        
         // Add global keyboard event listener for delete key and arrow navigation
         document.addEventListener('keydown', (event) => {
             // Handle Delete key with priority: thumbnails first, then media, then games
@@ -1847,39 +1719,32 @@ class GameCollectionManager {
 
     initializeWebSocket() {
         try {
-            console.log('Initializing WebSocket...');
             
             // Check if Socket.IO is available
             if (typeof io === 'undefined') {
-                console.error('Socket.IO not loaded yet, retrying...');
                 setTimeout(() => this.initializeWebSocket(), 500);
                 return;
             }
             
             // Initialize Socket.IO connection
             this.socket = io();
-            console.log('Socket.IO instance created');
             
             // Connection events
             this.socket.on('connect', () => {
-                console.log('WebSocket connected');
                 this.showToast('Connected to real-time updates', 'success');
             });
             
             this.socket.on('disconnect', () => {
-                console.log('WebSocket disconnected');
                 this.showToast('Disconnected from real-time updates', 'warning');
             });
             
             // System update events
             this.socket.on('system_updated', (data) => {
-                console.log('System update received:', data);
                 this.handleSystemUpdate(data);
             });
             
             // Join system room when system is loaded
             this.socket.on('connected', (data) => {
-                console.log('WebSocket connected:', data);
                 if (this.currentSystem) {
                     this.socket.emit('join_system', { system: this.currentSystem });
                 }
@@ -1887,22 +1752,17 @@ class GameCollectionManager {
             
             // Task completion events
             this.socket.on('task_completed', (data) => {
-                console.log('Task completed:', data);
                 this.handleTaskCompletion(data);
             });
             
             // Add cleanup on page unload
             window.addEventListener('beforeunload', () => {
                 if (this.socket && this.currentSystem) {
-                    console.log(`🧹 Cleaning up WebSocket room: ${this.currentSystem}`);
                     this.socket.emit('leave_system', { system: this.currentSystem });
                 }
             });
-            
-            console.log('WebSocket initialization completed');
-            
+
         } catch (error) {
-            console.error('Failed to initialize WebSocket:', error);
             // Retry after a delay
             setTimeout(() => this.initializeWebSocket(), 1000);
         }
@@ -1910,20 +1770,14 @@ class GameCollectionManager {
     
     handleSystemUpdate(data) {
         const { system, action, data: updateData } = data;
-        
-        console.log(`🔔 Received system update: ${action} for system ${system}, current system: ${this.currentSystem}`);
-        
+
         // Only process updates for the current system
         if (system !== this.currentSystem) {
-            console.log(`⚠️  Ignoring update for system ${system} - current system is ${this.currentSystem}`);
             return;
         }
-        
-        console.log(`✅ Processing update for current system: ${system}`);
-        
+
         switch (action) {
             case 'gamelist_updated':
-                console.log('Gamelist updated, refreshing grid and system dropdown...');
                 // Show more specific message based on what actually changed
                 if (updateData.updated_count > 0) {
                     this.showToast(`Scraping completed: ${updateData.updated_count} games updated`, 'success');
@@ -1937,21 +1791,18 @@ class GameCollectionManager {
                 break;
                 
             case 'games_deleted':
-                console.log('Games deleted, refreshing grid...');
                 this.showToast(`Deleted ${updateData.deleted_files.length} files`, 'info');
                 // For deletions, we need to fetch the updated data first
                 this.syncGameData();
                 break;
                 
             case 'game_updated':
-                console.log('Game updated, refreshing grid...');
                 this.showToast(`Game updated: ${updateData.game_name}`, 'info');
                 // For game updates, we need to fetch the latest data to sync properly
                 this.syncGameData();
                 break;
                 
             default:
-                console.log('Unknown system update action:', action);
         }
     }
     
@@ -2003,14 +1854,12 @@ class GameCollectionManager {
         // Reset modal event listeners flag to allow fresh listeners next time
         this.modalEventListenersAdded = false;
         
-        console.log('UI state reset completed');
     }
     
     async refreshGameGridWithData() {
         if (!this.currentSystem || !this.gridApi) return;
         
         try {
-            console.log('Refreshing game grid with fresh data...');
             
             // Fetch the latest gamelist data
             const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`);
@@ -2034,11 +1883,9 @@ class GameCollectionManager {
                     this.currentGameData = new Map();
                     this.games.forEach(game => this.currentGameData.set(game.path, game));
                     
-                    console.log('Game grid refreshed with fresh data');
                 }
             }
         } catch (error) {
-            console.error('Error refreshing game grid with data:', error);
             // Fallback to regular refresh if fetch fails
             this.refreshGameGrid();
         }
@@ -2048,7 +1895,6 @@ class GameCollectionManager {
         if (!this.currentSystem || !this.gridApi) return;
         
         try {
-            console.log('Syncing game data for real-time update...');
             
             // Fetch the latest gamelist data
             const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`);
@@ -2063,11 +1909,9 @@ class GameCollectionManager {
                     // This will preserve selection and scroll position
                     await this.refreshGridData();
                     
-                    console.log('Game data synced successfully');
                 }
             }
         } catch (error) {
-            console.error('Error syncing game data:', error);
             // Fallback to full refresh if sync fails
             this.refreshGameGrid();
         }
@@ -2249,18 +2093,12 @@ class GameCollectionManager {
             this.showToast(message, 'success');
             
             // Log the deletion
-            console.log(`Deleted games: ${gameNames}`);
-            console.log(`Deleted ROM files: ${gameRomPaths.join(', ')}`);
-            console.log(`Deleted files: ${deletedFiles.join(', ')}`);
             
         } catch (error) {
-            console.error('Error deleting games:', error);
             this.showToast('Error deleting games', 'error');
         }
     }
-    
 
-    
     async checkExistingTask() {
         // Check if there's an existing task running when the page loads
         try {
@@ -2270,15 +2108,12 @@ class GameCollectionManager {
             if (response.ok) {
                 const task = await response.json();
                 if (task.status === 'running') {
-                    console.log('Found existing running task:', task);
                     this.displayExistingTask(task);
                 } else if (task.status === 'completed' || task.status === 'error') {
-                    console.log('Found completed task:', task);
                     this.displayCompletedTask(task);
                 }
             }
         } catch (error) {
-            console.log('No existing task found or error checking:', error);
         }
     }
 
@@ -2299,10 +2134,7 @@ class GameCollectionManager {
     }
     async loadRomSystem(systemName) {
         if (!systemName) return;
-        
-        console.log('Loading ROM system:', systemName);
-        console.log('Modified games before loading:', Array.from(this.modifiedGames));
-        
+
         // Store previous system for cleanup
         const previousSystem = this.currentSystem;
         
@@ -2312,13 +2144,11 @@ class GameCollectionManager {
         
         // Leave previous system room if different
         if (this.socket && previousSystem && previousSystem !== systemName) {
-            console.log(`🔄 Leaving previous system room: ${previousSystem}`);
             this.socket.emit('leave_system', { system: previousSystem });
         }
         
         // Join WebSocket room for this system
         if (this.socket) {
-            console.log(`🔄 Joining system room: ${systemName}`);
             this.socket.emit('join_system', { system: systemName });
         }
         
@@ -2343,17 +2173,13 @@ class GameCollectionManager {
             if (response.ok) {
                 const data = await response.json();
                 this.games = data.games || [];
-                console.log('Loaded games:', this.games.length);
-                console.log('First game sample:', this.games[0]);
-                
-                
+
                 // Only initialize grid if it doesn't exist yet
                 if (!this.gridApi) {
                     await this.initializeGrid();
                 }
                 
                 this.updateGamesCount();
-                console.log('About to call enableButtons for system:', systemName);
                 this.enableButtons();
                 
                 // Set the row data directly for client-side row model
@@ -2369,10 +2195,8 @@ class GameCollectionManager {
                 
                 // Reset navigation index to start when loading new system
                 this.currentNavigationIndex = 0;
-                console.log('Navigation index reset to 0 for new system');
             }
         } catch (error) {
-            console.error('Error loading ROM system:', error);
         }
     }
 
@@ -2383,13 +2207,11 @@ class GameCollectionManager {
         // Wait for media mappings cache to be ready
         let attempts = 0;
         while (!this.mediaMappingsCache && attempts < 50) { // Wait up to 5 seconds
-            console.log('Waiting for media mappings cache to be ready...');
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
         
         if (!this.mediaMappingsCache) {
-            console.warn('Media mappings cache not ready after 5 seconds, using fallback values');
         }
 
         // Generate dynamic column definitions
@@ -2608,7 +2430,6 @@ class GameCollectionManager {
             // Apply custom row styling based on game properties using getRowClass
             getRowClass: (params) => {
                 if (params.data && params.data.hidden === 'true') {
-                    console.log('Applying hidden-game-row class to row:', params.data.name);
                     return 'hidden-game-row';
                 }
                 return null;
@@ -2657,27 +2478,21 @@ class GameCollectionManager {
             suppressCellFocus: false,
             // State persistence event handlers
             onColumnMoved: () => {
-                console.log('Main grid: Column moved, saving state...');
                 this.saveMainGridState();
             },
             onColumnResized: () => {
-                console.log('Main grid: Column resized, saving state...');
                 this.saveMainGridState();
             },
             onSortChanged: () => {
-                console.log('Main grid: Sort changed, saving state...');
                 this.saveMainGridState();
             },
             onFilterChanged: () => {
-                console.log('Main grid: Filter changed, saving state...');
                 this.saveMainGridState();
             },
             onColumnVisible: () => {
-                console.log('Main grid: Column visibility changed, saving state...');
                 this.saveMainGridState();
             },
             onColumnPinned: () => {
-                console.log('Main grid: Column pinned, saving state...');
                 this.saveMainGridState();
             }
         };
@@ -2735,11 +2550,6 @@ class GameCollectionManager {
 
         // Add cell editing event listeners
         this.gridApi.addEventListener('cellValueChanged', (event) => {
-            console.log('Cell value changed:', event);
-            console.log('Field:', event.colDef.field);
-            console.log('Old value:', event.oldValue);
-            console.log('New value:', event.newValue);
-            console.log('Game:', event.data);
             
             // Mark the game as modified when inline editing occurs
             if (event.data && event.colDef.field) {
@@ -2752,26 +2562,22 @@ class GameCollectionManager {
 
         // Add cell editing started event listener
         this.gridApi.addEventListener('cellEditingStarted', (event) => {
-            console.log('Cell editing started:', event);
         });
 
         // Add cell editing stopped event listener
         this.gridApi.addEventListener('cellEditingStopped', (event) => {
-            console.log('Cell editing stopped:', event);
         });
         
         // State persistence events are now handled in gridOptions
         
         // Restore main grid state after initialization
         setTimeout(() => {
-            console.log('Main grid initialization complete, attempting to restore state...');
             this.restoreMainGridState();
         }, 500);
         
         // Fallback: Enable state saving after a timeout even if restore fails
         setTimeout(() => {
             if (!this.stateSavingEnabled) {
-                console.log('Fallback: Enabling state saving for main grid after timeout');
                 this.stateSavingEnabled = true;
             }
         }, 2000);
@@ -2829,8 +2635,6 @@ class GameCollectionManager {
         this.gridApi.addEventListener('filterModified', () => {
             this.ensureGridVisibility();
         });
-
-
 
         this.gridApi.addEventListener('filterOpened', () => {
             this.ensureGridVisibility();
@@ -2955,7 +2759,6 @@ class GameCollectionManager {
             // Update the games count display
             this.updateGamesCount();
             
-            console.log('All filters cleared');
         }
     }
 
@@ -2986,8 +2789,6 @@ class GameCollectionManager {
             }
         }
     }
-
-
 
     showContextMenu(event) {
         event.preventDefault();
@@ -3207,34 +3008,27 @@ class GameCollectionManager {
         // Fetch from API
         try {
             const response = await fetch('/api/media-fields');
-            console.log('Media fields response status:', response.status);
             
             if (!response.ok) {
-                console.error('Media fields API call failed with status:', response.status);
                 throw new Error(`API call failed with status: ${response.status}`);
             }
             
             const data = await response.json();
-            console.log('Media fields response data:', data);
             
             if (data.success && Array.isArray(data.fields)) {
                 this.mediaFieldsCache = data.fields;
                 return this.mediaFieldsCache;
             } else {
-                console.error('Failed to fetch media fields:', data.error || 'Invalid response format');
                 throw new Error(data.error || 'Invalid response format');
             }
         } catch (error) {
-            console.error('Error fetching media fields:', error);
             // Fallback to default media fields if API call fails
-            console.log('Using fallback media fields');
             const fallbackFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'boxback', 'thumbnail'];
             this.mediaFieldsCache = fallbackFields;
             return this.mediaFieldsCache;
         }
     }
-    
-    
+
     async getMediaMappings() {
         // Use cached mappings if available
         if (this.mediaMappingsCache) {
@@ -3242,7 +3036,6 @@ class GameCollectionManager {
         }
         
         // If not cached, fetch from API
-        console.warn('Media mappings not cached yet, fetching from API...');
         try {
             const response = await fetch('/api/media-mappings');
             const data = await response.json();
@@ -3251,32 +3044,25 @@ class GameCollectionManager {
                 this.mediaMappingsCache = data.mappings;
                 return this.mediaMappingsCache;
             } else {
-                console.error('Failed to fetch media mappings:', data.error);
                 throw new Error(data.error);
             }
         } catch (error) {
-            console.error('Error fetching media mappings:', error);
             throw error;
         }
     }
-    
-    
+
     async initializeMediaMappingsCache() {
         // Fetch media mappings once when the application starts
         try {
-            console.log('Initializing media mappings cache...');
             const response = await fetch('/api/media-mappings');
             const data = await response.json();
             
             if (data.success) {
                 this.mediaMappingsCache = data.mappings;
-                console.log('Media mappings cache initialized successfully:', this.mediaMappingsCache);
             } else {
-                console.error('Failed to fetch media mappings:', data.error);
                 throw new Error(data.error);
             }
         } catch (error) {
-            console.error('Error fetching media mappings:', error);
             throw error;
         }
     }
@@ -3287,14 +3073,12 @@ class GameCollectionManager {
         try {
             mediaFields = await this.getMediaFieldsFromConfig();
         } catch (error) {
-            console.error('Error getting media fields from config:', error);
             // Fallback to default media fields if API fails
             mediaFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'thumbnail'];
         }
         
         // Ensure mediaFields is an array
         if (!Array.isArray(mediaFields)) {
-            console.warn('Media fields is not an array, using fallback:', mediaFields);
             mediaFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'thumbnail'];
         }
         
@@ -3319,9 +3103,7 @@ class GameCollectionManager {
         
         return mediaColumns;
     }
-    
 
-    
     async showEditGameMedia(game) {
         const mediaContent = document.getElementById('editGameMediaContent');
         if (!mediaContent) return;
@@ -3447,9 +3229,7 @@ class GameCollectionManager {
         
         // Add event listener for modal close to refresh media preview
         const handleModalClose = () => {
-            console.log('LaunchBox modal closed, refreshing media preview if needed');
             if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
-                console.log('Refreshing media preview after LaunchBox modal close');
                 // Update the currentMediaPreviewGame with the fresh data from the grid
                 const freshGame = this.games.find(g => g.path === game.path);
                 if (freshGame) {
@@ -3495,7 +3275,6 @@ class GameCollectionManager {
                 progressDiv.style.display = 'none';
             }
         } catch (error) {
-            console.error('Error fetching LaunchBox media:', error);
             // Extract just the error message without the HTTP status prefix
             let errorMessage = error.message;
             if (errorMessage.includes('HTTP error! status: 404 - ')) {
@@ -3562,9 +3341,7 @@ class GameCollectionManager {
             const progressDiv = document.getElementById('launchboxMediaProgress');
             progressDiv.style.display = 'block';
             progressDiv.textContent = 'Downloading and replacing media...';
-            
-            console.log('DEBUG: Sending game_id:', game.launchboxid, 'rom_path:', game.path, 'type:', typeof game.launchboxid);
-            
+
             const response = await fetch('/api/download-launchbox-media', {
                 method: 'POST',
                 headers: {
@@ -3625,7 +3402,6 @@ class GameCollectionManager {
                     
                     // Also refresh the main interface media preview if it's currently showing this game
                     if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
-                        console.log('Refreshing media preview after LaunchBox download');
                         // Update the currentMediaPreviewGame with the fresh data from the grid
                         const freshGame = this.games.find(g => g.path === game.path);
                         if (freshGame) {
@@ -3638,7 +3414,6 @@ class GameCollectionManager {
                 throw new Error(result.error || 'Unknown error occurred');
             }
         } catch (error) {
-            console.error('Error downloading media:', error);
             const progressDiv = document.getElementById('launchboxMediaProgress');
             // Extract just the error message without the HTTP status prefix
             let errorMessage = error.message;
@@ -3653,10 +3428,7 @@ class GameCollectionManager {
     showEditGameVideo(game) {
         const videoContent = document.getElementById('editGameVideoContent');
         if (!videoContent) return;
-        
-        console.log('showEditGameVideo called for game:', game.name);
-        console.log('Game video field:', game.video);
-        
+
         // Clear existing content
         videoContent.innerHTML = '';
         
@@ -3664,9 +3436,7 @@ class GameCollectionManager {
         const videoFields = ['video', 'video_mp4', 'video_avi', 'video_mov', 'video_mkv'];
         
         videoFields.forEach(field => {
-            console.log(`Checking field ${field}:`, game[field]);
             if (game[field] && game[field].trim()) {
-                console.log(`Creating video player for field ${field} with path: ${game[field]}`);
                 const videoItem = document.createElement('div');
                 videoItem.className = 'video-preview-item';
                 videoItem.style.cssText = 'width: 1200px; margin-bottom: 1rem; position: relative;';
@@ -3680,10 +3450,8 @@ class GameCollectionManager {
                 // Fix video URL by adding roms/<system>/ prefix if missing
                 // Use the current system that was set when loading the games
                 let videoPath = game[field];
-                console.log('Video field:', field, 'Original path:', videoPath, 'Current system:', this.currentSystem);
                 if (videoPath && !videoPath.startsWith('roms/')) {
                     videoPath = `roms/${this.currentSystem}/${videoPath}`;
-                    console.log('Constructed video path:', videoPath);
                 }
                 video.src = videoPath;
                 video.title = `${field}: ${game[field]}`;
@@ -3732,27 +3500,21 @@ class GameCollectionManager {
     
     fixImagePath(imagePath) {
         if (!imagePath || !imagePath.trim()) return '';
-        
-        console.log('fixImagePath input:', imagePath);
-        
+
         // If the path already starts with 'roms/', return as is
         if (imagePath.startsWith('roms/')) {
-            console.log('Path already has roms/ prefix, returning:', imagePath);
             return imagePath;
         }
         
         // Get current system from URL
         const currentSystem = this.getCurrentRomSystem();
-        console.log('Current system:', currentSystem);
         
         if (!currentSystem) {
-            console.log('No current system found, returning original path:', imagePath);
             return imagePath;
         }
         
         // Add the missing prefix
         const fullPath = `roms/${currentSystem}/${imagePath}`;
-        console.log('Constructed full path:', fullPath);
         return fullPath;
     }
     
@@ -3804,7 +3566,6 @@ class GameCollectionManager {
                     // Show success message
                     this.showAlert(`${mediaField} uploaded successfully`, 'success');
                 } catch (error) {
-                    console.error('Error uploading media:', error);
                     this.showAlert('Error uploading media file', 'error');
                 } finally {
                     // Clear upload state
@@ -3921,7 +3682,6 @@ class GameCollectionManager {
                 throw new Error(result.error || 'Failed to delete video');
             }
         } catch (error) {
-            console.error('Error deleting video:', error);
             this.showAlert(`Error deleting ${mediaField} video: ${error.message}`, 'error');
         }
     }
@@ -3951,17 +3711,11 @@ class GameCollectionManager {
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    console.log('Upload successful:', result);
-                    console.log('Looking for game with ROM path:', romPath);
-                    console.log('Available games paths:', this.games.slice(0, 5).map(g => g.path));
                     
                     // Update the game object with new media path
                     const game = this.games.find(g => g.path === romPath);
                     if (game) {
-                        console.log('Before update - game[mediaField]:', game[mediaField]);
                         game[mediaField] = result.media_path;
-                        console.log('After update - game[mediaField]:', game[mediaField]);
-                        console.log('Result media_path:', result.media_path);
                         
                         this.markGameAsModified(game);
                         
@@ -3971,12 +3725,10 @@ class GameCollectionManager {
                         // If the edit modal is open, refresh the media display
                         const editModal = document.getElementById('editGameModal');
                         if (editModal && editModal.classList.contains('show')) {
-                            console.log('Refreshing edit modal media display');
                             this.showEditGameMedia(game);
                             
                             // If it's a video upload, also refresh the video preview tab
                             if (mediaField === 'video') {
-                                console.log('Refreshing video preview tab after video upload');
                                 this.showEditGameVideo(game);
                             }
                         }
@@ -3984,10 +3736,8 @@ class GameCollectionManager {
                         // If media preview is showing for this game, refresh it
                         if (this.mediaPreviewEnabled && this.currentMediaPreviewGame && 
                             this.currentMediaPreviewGame.path === game.path) {
-                            console.log('Refreshing media preview after upload');
                             // Add a longer delay to ensure gamelist is fully updated and processed
                             setTimeout(() => {
-                                console.log('Actually refreshing media preview now...');
                                 this.showMediaPreview(game);
                             }, 1000);
                         }
@@ -3998,7 +3748,6 @@ class GameCollectionManager {
                             : `${mediaField} uploaded successfully! (${fileSize} MB)`;
                         this.showAlert(successMessage, 'success');
                     } else {
-                        console.error('Game not found for ID:', gameId);
                     }
                 } else {
                     this.showAlert(`Failed to upload ${mediaField}: ${result.error}`, 'error');
@@ -4007,7 +3756,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to upload ${mediaField}`, 'error');
             }
         } catch (error) {
-            console.error('Error in handleMediaUpload:', error);
             this.showAlert(`Error uploading ${mediaField}`, 'error');
         }
     }
@@ -4017,12 +3765,9 @@ class GameCollectionManager {
 
         const game = this.games.find(g => g.path === this.editingGamePath);
         if (!game) {
-            console.error('Game not found for path:', this.editingGamePath);
             this.showAlert('Error: Game not found. Please close and reopen the edit modal.', 'error');
             return;
         }
-        console.log('Saving changes for game:', game);
-        console.log('Game path:', this.editingGamePath);
         
         // Store original values to detect changes
         const originalGame = { ...game };
@@ -4042,8 +3787,6 @@ class GameCollectionManager {
         game.steamgridid = document.getElementById('editSteamgridid').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
 
-        console.log('Updated game object:', game);
-        
         // Detect which fields changed
         const changedFields = [];
         if (originalGame.name !== game.name) changedFields.push('name');
@@ -4059,9 +3802,7 @@ class GameCollectionManager {
         if (originalGame.steamid !== game.steamid) changedFields.push('steamid');
         if (originalGame.steamgridid !== game.steamgridid) changedFields.push('steamgridid');
         if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
-        
-        console.log('Changed fields:', changedFields);
-        
+
         try {
             // Immediately save changes to gamelist.xml
             const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
@@ -4081,7 +3822,6 @@ class GameCollectionManager {
             
             if (response.ok) {
                 const result = await response.json();
-                console.log('Save response:', result);
                 
                 // Clear modified games since they're now saved
                 this.modifiedGames.clear();
@@ -4101,11 +3841,9 @@ class GameCollectionManager {
                 modal.hide();
             } else {
                 const errorText = await response.text();
-                console.error('Error response:', errorText);
                 this.showAlert('Error saving changes to gamelist.xml', 'danger');
             }
         } catch (error) {
-            console.error('Error saving changes:', error);
             this.showAlert('Error saving changes to gamelist.xml', 'danger');
         }
     }
@@ -4159,7 +3897,6 @@ class GameCollectionManager {
                 modal.hide();
             }
         } catch (error) {
-            console.error('Error performing manual scrap:', error);
             this.showAlert('Error performing manual scrap', 'error');
             modal.hide();
         }
@@ -4169,7 +3906,6 @@ class GameCollectionManager {
         // Hide loading state
         document.getElementById('manualScrapLoading').style.display = 'none';
         document.getElementById('manualScrapContent').style.display = 'block';
-
 
         // Populate text fields table
         this.populateTextFieldsTable(results.text_fields);
@@ -4265,7 +4001,6 @@ class GameCollectionManager {
     populateMediaFields(mediaFields) {
         const container = document.getElementById('mediaFieldsContainer');
         container.innerHTML = '';
-
 
         const mediaTypes = {
             'image': 'Box Art',
@@ -4483,7 +4218,6 @@ class GameCollectionManager {
             modal && modal.hide();
 
         } catch (error) {
-            console.error('Error applying manual scrap results:', error);
             this.showAlert('Error applying manual scrap results', 'error');
         }
         finally {
@@ -4511,7 +4245,6 @@ class GameCollectionManager {
                 }
             }
         } catch (error) {
-            console.error('Error scanning game media:', error);
             this.showAlert('Error scanning game media', 'danger');
         }
     }
@@ -4622,7 +4355,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error searching IGDB games:', error);
             document.getElementById('igdbSearchSpinner').style.display = 'none';
             this.showIgdbSearchError('Error searching IGDB games: ' + error.message);
         }
@@ -4707,7 +4439,6 @@ class GameCollectionManager {
                 await this.saveGamelistDirect();
                 this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}" and gamelist saved`, 'success');
             } catch (error) {
-                console.error('Error auto-saving gamelist:', error);
                 this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}" but failed to save gamelist`, 'warning');
             }
         } else {
@@ -4780,7 +4511,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error searching ScreenScraper games:', error);
             document.getElementById('screenscraperSearchSpinner').style.display = 'none';
             this.showScreenscraperSearchError('Error searching ScreenScraper games: ' + error.message);
         }
@@ -4806,7 +4536,7 @@ class GameCollectionManager {
                 <div class="mb-2 text-center">
                     <img src="${boxImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
                          onerror="handleScreenscraperImageError(this)" 
-                         onload="console.log('ScreenScraper box image loaded successfully:', this.src)" 
+                         onload="" 
                          alt="Game box art" loading="lazy">
                 </div>
             ` : `
@@ -4876,7 +4606,6 @@ class GameCollectionManager {
                 await this.saveGamelistDirect();
                 this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}" and gamelist saved`, 'success');
             } catch (error) {
-                console.error('Error auto-saving gamelist:', error);
                 this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}" but failed to save gamelist`, 'warning');
             }
         } else {
@@ -4949,7 +4678,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error searching Steam games:', error);
             document.getElementById('steamSearchSpinner').style.display = 'none';
             this.showSteamSearchError('Error searching Steam games: ' + error.message);
         }
@@ -4962,9 +4690,7 @@ class GameCollectionManager {
             resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in Steam database.</div></div>';
             return;
         }
-        
-        console.log('Steam search results:', games);
-        
+
         let html = '';
         games.forEach((game, index) => {
             const description = game.description ? (game.description.length > 200 ? game.description.substring(0, 200) + '...' : game.description) : 'No description available';
@@ -4973,14 +4699,13 @@ class GameCollectionManager {
             const capsuleImage = game.capsule_image || null;
             const capsuleImageFallback = game.capsule_image_fallback || null;
             const similarityScore = game.similarity_score ? Math.round(game.similarity_score * 100) : 0;
-            console.log(`Game: ${game.name}, Steam ID: ${game.appid}, Capsule Image: ${capsuleImage}, Fallback: ${capsuleImageFallback}, Similarity: ${similarityScore}%`);
             
             // Create image HTML with fallback logic
             const imageHtml = `
                 <div class="mb-2 text-center">
                     <img src="${capsuleImage || ''}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
                          onerror="handleSteamImageError(this, '${capsuleImageFallback || ''}')" 
-                         onload="console.log('Steam image loaded successfully:', this.src)" 
+                         onload="" 
                          alt="Game capsule" loading="lazy">
                 </div>`;
             
@@ -5043,7 +4768,6 @@ class GameCollectionManager {
                 await this.saveGamelistDirect();
                 this.showAlert(`Steam ID set to ${steamId} for "${gameName}" and gamelist saved`, 'success');
             } catch (error) {
-                console.error('Error auto-saving gamelist:', error);
                 this.showAlert(`Steam ID set to ${steamId} for "${gameName}" but failed to save gamelist`, 'warning');
             }
         } else {
@@ -5116,7 +4840,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error searching SteamGridDB games:', error);
             document.getElementById('steamgridSearchSpinner').style.display = 'none';
             this.showSteamgridSearchError('Error searching SteamGridDB games: ' + error.message);
         }
@@ -5141,7 +4864,7 @@ class GameCollectionManager {
                 <div class="mb-2 text-center">
                     <img src="${gridImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
                          onerror="handleSteamgridImageError(this)" 
-                         onload="console.log('SteamGridDB grid image loaded successfully:', this.src)" 
+                         onload="" 
                          alt="Game grid art" loading="lazy">
                 </div>
             ` : `
@@ -5210,15 +4933,13 @@ class GameCollectionManager {
                 await this.saveGamelistDirect();
                 this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}" and gamelist saved`, 'success');
             } catch (error) {
-                console.error('Error auto-saving gamelist:', error);
                 this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}" but failed to save gamelist`, 'warning');
             }
         } else {
             this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}"`, 'success');
         }
     }
-    
-    
+
     async findBestMatchForSelected() {
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
@@ -5231,9 +4952,7 @@ class GameCollectionManager {
                 button.disabled = true;
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
             }
-            
-            console.log('Finding best matches for selected games:', this.selectedGames.length);
-            
+
             // Show the modal with loading state
             this.showGlobalMatchModal();
             
@@ -5256,7 +4975,6 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success && data.results && data.results.length > 0) {
-                console.log('Found matches for games:', data.results.length);
                 
                 // Store the results and populate the table
                 this.globalMatchResults = data.results;
@@ -5267,7 +4985,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error finding best matches:', error);
             this.showAlert('Error finding best matches: ' + error.message, 'danger');
             this.hideGlobalMatchModal();
         } finally {
@@ -5518,7 +5235,6 @@ class GameCollectionManager {
             this.showAlert(`Successfully updated ${gameData.name} with LaunchBox ID: ${match.database_id}`, 'success');
             
         } catch (error) {
-            console.error('Error validating global match:', error);
             this.showAlert('Error validating match: ' + error.message, 'danger');
         }
     }
@@ -5543,17 +5259,13 @@ class GameCollectionManager {
             if (!result.success) {
                 throw new Error(result.error || 'Failed to save gamelist');
             }
-            
-            console.log('Gamelist saved successfully to var directory');
-            
+
         } catch (error) {
-            console.error('Error saving gamelist:', error);
             this.showAlert('Error saving gamelist: ' + error.message, 'danger');
             throw error; // Re-throw to allow calling function to handle
         }
     }
 
-    
     async generate2DBoxForSelected() {
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
@@ -5566,9 +5278,7 @@ class GameCollectionManager {
                 button.disabled = true;
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating...';
             }
-            
-            console.log('Generating 2D boxes for selected games:', this.selectedGames.length);
-            
+
             // Get the paths of selected games
             const selectedGamePaths = this.selectedGames.map(game => game.path);
             
@@ -5596,7 +5306,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error starting 2D box generation:', error);
             this.showAlert('Error starting 2D box generation: ' + error.message, 'danger');
         } finally {
             // Reset button state
@@ -5641,12 +5350,8 @@ class GameCollectionManager {
                 const hasYoutube = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('youtube');
                 const hasSteamStore = youtubeUrl.trim() !== '' && youtubeUrl.toLowerCase().includes('store.steampowered.com');
                 const hasValidUrl = hasYoutube || hasSteamStore;
-                console.log('🎥 DEBUG: Checking game:', game.name, 'Path:', game.path, 'YouTube URL:', youtubeUrl, 'Has YouTube:', hasYoutube, 'Has Steam Store:', hasSteamStore, 'Has Valid URL:', hasValidUrl);
                 return hasValidUrl;
             });
-
-            console.log('🎥 DEBUG: Games with YouTube URLs found:', gamesWithYoutube.length);
-            console.log('🎥 DEBUG: Games with YouTube:', gamesWithYoutube.map(g => ({ name: g.name, path: g.path, youtubeurl: g.youtubeurl })));
 
             if (gamesWithYoutube.length === 0) {
                 this.showAlert('No games with YouTube or Steam Store URLs found to download', 'warning');
@@ -5670,8 +5375,6 @@ class GameCollectionManager {
                 overwrite_existing: overwriteExisting,
                 playlist_index: playlistIndex
             };
-
-            console.log('Starting YouTube download batch task:', requestBody);
 
             // Make the API request
             const response = await fetch(`/api/youtube-download-batch/${this.currentSystem}`, {
@@ -5697,7 +5400,6 @@ class GameCollectionManager {
             }
 
         } catch (error) {
-            console.error('Error starting YouTube download batch:', error);
             this.showAlert('Error starting YouTube download batch: ' + error.message, 'danger');
         }
     }
@@ -5714,9 +5416,7 @@ class GameCollectionManager {
         const currentResult = this.pendingBestMatchResults[this.currentBestMatchIndex];
         const gameName = currentResult.game_name;
         const topMatches = currentResult.top_matches;
-        
-        console.log(`Showing matches for game ${this.currentBestMatchIndex + 1}/${this.pendingBestMatchResults.length}: ${gameName}`);
-        
+
         // Show the modal with the current game's matches
         this.showPartialMatches(gameName, topMatches, 'global');
     }
@@ -5725,8 +5425,6 @@ class GameCollectionManager {
         if (this.pendingBestMatchResults && this.currentBestMatchIndex > 0) {
             this.currentBestMatchIndex--;
             const currentGame = this.pendingBestMatchResults[this.currentBestMatchIndex];
-            console.log('Moving to previous game:', currentGame);
-            console.log('Top matches available:', currentGame.top_matches);
             
             // Ensure modal state is properly managed during navigation
             this.isModalOpen = true;
@@ -5776,14 +5474,9 @@ class GameCollectionManager {
             
             // Get overwrite text fields setting
             const overwriteTextFields = document.getElementById('overwriteTextFieldsLaunchbox').checked;
-            console.log('🔧 DEBUG: overwriteTextFields checkbox checked:', overwriteTextFields);
             
             // Get selected fields for LaunchBox scraping
-            console.log('🔧 DEBUG: About to call getSelectedLaunchboxFields...');
             const selectedFields = await this.getSelectedLaunchboxFields();
-            console.log('🔧 DEBUG: getSelectedLaunchboxFields returned:', selectedFields);
-            console.log('🔧 DEBUG: selectedFields type:', typeof selectedFields);
-            console.log('🔧 DEBUG: selectedFields length:', selectedFields?.length);
             
             const requestBody = {
                 selected_games: gamesToScrape.map(game => game.path),
@@ -5791,7 +5484,6 @@ class GameCollectionManager {
                 overwrite_text_fields: overwriteTextFields,
                 selected_fields: selectedFields
             };
-            console.log('🔧 DEBUG: LaunchBox request body:', requestBody);
             
             const response = await fetch(`/api/scrap-launchbox/${this.currentSystem}`, {
                 method: 'POST',
@@ -5803,9 +5495,7 @@ class GameCollectionManager {
             
             if (response.ok) {
                 // Progress updates are now handled by the task panel
-                
-                console.log('Scraping started successfully');
-                
+
                 // Show success message
                 if (isFullCollection) {
                     this.showAlert(`Launchbox scraping started for entire collection (${gamesToScrape.length} games)`, 'success');
@@ -5825,7 +5515,6 @@ class GameCollectionManager {
                 this.showAlert(errorData.error || 'Unknown error', 'danger');
             }
         } catch (error) {
-            console.error('Error starting Launchbox scraping:', error);
             this.showAlert('Error starting Launchbox scraping', 'danger');
         }
     }
@@ -5848,15 +5537,11 @@ class GameCollectionManager {
             this.stopPartialMatchPolling();
             
         } catch (error) {
-            console.error('Error stopping scraping:', error);
             this.showAlert(`Error stopping: ${error.message}`, 'danger');
         }
     }
 
-
-    
     startPartialMatchPolling() {
-        console.log('Starting partial match polling...');
         
         // Clear any existing interval
         if (this.partialMatchPollingInterval) {
@@ -5868,31 +5553,23 @@ class GameCollectionManager {
             try {
                 // Don't poll if a modal is already open
                 if (this.isModalOpen) {
-                    console.log('Modal already open, skipping poll...');
                     return;
                 }
                 
-                console.log('Polling for partial match requests...');
                 const response = await fetch('/api/check-partial-match-requests');
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Partial match response:', data);
                     if (data.has_request) {
-                        console.log('Found partial match request:', data.request);
                         // Show the partial match modal for this request
                         this.showPartialMatchFromScraping(data.request);
                     } else {
-                        console.log('No partial match requests found');
                     }
                 } else {
-                    console.log('Partial match request failed:', response.status);
                 }
             } catch (error) {
-                console.error('Error checking partial match requests:', error);
             }
         }, 2000);
         
-        console.log('Partial match polling started with interval:', this.partialMatchPollingInterval);
     }
     
     stopPartialMatchPolling() {
@@ -5903,7 +5580,6 @@ class GameCollectionManager {
     }
     
     showPartialMatchFromScraping(requestData) {
-        console.log('showPartialMatchFromScraping called with:', requestData);
         
         // Convert top_matches to the format expected by the modal
         const matches = [];
@@ -5943,19 +5619,15 @@ class GameCollectionManager {
             };
             matches.push(match);
         }
-        
-        console.log(`Created ${matches.length} match objects for modal`);
-        
+
         // Show the modal with all the match data
         this.displayScraperPartialMatchModal(requestData.game_name, matches);
         
         // Store the request data for when user applies the match
         this.currentScrapingRequest = requestData;
         
-        console.log('Modal should now be displayed with multiple matches');
     }
     displayScraperPartialMatchModal(originalGameName, matches) {
-        console.log('displayScraperPartialMatchModal called with:', originalGameName, matches);
         
         // Set original game name
         document.getElementById('originalGameName').textContent = originalGameName;
@@ -6004,16 +5676,12 @@ class GameCollectionManager {
         // Add event listener for apply button
         const applyBtn = document.getElementById('applySelectedMatch');
         applyBtn.onclick = () => this.applySelectedMatch();
-        
-        console.log('Modal content populated, now showing modal...');
-        
+
         // Check if modal element exists
         const modalElement = document.getElementById('partialMatchModal');
         if (!modalElement) {
-            console.error('Modal element not found!');
             return;
         }
-        console.log('Modal element found:', modalElement);
         
         // Create modal instance
         const modal = new bootstrap.Modal(modalElement);
@@ -6021,21 +5689,17 @@ class GameCollectionManager {
         // Only add event listener once
         if (!this.modalEventListenersAdded) {
             modalElement.addEventListener('hidden.bs.modal', () => {
-                console.log('Modal hidden event triggered');
                 
                 // Check if we're in multi-game mode and this is not the last game
                 if (this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1 && this.currentBestMatchIndex < this.pendingBestMatchResults.length - 1) {
-                    console.log('Multi-game mode active, not resetting state');
                     return;
                 }
                 
                 // If we're on the last game or single game, allow normal modal closure
-                console.log('Last game or single game - allowing modal closure');
                 
                 // Force reset all state to prevent UI from getting stuck
                 this.resetUIState();
                 
-                console.log('Modal closed, state reset, polling resumed');
             });
             this.modalEventListenersAdded = true;
         }
@@ -6047,36 +5711,17 @@ class GameCollectionManager {
             cancelBtn.replaceWith(cancelBtn.cloneNode(true));
             const freshCancelBtn = modalElement.querySelector('[data-bs-dismiss="modal"]');
             freshCancelBtn.addEventListener('click', () => {
-                console.log('Cancel button clicked - manually hiding modal');
                 modal.hide();
             });
         }
         
         // Set modal as open
         this.isModalOpen = true;
-        console.log('Modal marked as open, polling paused');
         
         // Show the modal
         modal.show();
         
-        console.log('Modal.show() called with event listeners attached');
     }
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
 
     async waitForTaskCompletion() {
         // Wait for task to complete by polling task status
@@ -6093,7 +5738,6 @@ class GameCollectionManager {
                     }
                 }
             } catch (error) {
-                console.error('Error checking task status:', error);
             }
             
             // Wait 5 seconds before next check
@@ -6279,7 +5923,6 @@ class GameCollectionManager {
                 this.restoreScanButtonState();
             }
         } catch (error) {
-            console.error('Error confirming ROM scan:', error);
             this.showAlert('Error confirming ROM scan', 'danger');
             // Restore button state on error
             this.restoreScanButtonState();
@@ -6307,7 +5950,6 @@ class GameCollectionManager {
                     await this.loadRomSystem(this.currentSystem);
                     
                     // Ensure games count is updated
-                    console.log('Updating games count after media scan, current games:', this.games.length);
                     this.updateGamesCount();
                 } else {
                     this.showAlert(mediaResult.error || 'Media scan failed', 'danger');
@@ -6325,7 +5967,6 @@ class GameCollectionManager {
                 this.showAlert(errorData.error || 'Media scan failed', 'danger');
             }
         } catch (error) {
-            console.error('Error during media scan:', error);
             this.showAlert('Error during media scan: ' + error.message, 'danger');
         } finally {
             // Restore button state
@@ -6338,9 +5979,7 @@ class GameCollectionManager {
         if (button) {
             button.innerHTML = '<i class="bi bi-search"></i>';
             button.disabled = false;
-            console.log('Scan button state restored - button should be normal now');
         } else {
-            console.error('Could not find unifiedScanBtn to restore state');
         }
     }
 
@@ -6354,7 +5993,6 @@ class GameCollectionManager {
             // Show loading state
             button = document.getElementById('unifiedScanBtn');
             if (!button) {
-                console.error('Unified scan button not found');
                 return;
             }
             
@@ -6383,7 +6021,6 @@ class GameCollectionManager {
                     const resultsResponse = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms`);
                     if (resultsResponse.ok) {
                         const result = await resultsResponse.json();
-                        console.log('ROM scan results:', result);
                         if (result.success) {
                             if (result.action_taken === 'requires_confirmation') {
                                 // Show confirmation popup for games with missing ROMs
@@ -6394,16 +6031,13 @@ class GameCollectionManager {
                                 return;
                             } else {
                                 // Reload the system to get updated game list
-                                console.log('Refreshing game grid after ROM scan completion');
                                 // Add a small delay to ensure gamelist.xml is written
                                 await new Promise(resolve => setTimeout(resolve, 1000));
                                 await this.loadRomSystem(this.currentSystem);
-                                console.log('Game grid refreshed, current games count:', this.games.length);
                                 this.showAlert('ROM scan completed. Starting media scan...', 'success');
                             }
                             
                             // Continue with media scan after ROM scan
-                            console.log('Starting media scan for initial import or confirmed ROM scan');
                             await this.continueWithMediaScan();
                         } else {
                             this.showAlert(result.error || 'Error getting ROM scan results', 'danger');
@@ -6419,7 +6053,6 @@ class GameCollectionManager {
                 this.showAlert(errorData.error || 'Error starting ROM scan', 'danger');
             }
         } catch (error) {
-            console.error('Error during unified scan:', error);
             this.showAlert('Error during unified scan: ' + error.message, 'danger');
         } finally {
             // Restore button state only if it's still in loading state
@@ -6427,7 +6060,6 @@ class GameCollectionManager {
             if (button && originalText && button.disabled) {
                 button.innerHTML = originalText;
                 button.disabled = false;
-                console.log('Scan button state restored in finally block');
             } else if (button && !button.disabled) {
                 // Button is already enabled, ensure it has the correct text with icon
                 this.restoreScanButtonState();
@@ -6475,7 +6107,6 @@ class GameCollectionManager {
                 this.showGamelistSaveError(errorData.error || 'Failed to load differences');
             }
         } catch (error) {
-            console.error('Error loading gamelist differences:', error);
             this.showGamelistSaveError('Error loading differences: ' + error.message);
         }
     }
@@ -6557,7 +6188,6 @@ class GameCollectionManager {
                 this.showAlert(errorData.error || 'Failed to save gamelist', 'danger');
             }
         } catch (error) {
-            console.error('Error saving gamelist:', error);
             this.showAlert('Error saving gamelist: ' + error.message, 'danger');
         } finally {
             // Restore button state
@@ -6587,21 +6217,13 @@ class GameCollectionManager {
             const fileCount = deletedFiles.length;
             const message = `Successfully deleted game "${game.name}" and ${fileCount} associated file(s)`;
             this.showAlert(message, 'success');
-            
-            console.log(`Deleted game: ${game.name} (ROM: ${game.path})`);
-            console.log(`Deleted files: ${deletedFiles.join(', ')}`);
-            
+
         } catch (error) {
-            console.error('Error deleting game:', error);
             this.showAlert('Error deleting game', 'danger');
         }
     }
 
     async saveGameChanges() {
-        console.log('saveGameChanges called');
-        console.log('Modified games size:', this.modifiedGames.size);
-        console.log('Modified games:', Array.from(this.modifiedGames));
-        console.log('Current system:', this.currentSystem);
         
         if (this.modifiedGames.size === 0) {
             this.showAlert('No changes to save', 'info');
@@ -6609,7 +6231,6 @@ class GameCollectionManager {
         }
 
         try {
-            console.log('Sending PUT request to save changes...');
             const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
                 method: 'PUT',
                 headers: {
@@ -6619,13 +6240,9 @@ class GameCollectionManager {
                     games: this.games
                 })
             });
-            
-            console.log('Response status:', response.status);
-            console.log('Response ok:', response.ok);
-            
+
             if (response.ok) {
                 const result = await response.json();
-                console.log('Save response:', result);
                 
                 this.modifiedGames.clear();
                 this.showAlert('Changes saved successfully!', 'success');
@@ -6641,37 +6258,26 @@ class GameCollectionManager {
                 // Also refresh the grid cells to ensure proper display
                 if (this.gridApi) {
                     this.gridApi.refreshCells();
-                    console.log('Grid refreshed after saving changes');
                     }
                 }
             } else {
                 const errorText = await response.text();
-                console.error('Error response:', errorText);
                 this.showAlert('Error saving changes', 'danger');
             }
         } catch (error) {
-            console.error('Error saving changes:', error);
             this.showAlert('Error saving changes', 'danger');
         }
     }
 
     markGameAsModified(game) {
-        console.log('Marking game as modified:', game);
-        console.log('Game ID:', game.id);
-        console.log('Game ID type:', typeof game.id);
         
         if (game.id !== undefined && game.id !== null) {
             const beforeSize = this.modifiedGames.size;
             this.modifiedGames.add(game.id);
             const afterSize = this.modifiedGames.size;
-            console.log('Modified games set size before:', beforeSize, 'after:', afterSize);
-            console.log('Modified games contents:', Array.from(this.modifiedGames));
         } else {
-            console.error('Game has no ID:', game);
         }
     }
-
-
 
     clearFilters() {
         if (this.gridApi) {
@@ -6683,13 +6289,11 @@ class GameCollectionManager {
 
         // Check if media preview tab is currently active
         if (!this.isMediaPreviewTabActive()) {
-            console.log('Media preview tab is not active, skipping media loading...');
             return;
         }
 
         // Prevent multiple simultaneous calls
         if (this.showingMediaPreview) {
-            console.log('Media preview already in progress, skipping...');
             return;
         }
         this.showingMediaPreview = true;
@@ -6707,14 +6311,11 @@ class GameCollectionManager {
 
         // Get media fields from config.json mappings (excluding video from preview)
         const mediaFields = await this.getMediaFieldsFromConfig();
-        console.log('Media preview fields:', mediaFields);
-        console.log('Media mappings cache:', this.mediaMappingsCache);
         
         // Process each field only once
         const processedFields = new Set();
         mediaFields.forEach(field => {
             if (processedFields.has(field)) {
-                console.warn('Duplicate field detected:', field);
                 return; // Skip duplicate fields
             }
             processedFields.add(field);
@@ -6964,9 +6565,7 @@ class GameCollectionManager {
             // Add to selectedMedia array
             this.selectedMedia.push({ field, game, mediaPath });
         }
-        
-        console.log(`Selected media: ${field} for game ${game.name}. Total selected: ${this.selectedMedia.length}`);
-        
+
         // Update the selection display
         this.updateMediaSelectionDisplay();
     }
@@ -6986,9 +6585,7 @@ class GameCollectionManager {
             // Add to selectedMedia array
             this.selectedMedia.push({ field, game, mediaPath });
         }
-        
-        console.log(`Selected edit modal media: ${field} for game ${game.name}. Total selected: ${this.selectedMedia.length}`);
-        
+
         // Update the delete button state in edit modal
         this.updateEditModalDeleteButtonState();
     }
@@ -7041,7 +6638,6 @@ class GameCollectionManager {
         if (algorithmSelect) {
             const algorithm = algorithmSelect.value;
             this.setCookie('similarity_algorithm', algorithm, 365); // 1 year
-            console.log('🔧 DEBUG: Saved similarity algorithm preference:', algorithm);
         }
     }
     
@@ -7077,7 +6673,6 @@ class GameCollectionManager {
             }
             
             const data = await response.json();
-            console.log('🔧 DEBUG: Reloaded matches with new algorithm:', data);
             
             // Hide loading spinner
             if (loadingSpinner) loadingSpinner.style.display = 'none';
@@ -7093,7 +6688,6 @@ class GameCollectionManager {
             this.showAlert('Matches reloaded with new similarity algorithm!', 'success');
             
         } catch (error) {
-            console.error('Error reloading matches:', error);
             this.showAlert('Failed to reload matches', 'danger');
             if (loadingSpinner) loadingSpinner.style.display = 'none';
         }
@@ -7129,7 +6723,6 @@ class GameCollectionManager {
         if (algorithmSelect) {
             const algorithm = algorithmSelect.value;
             this.setCookie('similarity_algorithm', algorithm, 365); // 1 year
-            console.log('🔧 DEBUG: Saved global similarity algorithm preference:', algorithm);
         }
     }
     
@@ -7149,7 +6742,6 @@ class GameCollectionManager {
         if (emptyDiv) emptyDiv.style.display = 'none';
         
         try {
-            console.log('Reloading global matches with new algorithm for', this.selectedGames.length, 'games');
             
             // Re-run the find best match process
             await this.findBestMatchForSelected();
@@ -7158,7 +6750,6 @@ class GameCollectionManager {
             this.showAlert('Global matches reloaded with new similarity algorithm!', 'success');
             
         } catch (error) {
-            console.error('Error reloading global matches:', error);
             this.showAlert('Failed to reload global matches', 'danger');
         }
     }
@@ -7212,24 +6803,19 @@ class GameCollectionManager {
         // Get the YouTube URL from the edit modal field
         const youtubeUrlField = document.getElementById('editYoutubeurl');
         if (!youtubeUrlField) {
-            console.error('YouTube URL field not found');
             return;
         }
         
         const youtubeUrl = youtubeUrlField.value.trim();
         if (!youtubeUrl) {
-            console.log('YouTube URL is empty, doing nothing');
             return;
         }
         
         // Validate that it's a YouTube URL
         if (!youtubeUrl.includes('youtube')) {
-            console.log('URL does not contain "youtube", doing nothing');
             return;
         }
-        
-        console.log('Opening YouTube preview for URL:', youtubeUrl);
-        
+
         // Set flag to prevent YouTube search modal from reopening when player modal closes
         this.suppressYouTubeSearchReopen = true;
         
@@ -7307,7 +6893,6 @@ class GameCollectionManager {
             }
             
             manualCropBtn._manualCropHandler = () => {
-                console.log('Manual crop button clicked for game:', game.name);
                 this.openManualCropModal(game);
             };
             
@@ -7318,7 +6903,6 @@ class GameCollectionManager {
     async openManualCropModal(game) {
         // Prevent multiple simultaneous calls
         if (this.isExtractingFrame) {
-            console.log('Frame extraction already in progress, ignoring duplicate call');
             return;
         }
         
@@ -7332,7 +6916,6 @@ class GameCollectionManager {
         }
         
         const videoPath = game[videoField];
-        console.log('Opening manual crop modal for video:', videoPath);
         
         // Convert relative path to absolute path
         let absoluteVideoPath = videoPath;
@@ -7340,9 +6923,7 @@ class GameCollectionManager {
             // Construct absolute path from ROMS_FOLDER + system + relative path
             absoluteVideoPath = `/roms/${this.currentSystem}/${videoPath.substring(2)}`;
         }
-        
-        console.log('Absolute video path:', absoluteVideoPath);
-        
+
         // Store current game and video info
         this.currentCropGame = game;
         this.currentCropVideoField = videoField;
@@ -7370,7 +6951,6 @@ class GameCollectionManager {
         this.isExtractingFrame = true;
         
         try {
-            console.log('Starting frame extraction for:', videoPath);
             
             // Show loading state - find the container by looking for the card body
             const imageContainer = document.querySelector('#videoCroppingModal .card-body .text-center');
@@ -7422,7 +7002,6 @@ class GameCollectionManager {
                 throw new Error(result.error || 'Failed to extract first frame');
             }
         } catch (error) {
-            console.error('Error extracting first frame:', error);
             this.showAlert(`Error extracting first frame: ${error.message}`, 'error');
             
             // Reset container on error
@@ -7440,8 +7019,6 @@ class GameCollectionManager {
         // Clean up the extracted frame image file
         if (this.currentFramePath) {
             try {
-                console.log('Cleaning up frame image:', this.currentFramePath);
-                console.log('Sending delete request with frame_path:', this.currentFramePath);
                 
                 const response = await fetch('/api/delete-frame-image', {
                     method: 'POST',
@@ -7455,12 +7032,9 @@ class GameCollectionManager {
                 
                 const result = await response.json();
                 if (result.success) {
-                    console.log('Frame image cleaned up successfully');
                 } else {
-                    console.warn('Failed to cleanup frame image:', result.error);
                 }
             } catch (error) {
-                console.error('Error cleaning up frame image:', error);
             } finally {
                 // Clear the stored frame path
                 this.currentFramePath = null;
@@ -7492,7 +7066,6 @@ class GameCollectionManager {
         
         // Fallback if container dimensions are not available yet
         if (containerWidth === 0 || containerHeight === 0) {
-            console.log('Container dimensions not ready, using fallback sizing');
             // Use modal dimensions as fallback
             const modal = document.getElementById('videoCroppingModal');
             if (modal) {
@@ -7553,17 +7126,7 @@ class GameCollectionManager {
         
         // Trigger a reflow to ensure styles are applied
         img.offsetHeight;
-        
-        console.log('Calculated image size:', {
-            containerWidth,
-            containerHeight,
-            naturalWidth,
-            naturalHeight,
-            aspectRatio,
-            targetWidth: Math.round(targetWidth),
-            targetHeight: Math.round(targetHeight),
-            fallbackUsed: containerWidth === 800 && containerHeight === 600
-        });
+
     }
     
     setupCropper(image) {
@@ -7734,12 +7297,7 @@ class GameCollectionManager {
         const y = Math.round(cropData.y);
         
         const cropDimensions = `${width}:${height}:${x}:${y}`;
-        
-        console.log('Applying crop with dimensions:', cropDimensions);
-        console.log('Current crop game:', this.currentCropGame);
-        console.log('Current system:', this.currentSystem);
-        console.log('Current crop video path:', this.currentCropVideoPath);
-        
+
         // Show waiting state
         this.showCropWaitingState();
         
@@ -7751,9 +7309,7 @@ class GameCollectionManager {
             system_name: this.currentSystem,
             rom_file: this.currentCropGame.path
         };
-        
-        console.log('Sending request data:', requestData);
-        
+
         // Call the manual crop API
         fetch('/api/apply-manual-crop', {
             method: 'POST',
@@ -7778,7 +7334,6 @@ class GameCollectionManager {
             }
         })
         .catch(error => {
-            console.error('Error applying crop:', error);
             this.showAlert('Error applying crop: ' + error.message, 'error');
             this.hideCropWaitingState();
         });
@@ -7830,11 +7385,9 @@ class GameCollectionManager {
     }
     
     handleTaskCompletion(data) {
-        console.log('Task completion received:', data);
         
         // Check if this is a manual crop task completion
         if (data.task_type === 'manual_crop' && data.success) {
-            console.log('Manual crop task completed successfully');
             
             // Hide waiting state
             this.hideCropWaitingState();
@@ -7858,11 +7411,6 @@ class GameCollectionManager {
         
         // Check if this is an IGDB scraping task completion
         if (data.task_type === 'igdb_scraping') {
-            console.log('IGDB scraping task completed:', data);
-            console.log('Current system:', this.currentSystem);
-            console.log('Task system name:', data.system_name);
-            console.log('Task success:', data.success);
-            console.log('Task stopped:', data.stopped);
             
             // Refresh the task grid to show updated task status
             this.refreshTaskGrid();
@@ -7870,21 +7418,14 @@ class GameCollectionManager {
             // Refresh the gamelist grid if we're viewing the same system that was scraped
             // This applies to both successful completion and stopped tasks (since gamelist is saved in both cases)
             if (data.system_name && data.system_name === this.currentSystem) {
-                console.log('✅ System names match - refreshing gamelist grid for system:', data.system_name);
-                console.log('🔄 About to call loadRomSystem...');
                 
                 // Add a delay to ensure gamelist.xml file write has completed
                 setTimeout(() => {
                     this.loadRomSystem(this.currentSystem).then(() => {
-                        console.log('✅ Gamelist grid refreshed after IGDB task completion');
                     }).catch((error) => {
-                        console.error('❌ Error refreshing gamelist grid:', error);
                     });
                 }, 1000); // 1000ms delay to ensure file write is complete
             } else {
-                console.log('❌ System names do not match - skipping gamelist refresh');
-                console.log('  - Current system:', this.currentSystem);
-                console.log('  - Task system:', data.system_name);
             }
             
             // Show appropriate message based on success/stopped status
@@ -7901,11 +7442,6 @@ class GameCollectionManager {
         
         // Check if this is a ScreenScraper scraping task completion
         if (data.task_type === 'screenscraper_scraping') {
-            console.log('ScreenScraper scraping task completed:', data);
-            console.log('Current system:', this.currentSystem);
-            console.log('Task system name:', data.system_name);
-            console.log('Task success:', data.success);
-            console.log('Task stopped:', data.stopped);
             
             // Refresh the task grid to show updated task status
             this.refreshTaskGrid();
@@ -7913,21 +7449,14 @@ class GameCollectionManager {
             // Refresh the gamelist grid if we're viewing the same system that was scraped
             // This applies to both successful completion and stopped tasks (since gamelist is saved in both cases)
             if (data.system_name && data.system_name === this.currentSystem) {
-                console.log('✅ System names match - refreshing gamelist grid for system:', data.system_name);
-                console.log('🔄 About to call loadRomSystem...');
                 
                 // Add a delay to ensure gamelist.xml file write has completed
                 setTimeout(() => {
                     this.loadRomSystem(this.currentSystem).then(() => {
-                        console.log('✅ Gamelist grid refreshed after ScreenScraper task completion');
                     }).catch((error) => {
-                        console.error('❌ Error refreshing gamelist grid:', error);
                     });
                 }, 1000); // 1000ms delay to ensure file write is complete
             } else {
-                console.log('❌ System names do not match - skipping gamelist refresh');
-                console.log('  - Current system:', this.currentSystem);
-                console.log('  - Task system:', data.system_name);
             }
             
             // Show appropriate message based on success/stopped status
@@ -7944,28 +7473,19 @@ class GameCollectionManager {
         
         // Check if this is a Steam scraping task completion
         if (data.task_type === 'steam_scraping') {
-            console.log('Steam scraping task completed:', data);
-            console.log('Current system:', this.currentSystem);
-            console.log('Task system name:', data.system_name);
-            console.log('Task success:', data.success);
-            console.log('Task stopped:', data.stopped);
             
             // Refresh the task grid to show updated task status
             this.refreshTaskGrid();
             
             // Refresh the gamelist grid if we're viewing the same system that was scraped
             if (data.system_name && data.system_name === this.currentSystem) {
-                console.log('✅ System names match - refreshing gamelist grid for system:', data.system_name);
-                console.log('🔄 About to call loadRomSystem...');
                 
                 // Add a delay to ensure gamelist.xml file write has completed
                 setTimeout(() => {
                     this.loadRomSystem(this.currentSystem).then(() => {
-                        console.log('✅ Gamelist grid refreshed after Steam task completion');
                         
                         // Refresh media preview if it's currently showing
                         if (this.mediaPreviewEnabled && this.currentMediaPreviewGame) {
-                            console.log('🔄 Refreshing media preview after Steam task completion');
                             const freshGame = this.games.find(g => g.path === this.currentMediaPreviewGame.path);
                             if (freshGame) {
                                 this.currentMediaPreviewGame = freshGame;
@@ -7973,13 +7493,9 @@ class GameCollectionManager {
                             }
                         }
                     }).catch((error) => {
-                        console.error('❌ Error refreshing gamelist grid:', error);
                     });
                 }, 1000); // 1000ms delay to ensure file write is complete
             } else {
-                console.log('❌ System names do not match - skipping gamelist refresh');
-                console.log('  - Current system:', this.currentSystem);
-                console.log('  - Task system:', data.system_name);
             }
             
             // Show appropriate message based on success/stopped status
@@ -7997,29 +7513,18 @@ class GameCollectionManager {
     
     async refreshTaskGrid() {
         try {
-            console.log('Refreshing task grid...');
             const response = await fetch('/api/tasks');
             if (response.ok) {
                 const tasks = await response.json();
                 this.displayTasksInGrid(tasks);
-                console.log('Task grid refreshed successfully');
             } else {
-                console.error('Failed to fetch tasks for grid refresh');
             }
         } catch (error) {
-            console.error('Error refreshing task grid:', error);
         }
     }
     
     // Old crop interface functions removed - now using Cropper.js library
-    
-    
-    
-    
-    
-    
-    
-    
+
     initializeEditModalDeleteButton() {
         const deleteButton = document.getElementById('deleteSelectedEditModalMedia');
         if (deleteButton) {
@@ -8040,7 +7545,6 @@ class GameCollectionManager {
                 } catch (e) {}
             };
             editModal.addEventListener('hidden.bs.modal', () => {
-                console.log('Edit modal closed, cleaning up...');
                 pauseAllVideos();
                 // Clear any media selection
                 this.clearMediaSelection();
@@ -8049,11 +7553,9 @@ class GameCollectionManager {
                 // Clear any form data if needed
                 const form = document.getElementById('editGameForm');
                 if (form) { form.reset(); }
-                console.log('Edit modal cleanup completed');
             });
             // Add focus management when modal is about to be hidden
             editModal.addEventListener('hide.bs.modal', () => {
-                console.log('Edit modal hiding, managing focus...');
                 pauseAllVideos();
                 const safeElement = document.querySelector('#gamesCount') || document.body;
                 if (safeElement) { safeElement.focus(); }
@@ -8064,131 +7566,98 @@ class GameCollectionManager {
     }
     
     initializeCacheConfigurationModal() {
-        console.log('Initializing cache configuration modal...');
         
         // Add event listener for opening cache modal
         const openCacheModal = document.getElementById('openCacheModal');
         if (openCacheModal) {
-            console.log('Found openCacheModal element, adding click listener');
             openCacheModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Cache modal link clicked');
                 this.openCacheConfigurationModal();
             });
         } else {
-            console.warn('openCacheModal element not found');
         }
         
         // Add event listener for opening LaunchBox modal
         const openLaunchboxModal = document.getElementById('openLaunchboxModal');
         if (openLaunchboxModal) {
-            console.log('Found openLaunchboxModal element, adding click listener');
             openLaunchboxModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Launchbox Scrap Preferences modal link clicked');
                 this.openLaunchboxScrapPreferencesModal();
             });
         } else {
-            console.warn('openLaunchboxModal element not found');
         }
 
         // Add event listener for opening IGDB modal
         const openIgdbModal = document.getElementById('openIgdbModal');
         if (openIgdbModal) {
-            console.log('Found openIgdbModal element, adding click listener');
             openIgdbModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('IGDB Scrap Preferences modal link clicked');
                 this.openIgdbScrapPreferencesModal();
             });
         } else {
-            console.warn('openIgdbModal element not found');
         }
 
         // Add event listener for opening Steam modal
         const openSteamModal = document.getElementById('openSteamModal');
         if (openSteamModal) {
-            console.log('Found openSteamModal element, adding click listener');
             openSteamModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Steam Scrap Preferences modal link clicked');
                 this.openSteamScrapPreferencesModal();
             });
         } else {
-            console.warn('openSteamModal element not found');
         }
 
         // Add event listener for opening SteamGridDB modal
         const openSteamGridDBModal = document.getElementById('openSteamGridDBModal');
         if (openSteamGridDBModal) {
-            console.log('Found openSteamGridDBModal element, adding click listener');
             openSteamGridDBModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('SteamGridDB Scrap Preferences modal link clicked');
                 this.openSteamGridDBScrapPreferencesModal();
             });
         } else {
-            console.warn('openSteamGridDBModal element not found');
         }
 
         // Add event listener for opening ScreenScraper modal
         const openScreenscraperModal = document.getElementById('openScreenscraperModal');
         if (openScreenscraperModal) {
-            console.log('Found openScreenscraperModal element, adding click listener');
             openScreenscraperModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Screenscraper Scrap Preferences modal link clicked');
                 this.openScreenscraperScrapPreferencesModal();
             });
         } else {
-            console.warn('openScreenscraperModal element not found');
         }
-
 
         // Add event listener for opening Systems modal
         const openSystemsModal = document.getElementById('openSystemsModal');
         if (openSystemsModal) {
-            console.log('Found openSystemsModal element, adding click listener');
             openSystemsModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Systems modal link clicked');
                 this.openSystemsConfigurationModal();
             });
         } else {
-            console.warn('openSystemsModal element not found');
         }
 
         // Add event listener for unified scraper config modal
         const openScraperConfigModal = document.getElementById('openScraperConfigModal');
         if (openScraperConfigModal) {
-            console.log('Found openScraperConfigModal element, adding click listener');
             openScraperConfigModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Scraper config modal link clicked');
                 this.openScraperConfigurationModal();
             });
         } else {
-            console.warn('openScraperConfigModal element not found');
         }
 
-        
         // Add event listener for update metadata button
         const updateMetadataBtn = document.getElementById('updateMetadataBtn');
         if (updateMetadataBtn) {
-            console.log('Found updateMetadataBtn element, adding click listener');
             updateMetadataBtn.addEventListener('click', () => {
-                console.log('Update metadata button clicked');
                 this.updateMetadataXml();
             });
         } else {
-            console.warn('updateMetadataBtn element not found');
         }
-        
 
     }
-    
 
-    
     openCacheConfigurationModal() {
         // Load cache information before opening modal
         this.loadCacheInformation();
@@ -8216,10 +7685,7 @@ class GameCollectionManager {
         // Load saved settings from cookies
         const savedForceDownload = this.getCookie('forceDownloadImages');
         const savedOverwriteTextFields = this.getCookie('launchboxOverwriteTextFields');
-        
-        console.log('🔧 DEBUG: loadLaunchboxSettings - savedForceDownload:', savedForceDownload);
-        console.log('🔧 DEBUG: loadLaunchboxSettings - savedOverwriteTextFields:', savedOverwriteTextFields);
-        
+
         // Update modal checkboxes with saved values
         const forceDownloadCheckbox = document.getElementById('forceDownloadImagesModal');
         const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsLaunchbox');
@@ -8231,11 +7697,9 @@ class GameCollectionManager {
         if (overwriteTextFieldsCheckbox) {
             if (savedOverwriteTextFields !== null) {
                 overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
-                console.log('🔧 DEBUG: loadLaunchboxSettings - Setting overwriteTextFields checkbox to:', savedOverwriteTextFields === 'true', '(saved value:', savedOverwriteTextFields, ')');
             } else {
                 // No saved value, set to default (unchecked)
                 overwriteTextFieldsCheckbox.checked = false;
-                console.log('🔧 DEBUG: loadLaunchboxSettings - No saved value, setting overwriteTextFields checkbox to default (false)');
             }
         }
     }
@@ -8280,10 +7744,8 @@ class GameCollectionManager {
                 const data = await response.json();
                 this.updateIgdbCredentialsStatus(data);
             } else {
-                console.error('Failed to load IGDB credentials status');
             }
         } catch (error) {
-            console.error('Error loading IGDB credentials status:', error);
         }
     }
     
@@ -8335,7 +7797,6 @@ class GameCollectionManager {
                 alert(`Failed to save credentials: ${error.error}`);
             }
         } catch (error) {
-            console.error('Error saving IGDB credentials:', error);
             alert('Error saving credentials. Please try again.');
         }
     }
@@ -8404,13 +7865,10 @@ class GameCollectionManager {
                         // Default to checked if no saved value
                         checkbox.checked = true;
                     }
-                    console.log(`🔧 DEBUG: Loaded Steam field "${field}" (${cookieName}):`, checkbox.checked);
                 } else {
-                    console.log(`🔧 DEBUG: Checkbox not found for Steam field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error loading Steam field settings:', error);
         }
     }
     
@@ -8467,13 +7925,10 @@ class GameCollectionManager {
                 
                 if (checkbox) {
                     this.setCookie(cookieName, checkbox.checked);
-                    console.log(`🔧 DEBUG: Saved Steam cookie for field "${field}" (${cookieName}):`, checkbox.checked);
                 } else {
-                    console.log(`🔧 DEBUG: Checkbox not found for Steam field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error saving Steam field settings:', error);
         }
     }
 
@@ -8530,13 +7985,10 @@ class GameCollectionManager {
                         // Default to checked if no saved value
                         checkbox.checked = true;
                     }
-                    console.log(`🔧 DEBUG: Loaded SteamGridDB field "${field}" (${cookieName}):`, checkbox.checked);
                 } else {
-                    console.log(`🔧 DEBUG: Checkbox not found for SteamGridDB field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error loading SteamGridDB field settings:', error);
         }
     }
     
@@ -8588,13 +8040,10 @@ class GameCollectionManager {
                 
                 if (checkbox) {
                     this.setCookie(cookieName, checkbox.checked);
-                    console.log(`🔧 DEBUG: Saved SteamGridDB cookie for field "${field}" (${cookieName}):`, checkbox.checked);
                 } else {
-                    console.log(`🔧 DEBUG: Checkbox not found for SteamGridDB field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error saving SteamGridDB field settings:', error);
         }
     }
 
@@ -8635,10 +8084,8 @@ class GameCollectionManager {
                 this.updateScreenscraperCredentialsStatus(data);
                 this.loadScreenscraperCredentialsValues();
             } else {
-                console.error('Failed to load ScreenScraper credentials status');
             }
         } catch (error) {
-            console.error('Error loading ScreenScraper credentials status:', error);
         }
     }
     
@@ -8655,10 +8102,8 @@ class GameCollectionManager {
                     document.getElementById('screenscraperSsPassword').value = data.sspassword;
                 }
             } else {
-                console.error('Failed to load ScreenScraper credentials values');
             }
         } catch (error) {
-            console.error('Error loading ScreenScraper credentials values:', error);
         }
     }
     
@@ -8675,10 +8120,8 @@ class GameCollectionManager {
                     document.getElementById('igdbClientSecret').value = data.client_secret;
                 }
             } else {
-                console.error('Failed to load IGDB credentials values');
             }
         } catch (error) {
-            console.error('Error loading IGDB credentials values:', error);
         }
     }
     
@@ -8729,7 +8172,6 @@ class GameCollectionManager {
                 alert(`Failed to save credentials: ${error.error}`);
             }
         } catch (error) {
-            console.error('Error saving ScreenScraper credentials:', error);
             alert('Error saving credentials. Please try again.');
         }
     }
@@ -8756,19 +8198,14 @@ class GameCollectionManager {
                 const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 const checkboxId = `igdbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
-                
-                console.log(`🔧 DEBUG LOAD: Field "${field}" -> Cookie: ${cookieName} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
-                
+
                 if (checkbox) {
                     // Default to checked if no saved value (first time)
                     checkbox.checked = savedValue === 'true' || savedValue === null;
-                    console.log(`🔧 DEBUG LOAD: Set checkbox "${checkboxId}" to ${checkbox.checked}`);
                 } else {
-                    console.log(`🔧 DEBUG LOAD: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error loading IGDB field settings:', error);
         }
     }
     
@@ -8820,13 +8257,10 @@ class GameCollectionManager {
                 const cookieName = `igdbField_${field}`;
                 if (checkbox) {
                     this.setCookie(cookieName, checkbox.checked);
-                    console.log(`🔧 DEBUG: Saved cookie for field "${field}" (${cookieName}):`, checkbox.checked);
                 } else {
-                    console.log(`🔧 DEBUG: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error saving IGDB field settings:', error);
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'name', 'summary', 'developer', 'publisher', 'genre', 
@@ -8868,19 +8302,14 @@ class GameCollectionManager {
                 ).join('');
                 const checkboxId = `screenscraperField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
-                
-                console.log(`🔧 DEBUG LOAD: Field "${field}" -> Cookie: screenscraperField_${field} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
-                
+
                 if (checkbox) {
                     // If cookie exists, use its value; if not, default to checked (first time)
                     checkbox.checked = savedValue === null ? true : savedValue === 'true';
-                    console.log(`🔧 DEBUG LOAD: Set checkbox "${checkboxId}" to ${checkbox.checked} (cookie: ${savedValue})`);
                 } else {
-                    console.log(`🔧 DEBUG LOAD: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error loading ScreenScraper field settings:', error);
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'name', 'description', 'developer', 'publisher', 'genre', 
@@ -8921,40 +8350,27 @@ class GameCollectionManager {
                 const checkbox = document.getElementById(checkboxId);
                 if (checkbox) {
                     this.setCookie(`screenscraperField_${field}`, checkbox.checked);
-                    console.log(`🔧 DEBUG: Saved cookie for field "${field}" (screenscraperField_${field}):`, checkbox.checked);
                 } else {
-                    console.log(`🔧 DEBUG: Checkbox not found for field "${field}" (${checkboxId})`);
                 }
             });
         } catch (error) {
-            console.error('Error saving ScreenScraper field settings:', error);
         }
     }
 
-    
     async getSelectedIgdbFields() {
-        console.log('🔧 DEBUG: getSelectedIgdbFields() called!');
         try {
-            console.log('🔧 DEBUG: Starting getSelectedIgdbFields...');
             
             // Fetch config to get dynamic field mappings
             const response = await fetch('/api/config');
             const config = await response.json();
-            console.log('🔧 DEBUG: Config received:', config);
             
             // Get IGDB field mappings from config
             const textFields = Object.keys(config.igdb?.mapping || {});
             const mediaFields = Object.keys(config.igdb?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
-            
-            console.log('🔧 DEBUG: Text fields from config:', textFields);
-            console.log('🔧 DEBUG: Media fields from config:', mediaFields);
-            console.log('🔧 DEBUG: All fields combined:', allFields);
-            console.log('🔧 DEBUG: All fields length:', allFields.length);
-            
+
             // If no fields found in config, use fallback
             if (allFields.length === 0) {
-                console.log('🔧 DEBUG: No fields found in config, using fallback fields');
                 const fallbackFields = [
                     'name', 'summary', 'developer', 'publisher', 'genre', 
                     'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
@@ -8963,56 +8379,43 @@ class GameCollectionManager {
             }
             
             // Read field selections directly from cookies (simplified approach)
-            console.log('🔧 DEBUG: Reading IGDB field selections from cookies...');
             const selectedFields = [];
             let hasUncheckedInCookies = false;
             
             allFields.forEach(field => {
                 const cookieName = `igdbField_${field}`;
                 const cookieValue = this.getCookie(cookieName);
-                console.log(`🔧 DEBUG: Cookie for field "${field}" (${cookieName}):`, cookieValue);
                 
                 if (cookieValue !== null) {
                     if (cookieValue === 'true') {
                         selectedFields.push(field);
-                        console.log(`🔧 DEBUG: Added field "${field}" to selectedFields`);
                     } else {
                         hasUncheckedInCookies = true;
-                        console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                     }
                 } else {
-                    console.log(`🔧 DEBUG: No cookie found for field "${field}", treating as checked (default)`);
                     selectedFields.push(field);
                 }
             });
-            
-            console.log('🔧 DEBUG: Selected fields from cookies:', selectedFields);
-            console.log('🔧 DEBUG: Has unchecked fields in cookies:', hasUncheckedInCookies);
-            
+
             // If we have some unchecked fields, return only the selected ones
             if (hasUncheckedInCookies) {
-                console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
             return selectedFields;
             }
             
             // If all fields are selected (no unchecked fields), return all fields
-            console.log('🔧 DEBUG: All fields selected, returning all fields:', allFields);
             return allFields;
             
         } catch (error) {
-            console.error('Error getting selected IGDB fields:', error);
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'name', 'summary', 'developer', 'publisher', 'genre', 
                 'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
             ];
-            console.log('🔧 DEBUG: Using fallback fields due to error:', fallbackFields);
             return fallbackFields;
         }
     }
 
     async initializeScreenscraperFieldCheckboxes() {
-        console.log('🔧 Initializing ScreenScraper field checkboxes from config...');
         
         try {
             // Fetch config to get dynamic field mappings
@@ -9054,15 +8457,11 @@ class GameCollectionManager {
                     await this.saveScreenscraperFieldSettings();
                 });
             });
-            
-            console.log('✅ ScreenScraper field checkboxes initialized from config');
-            
+
         } catch (error) {
-            console.error('❌ Error initializing ScreenScraper field checkboxes:', error);
         }
     }
     async initializeLaunchboxFieldCheckboxes() {
-        console.log('🔧 Initializing LaunchBox field checkboxes from config...');
         
         try {
             // Fetch config to get dynamic field mappings
@@ -9101,11 +8500,8 @@ class GameCollectionManager {
                     await this.saveLaunchboxFieldSettings();
                 });
             });
-            
-            console.log('✅ LaunchBox field checkboxes initialized from config');
-            
+
         } catch (error) {
-            console.error('❌ Error initializing LaunchBox field checkboxes:', error);
         }
     }
 
@@ -9128,13 +8524,10 @@ class GameCollectionManager {
     }
 
     async getSelectedScreenscraperFields() {
-        console.log('🔍 Starting ScreenScraper field selection...');
         
         // Fetch config to get dynamic field mappings
         const response = await fetch('/api/config');
         const config = await response.json();
-        console.log('📋 Full config received:', config);
-        console.log('📋 ScreenScraper config:', config.screenscraper);
         
         // Get ScreenScraper field mappings from config
         // ScreenScraper has image_type_mappings that map gamelist field names to arrays of ScreenScraper API field names
@@ -9146,46 +8539,32 @@ class GameCollectionManager {
         const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
         
         const allFields = [...textFields, ...mediaFields];
-        
-        console.log('📝 Text fields from config:', textFields);
-        console.log('🖼️ Media fields from config:', mediaFields);
-        console.log('📋 All fields combined:', allFields);
-        
+
         // Read field selections directly from cookies (simplified approach)
-        console.log('🔧 DEBUG: Reading ScreenScraper field selections from cookies...');
         const selectedFields = [];
         let hasUncheckedInCookies = false;
         
         allFields.forEach(field => {
             const cookieName = `screenscraperField_${field}`;
             const cookieValue = this.getCookie(cookieName);
-            console.log(`🔧 DEBUG: Cookie for field "${field}" (${cookieName}):`, cookieValue);
             
             if (cookieValue !== null) {
                 if (cookieValue === 'true') {
                 selectedFields.push(field);
-                    console.log(`🔧 DEBUG: Added field "${field}" to selectedFields`);
             } else {
                     hasUncheckedInCookies = true;
-                    console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                 }
             } else {
-                console.log(`🔧 DEBUG: No cookie found for field "${field}", treating as checked (default)`);
                 selectedFields.push(field);
             }
         });
-        
-        console.log('🔧 DEBUG: Selected fields from cookies:', selectedFields);
-        console.log('🔧 DEBUG: Has unchecked fields in cookies:', hasUncheckedInCookies);
-        
+
         // If we have some unchecked fields, return only the selected ones
         if (hasUncheckedInCookies) {
-            console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
         return selectedFields;
         }
         
         // If all fields are selected (no unchecked fields), return all fields
-        console.log('🔧 DEBUG: All fields selected, returning all fields:', allFields);
         return allFields;
     }
 
@@ -9214,7 +8593,6 @@ class GameCollectionManager {
             
             return selectedFields;
         } catch (error) {
-            console.error('Error getting Steam fields:', error);
             return ['boxart', 'marquee', 'fanart', 'image'];
         }
     }
@@ -9244,7 +8622,6 @@ class GameCollectionManager {
             
             return selectedFields;
         } catch (error) {
-            console.error('Error getting SteamGridDB fields:', error);
             return ['boxart', 'marquee', 'fanart'];
         }
     }
@@ -9271,7 +8648,6 @@ class GameCollectionManager {
                 }
             });
         } catch (error) {
-            console.error('Error loading LaunchBox field settings:', error);
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
@@ -9310,7 +8686,6 @@ class GameCollectionManager {
                 }
             });
         } catch (error) {
-            console.error('Error saving LaunchBox field settings:', error);
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
@@ -9330,26 +8705,18 @@ class GameCollectionManager {
     
     async getSelectedLaunchboxFields() {
         try {
-            console.log('🔧 DEBUG: Starting getSelectedLaunchboxFields...');
             
             // Fetch config to get dynamic field mappings
             const response = await fetch('/api/config');
             const config = await response.json();
-            console.log('🔧 DEBUG: Config received:', config);
             
             // Get LaunchBox field mappings from config
             const textFields = Object.keys(config.launchbox?.mapping || {});
             const mediaFields = Object.keys(config.launchbox?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
-            
-            console.log('🔧 DEBUG: Text fields from config:', textFields);
-            console.log('🔧 DEBUG: Media fields from config:', mediaFields);
-            console.log('🔧 DEBUG: All fields combined:', allFields);
-            console.log('🔧 DEBUG: All fields length:', allFields.length);
-            
+
             // If no fields found in config, use fallback
             if (allFields.length === 0) {
-                console.log('🔧 DEBUG: No fields found in config, using fallback fields');
                 const fallbackFields = [
                     'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
                     'CommunityRating', 'MaxPlayers', 'Box - Front', 'Box - Back', 'Box - 3D',
@@ -9360,44 +8727,33 @@ class GameCollectionManager {
             }
             
             // Read field selections directly from cookies (simplified approach)
-            console.log('🔧 DEBUG: Reading LaunchBox field selections from cookies...');
             const selectedFields = [];
             let hasUncheckedInCookies = false;
             
             allFields.forEach(field => {
                 const cookieName = `launchboxField_${field}`;
                 const cookieValue = this.getCookie(cookieName);
-                console.log(`🔧 DEBUG: Cookie for field "${field}" (${cookieName}):`, cookieValue);
                 
                 if (cookieValue !== null) {
                     if (cookieValue === 'true') {
                         selectedFields.push(field);
-                        console.log(`🔧 DEBUG: Added field "${field}" to selectedFields`);
                     } else {
                         hasUncheckedInCookies = true;
-                        console.log(`🔧 DEBUG: Field "${field}" is unchecked in cookies`);
                     }
                 } else {
-                    console.log(`🔧 DEBUG: No cookie found for field "${field}", treating as checked (default)`);
                     selectedFields.push(field);
                 }
             });
-            
-            console.log('🔧 DEBUG: Selected fields from cookies:', selectedFields);
-            console.log('🔧 DEBUG: Has unchecked fields in cookies:', hasUncheckedInCookies);
-            
+
             // If we have some unchecked fields, return only the selected ones
             if (hasUncheckedInCookies) {
-                console.log('🔧 DEBUG: Some fields unchecked, returning selected fields:', selectedFields);
             return selectedFields;
             }
             
             // If all fields are selected (no unchecked fields), return all fields
-            console.log('🔧 DEBUG: All fields selected, returning all fields:', allFields);
             return allFields;
             
         } catch (error) {
-            console.error('Error getting selected LaunchBox fields:', error);
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
                 'Name', 'Overview', 'Developer', 'Publisher', 'Genres', 
@@ -9405,7 +8761,6 @@ class GameCollectionManager {
                 'Clear Logo', 'Screenshot - Game Title', 'Screenshot - Gameplay',
                 'Fanart - Background', 'Cart - Front'
             ];
-            console.log('🔧 DEBUG: Using fallback fields due to error:', fallbackFields);
             return fallbackFields;
         }
     }
@@ -9447,12 +8802,10 @@ class GameCollectionManager {
             if (data.success) {
                 this.populateSystemsTable(data.systems);
             } else {
-                console.error('Failed to load systems:', data.error);
                 this.showAlert('Failed to load systems data', 'danger');
                 this.showSystemsModalErrorState();
             }
         } catch (error) {
-            console.error('Error loading systems:', error);
             this.showAlert('Error loading systems data', 'danger');
             this.showSystemsModalErrorState();
         }
@@ -9620,13 +8973,8 @@ class GameCollectionManager {
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms()
             ]);
-            console.log('Platform data loaded:', {
-                platforms: platforms.length,
-                screenscraperSystems: screenscraperSystems.length,
-                igdbPlatforms: igdbPlatforms.length
-            });
+
         } catch (error) {
-            console.error('Error loading platform data:', error);
             // Show error message
             tbody.innerHTML = `
                 <tr>
@@ -9718,67 +9066,51 @@ class GameCollectionManager {
             if (data.success) {
                 return data.platforms;
             } else {
-                console.error('Failed to load LaunchBox platforms:', data.error);
                 return [];
             }
         } catch (error) {
-            console.error('Error loading LaunchBox platforms:', error);
             return [];
         }
     }
     
     async loadScreenScraperSystems() {
         try {
-            console.log('Loading ScreenScraper systems...');
             const response = await fetch('/api/screenscraper-systems');
             const data = await response.json();
             if (data.systems) {
-                console.log(`Loaded ${data.systems.length} ScreenScraper systems`);
                 return data.systems || [];
             } else {
-                console.error('Failed to load ScreenScraper systems:', data.error);
                 return [];
             }
         } catch (error) {
-            console.error('Error loading ScreenScraper systems:', error);
             return [];
         }
     }
     
     async loadIgdbPlatforms(retryCount = 0) {
         try {
-            console.log('Loading IGDB platforms...');
             const response = await fetch('/api/igdb-platforms');
-            console.log('IGDB platforms response status:', response.status);
-            console.log('IGDB platforms response headers:', response.headers);
             
             if (!response.ok) {
-                console.error('IGDB platforms API error:', response.status, response.statusText);
                 const errorText = await response.text();
-                console.error('IGDB platforms error response:', errorText);
                 return [];
             }
             
             const data = await response.json();
-            console.log('IGDB platforms response data:', data);
             
             if (data.platforms) {
-                console.log(`Loaded ${data.platforms.length} IGDB platforms`);
                 
                 // If platforms are empty but we have a message about cache creation, retry once
                 if (data.platforms.length === 0 && data.message && data.message.includes('Cache will be created automatically') && retryCount === 0) {
-                    console.log('🔄 IGDB platforms empty but cache creation in progress, retrying in 2 seconds...');
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     return this.loadIgdbPlatforms(1); // Retry once
                 }
                 
                 return data.platforms || [];
             } else {
-                console.error('Failed to load IGDB platforms:', data.error);
                 return [];
             }
         } catch (error) {
-            console.error('Error loading IGDB platforms:', error);
             return [];
         }
     }
@@ -9842,15 +9174,12 @@ class GameCollectionManager {
                 this.loadSystemsData();
             }
         } catch (error) {
-            console.error('Error saving inline field:', error);
             this.showAlert('Error saving changes', 'danger');
             // Reload data to revert changes
             this.loadSystemsData();
         }
     }
-    
 
-    
     async deleteSystem(systemName) {
         if (!confirm(`Are you sure you want to delete the system "${systemName}"?`)) {
             return;
@@ -9869,7 +9198,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to delete system: ${data.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error deleting system:', error);
             this.showAlert('Error deleting system', 'danger');
         }
     }
@@ -9974,7 +9302,6 @@ class GameCollectionManager {
             this.setupMissingSystemsModalEvents();
             
         } catch (error) {
-            console.error('Error showing add missing systems modal:', error);
             this.showAlert('Error loading missing systems', 'danger');
         }
     }
@@ -10055,7 +9382,6 @@ class GameCollectionManager {
                 this.showAlert(data.error || 'Failed to add systems', 'danger');
             }
         } catch (error) {
-            console.error('Error adding missing systems:', error);
             this.showAlert('Error adding systems', 'danger');
         }
     }
@@ -10176,7 +9502,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to add system: ${addData.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error adding system:', error);
             this.showAlert('Error adding system', 'danger');
         }
     }
@@ -10239,11 +9564,9 @@ class GameCollectionManager {
             if (data.success) {
                 this.populateMediaFieldsTable(data.media_fields);
             } else {
-                console.error('Failed to load media fields:', data.error);
                 this.showAlert('Failed to load media fields data', 'danger');
             }
         } catch (error) {
-            console.error('Error loading media fields:', error);
             this.showAlert('Error loading media fields data', 'danger');
         }
     }
@@ -10340,14 +9663,12 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated ${fieldName}.${fieldType}`);
             } else {
                 this.showAlert(`Failed to update ${fieldName}.${fieldType}: ${data.error}`, 'danger');
                 // Reload data to revert changes
                 this.loadMediaFieldsData();
             }
         } catch (error) {
-            console.error('Error saving inline field:', error);
             this.showAlert('Error saving changes', 'danger');
             // Reload data to revert changes
             this.loadMediaFieldsData();
@@ -10379,7 +9700,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to delete media field: ${data.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error deleting media field:', error);
             this.showAlert('Error deleting media field', 'danger');
         }
     }
@@ -10415,7 +9735,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to add media field: ${data.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error adding media field:', error);
             this.showAlert('Error adding media field', 'danger');
         }
     }
@@ -10455,11 +9774,9 @@ class GameCollectionManager {
             if (data.success) {
                 this.populateLaunchboxMappingsTable(data.launchbox_mappings, data.media_fields, data.launchbox_media_types);
             } else {
-                console.error('Failed to load launchbox mappings:', data.error);
                 this.showAlert('Failed to load launchbox mappings data', 'danger');
             }
         } catch (error) {
-            console.error('Error loading launchbox mappings:', error);
             this.showAlert('Error loading launchbox mappings data', 'danger');
         }
     }
@@ -10540,7 +9857,6 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated mapping: ${mediaField} -> [${selectedTypes.join(', ')}]`);
                 this.showAlert(`Mapping updated: ${mediaField} → [${selectedTypes.join(', ')}]`, 'success');
             } else {
                 this.showAlert(`Failed to update mapping: ${data.error}`, 'danger');
@@ -10548,7 +9864,6 @@ class GameCollectionManager {
                 this.loadLaunchboxMappingsData();
             }
         } catch (error) {
-            console.error('Error updating launchbox mapping:', error);
             this.showAlert('Error updating mapping', 'danger');
             // Reload data to revert changes
             this.loadLaunchboxMappingsData();
@@ -10649,7 +9964,6 @@ class GameCollectionManager {
             // Update the mapping
             this.updateLaunchboxMapping(mediaField);
             
-            console.log(`Removed "${type}" from priority list and added back to available types`);
         }
     }
     
@@ -10749,8 +10063,7 @@ class GameCollectionManager {
             }
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
-    
-    
+
     initializeLaunchboxConfigModal() {
         // Refresh mappings button
         const refreshLaunchboxMappingsBtn = document.getElementById('refreshLaunchboxMappingsBtn');
@@ -10794,7 +10107,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to refresh media types: ${data.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error refreshing LaunchBox media types:', error);
             this.showAlert('Error refreshing media types', 'danger');
         } finally {
             // Restore button state
@@ -10825,11 +10137,9 @@ class GameCollectionManager {
             if (data.success) {
                 this.populateIgdbMappingsTable(data.igdb_mappings, data.media_fields, data.igdb_media_types);
             } else {
-                console.error('Failed to load IGDB mappings:', data.error);
                 this.showAlert('Failed to load IGDB mappings data', 'danger');
             }
         } catch (error) {
-            console.error('Error loading IGDB mappings:', error);
             this.showAlert('Error loading IGDB mappings data', 'danger');
         }
     }
@@ -10881,7 +10191,6 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated IGDB mapping: ${mediaField} <- ${igdbType}`);
                 this.showAlert(`IGDB mapping updated: ${mediaField} ← ${igdbType}`, 'success');
             } else {
                 this.showAlert(`Failed to update IGDB mapping: ${data.error}`, 'danger');
@@ -10889,14 +10198,12 @@ class GameCollectionManager {
                 this.loadIgdbMappingsData();
             }
         } catch (error) {
-            console.error('Error updating IGDB mapping:', error);
             this.showAlert('Error updating IGDB mapping', 'danger');
             // Reload data to revert changes
             this.loadIgdbMappingsData();
         }
     }
-    
-    
+
     openScreenscraperConfigurationModal() {
         // Load ScreenScraper mappings data before opening modal
         this.loadScreenscraperMappingsData();
@@ -10918,11 +10225,9 @@ class GameCollectionManager {
             if (data.success) {
                 this.populateScreenscraperMappingsTable(data.screenscraper_mappings, data.media_fields, data.screenscraper_media_types);
             } else {
-                console.error('Failed to load ScreenScraper mappings:', data.error);
                 this.showAlert('Failed to load ScreenScraper mappings data', 'danger');
             }
         } catch (error) {
-            console.error('Error loading ScreenScraper mappings:', error);
             this.showAlert('Error loading ScreenScraper mappings data', 'danger');
         }
     }
@@ -10998,7 +10303,6 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated ScreenScraper mapping: ${screenscraperType} -> ${mediaField}`);
                 this.showAlert(`ScreenScraper mapping updated: ${screenscraperType} → ${mediaField}`, 'success');
             } else {
                 this.showAlert(`Failed to update ScreenScraper mapping: ${data.error}`, 'danger');
@@ -11006,7 +10310,6 @@ class GameCollectionManager {
                 this.loadScreenscraperMappingsData();
             }
         } catch (error) {
-            console.error('Error updating ScreenScraper mapping:', error);
             this.showAlert('Error updating ScreenScraper mapping', 'danger');
             // Reload data to revert changes
             this.loadScreenscraperMappingsData();
@@ -11039,7 +10342,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to reset ScreenScraper mapping: ${data.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error resetting ScreenScraper mapping:', error);
             this.showAlert('Error resetting ScreenScraper mapping', 'danger');
         }
     }
@@ -11176,13 +10478,10 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated ScreenScraper mapping for ${mediaField}:`, selectedTypes);
             } else {
-                console.error('Failed to update ScreenScraper mapping:', data.error);
                 this.showAlert(`Failed to update ScreenScraper mapping: ${data.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error updating ScreenScraper mapping:', error);
             this.showAlert('Error updating ScreenScraper mapping', 'danger');
         }
     }
@@ -11217,11 +10516,9 @@ class GameCollectionManager {
             if (data.success) {
                 this.populateSteamgriddbMappingsTable(data.steamgriddb_mappings, data.media_fields, data.steamgriddb_media_types);
             } else {
-                console.error('Failed to load SteamGridDB mappings:', data.error);
                 this.showAlert('Failed to load SteamGridDB mappings data', 'danger');
             }
         } catch (error) {
-            console.error('Error loading SteamGridDB mappings:', error);
             this.showAlert('Error loading SteamGridDB mappings data', 'danger');
         }
     }
@@ -11273,7 +10570,6 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated SteamGridDB mapping: ${mediaField} <- ${steamgriddbType}`);
                 this.showAlert(`SteamGridDB mapping updated: ${mediaField} ← ${steamgriddbType}`, 'success');
             } else {
                 this.showAlert(`Failed to update SteamGridDB mapping: ${data.error}`, 'danger');
@@ -11281,14 +10577,12 @@ class GameCollectionManager {
                 this.loadSteamgriddbMappingsData();
             }
         } catch (error) {
-            console.error('Error updating SteamGridDB mapping:', error);
             this.showAlert('Error updating SteamGridDB mapping', 'danger');
             // Reload data to revert changes
             this.loadSteamgriddbMappingsData();
         }
     }
-    
-    
+
     async loadSteamgriddbCredentialsStatus() {
         try {
             const response = await fetch('/api/steamgriddb-credentials');
@@ -11305,7 +10599,6 @@ class GameCollectionManager {
                 }
             }
         } catch (error) {
-            console.error('Error loading SteamGridDB credentials status:', error);
         }
     }
     
@@ -11341,7 +10634,6 @@ class GameCollectionManager {
                 }
             }
         } catch (error) {
-            console.error('Error loading SteamGridDB credentials values:', error);
         }
     }
     
@@ -11387,7 +10679,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to save SteamGridDB credentials: ${data.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error saving SteamGridDB credentials:', error);
             this.showAlert('Error saving SteamGridDB credentials', 'danger');
         }
     }
@@ -11463,7 +10754,6 @@ class GameCollectionManager {
                 this.loadSteamMappingsData();
             });
         }
-        
 
         // 2D Box Generator Configuration event listeners
         const open2DBoxGeneratorConfigBtn = document.getElementById('open2DBoxGeneratorConfigModal');
@@ -11498,10 +10788,8 @@ class GameCollectionManager {
                 const data = await response.json();
                 this.populateSteamMappingsTable(data.steam_mappings, data.media_fields, data.steam_media_types);
             } else {
-                console.error('Failed to load Steam mappings');
             }
         } catch (error) {
-            console.error('Error loading Steam mappings:', error);
         }
     }
     
@@ -11552,25 +10840,19 @@ class GameCollectionManager {
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    console.log(`Steam mapping updated: ${mediaField} <- ${steamType}`);
                     this.showAlert(`Steam mapping updated: ${mediaField} ← ${steamType}`, 'success');
                 } else {
-                    console.error('Failed to update Steam mapping:', result.error);
                     this.showAlert(`Failed to update Steam mapping: ${result.error}`, 'danger');
                 }
             } else {
-                console.error('Failed to update Steam mapping');
                 this.showAlert('Failed to update Steam mapping', 'danger');
             }
         } catch (error) {
-            console.error('Error updating Steam mapping:', error);
             this.showAlert('Error updating Steam mapping', 'danger');
         }
     }
-    
-    
+
     initializeAppConfigurationModal() {
-        console.log('Initializing application configuration modal...');
         
         // Add event listener for opening the modal
         const openAppConfigBtn = document.getElementById('openAppConfigModal');
@@ -11591,7 +10873,6 @@ class GameCollectionManager {
     }
     
     openAppConfigurationModal() {
-        console.log('Opening application configuration modal...');
         
         // Load current configuration
         this.loadAppConfiguration();
@@ -11617,15 +10898,12 @@ class GameCollectionManager {
                 // Authentication settings
                 document.getElementById('disableLocalAuth').checked = config.authentication?.disable_local_auth || false;
                 
-                console.log('Configuration loaded:', config);
             } else {
-                console.error('Failed to load configuration');
             }
             
             // Load Discord credentials separately
             await this.loadDiscordCredentials();
         } catch (error) {
-            console.error('Error loading configuration:', error);
         }
     }
     
@@ -11644,12 +10922,9 @@ class GameCollectionManager {
                 document.getElementById('discordGuildId').value = discordConfig.auto_create?.guild_id || '';
                 document.getElementById('discordRoleName').value = discordConfig.auto_create?.role_name || '';
                 
-                console.log('Discord credentials loaded:', discordConfig);
             } else {
-                console.error('Failed to load Discord credentials');
             }
         } catch (error) {
-            console.error('Error loading Discord credentials:', error);
         }
     }
     
@@ -11667,9 +10942,7 @@ class GameCollectionManager {
                     disable_local_auth: document.getElementById('disableLocalAuth').checked
                 }
             };
-            
-            console.log('Saving configuration:', configData);
-            
+
             const response = await fetch('/api/config', {
                 method: 'PUT',
                 headers: {
@@ -11680,7 +10953,6 @@ class GameCollectionManager {
             
             if (response.ok) {
                 const result = await response.json();
-                console.log('Configuration saved:', result);
                 
                 // Save Discord credentials separately
                 await this.saveDiscordCredentials();
@@ -11693,11 +10965,9 @@ class GameCollectionManager {
                 modal.hide();
             } else {
                 const error = await response.text();
-                console.error('Failed to save configuration:', error);
                 this.showToast('Failed to save configuration', 'error');
             }
         } catch (error) {
-            console.error('Error saving configuration:', error);
             this.showToast('Error saving configuration', 'error');
         }
     }
@@ -11716,9 +10986,7 @@ class GameCollectionManager {
                     role_name: document.getElementById('discordRoleName').value
                 }
             };
-            
-            console.log('Saving Discord credentials:', discordData);
-            
+
             const response = await fetch('/api/discord-credentials', {
                 method: 'PUT',
                 headers: {
@@ -11729,20 +10997,16 @@ class GameCollectionManager {
             
             if (response.ok) {
                 const result = await response.json();
-                console.log('Discord credentials saved:', result);
             } else {
                 const error = await response.text();
-                console.error('Failed to save Discord credentials:', error);
                 this.showToast('Failed to save Discord credentials', 'error');
             }
         } catch (error) {
-            console.error('Error saving Discord credentials:', error);
             this.showToast('Error saving Discord credentials', 'error');
         }
     }
     
     initializeVideoConfigurationModal() {
-        console.log('Initializing video configuration modal...');
         
         // Add event listener for opening the modal
         const openVideoConfigBtn = document.getElementById('openVideoConfigModal');
@@ -11823,7 +11087,6 @@ class GameCollectionManager {
     }
     
     openVideoConfigurationModal() {
-        console.log('Opening video configuration modal...');
         
         // Load current configuration
         this.loadVideoConfiguration();
@@ -11937,13 +11200,10 @@ class GameCollectionManager {
                     cookieStatus.innerHTML = exists ? '<span class="badge bg-success">Cookie file present</span>' : '<span class="badge bg-secondary">No cookie file</span>';
                 }
                 
-                console.log('Video configuration loaded:', config);
             } else {
-                console.error('Failed to load video configuration');
                 this.showToast('Failed to load video configuration', 'error');
             }
         } catch (error) {
-            console.error('Error loading video configuration:', error);
             this.showToast('Error loading video configuration', 'error');
         }
     }
@@ -11976,9 +11236,7 @@ class GameCollectionManager {
                 youtube_po_token_provider: youtubePoTokenProviderUrl,
                 youtube_skip_cookie_for_video_duration_bigger_than: youtubeSkipCookieDurationValue
             };
-            
-            console.log('Saving video configuration:', configData);
-            
+
             const response = await fetch('/api/video-config', {
                 method: 'PUT',
                 headers: {
@@ -11989,7 +11247,6 @@ class GameCollectionManager {
             
             if (response.ok) {
                 const result = await response.json();
-                console.log('Video configuration saved:', result);
                 
                 // Show success message
                 this.showToast('Video configuration saved successfully!', 'success');
@@ -12013,11 +11270,9 @@ class GameCollectionManager {
                 this.showToast('Video configuration saved automatically', 'success');
             } else {
                 const error = await response.text();
-                console.error('Failed to save video configuration:', error);
                 this.showToast('Failed to save video configuration', 'error');
             }
         } catch (error) {
-            console.error('Error saving video configuration:', error);
             this.showToast('Error saving video configuration', 'error');
         }
     }
@@ -12043,13 +11298,11 @@ class GameCollectionManager {
                 }
             }
         } catch (e) {
-            console.error('Failed to save YouTube cookie:', e);
             this.showToast('Failed to save YouTube cookie', 'error');
         }
     }
     
     initializeChangePasswordModal() {
-        console.log('Initializing change password modal...');
         
         // Add event listener for opening the modal
         const openChangePasswordBtn = document.getElementById('openChangePasswordModal');
@@ -12069,7 +11322,6 @@ class GameCollectionManager {
     }
     
     openChangePasswordModal() {
-        console.log('Opening change password modal...');
         
         // Clear form
         document.getElementById('currentPassword').value = '';
@@ -12139,7 +11391,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error changing password:', error);
             this.showToast('Error changing password', 'error');
         } finally {
             // Restore button state
@@ -12164,12 +11415,10 @@ class GameCollectionManager {
                     
                     // Update cache statistics
                     if (data.cache_stats) {
-                        console.log('Cache stats received:', data.cache_stats);
                         document.getElementById('cacheGamesCount').textContent = data.cache_stats.games_count.toLocaleString();
                         document.getElementById('cacheAltNamesCount').textContent = data.cache_stats.alt_names_count.toLocaleString();
                         document.getElementById('cacheGameImagesCount').textContent = data.cache_stats.game_images_count.toLocaleString();
                     } else {
-                        console.warn('No cache_stats in response:', data);
                     }
                 } else {
                     document.getElementById('metadataXmlDate').textContent = 'Error';
@@ -12194,7 +11443,6 @@ class GameCollectionManager {
                 document.getElementById('cacheGameImagesCount').textContent = '-';
             }
         } catch (error) {
-            console.error('Error loading cache information:', error);
             document.getElementById('metadataXmlDate').textContent = 'Error';
             document.getElementById('metadataXmlDate').className = 'badge bg-danger';
             document.getElementById('cacheStatus').textContent = 'Error';
@@ -12224,7 +11472,6 @@ class GameCollectionManager {
                 if (result.success) {
                     this.showAlert('Metadata.xml updated successfully!', 'success');
                                 // Automatically refresh the cache after successful metadata update
-            console.log('Metadata updated successfully, refreshing cache...');
             // Refresh cache information display
                     this.loadCacheInformation();
                 } else {
@@ -12235,7 +11482,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to update metadata: ${error.error}`, 'danger');
             }
         } catch (error) {
-            console.error('Error updating metadata:', error);
             this.showAlert('Error updating metadata: ' + error.message, 'danger');
         } finally {
             // Restore button state
@@ -12325,19 +11571,15 @@ class GameCollectionManager {
                             
                             // Log any failed fields
                             if (result.failed_fields.length > 0) {
-                                console.warn(`Some fields failed to delete for ${game.name}:`, result.failed_fields);
                             }
                         } else {
-                            console.error(`Failed to delete media for ${game.name}:`, result.error);
                             errorCount += fields.length;
                         }
                     } else {
                         const error = await deleteResponse.json();
-                        console.error(`Failed to delete media for ${game.name}:`, error.error);
                         errorCount += fields.length;
                     }
                 } catch (error) {
-                    console.error(`Error deleting media for ${game.name}:`, error);
                     errorCount += fields.length;
                 }
             }
@@ -12390,7 +11632,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error during multiple media deletion:', error);
             this.showAlert('Error during media deletion process', 'error');
         }
     }
@@ -12434,7 +11675,6 @@ class GameCollectionManager {
                 this.showAlert(`Failed to delete file: ${error.error}`, 'error');
             }
         } catch (error) {
-            console.error('Error deleting media:', error);
             this.showAlert('Error deleting media file', 'error');
         }
     }
@@ -12453,12 +11693,9 @@ class GameCollectionManager {
             });
             
             if (response.ok) {
-                console.log('Gamelist.xml updated after media deletion');
             } else {
-                console.warn('Failed to update gamelist.xml after media deletion');
             }
         } catch (error) {
-            console.error('Error updating gamelist after media deletion:', error);
         }
     }
     
@@ -12548,7 +11785,6 @@ class GameCollectionManager {
             this.showAlert(`${count} thumbnail${count > 1 ? 's' : ''} deleted successfully`, 'success');
             
         } catch (error) {
-            console.error('Error deleting thumbnails:', error);
             this.showAlert('Error deleting thumbnails', 'error');
         }
     }
@@ -12571,8 +11807,7 @@ class GameCollectionManager {
         });
         this.updateThumbnailSelectionDisplay();
     }
-    
-    
+
     updateMediaSelectionDisplay() {
         // Function kept for future use but no longer displays selection info
         // Multiple selection functionality remains intact
@@ -12581,7 +11816,6 @@ class GameCollectionManager {
     updateGamesCount() {
         // Update the games count display to show both total and selection
         // Always call updateSelectionDisplay to ensure it's up to date
-        console.log('updateGamesCount called, games.length:', this.games ? this.games.length : 'undefined');
         this.updateSelectionDisplay();
         
         // Update duplicates button state if filter is active
@@ -12894,45 +12128,32 @@ class GameCollectionManager {
     
     async deleteGameFiles(game) {
         const deletedFiles = [];
-        
-        console.log('deleteGameFiles called for game:', game);
-        console.log('Game path:', game.path);
-        console.log('Current system:', this.currentSystem);
-        
+
         try {
             // Construct the proper ROM path that includes system directory
             if (game.path && game.path.trim() && this.currentSystem) {
                 // game.path is just the filename, we need to construct the full relative path
                 const fullRomPath = `${this.currentSystem}/${game.path}`;
-                console.log('Constructed ROM file path for deletion:', fullRomPath);
-                console.log('Returning array with path:', [fullRomPath]);
                 // Return the full ROM path so it can be passed to updateGamelistAfterDeletion
                 return [fullRomPath];
             } else {
                 if (!this.currentSystem) {
-                    console.warn('No current system found for ROM path construction');
                 }
                 if (!game.path || !game.path.trim()) {
-                    console.warn('No ROM path found for game:', game);
                 }
                 return [];
             }
             
         } catch (error) {
-            console.error('Error in deleteGameFiles:', error);
             return [];
         }
     }
     
     async updateGamelistAfterDeletion(deletedGameRomPaths) {
         try {
-            console.log('updateGamelistAfterDeletion called with:', deletedGameRomPaths);
-            console.log('Current system:', this.currentSystem);
-            console.log('Games array length:', this.games.length);
             
             // Use the current system from the class instance
             if (!this.currentSystem) {
-                console.warn('No ROM system found for gamelist update');
                 return;
             }
             
@@ -12940,11 +12161,7 @@ class GameCollectionManager {
                 games: this.games,
                 delete_rom_paths: deletedGameRomPaths
             };
-            console.log('Request body:', requestBody);
-            console.log('delete_rom_paths array:', deletedGameRomPaths);
-            console.log('Each path in delete_rom_paths:');
             deletedGameRomPaths.forEach((path, index) => {
-                console.log(`  [${index}]: "${path}"`);
             });
             
             // Send request to update gamelist.xml
@@ -12957,22 +12174,16 @@ class GameCollectionManager {
             });
             
                            if (response.ok) {
-                   console.log('Gamelist.xml updated after deletion');
                    const result = await response.json();
-                   console.log('Update result:', result);
                    
                    // Log file deletion results
                    if (result.deleted_files && result.deleted_files.length > 0) {
-                       console.log('Successfully deleted files:', result.deleted_files);
                        result.deleted_files.forEach(file => {
-                           console.log(`✅ ${file}`);
                        });
                    }
                    
                    if (result.failed_deletions && result.failed_deletions.length > 0) {
-                       console.warn('Failed to delete some files:', result.failed_deletions);
                        result.failed_deletions.forEach(failed => {
-                           console.warn(`❌ ${failed.path}: ${failed.error}`);
                        });
                    }
                    
@@ -12980,16 +12191,12 @@ class GameCollectionManager {
                    if (result.deleted_count > 0) {
                        const successCount = result.deleted_files ? result.deleted_files.length : 0;
                        const failCount = result.failed_deletions ? result.failed_deletions.length : 0;
-                       console.log(`🎯 Deletion summary: ${successCount} files deleted, ${failCount} failed`);
                    }
                } else {
-                   console.warn('Failed to update gamelist.xml after deletion');
                    const errorText = await response.text();
-                   console.warn('Error response:', errorText);
                }
             
         } catch (error) {
-            console.error('Error updating gamelist after deletion:', error);
         }
     }
     
@@ -12998,7 +12205,6 @@ class GameCollectionManager {
         const index = this.games.findIndex(g => g.id === game.id);
         if (index !== -1) {
             this.currentNavigationIndex = index;
-            console.log(`Navigation index synced to row ${index}: ${game.name}`);
         }
     }
     
@@ -13049,9 +12255,7 @@ class GameCollectionManager {
             // Briefly highlight the navigated row for visual feedback
             this.highlightNavigatedRow(targetIndex);
 
-            console.log(`Navigated ${direction} to displayed row ${targetIndex}: ${node.data.name} (media preview only)`);
         } catch (error) {
-            console.error('Error navigating rows:', error);
         }
     }
     
@@ -13071,11 +12275,9 @@ class GameCollectionManager {
                 }, 300);
             }
         } catch (error) {
-            console.warn('Could not highlight navigated row:', error);
         }
     }
     enableButtons() {
-        console.log('enableButtons called');
         document.getElementById('unifiedScanBtn').disabled = false;
         document.getElementById('saveGamelistBtn').disabled = false;
 
@@ -13087,14 +12289,9 @@ class GameCollectionManager {
         const screenscraperBtn = document.getElementById('scrapScreenscraperBtn');
         if (screenscraperBtn) {
             screenscraperBtn.disabled = false; // Allow ScreenScraper scraping
-            console.log('ScreenScraper button enabled');
         } else {
-            console.error('ScreenScraper button not found!');
         }
-        
-        
 
-        
         // Update selection display
         this.updateSelectionDisplay();
         
@@ -13106,8 +12303,6 @@ class GameCollectionManager {
         this.update2DBoxGeneratorButtonState();
         this.updateYoutubeDownloadButtonState();
     }
-    
-
 
     showAlert(message, type = 'info') {
         // Create a simple alert notification
@@ -13149,14 +12344,11 @@ class GameCollectionManager {
             
             this.showAlert('Starting IGDB scraping...', 'info');
             
-            console.log('🔧 DEBUG: About to call getSelectedIgdbFields()...');
             // Get selected fields for IGDB scraping
             let selectedFields;
             try {
                 selectedFields = await this.getSelectedIgdbFields();
-                console.log('🔧 DEBUG: getSelectedIgdbFields() returned:', selectedFields);
             } catch (error) {
-                console.error('🔧 DEBUG: Error in getSelectedIgdbFields():', error);
                 selectedFields = []; // Fallback to empty array
             }
             
@@ -13175,17 +12367,14 @@ class GameCollectionManager {
             
             if (response.ok && result.success) {
                 this.showAlert(`✅ ${result.message}`, 'success');
-                console.log('IGDB scraping started:', result);
                 
                 // Refresh tasks to show the new task
                 this.refreshTasks();
             } else {
                 this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
-                console.error('IGDB scraping failed:', result);
             }
             
         } catch (error) {
-            console.error('Error starting IGDB scraping:', error);
             this.showAlert(`❌ Error starting IGDB scraping: ${error.message}`, 'danger');
         } finally {
             // Restore button state
@@ -13233,17 +12422,14 @@ class GameCollectionManager {
             
             if (response.ok && result.success) {
                 this.showAlert(`✅ ${result.message}`, 'success');
-                console.log('Steam scraping started:', result);
                 
                 // Refresh tasks to show the new task
                 this.refreshTasks();
             } else {
                 this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
-                console.error('Steam scraping failed:', result);
             }
             
         } catch (error) {
-            console.error('Error starting Steam scraping:', error);
             this.showAlert(`❌ Error starting Steam scraping: ${error.message}`, 'danger');
         } finally {
             // Restore button state
@@ -13291,17 +12477,14 @@ class GameCollectionManager {
             
             if (response.ok && result.success) {
                 this.showAlert(`✅ ${result.message}`, 'success');
-                console.log('SteamGridDB scraping started:', result);
                 
                 // Refresh tasks to show the new task
                 this.refreshTasks();
             } else {
                 this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
-                console.error('SteamGridDB scraping failed:', result);
             }
             
         } catch (error) {
-            console.error('Error starting SteamGridDB scraping:', error);
             this.showAlert(`❌ Error starting SteamGridDB scraping: ${error.message}`, 'danger');
         } finally {
             // Restore button state
@@ -13312,8 +12495,6 @@ class GameCollectionManager {
     }
 
     async scrapScreenscraper() {
-        console.log('scrapScreenscraper method called');
-        console.log('Current system:', this.currentSystem);
         
         if (!this.currentSystem) {
             this.showAlert('Please select a system first', 'warning');
@@ -13335,17 +12516,12 @@ class GameCollectionManager {
             this.showAlert('Starting ScreenScraper task...', 'info');
             
             // Get selected fields
-            console.log('🔍 Getting selected ScreenScraper fields...');
             const selectedFields = await this.getSelectedScreenscraperFields();
-            console.log('📤 Selected ScreenScraper fields to send:', selectedFields);
-            console.log('📤 Selected fields type:', typeof selectedFields);
-            console.log('📤 Selected fields length:', selectedFields?.length);
             
             const requestBody = {
                 selected_games: gamesToScrape.map(game => game.path),
                 selected_fields: selectedFields
             };
-            console.log('📤 Full request body:', requestBody);
             
             const response = await fetch(`/api/scrap-screenscraper/${this.currentSystem}`, {
                 method: 'POST',
@@ -13359,17 +12535,14 @@ class GameCollectionManager {
             
             if (response.ok && result.success) {
                 this.showAlert(`✅ ${result.message}`, 'success');
-                console.log('ScreenScraper task started:', result);
                 
                 // Refresh tasks to show the new task
                 this.refreshTasks();
             } else {
                 this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
-                console.error('ScreenScraper task failed:', result);
             }
             
         } catch (error) {
-            console.error('Error starting ScreenScraper task:', error);
             this.showAlert(`❌ Error starting ScreenScraper task: ${error.message}`, 'danger');
         } finally {
             // Restore button state
@@ -13378,7 +12551,6 @@ class GameCollectionManager {
             button.disabled = false;
         }
     }
-
 
     showInlineEditNotification(field, oldValue, newValue) {
         // Create a small, subtle notification for inline edits
@@ -13622,9 +12794,7 @@ class GameCollectionManager {
 
     setupLazyLoading() {
         if (!this.gridApi) return;
-        
-        console.log('Setting up lazy loading...');
-        
+
         // Clear any existing observer
         if (this.lazyLoadingObserver) {
             this.lazyLoadingObserver.disconnect();
@@ -13663,9 +12833,7 @@ class GameCollectionManager {
     }
     
     loadVisibleThumbnails() {
-        console.log('Loading visible thumbnails...');
         const thumbnailContainers = document.querySelectorAll('.thumbnail-image[data-src]');
-        console.log('Found', thumbnailContainers.length, 'thumbnail containers');
         
         thumbnailContainers.forEach(container => {
             const src = container.getAttribute('data-src');
@@ -13677,24 +12845,20 @@ class GameCollectionManager {
     }
 
     loadThumbnailImage(container, src, field) {
-        console.log('Loading thumbnail image:', src);
         
         // Check if already loaded
         if (container.querySelector('img')) {
-            console.log('Image already loaded:', src);
             return;
         }
         
         const img = new Image();
         img.onload = () => {
-            console.log('Image loaded successfully:', src);
             container.innerHTML = `<img src="${src}" alt="${field}" 
                 onmouseenter="gameManager.showThumbnailHover(event, '${src}', '${field}')" 
                 onmouseleave="gameManager.hideThumbnailHover()" />`;
             container.classList.remove('thumbnail-loading');
         };
         img.onerror = (error) => {
-            console.error('Error loading image:', src, error);
             container.innerHTML = 'Error';
             container.classList.remove('thumbnail-loading');
         };
@@ -13831,35 +12995,26 @@ class GameCollectionManager {
                 columnsCheckboxes.appendChild(checkboxDiv);
             }
         });
-        
 
     }
 
-
-
     toggleColumn(field, visible) {
-        console.log(`toggleColumn called: field=${field}, visible=${visible}`);
         
         if (!this.gridApi) {
-            console.log('No gridApi available');
             return;
         }
         
         const column = this.gridApi.getColumn(field);
-        console.log(`Column object for ${field}:`, column);
         
         if (column) {
-            console.log(`Setting column ${field} visibility to ${visible}`);
             this.gridApi.setColumnVisible(field, visible);
             
-            console.log('Calling saveColumnState...');
             this.saveColumnState();
             
             // Show brief feedback that the change was saved
             const columnName = column.getColDef().headerName || field;
             this.showColumnChangeNotification(`${columnName} ${visible ? 'shown' : 'hidden'} - saved to preferences`);
         } else {
-            console.log(`Column ${field} not found`);
         }
     }
     showAllColumns() {
@@ -13913,27 +13068,20 @@ class GameCollectionManager {
 
     saveColumnState() {
         if (!this.gridApi) return;
-        
-        console.log('saveColumnState called');
-        
+
         const columnState = {};
         const columnDefs = this.gridApi.getColumnDefs();
-        console.log('Column definitions:', columnDefs);
         
         // Get all visible columns in their current order
         const allColumns = this.gridApi.getAllDisplayedColumns();
         const columnOrder = allColumns.map(col => col.getColId());
-        console.log('All displayed columns:', allColumns);
-        console.log('Column order:', columnOrder);
         
         columnDefs.forEach(colDef => {
             if (colDef.field && colDef.field !== 'checkbox') {
                 const column = this.gridApi.getColumn(colDef.field);
-                console.log(`Processing column ${colDef.field}:`, column);
                 if (column) {
                     const isVisible = column.isVisible();
                     const orderIndex = columnOrder.indexOf(colDef.field);
-                    console.log(`Column ${colDef.field}: visible=${isVisible}, order=${orderIndex}`);
                     
                     columnState[colDef.field] = {
                         visible: isVisible,
@@ -13944,18 +13092,12 @@ class GameCollectionManager {
         });
         
         const cookieValue = JSON.stringify(columnState);
-        console.log('Final column state object:', columnState);
-        console.log('Cookie value to be set:', cookieValue);
         
         this.setCookie('columnState', cookieValue);
         
         // Verify cookie was set
         const savedCookie = this.getCookie('columnState');
-        console.log('Cookie after setting:', savedCookie);
-        console.log('Cookie verification:', savedCookie === cookieValue ? 'SUCCESS' : 'FAILED');
     }
-
-
 
     loadColumnState() {
         if (!this.gridApi) return;
@@ -13977,7 +13119,6 @@ class GameCollectionManager {
                     this.generateColumnCheckboxes();
                 }
             } catch (error) {
-                console.error('Error loading column state:', error);
             }
         }
     }
@@ -14026,11 +13167,9 @@ class GameCollectionManager {
         if (overwriteTextFieldsCheckbox) {
             if (savedOverwriteTextFields !== null) {
                 overwriteTextFieldsCheckbox.checked = savedOverwriteTextFields === 'true';
-                console.log('🔧 DEBUG: loadState - Setting overwriteTextFields checkbox to:', savedOverwriteTextFields === 'true', '(saved value:', savedOverwriteTextFields, ')');
             } else {
                 // No saved value, set to default (unchecked)
                 overwriteTextFieldsCheckbox.checked = false;
-                console.log('🔧 DEBUG: loadState - No saved value, setting overwriteTextFields checkbox to default (false)');
             }
         }
     }
@@ -14042,14 +13181,12 @@ class GameCollectionManager {
                 localStorage.setItem(name, value);
                 return;
             } catch (error) {
-                console.error(`setCookie: localStorage error for ${name}:`, error);
                 // Fallback to cookie if localStorage fails
             }
         }
         
         // Debug logging for LaunchBox overwrite text fields
         if (name === 'launchboxOverwriteTextFields') {
-            console.log(`🔧 DEBUG: setCookie called for ${name} with value:`, value, '(type:', typeof value, ')');
         }
         
         // Ensure value is not undefined or null
@@ -14064,7 +13201,6 @@ class GameCollectionManager {
         const encodedValue = encodeURIComponent(stringValue);
         
         if (encodedValue.length > 4000) {
-            console.warn(`setCookie: WARNING - Cookie ${name} is very large (${encodedValue.length} chars). Some browsers limit cookies to 4KB.`);
         }
         
         // Set the cookie with proper encoding
@@ -14080,7 +13216,6 @@ class GameCollectionManager {
                     return localValue;
                 }
             } catch (error) {
-                console.error(`getCookie: localStorage error for ${name}:`, error);
             }
         }
         
@@ -14092,7 +13227,6 @@ class GameCollectionManager {
                 try {
                     return decodeURIComponent(cookieValue);
                 } catch (e) {
-                    console.log(`getCookie: Error decoding ${name}:`, e);
                     return cookieValue; // Return raw value if decoding fails
                 }
             }
@@ -14102,16 +13236,12 @@ class GameCollectionManager {
 
     async showPartialMatches(gameName, preloadedMatches = null, modalType = 'global') {
         try {
-            console.log('Showing partial matches for:', gameName);
             
             // Set modal as open for state management
             this.isModalOpen = true;
-            console.log('Modal marked as open, polling paused');
             
             if (preloadedMatches) {
                 // Use pre-loaded matches (from multi-game selection)
-                console.log('Using pre-loaded matches:', preloadedMatches.length);
-                console.log('Preloaded matches data:', preloadedMatches);
                 // Show the modal first, then populate content
                 this.showModalWithLoading(gameName, modalType);
                 document.getElementById(modalType === 'gameEdit' ? 'gameEditLoadingSpinner' : 'globalLoadingSpinner').style.display = 'none';
@@ -14132,7 +13262,6 @@ class GameCollectionManager {
                 }
                 
                 const data = await response.json();
-                console.log('Top matches received:', data);
                 
                 if (data.success) {
                     // Hide loading spinner and display matches
@@ -14147,7 +13276,6 @@ class GameCollectionManager {
                 }
             }
         } catch (error) {
-            console.error('Error getting top matches:', error);
             // Hide loading spinner and show error
             document.getElementById(modalType === 'gameEdit' ? 'gameEditLoadingSpinner' : 'globalLoadingSpinner').style.display = 'none';
             this.showAlert('Error getting matches: ' + error.message, 'danger');
@@ -14157,7 +13285,6 @@ class GameCollectionManager {
     }
 
     showModalWithLoading(gameName, modalType = 'global') {
-        console.log('Showing modal with loading state for:', gameName, 'modalType:', modalType);
         
         // Set original game name
         const gameNameElementId = modalType === 'gameEdit' ? 'gameEditOriginalGameName' : 'globalOriginalGameName';
@@ -14185,7 +13312,6 @@ class GameCollectionManager {
         const modalId = modalType === 'gameEdit' ? 'gameEditMatchModal' : 'globalMatchModal';
         const modalElement = document.getElementById(modalId);
         if (!modalElement) {
-            console.error('Modal element not found!');
             return;
         }
         
@@ -14194,21 +13320,17 @@ class GameCollectionManager {
         // Only add event listener once
         if (!this.modalEventListenersAdded) {
             modalElement.addEventListener('hidden.bs.modal', () => {
-                console.log('Modal hidden event triggered');
                 
                 // Check if we're in multi-game mode and this is not the last game
                 if (this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1 && this.currentBestMatchIndex < this.pendingBestMatchResults.length - 1) {
-                    console.log('Multi-game mode active, not resetting state');
                     return;
                 }
                 
                 // If we're on the last game or single game, allow normal modal closure
-                console.log('Last game or single game - allowing modal closure');
                 
                 // Force reset all state to prevent UI from getting stuck
                 this.resetUIState();
                 
-                console.log('Modal closed, state reset, polling resumed');
             });
             this.modalEventListenersAdded = true;
         }
@@ -14220,7 +13342,6 @@ class GameCollectionManager {
             cancelBtn.replaceWith(cancelBtn.cloneNode(true));
             const freshCancelBtn = modalElement.querySelector('[data-bs-dismiss="modal"]');
             freshCancelBtn.addEventListener('click', () => {
-                console.log('Cancel button clicked - manually hiding modal');
                 modal.hide();
             });
         }
@@ -14232,17 +13353,14 @@ class GameCollectionManager {
         const closeBtn = modalElement.querySelector('.btn-close');
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
-                console.log('Close button (X) clicked - resetting modal state');
                 this.isModalOpen = false;
                 this.resetUIState();
             });
         }
         
-        console.log('Modal shown with loading state');
     }
 
     displayPartialMatchModal(originalGameName, matches, modalType = 'global') {
-        console.log('displayPartialMatchModal called with:', originalGameName, matches);
         
         // Show/hide navigation buttons based on modal type and whether we're processing multiple games
         if (modalType === 'global') {
@@ -14253,13 +13371,10 @@ class GameCollectionManager {
                 if (this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1 && this.currentBestMatchIndex < this.pendingBestMatchResults.length - 1) {
                     nextGameBtn.style.display = 'inline-block';
                     nextGameBtn.onclick = () => this.moveToNextGame();
-                    console.log(`Game ${this.currentBestMatchIndex + 1} of ${this.pendingBestMatchResults.length} - Next Game button visible`);
                 } else {
                     nextGameBtn.style.display = 'none';
                     if (this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1) {
-                        console.log(`Game ${this.currentBestMatchIndex + 1} of ${this.pendingBestMatchResults.length} - Last game, Next Game button hidden`);
                     } else {
-                        console.log('Single game mode - Next Game button hidden');
                     }
                 }
             }
@@ -14322,7 +13437,6 @@ class GameCollectionManager {
         
         // Apply button is no longer needed - using double-click instead
         
-        console.log('Modal content populated with matches');
     }
 
     createMatchCards(matches, matchesList) {
@@ -14334,7 +13448,6 @@ class GameCollectionManager {
     }
 
     createMatchCard(match, index) {
-        console.log('createMatchCard called with:', match, index);
         
         const scoreClass = match.score >= 0.9 ? 'bg-success' : 
                           match.score >= 0.7 ? 'bg-warning' : 'bg-danger';
@@ -14350,7 +13463,7 @@ class GameCollectionManager {
                 <div class="mb-2 text-center">
                     <img src="${match.box_image_url}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
                          onerror="handleLaunchboxImageError(this)" 
-                         onload="console.log('LaunchBox box image loaded successfully:', this.src)" 
+                         onload="" 
                          alt="Game box art" loading="lazy">
                 </div>
             `;
@@ -14411,7 +13524,6 @@ class GameCollectionManager {
             card.classList.add('selected');
             this.selectedMatchIndex = index;
             
-            console.log('Match selected:', index, 'Match data:', match);
         });
         
         // Add double-click handler to apply the match
@@ -14425,40 +13537,30 @@ class GameCollectionManager {
             // Apply the match directly
             this.applySelectedMatch(this.currentModalContext || 'global');
             
-            console.log('Match double-clicked and applied:', index, 'Match data:', match);
         });
         
-        console.log('Match card created:', card);
         return card;
     }
 
     async applySelectedMatch(modalType = 'global') {
-        console.log('applySelectedMatch called with selectedMatchIndex:', this.selectedMatchIndex);
-        console.log('currentMatches:', this.currentMatches);
-        console.log('currentOriginalGameName:', this.currentOriginalGameName);
         
         if (this.selectedMatchIndex === -1) {
-            console.log('No match selected, returning');
             return;
         }
         
         if (!this.currentMatches || !Array.isArray(this.currentMatches)) {
-            console.error('currentMatches is not an array:', this.currentMatches);
             this.showAlert('Error: No matches available', 'danger');
             return;
         }
         
         if (this.selectedMatchIndex >= this.currentMatches.length) {
-            console.error('selectedMatchIndex out of bounds:', this.selectedMatchIndex, 'vs', this.currentMatches.length);
             this.showAlert('Error: Invalid match selection', 'danger');
             return;
         }
         
         const selectedMatch = this.currentMatches[this.selectedMatchIndex];
         const originalGameName = this.currentOriginalGameName;
-        
-        console.log('Applying match:', selectedMatch, 'to game:', originalGameName);
-        
+
         try {
             // Check if this is a partial match from scraping
             if (this.currentScrapingRequest) {
@@ -14470,7 +13572,6 @@ class GameCollectionManager {
                     // Check if this is the last game
                     if (this.currentBestMatchIndex >= this.pendingBestMatchResults.length - 1) {
                         // Last game - apply match and close modal
-                        console.log('Last game in multi-game mode - closing modal after apply');
                         await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType);
                         
                         // Reset multi-game state
@@ -14500,7 +13601,6 @@ class GameCollectionManager {
                         }, 100);
                     } else {
                         // Not the last game - apply match and move to next
-                        console.log('Not the last game - moving to next game');
                         await this.applyRegularMatch(selectedMatch, originalGameName, false, modalType);
                         this.moveToNextGame();
                     }
@@ -14511,7 +13611,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error applying match:', error);
             this.showAlert('Error applying match: ' + error.message, 'danger');
         }
     }
@@ -14573,7 +13672,6 @@ class GameCollectionManager {
                     // Refresh grid to show updated data, respecting current filters
                     await this.refreshGridData();
                     
-                    console.log('Grid refreshed with updated game data');
                 }
                 
                 // Close modal
@@ -14590,7 +13688,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error applying partial match from scraping:', error);
             this.showAlert('Error applying partial match: ' + error.message, 'danger');
         }
     }
@@ -14639,9 +13736,7 @@ class GameCollectionManager {
             // Auto-save changes to server
             try {
                 await this.saveGameChanges();
-                console.log('Auto-saved changes after applying match');
             } catch (error) {
-                console.error('Error auto-saving changes:', error);
                 this.showAlert('Warning: Changes applied but auto-save failed. Please save manually.', 'warning');
             }
             
@@ -14670,7 +13765,6 @@ class GameCollectionManager {
             }
             
         } catch (error) {
-            console.error('Error applying regular match:', error);
             this.showAlert('Error applying regular match: ' + error.message, 'danger');
         }
     }
@@ -14699,7 +13793,6 @@ class GameCollectionManager {
             if (launchboxIdField && updatedGame.launchboxid) launchboxIdField.value = updatedGame.launchboxid;
             if (youtubeurlField && updatedGame.youtubeurl) youtubeurlField.value = updatedGame.youtubeurl;
             
-            console.log('Edit modal fields updated with match data');
         }
     }
 
@@ -14713,10 +13806,8 @@ class GameCollectionManager {
                 const systems = await response.json();
                 this.populateSystemDropdown(systems);
             } else {
-                console.error('Error loading available systems:', response.status, response.statusText);
             }
         } catch (error) {
-            console.error('Error loading available systems:', error);
         }
     }
 
@@ -14733,12 +13824,9 @@ class GameCollectionManager {
         const selectElement = document.getElementById('systemSelect');
         
         if (!selectElement) {
-            console.error('System select element not found!');
             return;
         }
-        
-        console.log('Initializing Select2...');
-        
+
         // Initialize Select2
         this.select2Instance = $(selectElement).select2({
             placeholder: 'Select System...',
@@ -14769,17 +13857,13 @@ class GameCollectionManager {
             localStorage.removeItem('selectedSystem');
         });
         
-        console.log('Select2 initialized');
     }
     
     updateSelect2Options() {
         if (!this.select2Instance) {
-            console.error('Select2 not initialized yet');
             return;
         }
-        
-        console.log('Updating Select2 options with', this.allSystems?.length || 0, 'systems');
-        
+
         const selectElement = document.getElementById('systemSelect');
         
         // Clear existing options
@@ -14822,18 +13906,15 @@ class GameCollectionManager {
                 const system = this.allSystems.find(s => s.name === savedSystem);
                 if (system) {
                     this.selectedSystem = system;
-                    console.log('Restored selected system:', savedSystem);
                 }
             } else {
                 // Clear saved system if it no longer exists
                 localStorage.removeItem('selectedSystem');
-                console.log('Cleared saved system - no longer exists:', savedSystem);
             }
         }
         
         // Trigger change to update Select2
         $(selectElement).trigger('change');
-        console.log('Select2 options updated with grouped systems');
     }
     
     selectSystem(system) {
@@ -14852,8 +13933,7 @@ class GameCollectionManager {
         });
         document.dispatchEvent(event);
     }
-    
-    
+
     focusFirstRow() {
         // Focus on the first row of the grid
         if (this.gridApi && this.games && this.games.length > 0) {
@@ -14871,10 +13951,8 @@ class GameCollectionManager {
                     // Focus on the first cell of the first row
                     this.gridApi.setFocusedCell(0, 'name');
                     
-                    console.log('Focused on first row');
                 }
             } catch (error) {
-                console.warn('Could not focus on first row:', error);
             }
         }
     }
@@ -14898,7 +13976,6 @@ class GameCollectionManager {
         // Store the current game for YouTube operations
         this.currentYouTubeGame = game;
 
-        
         // Set game name for search
         document.getElementById('youtubeGameName').textContent = game.name;
         
@@ -14916,7 +13993,6 @@ class GameCollectionManager {
         // Automatically trigger search when modal is shown
         const modalElement = document.getElementById('youtubeSearchModal');
         modalElement.addEventListener('shown.bs.modal', () => {
-            console.log('YouTube search modal shown - triggering automatic search');
             this.performYouTubeSearch();
         }, { once: true }); // Use once: true to only trigger once
 
@@ -14944,11 +14020,8 @@ class GameCollectionManager {
     }
 
     async performYouTubeSearch() {
-        console.log('performYouTubeSearch: Starting search');
         const query = document.getElementById('youtubeSearchInput').value.trim();
-        console.log('performYouTubeSearch: Search query:', query);
         if (!query) {
-            console.log('performYouTubeSearch: No query, returning');
             return;
         }
         
@@ -14973,7 +14046,6 @@ class GameCollectionManager {
                 throw new Error('Search failed');
             }
         } catch (error) {
-            console.error('YouTube search error:', error);
             this.showYouTubeNoResults(true);
         } finally {
             this.showYouTubeLoading(false);
@@ -15162,16 +14234,12 @@ class GameCollectionManager {
         // Extract video ID from URL
         const videoId = this.extractYouTubeVideoId(videoUrl);
         if (!videoId) {
-            console.error('Invalid YouTube URL:', videoUrl);
             this.showPlayerError('Invalid YouTube URL');
             return;
         }
-        
-        console.log('Initializing YouTube player with video ID:', videoId);
-        
+
         // Wait for YouTube IFrame API to be ready
         if (typeof YT === 'undefined' || !YT.Player) {
-            console.log('YouTube IFrame API not ready, waiting...');
             this.waitForYouTubeAPI(() => {
                 this.createYouTubePlayer(videoId);
             });
@@ -15194,12 +14262,10 @@ class GameCollectionManager {
         const checkAPI = () => {
             attempts++;
             if (typeof YT !== 'undefined' && YT.Player) {
-                console.log('YouTube API ready after', attempts * 100, 'ms');
                 callback();
             } else if (attempts < maxAttempts) {
                 setTimeout(checkAPI, 100);
             } else {
-                console.error('YouTube API failed to load after 5 seconds');
                 this.showPlayerError('YouTube API failed to load');
             }
         };
@@ -15214,9 +14280,7 @@ class GameCollectionManager {
             if (playerContainer) {
                 playerContainer.innerHTML = '';
             }
-            
-            console.log('Creating YouTube player for video:', videoId);
-            
+
             this.youtubePlayer = new YT.Player('youtubePlayer', {
                 height: '100%',
                 width: '100%',
@@ -15230,12 +14294,10 @@ class GameCollectionManager {
                 },
                 events: {
                     'onReady': (event) => {
-                        console.log('YouTube player ready');
                         // Auto-play the video
                         event.target.playVideo();
                     },
                     'onStateChange': (event) => {
-                        console.log('Player state changed:', event.data);
                         // Update current time display
                         if (event.data === YT.PlayerState.PLAYING) {
                             this.updateCurrentTimeDisplay();
@@ -15250,16 +14312,12 @@ class GameCollectionManager {
                         }
                     },
                     'onError': (event) => {
-                        console.error('YouTube player error:', event.data);
                         this.showPlayerError('Video playback error: ' + event.data);
                     }
                 }
             });
-            
-            console.log('YouTube player created successfully');
-            
+
         } catch (error) {
-            console.error('Error creating YouTube player:', error);
             this.showPlayerError('Failed to create video player');
         }
     }
@@ -15280,7 +14338,6 @@ class GameCollectionManager {
     }
 
     extractYouTubeVideoId(url) {
-        console.log('Extracting video ID from URL:', url);
         
         // Handle different YouTube URL formats
         const patterns = [
@@ -15293,12 +14350,10 @@ class GameCollectionManager {
             const match = url.match(pattern);
             if (match && match[1]) {
                 const videoId = match[1];
-                console.log('Extracted video ID:', videoId);
                 return videoId;
             }
         }
         
-        console.error('Could not extract video ID from URL:', url);
         return null;
     }
 
@@ -15313,12 +14368,10 @@ class GameCollectionManager {
         const downloadBtn = document.getElementById('downloadVideoBtn');
         if (downloadBtn && !downloadBtn.hasAttribute('data-listener-attached')) {
             downloadBtn.addEventListener('click', () => {
-                console.log('Download button clicked - triggering downloadYouTubeVideo');
                 this.downloadYouTubeVideo();
             });
             downloadBtn.setAttribute('data-listener-attached', 'true');
         } else if (!downloadBtn) {
-            console.error('Download button not found!');
         }
         // Add modal close event listener to cleanup player
         const playerModal = document.getElementById('youtubePlayerModal');
@@ -15339,9 +14392,7 @@ class GameCollectionManager {
         if (this.youtubePlayer && this.youtubePlayer.destroy) {
             try {
                 this.youtubePlayer.destroy();
-                console.log('YouTube player destroyed');
             } catch (error) {
-                console.warn('Error destroying YouTube player:', error);
             }
         }
         
@@ -15375,11 +14426,9 @@ class GameCollectionManager {
     }
 
     async autoSearchAndDownload() {
-        console.log('autoSearchAndDownload: Starting auto-search process');
         
         // Get the current game from the edit modal
         const gameName = document.getElementById('editName').value;
-        console.log('autoSearchAndDownload: Game name:', gameName);
         
         if (!gameName) {
             this.showAlert('No game selected', 'error');
@@ -15391,21 +14440,18 @@ class GameCollectionManager {
             name: gameName,
             id: this.currentGameId
         };
-        console.log('autoSearchAndDownload: Created game object:', game);
         
         // Close the current modal and open YouTube search
         const editModal = document.getElementById('editGameModal');
         if (editModal) {
             const modal = bootstrap.Modal.getInstance(editModal);
             if (modal) {
-                console.log('autoSearchAndDownload: Closing edit modal');
                 modal.hide();
             }
         }
         
         // Wait a bit for modal to close, then open YouTube search
         setTimeout(() => {
-            console.log('autoSearchAndDownload: Opening YouTube search modal');
             this.openYouTubeSearchModal(game);
             // Search will be automatically triggered by the modal's shown.bs.modal event
         }, 300);
@@ -15419,9 +14465,7 @@ class GameCollectionManager {
         if (this.youtubePlayer && this.youtubePlayer.stopVideo) {
             try {
                 this.youtubePlayer.stopVideo();
-                console.log('YouTube player stopped for download');
             } catch (e) {
-                console.error('Error stopping YouTube player:', e);
             }
         }
         
@@ -15447,7 +14491,6 @@ class GameCollectionManager {
             document.body.style.overflow = '';
             document.body.style.paddingRight = '';
         } catch (e) {
-            console.error('Error pre-closing modals:', e);
         }
         
         const startTime = parseInt(document.getElementById('startTimeInput').value) || 0;
@@ -15460,7 +14503,6 @@ class GameCollectionManager {
         // Get the current game from the YouTube player modal context
         // We'll use the game that was passed when opening the player modal
 
-        
         let currentGame = null;
         
         // Try to get game from currentYouTubeVideo first
@@ -15491,9 +14533,7 @@ class GameCollectionManager {
             this.showAlert('No game selected', 'error');
             return;
         }
-        
 
-        
         // Check if system is loaded
         if (!this.currentSystem) {
             this.showAlert('No system selected', 'error');
@@ -15505,7 +14545,6 @@ class GameCollectionManager {
         
         // Update the YouTube URL field in the game object and edit modal
         if (this.currentYouTubeVideo.url) {
-            console.log('Updating YouTube URL field with:', this.currentYouTubeVideo.url);
             
             // Update the game object
             currentGame.youtubeurl = this.currentYouTubeVideo.url;
@@ -15516,7 +14555,6 @@ class GameCollectionManager {
                 const youtubeurlField = document.getElementById('editYoutubeurl');
                 if (youtubeurlField) {
                     youtubeurlField.value = this.currentYouTubeVideo.url;
-                    console.log('Updated YouTube URL field in edit modal');
                 }
             }
             
@@ -15525,14 +14563,7 @@ class GameCollectionManager {
         }
         
         // Debug logging
-        console.log('Download parameters:', {
-            video_url: this.currentYouTubeVideo.url,
-            start_time: startTime,
-            output_filename: outputFilename,
-            system_name: this.currentSystem,
-            rom_file: currentGame.path
-        });
-        
+
         // Get auto crop setting from checkbox
         const autoCropCheckbox = document.getElementById('autoCropCheckbox');
         const autoCrop = autoCropCheckbox ? autoCropCheckbox.checked : false;
@@ -15574,7 +14605,6 @@ class GameCollectionManager {
                 this.suppressYouTubeSearchReopen = false;
             }
         } catch (error) {
-            console.error('Download error:', error);
             this.showAlert('Download failed: Network error', 'error');
         }
     }
@@ -15614,7 +14644,6 @@ class GameCollectionManager {
                 }
             }
         } catch (e) {
-            console.error('Error checking for completed YouTube tasks:', e);
         }
     }
 
@@ -15679,11 +14708,9 @@ class GameCollectionManager {
                 const currentFieldDisplay = document.getElementById('currentBoxGeneratorField');
                 currentFieldDisplay.innerHTML = `<span class="badge bg-primary">${currentField}</span>`;
             } else {
-                console.error('Failed to load config:', response.status);
                 this.showAlert('Error loading configuration', 'error');
             }
         } catch (error) {
-            console.error('Error loading 2D Box Generator config:', error);
             this.showAlert('Error loading configuration', 'error');
         }
     }
@@ -15738,7 +14765,6 @@ class GameCollectionManager {
                 this.showAlert(`Error saving configuration: ${result.error || 'Unknown error'}`, 'error');
             }
         } catch (error) {
-            console.error('Error saving 2D Box Generator config:', error);
             this.showAlert('Error saving configuration', 'error');
         }
     }
@@ -15746,7 +14772,6 @@ class GameCollectionManager {
 
 // Handle Steam image loading with fallback
 function handleSteamImageError(img, fallbackUrl) {
-    console.log('Steam primary image failed, trying fallback:', fallbackUrl);
     
     // Prevent infinite loop
     if (img.onerror === null) {
@@ -15764,12 +14789,10 @@ function handleSteamImageError(img, fallbackUrl) {
     img.onerror = null;
     img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDIwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xMDAgMTUwTDEyMCAxNzBIMTAwVjE1MFoiIGZpbGw9IiNEOUQ5RDkiLz4KPHBhdGggZD0iTTEwMCAxNTBMMTgwIDEzMEgxMDBWMTUwWiIgZmlsbD0iI0Q5RDlEOSIvPgo8dGV4dCB4PSIxMDAiIHk9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OTk5OSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0Ij5JbWFnZSBub3QgZm91bmQ8L3RleHQ+Cjwvc3ZnPgo=';
     img.alt = 'Image not found';
-    console.log('Steam image fallback also failed, showing placeholder');
 }
 
 // Handle ScreenScraper image loading errors
 function handleScreenscraperImageError(img) {
-    console.log('ScreenScraper box image failed to load:', img.src);
     
     // Prevent infinite loop
     if (img.onerror === null) {
@@ -15797,7 +14820,6 @@ function handleScreenscraperImageError(img) {
 
 // Handle SteamGridDB image loading errors
 function handleSteamgridImageError(img) {
-    console.log('SteamGridDB grid image failed to load:', img.src);
     
     // Prevent infinite loop
     if (img.onerror === null) {
@@ -15825,7 +14847,6 @@ function handleSteamgridImageError(img) {
 
 // Handle LaunchBox image loading errors
 function handleLaunchboxImageError(img) {
-    console.log('LaunchBox box image failed to load:', img.src);
     
     // Prevent infinite loop
     if (img.onerror === null) {
@@ -15850,7 +14871,6 @@ function handleLaunchboxImageError(img) {
     // Replace the image with placeholder
     img.parentNode.replaceChild(placeholder, img);
 }
-
 
 // Initialize the game manager when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
