@@ -9480,7 +9480,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     for nom in genre['noms']:
                         if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
                             genre_names.append(nom['text'])
-                                break
+                            break
             if genre_names:
                 text_fields['genre'] = '/'.join(genre_names)
         
