@@ -8712,13 +8712,22 @@ async def scrape_igdb_manual(game, system_name, system_config):
                 async_client, access_token, igdb_config['client_id'], igdb_game['id']
             )
             if involved_companies:
+                # Extract company IDs first
+                company_ids = [company.get('company') for company in involved_companies if company.get('company')]
+                
+                # Ensure company cache is loaded with required companies
+                if company_ids:
+                    company_cache = await ensure_igdb_company_cache(company_ids)
+                else:
+                    company_cache = load_igdb_company_cache()
+                
                 developers = []
                 publishers = []
                 for company in involved_companies:
                     company_id = company.get('company')
                     if company_id:
-                        company_name = get_igdb_company_name(company_id)
-                        if company_name:
+                        company_name = get_igdb_company_name(company_id, company_cache)
+                        if company_name and not company_name.startswith('Company '):
                             if company.get('developer'):
                                 developers.append(company_name)
                             if company.get('publisher'):
