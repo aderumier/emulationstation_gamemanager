@@ -2958,7 +2958,8 @@ class GameCollectionManager {
                     
                     // If hidden filter is active, refresh it to show newly hidden games
                     if (this.hiddenFilterActive) {
-                        this.refreshHiddenFilter();
+                        // Force refresh the grid to show all games including newly hidden ones
+                        this.gridApi.setGridOption('rowData', [...this.games]);
                     }
                 }, 100);
                 
@@ -12259,8 +12260,8 @@ class GameCollectionManager {
             hiddenBtn.classList.add('btn-info');
             hiddenBtn.innerHTML = '<i class="bi bi-eye"></i> Hide Hidden';
             
-            // Show all games (including hidden ones)
-            await this.updateGameGridData(this.games);
+            // Force complete refresh to show all games (including hidden ones)
+            this.gridApi.setGridOption('rowData', [...this.games]);
             
             const hiddenGames = this.findHiddenGames();
             if (hiddenGames.length > 0) {
@@ -12435,12 +12436,15 @@ class GameCollectionManager {
     }
 
     async refreshHiddenFilter() {
+        console.log('refreshHiddenFilter called, hiddenFilterActive:', this.hiddenFilterActive);
         // Refresh the hidden filter to show updated hidden games
         if (this.hiddenFilterActive) {
+            console.log('Refreshing hidden filter with', this.games.length, 'total games');
             // Show all games (including newly hidden ones)
             await this.updateGameGridData(this.games);
             
             const hiddenGames = this.findHiddenGames();
+            console.log('Found', hiddenGames.length, 'hidden games');
             if (hiddenGames.length > 0) {
                 this.showToast(`Showing all games including ${hiddenGames.length} hidden games`, 'info');
             }
