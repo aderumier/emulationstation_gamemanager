@@ -2395,6 +2395,21 @@ class GameCollectionManager {
                     flex: 1
                 },
                 { 
+                    field: 'hidden', 
+                    headerName: 'Hidden', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    width: 80,
+                    cellRenderer: (params) => {
+                        if (params.value === 'true') {
+                            return '<i class="bi bi-eye-slash text-muted" title="Hidden"></i>';
+                        }
+                        return '';
+                    }
+                },
+                { 
                     field: 'video', 
                     headerName: 'Video', 
                     editable: false, 
@@ -2803,21 +2818,56 @@ class GameCollectionManager {
         event.preventDefault();
         
         const game = event.data;
+        const selectedGames = this.gridApi.getSelectedRows();
+        const isMultipleSelected = selectedGames.length > 1;
+        const isGameSelected = selectedGames.some(g => g.path === game.path);
+        
         const contextMenu = document.createElement('div');
         contextMenu.className = 'dropdown-menu show position-fixed';
         contextMenu.style.cssText = `top: ${event.event.clientY}px; left: ${event.event.clientX}px; z-index: 1000;`;
         
-        contextMenu.innerHTML = `
-            <a class="dropdown-item" href="#" onclick="gameManager.editGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                <i class="bi bi-pencil"></i> Edit
-            </a>
-            <a class="dropdown-item" href="#" onclick="gameManager.scanGameMedia(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                <i class="bi bi-search"></i> Scan Media
-            </a>
-            <a class="dropdown-item" href="#" onclick="gameManager.deleteGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                <i class="bi bi-trash"></i> Delete
-            </a>
-        `;
+        let menuItems = '';
+        
+        // Single game operations
+        if (!isMultipleSelected) {
+            menuItems = `
+                <a class="dropdown-item" href="#" onclick="gameManager.editGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-pencil"></i> Edit
+                </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.scanGameMedia(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-search"></i> Scan Media
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Show' : 'Hide'} Game
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item text-danger" href="#" onclick="gameManager.deleteGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            `;
+        } else {
+            // Multiple games selected - show bulk operations
+            const allHidden = selectedGames.every(g => g.hidden === 'true');
+            const allVisible = selectedGames.every(g => g.hidden !== 'true');
+            
+            menuItems = `
+                <div class="dropdown-header">Bulk Operations (${selectedGames.length} games)</div>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" onclick="gameManager.hideSelectedGames()">
+                    <i class="bi bi-eye-slash"></i> Hide Selected
+                </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.showSelectedGames()">
+                    <i class="bi bi-eye"></i> Show Selected
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" onclick="gameManager.deleteSelectedGames()">
+                    <i class="bi bi-trash text-danger"></i> Delete Selected
+                </a>
+            `;
+        }
+        
+        contextMenu.innerHTML = menuItems;
         
         document.body.appendChild(contextMenu);
         
@@ -2840,6 +2890,92 @@ class GameCollectionManager {
         
         const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
         modal.show();
+    }
+
+    async toggleGameHidden(game) {
+        const newHiddenValue = game.hidden !== 'true';
+        await this.updateGamesHidden([game.path], newHiddenValue);
+    }
+
+    async hideSelectedGames() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length === 0) {
+            this.showAlert('No games selected', 'warning');
+            return;
+        }
+        
+        const romPaths = selectedGames.map(game => game.path);
+        await this.updateGamesHidden(romPaths, true);
+    }
+
+    async showSelectedGames() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length === 0) {
+            this.showAlert('No games selected', 'warning');
+            return;
+        }
+        
+        const romPaths = selectedGames.map(game => game.path);
+        await this.updateGamesHidden(romPaths, false);
+    }
+
+    async updateGamesHidden(romPaths, hiddenValue) {
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/games/update-hidden`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    rom_paths: romPaths,
+                    hidden: hiddenValue
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Update the local data
+                this.games.forEach(game => {
+                    if (romPaths.includes(game.path)) {
+                        game.hidden = hiddenValue ? 'true' : 'false';
+                    }
+                });
+
+                // Refresh the grid
+                this.gridApi.setGridOption('rowData', this.games);
+                
+                // Show success message
+                const action = hiddenValue ? 'hidden' : 'shown';
+                this.showAlert(`${result.updated_count} games ${action} successfully`, 'success');
+                
+                // Refresh the gamelist
+                await this.loadRomSystem(this.currentSystem);
+            } else {
+                this.showAlert(result.error || 'Failed to update games', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating games hidden status:', error);
+            this.showAlert('Failed to update games', 'error');
+        }
+    }
+
+    async deleteSelectedGames() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length === 0) {
+            this.showAlert('No games selected', 'warning');
+            return;
+        }
+
+        const gameCount = selectedGames.length;
+        const confirmMessage = `Are you sure you want to delete ${gameCount} game${gameCount > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
+        
+        if (confirm(confirmMessage)) {
+            // Delete games one by one (reusing existing deleteGame logic)
+            for (const game of selectedGames) {
+                await this.deleteGame(game);
+            }
+        }
     }
 
     async editGameWithPreviewTab(game) {

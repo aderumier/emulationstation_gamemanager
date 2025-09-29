@@ -8525,6 +8525,54 @@ def manual_scrap_game(system_name):
         app.logger.error(f'Error in manual scrap: {str(e)}')
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/games/update-hidden', methods=['POST'])
+@login_required
+def update_games_hidden(system_name):
+    """Update hidden field for multiple games"""
+    try:
+        data = request.get_json(force=True) or {}
+        rom_paths = data.get('rom_paths', [])
+        hidden_value = data.get('hidden', False)
+        
+        if not rom_paths:
+            return jsonify({'error': 'rom_paths is required'}), 400
+        
+        # Load gamelist from var/gamelists
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+            
+        games = parse_gamelist_xml(gamelist_path)
+        
+        # Update hidden field for selected games
+        updated_count = 0
+        for game in games:
+            if game.get('path') in rom_paths:
+                game['hidden'] = 'true' if hidden_value else 'false'
+                updated_count += 1
+        
+        if updated_count == 0:
+            return jsonify({'error': 'No matching games found'}), 404
+        
+        # Save the updated gamelist
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Sync to roms directory
+        save_gamelist_to_roms(system_name)
+        
+        # Notify all connected clients about the gamelist update
+        notify_gamelist_updated(system_name, len(games))
+        
+        return jsonify({
+            'success': True,
+            'message': f'Updated hidden field for {updated_count} games',
+            'updated_count': updated_count
+        })
+        
+    except Exception as e:
+        print(f"Error in update_games_hidden endpoint: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/api/rom-system/<system_name>/game/manual-scrap/apply', methods=['POST'])
 @login_required
 def apply_manual_scrap(system_name):
