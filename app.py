@@ -12777,14 +12777,31 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             task.update_progress(f"  ✅ Download completed for {game_name}")
 
         
-        # Find the downloaded file
-        temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_')]
+        # Find the downloaded file - look for the specific temp file we created
+        expected_temp_base = f"temp_{output_filename_only}"
+        temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith(expected_temp_base)]
+        
+        # If not found with exact name, look for any temp file that starts with our expected name
+        if not temp_files:
+            temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_') and output_filename_only.replace('.mp4', '') in f]
+        
+        # If still not found, look for any temp file (fallback)
+        if not temp_files:
+            temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_')]
+        
         if not temp_files:
             task.update_progress(f"  ❌ No temporary file found for {game_name}")
+            task.update_progress(f"  Expected temp file: {expected_temp_base}")
+            task.update_progress(f"  Available files: {os.listdir(temp_videos_dir)}")
             return False
         
-        temp_file = temp_files[0]
+        # Use the most recently modified temp file (most likely the one just downloaded)
+        temp_files_with_time = [(f, os.path.getmtime(os.path.join(temp_videos_dir, f))) for f in temp_files]
+        temp_files_with_time.sort(key=lambda x: x[1], reverse=True)  # Sort by modification time, newest first
+        temp_file = temp_files_with_time[0][0]
         temp_path = os.path.join(temp_videos_dir, temp_file)
+        
+        task.update_progress(f"  📁 Using downloaded file: {temp_file}")
         
         # Check video duration and apply automatic 30-second cutting if needed
         video_duration = get_video_duration(temp_path)
@@ -12820,6 +12837,9 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Check if processing created a processed file
         processed_path = os.path.join(temp_videos_dir, f"{os.path.splitext(temp_file)[0]}_processed.mp4")
         final_source_path = processed_path if os.path.exists(processed_path) else temp_path
+        
+        task.update_progress(f"  📁 Final source file: {os.path.basename(final_source_path)}")
+        task.update_progress(f"  📁 Target output: {output_filename_only}")
         
         if os.path.exists(final_source_path):
             # Remove existing file if it exists (for overwrite case)
