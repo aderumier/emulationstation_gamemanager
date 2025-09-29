@@ -17412,14 +17412,16 @@ def cleanup_on_exit():
     # Terminate worker process if it exists
     global _worker_process
     if _worker_process is not None and _worker_process.is_alive():
-        print("🔄 Terminating worker process...")
+        print(f"🔄 Terminating worker process (PID: {_worker_process.pid})...")
         try:
             _worker_process.terminate()
-            _worker_process.join(timeout=5)  # Wait up to 5 seconds
+            _worker_process.join(timeout=3)  # Wait up to 3 seconds
             if _worker_process.is_alive():
                 print("⚠️  Worker process didn't terminate gracefully, forcing...")
                 _worker_process.kill()
-                _worker_process.join()
+                _worker_process.join(timeout=2)
+                if _worker_process.is_alive():
+                    print("⚠️  Worker process still alive after kill, continuing...")
         except Exception as e:
             print(f"⚠️  Error terminating worker process: {e}")
     
@@ -17427,12 +17429,14 @@ def cleanup_on_exit():
     global _worker_manager
     if _worker_manager is not None:
         try:
+            print("🔄 Shutting down multiprocessing manager...")
             _worker_manager.shutdown()
         except Exception as e:
             print(f"⚠️  Error shutting down manager: {e}")
     
     # Clean up temporary files
     try:
+        print("🔄 Cleaning up temporary files...")
         cleanup_temp_files()
     except Exception as e:
         print(f"⚠️  Error cleaning up temp files: {e}")
