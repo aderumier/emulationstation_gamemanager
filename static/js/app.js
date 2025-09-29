@@ -14676,7 +14676,7 @@ class GameCollectionManager {
                 if (data.success) {
                     this.displayYouTubeResults(data.results);
                 } else {
-                    this.showYouTubeError(data.error || 'Search failed');
+                    this.showYouTubeError(data.error || 'Search failed', data);
                 }
             } else {
                 throw new Error('Search failed');
@@ -14719,11 +14719,23 @@ class GameCollectionManager {
         }
     }
 
-    showYouTubeError(errorMessage) {
+    showYouTubeError(errorMessage, errorData = null) {
         const noResults = document.getElementById('youtubeNoResults');
         const errorText = noResults.querySelector('.text-muted');
         if (errorText) {
-            errorText.textContent = `Error: ${errorMessage}`;
+            let fullErrorMessage = `Error: ${errorMessage}`;
+            
+            // Add additional error details if available
+            if (errorData) {
+                if (errorData.status_code) {
+                    fullErrorMessage += `\nStatus Code: ${errorData.status_code}`;
+                }
+                if (errorData.response_preview) {
+                    fullErrorMessage += `\nResponse: ${errorData.response_preview}`;
+                }
+            }
+            
+            errorText.textContent = fullErrorMessage;
         }
         this.showYouTubeNoResults(true);
     }

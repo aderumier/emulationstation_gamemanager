@@ -10232,10 +10232,27 @@ def youtube_search():
             # Check if we got a valid HTML response
             if 'youtube' not in response.text.lower():
                 print("WARNING: Response doesn't appear to be from YouTube")
+                print(f"Response status code: {response.status_code}")
+                print(f"Response content preview (first 500 chars): {response.text[:500]}")
+                print(f"Response headers: {dict(response.headers)}")
+                
+                # Check for common error patterns
+                error_info = f"Status: {response.status_code}"
+                if response.status_code == 403:
+                    error_info += " (Forbidden - possibly blocked or rate limited)"
+                elif response.status_code == 429:
+                    error_info += " (Too Many Requests - rate limited)"
+                elif response.status_code == 404:
+                    error_info += " (Not Found)"
+                elif response.status_code >= 500:
+                    error_info += " (Server Error)"
+                
                 return jsonify({
                     'success': False,
-                    'error': 'Invalid response from YouTube (not a YouTube page)',
-                    'query': search_query
+                    'error': f'Invalid response from YouTube: {error_info}',
+                    'query': search_query,
+                    'status_code': response.status_code,
+                    'response_preview': response.text[:200] if len(response.text) > 0 else 'Empty response'
                 })
             
             # Parse the HTML response
