@@ -9270,7 +9270,7 @@ def stop_task_endpoint(task_id):
         # Handle tasks in waiting confirmation status
         if task.status == TASK_STATUS_WAITING_CONFIRMATION:
             task.update_progress("🛑 Task cancelled by user")
-            task.complete(False, "Task cancelled by user")
+            task.complete(True, "Task cancelled by user")
             return jsonify({
                 'success': True,
                 'message': 'Task cancelled successfully'
@@ -10617,7 +10617,7 @@ def scan_rom_files_confirm(system_name):
         
         if action == 'cancel':
             task.update_progress("ROM scan cancelled by user")
-            task.complete()
+            task.complete(True, "ROM scan cancelled by user")
             return jsonify({
                 'success': True,
                 'message': 'ROM scan cancelled',
