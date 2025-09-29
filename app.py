@@ -8776,15 +8776,17 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
                     print(f"Updated game path (without prefix): {current_path} -> {new_relative}")
         
         if updated:
-            # Save updated gamelist
+            # Save updated gamelist to var/gamelists
+            print(f"Saving updated gamelist to: {gamelist_path}")
             write_gamelist_xml(games, gamelist_path)
             
             # Sync to roms directory
+            print(f"Syncing gamelist to roms directory for {system_name}")
             save_gamelist_to_roms(system_name)
             
             # Notify clients
             notify_gamelist_updated(system_name, len(games))
-            print(f"Gamelist updated successfully for {system_name}")
+            print(f"Gamelist updated successfully for {system_name} - both var/gamelists and roms directories")
         else:
             print(f"No matching game found for path: {old_relative}")
             
