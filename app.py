@@ -16734,13 +16734,13 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                     # Save the gamelist before exiting with explicit flushing
                     print(f"DEBUG: Saving gamelist to {gamelist_path} before task stop...")
                     save_formatted_gamelist_xml(tree, gamelist_path)
-                    print(f"DEBUG: Gamelist write completed")
+                    print("DEBUG: Gamelist write completed")
                     # Force flush to ensure file is written to disk
                     try:
                         with open(gamelist_path, 'r+b') as f:
                             f.flush()
                             os.fsync(f.fileno())
-                        print(f"DEBUG: Gamelist file flushed to disk")
+                        print("DEBUG: Gamelist file flushed to disk")
                     except Exception as e:
                         print(f"Warning: Could not flush gamelist file: {e}")
                     result_q.put({
@@ -17086,7 +17086,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                 # Don't return here - continue to save partial results
             
             # Update all games with ScreenScraper IDs and downloaded media
-            print(f"📝 Updating gamelist with ScreenScraper data...")
+            print("📝 Updating gamelist with ScreenScraper data...")
             t = get_task(task_id)
             if t:
                 t.update_progress(90, None)  # Only update progress percentage
@@ -17156,12 +17156,12 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             
             # Save updated gamelist (all games, not just processed ones)
             # Always save gamelist, even if no games were updated (to ensure consistency)
-            print(f"💾 Saving updated gamelist...")
+            print("💾 Saving updated gamelist...")
             write_gamelist_xml(all_games, gamelist_path)
             if updated_count > 0:
                 print(f"✅ Updated {updated_count} games with ScreenScraper IDs")
             else:
-                print(f"💾 Gamelist saved (no games updated)")
+                print("💾 Gamelist saved (no games updated)")
             
             # Complete task
             t = get_task(task_id)
@@ -17294,7 +17294,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                 print(f"🔧 DEBUG: Using all {len(games_to_process)} games")
             
             if not games_to_process:
-                print(f"🔧 DEBUG: No games to process after filtering")
+                print("🔧 DEBUG: No games to process after filtering")
                 t = get_task(task_id)
                 if t:
                     t.complete(True, "No games selected for processing - task completed successfully")
