@@ -2948,13 +2948,8 @@ class GameCollectionManager {
                 const action = hiddenValue ? 'hidden' : 'shown';
                 this.showAlert(`${result.updated_count} games ${action} successfully`, 'success');
                 
-                // Refresh the gamelist data without losing filter state
-                await this.refreshGameGridWithData();
-                
-                // Restore filter state again after data refresh
-                if (currentFilterModel && Object.keys(currentFilterModel).length > 0) {
-                    this.gridApi.setFilterModel(currentFilterModel);
-                }
+                // Refresh the grid to show updated data
+                this.refreshGameGrid();
             } else {
                 this.showAlert(result.error || 'Failed to update games', 'error');
             }
