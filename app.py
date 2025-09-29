@@ -10217,11 +10217,8 @@ def youtube_search():
         # Get YouTube API key from credentials
         youtube_api_key = get_youtube_api_key()
         if not youtube_api_key:
-            return jsonify({
-                'success': False,
-                'error': 'YouTube API key not configured. Please add your YouTube Data API v3 key in the credentials section.',
-                'query': search_query
-            })
+            print("YouTube API key not configured, falling back to yt-dlp search")
+            return search_youtube_with_ytdlp(search_query)
         
         # Search using YouTube Data API v3
         try:
@@ -10486,6 +10483,192 @@ def parse_youtube_duration(duration_str):
             
     except Exception as e:
         print(f"Error parsing YouTube duration: {e}")
+        return "Unknown"
+
+def search_youtube_with_ytdlp(search_query):
+    """Search YouTube using yt-dlp as fallback when API key is not available"""
+    try:
+        import subprocess
+        import json
+        
+        # Get yt-dlp path
+        yt_dlp_path = get_yt_dlp_path()
+        
+        # Add "gameplay" to search query for better results
+        search_term = f"{search_query} gameplay"
+        
+        print(f"Searching YouTube with yt-dlp: {search_term}")
+        
+        # Use yt-dlp to search for videos and get metadata
+        # ytsearch10: searches for 10 videos, --dump-json gets full metadata
+        cmd = [
+            yt_dlp_path,
+            f"ytsearch10:{search_term}",
+            "--dump-json",
+            "--no-download",
+            "--no-warnings"
+        ]
+        
+        print(f"Running yt-dlp command: {' '.join(cmd)}")
+        
+        # Run yt-dlp command
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode != 0:
+            print(f"yt-dlp search failed: {result.stderr}")
+            return jsonify({
+                'success': False,
+                'error': f'yt-dlp search failed: {result.stderr}',
+                'query': search_query
+            })
+        
+        # Parse the JSON output from yt-dlp
+        videos = []
+        for line in result.stdout.strip().split('\n'):
+            if line.strip():
+                try:
+                    video_data = json.loads(line)
+                    
+                    # Extract video information
+                    video_id = video_data.get('id', '')
+                    title = video_data.get('title', 'Unknown Title')
+                    duration = video_data.get('duration', 0)
+                    view_count = video_data.get('view_count', 0)
+                    uploader = video_data.get('uploader', 'Unknown Channel')
+                    upload_date = video_data.get('upload_date', '')
+                    thumbnail = video_data.get('thumbnail', '')
+                    
+                    # Format duration
+                    formatted_duration = format_duration_from_seconds(duration)
+                    
+                    # Format view count
+                    formatted_view_count = format_view_count(view_count)
+                    
+                    # Format published time
+                    formatted_published_time = format_upload_date(upload_date)
+                    
+                    # Build video object
+                    video = {
+                        'id': video_id,
+                        'title': title,
+                        'thumbnail': thumbnail,
+                        'duration': formatted_duration,
+                        'channel': uploader,
+                        'view_count': formatted_view_count,
+                        'published_time': formatted_published_time,
+                        'url': f"https://www.youtube.com/watch?v={video_id}"
+                    }
+                    
+                    videos.append(video)
+                    
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing yt-dlp JSON output: {e}")
+                    continue
+        
+        if not videos:
+            return jsonify({
+                'success': False,
+                'error': 'No videos found using yt-dlp search',
+                'query': search_query
+            })
+        
+        print(f"Successfully found {len(videos)} videos using yt-dlp")
+        return jsonify({
+            'success': True,
+            'results': videos,
+            'query': search_query
+        })
+        
+    except subprocess.TimeoutExpired:
+        print("yt-dlp search timed out")
+        return jsonify({
+            'success': False,
+            'error': 'yt-dlp search timed out',
+            'query': search_query
+        })
+    except FileNotFoundError:
+        print("yt-dlp not found")
+        return jsonify({
+            'success': False,
+            'error': 'yt-dlp is not installed or not available',
+            'query': search_query
+        })
+    except Exception as e:
+        print(f"Error during yt-dlp search: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'yt-dlp search error: {str(e)}',
+            'query': search_query
+        })
+
+def format_duration_from_seconds(seconds):
+    """Format duration from seconds to MM:SS or HH:MM:SS"""
+    try:
+        if not seconds or seconds <= 0:
+            return "Unknown"
+        
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        else:
+            return f"{minutes:02d}:{seconds:02d}"
+    except Exception:
+        return "Unknown"
+
+def format_view_count(view_count):
+    """Format view count to human readable format"""
+    try:
+        if not view_count or view_count <= 0:
+            return "Unknown"
+        
+        if view_count >= 1000000:
+            return f"{view_count/1000000:.1f}M views"
+        elif view_count >= 1000:
+            return f"{view_count/1000:.1f}K views"
+        else:
+            return f"{view_count:,} views"
+    except Exception:
+        return "Unknown"
+
+def format_upload_date(upload_date):
+    """Format upload date to human readable format"""
+    try:
+        if not upload_date or len(upload_date) != 8:
+            return "Unknown"
+        
+        from datetime import datetime, timezone
+        
+        # Parse YYYYMMDD format
+        year = int(upload_date[:4])
+        month = int(upload_date[4:6])
+        day = int(upload_date[6:8])
+        
+        upload_dt = datetime(year, month, day, tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        
+        # Calculate time difference
+        diff = now - upload_dt
+        
+        if diff.days > 0:
+            if diff.days == 1:
+                return "1 day ago"
+            elif diff.days < 7:
+                return f"{diff.days} days ago"
+            elif diff.days < 30:
+                weeks = diff.days // 7
+                return f"{weeks} week{'s' if weeks > 1 else ''} ago"
+            elif diff.days < 365:
+                months = diff.days // 30
+                return f"{months} month{'s' if months > 1 else ''} ago"
+            else:
+                years = diff.days // 365
+                return f"{years} year{'s' if years > 1 else ''} ago"
+        else:
+            return "Today"
+    except Exception:
         return "Unknown"
 
 def extract_from_yt_initial_data(html_text):
