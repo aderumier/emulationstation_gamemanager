@@ -224,9 +224,10 @@ class SteamService:
         
         if not image_type_mappings:
             image_type_mappings = {
-                'capsule': 'boxart',
-                'logo': 'marquee', 
-                'hero': 'fanart'
+                'boxart': 'capsule',
+                'marquee': 'logo', 
+                'fanart': 'hero',
+                'image': 'screenshot'
             }
         
         if not selected_fields:
@@ -263,19 +264,20 @@ class SteamService:
         ) as client:
             # Create download tasks for all selected fields
             download_tasks = []
-            for media_type in selected_fields:
+            for gamelist_field in selected_fields:
                 # Check for cancellation before each download task
                 if cancellation_event and cancellation_event.is_set():
-                    logger.info(f"🔧 DEBUG: Steam media download cancelled for {game_name} at {media_type}")
+                    logger.info(f"🔧 DEBUG: Steam media download cancelled for {game_name} at {gamelist_field}")
                     return results
                 
-                if media_type not in steam_urls:
+                # Get the Steam type that maps to this gamelist field
+                steam_type = image_type_mappings.get(gamelist_field)
+                if not steam_type or steam_type not in steam_urls:
                     continue
                 
-                url = steam_urls[media_type]
-                target_field = image_type_mappings.get(media_type, media_type)
+                url = steam_urls[steam_type]
                 download_tasks.append(self._download_single_media(
-                    client, url, media_type, target_field, game_name, 
+                    client, url, steam_type, gamelist_field, game_name, 
                     steam_id, roms_root, system_name, overwrite_media_fields, gamelist_path, cancellation_event, rom_path
                 ))
             
@@ -310,9 +312,10 @@ class SteamService:
         
         if not image_type_mappings:
             image_type_mappings = {
-                'capsule': 'boxart',
-                'logo': 'marquee', 
-                'hero': 'fanart'
+                'boxart': 'capsule',
+                'marquee': 'logo', 
+                'fanart': 'hero',
+                'image': 'screenshot'
             }
         
         if not selected_fields:
