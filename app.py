@@ -12245,6 +12245,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         else:
             # Fallback to output filename
             output_filename_only = os.path.basename(output_path)
+            rom_name = os.path.splitext(output_filename_only)[0]  # Extract name without extension
             temp_filename = f"temp_{output_filename_only}"
             task.update_progress(f"  📁 Using output filename for temp file: {temp_filename}")
         
