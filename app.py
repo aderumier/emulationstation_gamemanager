@@ -12198,6 +12198,31 @@ def get_youtube_video_duration(video_url):
         print(f"Error getting video duration: {e}")
         return None
 
+def get_video_duration(video_path):
+    """Get the duration of a local video file in seconds using ffprobe"""
+    try:
+        import subprocess
+        
+        # Use ffprobe to get video duration
+        result = subprocess.run([
+            'ffprobe', 
+            '-v', 'quiet',
+            '-show_entries', 'format=duration',
+            '-of', 'csv=p=0',
+            video_path
+        ], capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0 and result.stdout.strip():
+            duration = float(result.stdout.strip())
+            return duration
+        else:
+            print(f"Failed to get video duration: {result.stderr}")
+            return None
+            
+    except Exception as e:
+        print(f"Error getting video duration: {e}")
+        return None
+
 def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None):
     """Download a single YouTube video for a game (helper function)"""
     try:
@@ -12761,13 +12786,30 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_file = temp_files[0]
         temp_path = os.path.join(temp_videos_dir, temp_file)
         
+        # Check video duration and apply automatic 30-second cutting if needed
+        video_duration = get_video_duration(temp_path)
+        needs_auto_cut = False
+        cut_start_time = start_time
+        cut_end_time = start_time + 30
+        
+        if video_duration is not None:
+            task.update_progress(f"  ⏱️ Downloaded video duration: {video_duration:.1f} seconds")
+            if video_duration > 30:
+                needs_auto_cut = True
+                task.update_progress(f"  ✂️ Video is longer than 30s, will cut to 30-second section ({cut_start_time}s-{cut_end_time}s)")
+            else:
+                task.update_progress(f"  ✅ Video is 30s or shorter, no cutting needed")
+        else:
+            task.update_progress(f"  ⚠️ Could not determine video duration, will attempt to cut anyway")
+            needs_auto_cut = True
+        
         # Apply video processing (crop and/or resize) if needed
         # If we downloaded full video (full fallback or PO token), cut to section
         video_config = config.get('video', {})
         is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
         
-        if used_full_download_without_sections:
-            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, start_time, end_time)
+        if used_full_download_without_sections or needs_auto_cut:
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, cut_start_time, cut_end_time)
         else:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
         
