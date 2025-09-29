@@ -2395,21 +2395,6 @@ class GameCollectionManager {
                     flex: 1
                 },
                 { 
-                    field: 'hidden', 
-                    headerName: 'Hidden', 
-                    editable: false, 
-                    sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    width: 80,
-                    cellRenderer: (params) => {
-                        if (params.value === 'true') {
-                            return '<i class="bi bi-eye-slash text-muted" title="Hidden"></i>';
-                        }
-                        return '';
-                    }
-                },
-                { 
                     field: 'video', 
                     headerName: 'Video', 
                     editable: false, 
