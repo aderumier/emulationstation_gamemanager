@@ -14937,7 +14937,9 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             print(f"🎨 DEBUG: Selected fields: {selected_fields}")
             print(f"🎨 DEBUG: Checking if fanart should be processed...")
             
-            if not selected_fields or len(selected_fields) == 0 or 'artworks' in selected_fields:
+            # Check if fanart field is selected by looking for the gamelist field that maps to 'artworks'
+            fanart_gamelist_field = get_gamelist_field_for_igdb_type('artworks', 'fanart')
+            if not selected_fields or len(selected_fields) == 0 or fanart_gamelist_field in selected_fields:
                 print(f"🎨 DEBUG: Fanart field is selected or no field selection (all fields)")
                 # Check if fanart field is selected or if no field selection (all fields)
                 fanart_field = get_gamelist_field_for_igdb_type('artworks', 'fanart')
@@ -15006,7 +15008,9 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                 print(f"🎨 DEBUG: Fanart field not selected, skipping fanart processing")
             
             # Fetch and download screenshot if selected fields include screenshots
-            if not selected_fields or len(selected_fields) == 0 or 'screenshots' in selected_fields:
+            # Check if screenshot field is selected by looking for the gamelist field that maps to 'screenshots'
+            screenshot_gamelist_field = get_gamelist_field_for_igdb_type('screenshots', 'image')
+            if not selected_fields or len(selected_fields) == 0 or screenshot_gamelist_field in selected_fields:
                 print(f"📸 DEBUG: Screenshot field is selected or no field selection (all fields)")
                 # Check if screenshot field is selected or if no field selection (all fields)
                 screenshot_field = get_gamelist_field_for_igdb_type('screenshots', 'image')
@@ -15074,7 +15078,9 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                 print(f"📸 DEBUG: Screenshot field not selected, skipping screenshot processing")
             
             # Fetch and download cover if selected fields include covers
-            if not selected_fields or len(selected_fields) == 0 or 'cover' in selected_fields:
+            # Check if cover field is selected by looking for the gamelist field that maps to 'cover'
+            cover_gamelist_field = get_gamelist_field_for_igdb_type('cover', 'thumbnail')
+            if not selected_fields or len(selected_fields) == 0 or cover_gamelist_field in selected_fields:
                 print(f"🖼️ DEBUG: Cover field is selected or no field selection (all fields)")
                 # Check if cover field is selected or if no field selection (all fields)
                 cover_field = get_gamelist_field_for_igdb_type('cover', 'thumbnail')
@@ -15140,15 +15146,13 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                 print(f"🖼️ DEBUG: Cover field not selected, skipping cover processing")
             
             # Fetch and download logo if selected fields include logos
-            if not selected_fields or 'logos' in selected_fields:
+            # Check if logo field is selected by looking for the gamelist field that maps to 'logos'
+            logo_gamelist_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
+            if not selected_fields or logo_gamelist_field in selected_fields:
                 print(f"🏷️ DEBUG: Logo field is selected or no field selection (all fields)")
                 # Check if logo field is selected or if no field selection (all fields)
-                # Find the gamelist field that maps to logos
-                logo_field = None
-                for field, igdb_type in igdb_image_mapping.items():
-                    if igdb_type == 'logos':
-                        logo_field = field
-                        break
+                # Use the gamelist field that maps to logos
+                logo_field = logo_gamelist_field
                 if not logo_field:
                     logo_field = 'marquee'
                 marquee_elem = game.find(logo_field)
