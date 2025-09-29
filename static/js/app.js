@@ -10026,16 +10026,21 @@ class GameCollectionManager {
     
     openScraperConfigurationModal() {
         console.log('Opening unified scraper configuration modal');
-        const modal = new bootstrap.Modal(document.getElementById('scraperConfigModal'));
-        modal.show();
+        const modalElement = document.getElementById('scraperConfigModal');
+        const modal = new bootstrap.Modal(modalElement);
         
-        // Load all scraper data when modal opens
-        this.loadMediaFieldsData();
-        this.loadLaunchboxMappingsData();
-        this.loadIgdbMappingsData();
-        this.loadScreenscraperMappingsData();
-        this.loadSteamMappingsData();
-        this.loadSteamgriddbMappingsData();
+        // Listen for the modal to be fully shown before loading data
+        modalElement.addEventListener('shown.bs.modal', () => {
+            console.log('Modal fully shown, loading data...');
+            this.loadMediaFieldsData();
+            this.loadLaunchboxMappingsData();
+            this.loadIgdbMappingsData();
+            this.loadScreenscraperMappingsData();
+            this.loadSteamMappingsData();
+            this.loadSteamgriddbMappingsData();
+        }, { once: true }); // Use once: true to only listen once
+        
+        modal.show();
     }
 
     openMediaFieldsConfigurationModal() {
@@ -10066,7 +10071,11 @@ class GameCollectionManager {
     
     async populateMediaFieldsTable(mediaFields) {
         const tbody = document.getElementById('mediaFieldsTableBody');
-        if (!tbody) return;
+        console.log('populateMediaFieldsTable called, tbody found:', !!tbody);
+        if (!tbody) {
+            console.error('mediaFieldsTableBody not found!');
+            return;
+        }
         
         tbody.innerHTML = '';
         
