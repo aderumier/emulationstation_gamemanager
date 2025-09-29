@@ -11731,6 +11731,28 @@ class GameCollectionManager {
         
         const modal = new bootstrap.Modal(document.getElementById('videoConfigModal'));
         modal.show();
+        
+        // Ensure the first tab is properly activated when modal opens
+        setTimeout(() => {
+            const firstTab = document.getElementById('general-tab');
+            const firstTabContent = document.getElementById('general');
+            
+            if (firstTab && firstTabContent) {
+                // Remove active class from all tabs and content
+                document.querySelectorAll('#videoConfigTabs .nav-link').forEach(tab => {
+                    tab.classList.remove('active');
+                    tab.setAttribute('aria-selected', 'false');
+                });
+                document.querySelectorAll('#videoConfigTabContent .tab-pane').forEach(content => {
+                    content.classList.remove('show', 'active');
+                });
+                
+                // Activate the first tab
+                firstTab.classList.add('active');
+                firstTab.setAttribute('aria-selected', 'true');
+                firstTabContent.classList.add('show', 'active');
+            }
+        }, 100); // Small delay to ensure modal is fully rendered
     }
     
     async loadVideoConfiguration() {
