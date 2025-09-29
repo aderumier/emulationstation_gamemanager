@@ -2849,6 +2849,10 @@ class GameCollectionManager {
             menuItems = `
                 <div class="dropdown-header">Bulk Operations (${selectedGames.length} games)</div>
                 <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" onclick="gameManager.moveSelectedGames()">
+                    <i class="bi bi-folder2-open"></i> Move Selected
+                </a>
+                <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.hideSelectedGames()">
                     <i class="bi bi-eye-slash"></i> Hide Selected
                 </a>
@@ -2998,12 +3002,29 @@ class GameCollectionManager {
 
     async moveRom(game) {
         this.movingGame = game;
+        this.movingGames = [game]; // Single game in array for consistency
+        await this.showDirectoryExplorer();
+    }
+
+    async moveSelectedGames() {
+        const selectedGames = this.gridApi.getSelectedRows();
+        if (selectedGames.length === 0) {
+            this.showAlert('No games selected', 'warning');
+            return;
+        }
+
+        this.movingGames = selectedGames;
+        this.movingGame = selectedGames[0]; // For display purposes
         await this.showDirectoryExplorer();
     }
 
     async showDirectoryExplorer() {
         // Update modal with game information
-        document.getElementById('movingGameName').textContent = this.movingGame.name;
+        if (this.movingGames.length === 1) {
+            document.getElementById('movingGameName').textContent = this.movingGame.name;
+        } else {
+            document.getElementById('movingGameName').textContent = `${this.movingGames.length} games selected`;
+        }
         document.getElementById('currentSystemName').textContent = this.currentSystem;
         
         // Create and show the directory explorer modal
@@ -3186,7 +3207,7 @@ class GameCollectionManager {
     }
 
     async selectMoveDestination(destinationPath) {
-        if (!this.movingGame) return;
+        if (!this.movingGames || this.movingGames.length === 0) return;
         
         // Format the destination path for display
         let displayPath = destinationPath;
@@ -3194,21 +3215,31 @@ class GameCollectionManager {
             displayPath = 'Root Directory';
         }
         
-        const confirmMessage = `Move "${this.movingGame.name}" to "${displayPath}"?`;
+        let confirmMessage;
+        if (this.movingGames.length === 1) {
+            confirmMessage = `Move "${this.movingGames[0].name}" to "${displayPath}"?`;
+        } else {
+            confirmMessage = `Move ${this.movingGames.length} games to "${displayPath}"?`;
+        }
+        
         if (confirm(confirmMessage)) {
-            await this.performMove(this.movingGame, destinationPath);
+            await this.performBulkMove(this.movingGames, destinationPath);
         }
     }
 
     async performMove(game, destinationPath) {
+        await this.performBulkMove([game], destinationPath);
+    }
+
+    async performBulkMove(games, destinationPath) {
         try {
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/move-rom`, {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/move-roms-bulk`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    game_path: game.path,
+                    games: games.map(game => ({ path: game.path, name: game.name })),
                     destination_path: destinationPath
                 })
             });
@@ -3216,22 +3247,23 @@ class GameCollectionManager {
             const result = await response.json();
             
             if (result.success) {
-                this.showAlert('ROM moved successfully', 'success');
+                const gameCount = games.length;
+                this.showAlert(`${gameCount} game${gameCount > 1 ? 's' : ''} moved successfully`, 'success');
                 
                 // Close the modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('directoryExplorerModal'));
                 modal.hide();
                 
                 // Refresh the grid to show updated paths
-                console.log('Refreshing grid after ROM move...');
+                console.log(`Refreshing grid after moving ${gameCount} ROMs...`);
                 await this.loadRomSystem(this.currentSystem);
                 console.log('Grid refreshed successfully');
             } else {
-                this.showAlert(result.error || 'Failed to move ROM', 'error');
+                this.showAlert(result.error || 'Failed to move ROMs', 'error');
             }
         } catch (error) {
-            console.error('Error moving ROM:', error);
-            this.showAlert('Failed to move ROM', 'error');
+            console.error('Error moving ROMs:', error);
+            this.showAlert('Failed to move ROMs', 'error');
         }
     }
 

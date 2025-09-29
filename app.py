@@ -8813,6 +8813,116 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
     except Exception as e:
         print(f"Error updating gamelist after move: {e}")
 
+@app.route('/api/rom-system/<system_name>/move-roms-bulk', methods=['POST'])
+@login_required
+def move_roms_bulk(system_name):
+    """Move multiple ROM files/directories within the system's ROM directory"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        games = data.get('games', [])
+        destination_path = data.get('destination_path', '')
+        
+        if not games or not destination_path:
+            return jsonify({'error': 'Games and destination path are required'}), 400
+        
+        # Ensure destination is within the system's ROM directory
+        system_rom_dir = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_rom_dir):
+            return jsonify({'error': f'System ROM directory not found: {system_rom_dir}'}), 404
+        
+        # Resolve destination path
+        if destination_path == '/':
+            full_destination_path = system_rom_dir
+        else:
+            clean_dest_path = destination_path.lstrip('/')
+            full_destination_path = os.path.join(system_rom_dir, clean_dest_path)
+        
+        # Security check: ensure destination is within system directory
+        if not os.path.abspath(full_destination_path).startswith(os.path.abspath(system_rom_dir)):
+            return jsonify({'error': 'Access denied: destination path outside system directory'}), 403
+        
+        if not os.path.exists(full_destination_path):
+            return jsonify({'error': 'Destination directory not found'}), 404
+        
+        if not os.path.isdir(full_destination_path):
+            return jsonify({'error': 'Destination is not a directory'}), 400
+        
+        # Process each game
+        moved_games = []
+        failed_games = []
+        
+        for game_data in games:
+            game_path = game_data.get('path', '')
+            game_name = game_data.get('name', 'Unknown')
+            
+            if not game_path:
+                failed_games.append({'name': game_name, 'error': 'No path provided'})
+                continue
+            
+            try:
+                # Resolve full paths
+                if game_path.startswith('./'):
+                    game_path_for_filesystem = game_path[2:]
+                else:
+                    game_path_for_filesystem = game_path
+                
+                full_game_path = os.path.join(system_rom_dir, game_path_for_filesystem)
+                new_path = os.path.join(full_destination_path, os.path.basename(full_game_path))
+                
+                # Security checks
+                if not os.path.abspath(full_game_path).startswith(os.path.abspath(system_rom_dir)):
+                    failed_games.append({'name': game_name, 'error': 'Path outside system directory'})
+                    continue
+                
+                if not os.path.exists(full_game_path):
+                    failed_games.append({'name': game_name, 'error': 'File not found'})
+                    continue
+                
+                if os.path.exists(new_path):
+                    failed_games.append({'name': game_name, 'error': 'File already exists in destination'})
+                    continue
+                
+                # Move the file/directory
+                print(f"Moving file from {full_game_path} to {new_path}")
+                shutil.move(full_game_path, new_path)
+                
+                # Update the gamelist for this game
+                print(f"Updating gamelist for {game_name}")
+                update_gamelist_after_move(system_name, game_path, new_path, system_rom_dir)
+                
+                moved_games.append({
+                    'name': game_name,
+                    'old_path': game_path,
+                    'new_path': os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+                })
+                
+            except Exception as e:
+                print(f"Error moving {game_name}: {e}")
+                failed_games.append({'name': game_name, 'error': str(e)})
+        
+        # Prepare response
+        response_data = {
+            'success': True,
+            'moved_count': len(moved_games),
+            'failed_count': len(failed_games),
+            'moved_games': moved_games,
+            'failed_games': failed_games
+        }
+        
+        if failed_games:
+            response_data['message'] = f'Moved {len(moved_games)} games, {len(failed_games)} failed'
+        else:
+            response_data['message'] = f'Successfully moved {len(moved_games)} games'
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        print(f"Error in move_roms_bulk: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/api/rom-system/<system_name>/games/update-hidden', methods=['POST'])
 @login_required
 def update_games_hidden(system_name):
