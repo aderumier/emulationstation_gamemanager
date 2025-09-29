@@ -10029,16 +10029,19 @@ class GameCollectionManager {
         const modalElement = document.getElementById('scraperConfigModal');
         const modal = new bootstrap.Modal(modalElement);
         
-        // Listen for the modal to be fully shown before loading data
-        modalElement.addEventListener('shown.bs.modal', () => {
-            console.log('Modal fully shown, loading data...');
+        // Function to load all data
+        const loadAllData = () => {
+            console.log('Loading all scraper data...');
             this.loadMediaFieldsData();
             this.loadLaunchboxMappingsData();
             this.loadIgdbMappingsData();
             this.loadScreenscraperMappingsData();
             this.loadSteamMappingsData();
             this.loadSteamgriddbMappingsData();
-        }, { once: true }); // Use once: true to only listen once
+        };
+        
+        // Always load data when modal opens
+        modalElement.addEventListener('shown.bs.modal', loadAllData, { once: true });
         
         modal.show();
     }
@@ -10069,12 +10072,21 @@ class GameCollectionManager {
         }
     }
     
-    async populateMediaFieldsTable(mediaFields) {
+    async populateMediaFieldsTable(mediaFields, retryCount = 0) {
         const tbody = document.getElementById('mediaFieldsTableBody');
-        console.log('populateMediaFieldsTable called, tbody found:', !!tbody);
+        console.log('populateMediaFieldsTable called, tbody found:', !!tbody, 'retry count:', retryCount);
         if (!tbody) {
-            console.error('mediaFieldsTableBody not found!');
-            return;
+            if (retryCount < 5) {
+                console.error('mediaFieldsTableBody not found! Retrying in 100ms...');
+                // Retry after a short delay
+                setTimeout(() => {
+                    this.populateMediaFieldsTable(mediaFields, retryCount + 1);
+                }, 100);
+                return;
+            } else {
+                console.error('mediaFieldsTableBody not found after 5 retries, giving up');
+                return;
+            }
         }
         
         tbody.innerHTML = '';
