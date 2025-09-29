@@ -10245,6 +10245,36 @@ def youtube_search():
                 print("END OF HTML RESPONSE")
                 print("=" * 80)
                 
+                # Save the full response to a debug file
+                try:
+                    debug_dir = os.path.join('var', 'debug')
+                    os.makedirs(debug_dir, exist_ok=True)
+                    
+                    # Create filename with timestamp and query
+                    import time
+                    timestamp = int(time.time())
+                    safe_query = "".join(c for c in search_query if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                    safe_query = safe_query.replace(' ', '_')[:50]  # Limit length
+                    debug_filename = f"youtube_search_debug_{timestamp}_{safe_query}.html"
+                    debug_filepath = os.path.join(debug_dir, debug_filename)
+                    
+                    # Write the full response to file
+                    with open(debug_filepath, 'w', encoding='utf-8') as f:
+                        f.write(f"<!-- YouTube Search Debug File -->\n")
+                        f.write(f"<!-- Query: {search_query} -->\n")
+                        f.write(f"<!-- Status Code: {response.status_code} -->\n")
+                        f.write(f"<!-- Timestamp: {timestamp} -->\n")
+                        f.write(f"<!-- Headers: {dict(response.headers)} -->\n")
+                        f.write(f"<!-- Cookies Used: {len(cookies)} cookies -->\n")
+                        f.write(f"<!-- URL: {search_url} -->\n")
+                        f.write(f"<!-- Response Length: {len(response.text)} characters -->\n")
+                        f.write(f"<!-- ========================================== -->\n\n")
+                        f.write(response.text)
+                    
+                    print(f"Debug file saved to: {debug_filepath}")
+                except Exception as e:
+                    print(f"Error saving debug file: {e}")
+                
                 # Check for common error patterns
                 error_info = f"Status: {response.status_code}"
                 if response.status_code == 403:
