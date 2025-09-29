@@ -1,3 +1,8 @@
+gamemanager (2.3.1) stable; urgency=medium
+
+  * Fix Werkzeug production error by adding allow_unsafe_werkzeug=True
+  * Resolve 'Werkzeug web server is not designed to run in production' error
+
 gamemanager (2.3.0) stable; urgency=medium
 
   * Fix Screenscraper developer and publisher extraction in manual scrap
