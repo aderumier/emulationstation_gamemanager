@@ -8699,6 +8699,9 @@ class GameCollectionManager {
             const mediaFields = Object.keys(config.igdb?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
+            // Populate media fields dynamically
+            this.populateIgdbMediaFields(mediaFields);
+            
             // Load saved field selections from cookies
             allFields.forEach(field => {
                 const cookieName = `igdbField_${field}`;
@@ -8722,32 +8725,29 @@ class GameCollectionManager {
             });
         } catch (error) {
             console.error('Error loading IGDB field settings:', error);
-            // Fallback to hardcoded fields if config fetch fails
-            const fallbackFields = [
-                'name', 'summary', 'developer', 'publisher', 'genre', 
-                'rating', 'players', 'release_date', 'youtubeurl', 'cover', 'screenshots', 'artworks', 'logos'
-            ];
-            
-            fallbackFields.forEach(field => {
-                const cookieName = `igdbField_${field}`;
-                const savedValue = this.getCookie(cookieName);
-                // Convert field name to checkbox ID format: field_name -> FieldName
+        }
+    }
+    
+    populateIgdbMediaFields(mediaFields) {
+        const container = document.getElementById('igdbMediaFieldsContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        mediaFields.forEach(field => {
                 const fieldId = field.split('_').map(word => 
                     word.charAt(0).toUpperCase() + word.slice(1)
                 ).join('');
                 const checkboxId = `igdbField${fieldId}`;
-                const checkbox = document.getElementById(checkboxId);
-                
-                console.log(`🔧 DEBUG FALLBACK: Field "${field}" -> Cookie: ${cookieName} = ${savedValue}, Checkbox: ${checkboxId} = ${!!checkbox}`);
-                
-                if (checkbox) {
-                    checkbox.checked = savedValue === 'true' || savedValue === null;
-                    console.log(`🔧 DEBUG FALLBACK: Set checkbox "${checkboxId}" to ${checkbox.checked}`);
-                } else {
-                    console.log(`🔧 DEBUG FALLBACK: Checkbox not found for field "${field}" (${checkboxId})`);
-                }
-            });
-        }
+            
+            const div = document.createElement('div');
+            div.className = 'form-check mb-2';
+            div.innerHTML = `
+                <input class="form-check-input igdb-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${field}" checked>
+                <label class="form-check-label" for="${checkboxId}">${this.formatFieldName(field)}</label>
+            `;
+            container.appendChild(div);
+        });
     }
     
     async saveIgdbFieldSettings() {
