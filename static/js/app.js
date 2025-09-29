@@ -8417,49 +8417,93 @@ class GameCollectionManager {
         this.loadSteamFieldSettings();
     }
     
-    loadSteamFieldSettings() {
-        // Load saved field selections from cookies
-        const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl', 'screenshot'];
-        
-        steamFields.forEach(field => {
-            const cookieName = `steamField_${field}`;
-            const savedValue = this.getCookie(cookieName);
-            // Convert field name to checkbox ID format: field -> Field
-            let fieldId;
-            if (field === 'youtubeurl') {
-                fieldId = 'YoutubeUrl'; // Special case for YouTube URL
-            } else {
-                fieldId = field.charAt(0).toUpperCase() + field.slice(1);
-            }
-            const checkboxId = `steamField${fieldId}`;
-            const checkbox = document.getElementById(checkboxId);
-            
-            if (checkbox) {
-                if (savedValue !== null) {
-                    checkbox.checked = savedValue === 'true';
-                } else {
-                    // Default to checked if no saved value
-                    checkbox.checked = true;
-                }
-                console.log(`🔧 DEBUG: Loaded Steam field "${field}" (${cookieName}):`, checkbox.checked);
-            } else {
-                console.log(`🔧 DEBUG: Checkbox not found for Steam field "${field}" (${checkboxId})`);
-            }
-        });
-    }
-    
-    async saveSteamFieldSettings() {
+    async loadSteamFieldSettings() {
         try {
-            // Save field selections to cookies
-            const steamFields = ['capsule', 'logo', 'hero', 'youtubeurl', 'screenshot'];
+            const response = await fetch('/api/config');
+            const config = await response.json();
             
-            steamFields.forEach(field => {
+            const textFields = Object.keys(config.steam?.mapping || {});
+            const mediaFields = Object.keys(config.steam?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Populate media fields dynamically
+            this.populateSteamMediaFields(mediaFields);
+            
+            // Load saved field selections from cookies
+            allFields.forEach(field => {
+                const cookieName = `steamField_${field}`;
+                const savedValue = this.getCookie(cookieName);
                 // Convert field name to checkbox ID format: field -> Field
                 let fieldId;
                 if (field === 'youtubeurl') {
                     fieldId = 'YoutubeUrl'; // Special case for YouTube URL
                 } else {
-                    fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                    fieldId = field.split('_').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join('');
+                }
+                const checkboxId = `steamField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                
+                if (checkbox) {
+                    if (savedValue !== null) {
+                        checkbox.checked = savedValue === 'true';
+                    } else {
+                        // Default to checked if no saved value
+                        checkbox.checked = true;
+                    }
+                    console.log(`🔧 DEBUG: Loaded Steam field "${field}" (${cookieName}):`, checkbox.checked);
+                } else {
+                    console.log(`🔧 DEBUG: Checkbox not found for Steam field "${field}" (${checkboxId})`);
+                }
+            });
+        } catch (error) {
+            console.error('Error loading Steam field settings:', error);
+        }
+    }
+    
+    populateSteamMediaFields(mediaFields) {
+        const container = document.getElementById('steamMediaFieldsContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        mediaFields.forEach(field => {
+            const fieldId = field.split('_').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join('');
+            const checkboxId = `steamField${fieldId}`;
+            
+            const div = document.createElement('div');
+            div.className = 'form-check mb-2';
+            div.innerHTML = `
+                <input class="form-check-input steam-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${field}" checked>
+                <label class="form-check-label" for="${checkboxId}">${field}</label>
+            `;
+            container.appendChild(div);
+        });
+    }
+    
+    async saveSteamFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            const textFields = Object.keys(config.steam?.mapping || {});
+            const mediaFields = Object.keys(config.steam?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Save field selections to cookies
+            allFields.forEach(field => {
+                // Convert field name to checkbox ID format: field -> Field
+                let fieldId;
+                if (field === 'youtubeurl') {
+                    fieldId = 'YoutubeUrl'; // Special case for YouTube URL
+                } else {
+                    fieldId = field.split('_').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join('');
                 }
                 const checkboxId = `steamField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
@@ -8502,40 +8546,84 @@ class GameCollectionManager {
         this.loadSteamGridDBFieldSettings();
     }
     
-    loadSteamGridDBFieldSettings() {
-        // Load saved field selections from cookies
-        const steamgriddbFields = ['grids', 'logos', 'heroes'];
-        
-        steamgriddbFields.forEach(field => {
-            const cookieName = `steamgriddbField_${field}`;
-            const savedValue = this.getCookie(cookieName);
-            // Convert field name to checkbox ID format: field -> Field
-            const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
-            const checkboxId = `steamgriddbField${fieldId}`;
-            const checkbox = document.getElementById(checkboxId);
+    async loadSteamGridDBFieldSettings() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
             
-            if (checkbox) {
-                if (savedValue !== null) {
-                    checkbox.checked = savedValue === 'true';
+            const textFields = Object.keys(config.steamgriddb?.mapping || {});
+            const mediaFields = Object.keys(config.steamgriddb?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Populate media fields dynamically
+            this.populateSteamGridDBMediaFields(mediaFields);
+            
+            // Load saved field selections from cookies
+            allFields.forEach(field => {
+                const cookieName = `steamgriddbField_${field}`;
+                const savedValue = this.getCookie(cookieName);
+                // Convert field name to checkbox ID format: field -> Field
+                const fieldId = field.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                const checkboxId = `steamgriddbField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                
+                if (checkbox) {
+                    if (savedValue !== null) {
+                        checkbox.checked = savedValue === 'true';
+                    } else {
+                        // Default to checked if no saved value
+                        checkbox.checked = true;
+                    }
+                    console.log(`🔧 DEBUG: Loaded SteamGridDB field "${field}" (${cookieName}):`, checkbox.checked);
                 } else {
-                    // Default to checked if no saved value
-                    checkbox.checked = true;
+                    console.log(`🔧 DEBUG: Checkbox not found for SteamGridDB field "${field}" (${checkboxId})`);
                 }
-                console.log(`🔧 DEBUG: Loaded SteamGridDB field "${field}" (${cookieName}):`, checkbox.checked);
-            } else {
-                console.log(`🔧 DEBUG: Checkbox not found for SteamGridDB field "${field}" (${checkboxId})`);
-            }
+            });
+        } catch (error) {
+            console.error('Error loading SteamGridDB field settings:', error);
+        }
+    }
+    
+    populateSteamGridDBMediaFields(mediaFields) {
+        const container = document.getElementById('steamgriddbMediaFieldsContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        mediaFields.forEach(field => {
+            const fieldId = field.split('_').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join('');
+            const checkboxId = `steamgriddbField${fieldId}`;
+            
+            const div = document.createElement('div');
+            div.className = 'form-check mb-2';
+            div.innerHTML = `
+                <input class="form-check-input steamgriddb-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${field}" checked>
+                <label class="form-check-label" for="${checkboxId}">${field}</label>
+            `;
+            container.appendChild(div);
         });
     }
     
     async saveSteamGridDBFieldSettings() {
         try {
-            // Save field selections to cookies
-            const steamgriddbFields = ['grids', 'logos', 'heroes'];
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
             
-            steamgriddbFields.forEach(field => {
+            const textFields = Object.keys(config.steamgriddb?.mapping || {});
+            const mediaFields = Object.keys(config.steamgriddb?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            // Save field selections to cookies
+            allFields.forEach(field => {
                 // Convert field name to checkbox ID format: field -> Field
-                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                const fieldId = field.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
                 const checkboxId = `steamgriddbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 const cookieName = `steamgriddbField_${field}`;
