@@ -9094,19 +9094,25 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
     text_fields = {}
     
     # Always extract these standard fields regardless of mapping config
-    standard_fields = ['Name', 'Description', 'Developer', 'Publisher', 'Genre', 'ReleaseDate', 'Platform', 'DatabaseID']
+    standard_fields = ['Name', 'Description', 'Overview', 'Developer', 'Publisher', 'Genre', 'ReleaseDate', 'Platform', 'DatabaseID']
     
     # Extract text from XML element
     for child in game_elem:
         tag = child.tag
         text = child.text.strip() if child.text else ''
         
+        # Debug: Print all child elements found
+        print(f"DEBUG: Found LaunchBox XML child: tag='{tag}', text='{text[:100] if text else 'None'}'")
+        
         if tag in standard_fields:
             # Map LaunchBox fields to our internal field names
             if tag == 'Name':
                 text_fields['name'] = text
-            elif tag == 'Description':
-                text_fields['desc'] = text
+            elif tag in ['Description', 'Overview']:
+                # Handle both Description and Overview fields for description
+                if 'desc' not in text_fields or not text_fields['desc']:
+                    text_fields['desc'] = text
+                    print(f"DEBUG: Set desc field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'Developer':
                 text_fields['developer'] = text
             elif tag == 'Publisher':
@@ -9145,6 +9151,9 @@ async def scrape_launchbox_manual(game, system_name):
         
         # Extract text fields using common logic
         text_fields = extract_launchbox_text_fields(game_elem, mapping_config)
+        
+        # Debug: Print what fields were extracted
+        print(f"DEBUG: LaunchBox manual scrap extracted text_fields: {text_fields}")
         
         # Extract media fields from the images in the metadata (arrays per field)
         media_fields: Dict[str, List[str]] = {}
