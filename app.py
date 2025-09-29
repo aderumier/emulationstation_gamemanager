@@ -8513,6 +8513,13 @@ async def scrape_igdb_manual(game, system_name, system_config):
         igdb_mapping = scrappers_config.get('igdb', {}).get('mapping', {})
         igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
         
+        # Helper function to get gamelist field from IGDB type
+        def get_gamelist_field_for_igdb_type(igdb_type, default_field):
+            for gamelist_field, mapped_igdb_type in igdb_image_mapping.items():
+                if mapped_igdb_type == igdb_type:
+                    return gamelist_field
+            return default_field
+        
         # Extract text fields
         text_fields = {}
         if igdb_game.get('name'):
@@ -8586,7 +8593,7 @@ async def scrape_igdb_manual(game, system_name, system_config):
         try:
             cover = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game_name))
             if cover and cover.get('url'):
-                add_media(igdb_image_mapping.get('cover', 'image'), cover.get('url'))
+                add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
         except Exception as e:
             print(f"Error getting IGDB cover: {e}")
 
@@ -8596,7 +8603,7 @@ async def scrape_igdb_manual(game, system_name, system_config):
             if screenshots:
                 for screenshot in screenshots:
                     if screenshot and screenshot.get('url'):
-                        add_media(igdb_image_mapping.get('screenshots', 'image'), screenshot.get('url'))
+                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
         except Exception as e:
             print(f"Error getting IGDB screenshots: {e}")
 
@@ -8606,7 +8613,7 @@ async def scrape_igdb_manual(game, system_name, system_config):
             if artworks:
                 for artwork in artworks:
                     if artwork and artwork.get('url'):
-                        add_media(igdb_image_mapping.get('artworks', 'fanart'), artwork.get('url'))
+                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
         except Exception as e:
             print(f"Error getting IGDB artworks: {e}")
 
@@ -14150,9 +14157,9 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         # Map IGDB image type to gamelist field using config
         # Find the gamelist field that maps to this IGDB image type
         gamelist_field = None
-        for field, igdb_type in image_type_mappings.items():
-            if igdb_type == image_type:
-                gamelist_field = field
+        for gamelist_field_key, igdb_type_value in image_type_mappings.items():
+            if igdb_type_value == image_type:
+                gamelist_field = gamelist_field_key
                 break
         if not gamelist_field:
             print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
@@ -14235,7 +14242,11 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             
             # Check if this field should be converted based on configuration
             # Map IGDB image type to gamelist field to check if conversion is needed
-            gamelist_field = image_type_mappings.get(image_type)
+            gamelist_field = None
+            for gamelist_field_key, igdb_type_value in image_type_mappings.items():
+                if igdb_type_value == image_type:
+                    gamelist_field = gamelist_field_key
+                    break
             from game_utils import should_convert_field, convert_image_replace, needs_conversion
             should_convert, target_extension = should_convert_field(gamelist_field, config)
             
@@ -14277,7 +14288,11 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             
             # Return relative path for gamelist using config mappings
             # Map IGDB image type to gamelist field using config
-            gamelist_field = image_type_mappings.get(image_type)
+            gamelist_field = None
+            for gamelist_field_key, igdb_type_value in image_type_mappings.items():
+                if igdb_type_value == image_type:
+                    gamelist_field = gamelist_field_key
+                    break
             if not gamelist_field:
                 print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
                 relative_path = f"./media/images/{final_filename}"
@@ -14851,6 +14866,13 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
         igdb_mapping = scrappers_config.get('igdb', {}).get('mapping', {})
         igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
         
+        # Helper function to get gamelist field from IGDB type
+        def get_gamelist_field_for_igdb_type(igdb_type, default_field):
+            for gamelist_field, mapped_igdb_type in igdb_image_mapping.items():
+                if mapped_igdb_type == igdb_type:
+                    return gamelist_field
+            return default_field
+        
         # Get game name
         name_elem = game.find('name')
         if name_elem is None or not name_elem.text:
@@ -14918,7 +14940,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or len(selected_fields) == 0 or 'artworks' in selected_fields:
                 print(f"🎨 DEBUG: Fanart field is selected or no field selection (all fields)")
                 # Check if fanart field is selected or if no field selection (all fields)
-                fanart_field = igdb_image_mapping.get('artworks', 'fanart')
+                fanart_field = get_gamelist_field_for_igdb_type('artworks', 'fanart')
                 fanart_elem = game.find(fanart_field)
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
@@ -14987,7 +15009,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or len(selected_fields) == 0 or 'screenshots' in selected_fields:
                 print(f"📸 DEBUG: Screenshot field is selected or no field selection (all fields)")
                 # Check if screenshot field is selected or if no field selection (all fields)
-                screenshot_field = igdb_image_mapping.get('screenshots', 'image')
+                screenshot_field = get_gamelist_field_for_igdb_type('screenshots', 'image')
                 screenshot_elem = game.find(screenshot_field)
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
@@ -15055,7 +15077,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or len(selected_fields) == 0 or 'cover' in selected_fields:
                 print(f"🖼️ DEBUG: Cover field is selected or no field selection (all fields)")
                 # Check if cover field is selected or if no field selection (all fields)
-                cover_field = igdb_image_mapping.get('cover', 'thumbnail')
+                cover_field = get_gamelist_field_for_igdb_type('cover', 'thumbnail')
                 box2d_elem = game.find(cover_field)  # Cover is stored in mapped field
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
