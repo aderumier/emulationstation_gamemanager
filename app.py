@@ -4412,7 +4412,7 @@ def manage_igdb_mappings():
             try:
                 with open('var/db/igdb/mediatype.txt', 'r') as f:
                     igdb_media_types = [line.strip() for line in f.readlines() if line.strip()]
-            except FileNotFoundError:                                           
+            except FileNotFoundError:
                 # Fallback to default values if file doesn't exist
                 igdb_media_types = ['cover', 'screenshots', 'artworks', 'logos']
             
@@ -9134,12 +9134,12 @@ async def scrape_igdb_manual(game, system_name, system_config):
             return None
         
         # Get IGDB game data by ID only
-        igdb_game = await fetch_igdb_game_by_id_async(
-            existing_igdb_id,
-            access_token,
-            igdb_config['client_id'],
-            async_client
-        )
+            igdb_game = await fetch_igdb_game_by_id_async(
+                existing_igdb_id,
+                access_token, 
+                igdb_config['client_id'],
+                async_client
+            )
         
         if not igdb_game:
             return None
@@ -9480,7 +9480,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     for nom in genre['noms']:
                         if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
                             genre_names.append(nom['text'])
-                            break
+                                break
             if genre_names:
                 text_fields['genre'] = '/'.join(genre_names)
         
@@ -9601,7 +9601,7 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Description', 'Overview']:
                 # Handle both Description and Overview fields for description
                 if 'desc' not in text_fields or not text_fields['desc']:
-                    text_fields['desc'] = text
+                text_fields['desc'] = text
                     print(f"DEBUG: Set desc field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'Developer':
                 text_fields['developer'] = text
@@ -9610,10 +9610,10 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
-                    text_fields['genre'] = text
+                text_fields['genre'] = text
                     print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
-                if text:
+                        if text:
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
@@ -10217,8 +10217,8 @@ def youtube_search():
         # Get YouTube API key from credentials
         youtube_api_key = get_youtube_api_key()
         if not youtube_api_key:
-            print("YouTube API key not configured, falling back to yt-dlp search")
-            return search_youtube_with_ytdlp(search_query)
+            print("YouTube API key not configured, falling back to web scraping")
+            return search_youtube_with_web_scraping(search_query)
         
         # Search using YouTube Data API v3
         try:
@@ -10281,15 +10281,15 @@ def youtube_search():
                 videos = get_youtube_video_details(videos, youtube_api_key)
             
             print(f"Successfully retrieved {len(videos)} videos from YouTube API")
-            return jsonify({
-                'success': True,
+                return jsonify({
+                    'success': True,
                 'results': videos,
-                'query': search_query
-            })
-                
+                    'query': search_query
+                })
+            
         except requests.RequestException as e:
             print(f"YouTube API request error: {e}")
-            return jsonify({
+                return jsonify({
                 'success': False,
                 'error': f'YouTube API request failed: {str(e)}',
                 'query': search_query
@@ -10301,8 +10301,8 @@ def youtube_search():
             return jsonify({
                 'success': False,
                 'error': f'YouTube API error: {str(e)}',
-                'query': search_query
-            })
+                    'query': search_query
+                })
             
     except Exception as e:
         print(f"YouTube search error: {e}")
@@ -10485,191 +10485,224 @@ def parse_youtube_duration(duration_str):
         print(f"Error parsing YouTube duration: {e}")
         return "Unknown"
 
-def search_youtube_with_ytdlp(search_query):
-    """Search YouTube using yt-dlp as fallback when API key is not available"""
+def search_youtube_with_web_scraping(search_query):
+    """Search YouTube using web scraping as fallback when API key is not available"""
     try:
-        import subprocess
-        import json
+        print(f"Searching YouTube with web scraping: {search_query}")
         
-        # Get yt-dlp path
-        yt_dlp_path = get_yt_dlp_path()
+        # Search directly on YouTube
+        search_url = f"https://www.youtube.com/results?search_query={search_query}+gameplay"
         
-        # Add "gameplay" to search query for better results
-        search_term = f"{search_query} gameplay"
+        # Use a realistic user agent to avoid being blocked
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        }
         
-        print(f"Searching YouTube with yt-dlp: {search_term}")
-        
-        # Use yt-dlp to search for videos and get metadata
-        # ytsearch10: searches for 10 videos, --dump-json gets full metadata
-        cmd = [
-            yt_dlp_path,
-            f"ytsearch10:{search_term}",
-            "--dump-json",
-            "--no-download",
-            "--no-warnings"
-        ]
-        
-        print(f"Running yt-dlp command: {' '.join(cmd)}")
-        
-        # Run yt-dlp command
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        
-        if result.returncode != 0:
-            print(f"yt-dlp search failed: {result.stderr}")
-            return jsonify({
-                'success': False,
-                'error': f'yt-dlp search failed: {result.stderr}',
-                'query': search_query
-            })
-        
-        # Parse the JSON output from yt-dlp
-        videos = []
-        for line in result.stdout.strip().split('\n'):
-            if line.strip():
+        try:
+            # Check if YouTube cookies are available
+            cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
+            cookies_present = os.path.isfile(cookie_path) and os.path.getsize(cookie_path) > 0
+            
+            if cookies_present:
+                print(f"Using YouTube cookies from: {cookie_path}")
+                # Parse cookies from the file
+                cookies = {}
                 try:
-                    video_data = json.loads(line)
+                    with open(cookie_path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '\t' in line:
+                                parts = line.split('\t')
+                                if len(parts) >= 7:
+                                    domain = parts[0]
+                                    if 'youtube.com' in domain:
+                                        name = parts[5]
+                                        value = parts[6]
+                                        cookies[name] = value
+                    print(f"Loaded {len(cookies)} YouTube cookies")
+                except Exception as e:
+                    print(f"Error loading cookies: {e}")
+                    cookies = {}
+            else:
+                print("No YouTube cookies found, proceeding without authentication")
+                cookies = {}
+            
+            print(f"Making request to: {search_url}")
+            response = requests.get(search_url, headers=headers, cookies=cookies, timeout=15)
+            response.raise_for_status()
+            
+            print(f"Response status: {response.status_code}")
+            print(f"Response length: {len(response.text)} characters")
+            print(f"Response headers: {dict(response.headers)}")
+            print(f"Request made with {len(cookies)} cookies: {list(cookies.keys()) if cookies else 'None'}")
+            
+            # Check if we got a valid HTML response
+            if 'youtube' not in response.text.lower():
+                print("WARNING: Response doesn't appear to be from YouTube")
+                print(f"Response status code: {response.status_code}")
+                print(f"Response content preview (first 500 chars): {response.text[:500]}")
+                print(f"Response headers: {dict(response.headers)}")
+                
+                # Log the full HTML response for debugging
+                print("=" * 80)
+                print("FULL HTML RESPONSE FROM YOUTUBE:")
+                print("=" * 80)
+                print(response.text)
+                print("=" * 80)
+                print("END OF HTML RESPONSE")
+                print("=" * 80)
+                
+                # Save the full response to a debug file
+                try:
+                    debug_dir = os.path.join('var', 'debug')
+                    os.makedirs(debug_dir, exist_ok=True)
                     
-                    # Extract video information
-                    video_id = video_data.get('id', '')
-                    title = video_data.get('title', 'Unknown Title')
-                    duration = video_data.get('duration', 0)
-                    view_count = video_data.get('view_count', 0)
-                    uploader = video_data.get('uploader', 'Unknown Channel')
-                    upload_date = video_data.get('upload_date', '')
-                    thumbnail = video_data.get('thumbnail', '')
+                    # Create filename with timestamp and query
+                    import time
+                    timestamp = int(time.time())
+                    safe_query = "".join(c for c in search_query if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                    safe_query = safe_query.replace(' ', '_')[:50]  # Limit length
+                    debug_filename = f"youtube_search_debug_{timestamp}_{safe_query}.html"
+                    debug_filepath = os.path.join(debug_dir, debug_filename)
                     
-                    # Format duration
-                    formatted_duration = format_duration_from_seconds(duration)
+                    # Write the full response to file
+                    with open(debug_filepath, 'w', encoding='utf-8') as f:
+                        f.write(f"<!-- YouTube Search Debug File -->\n")
+                        f.write(f"<!-- Query: {search_query} -->\n")
+                        f.write(f"<!-- Status Code: {response.status_code} -->\n")
+                        f.write(f"<!-- Timestamp: {timestamp} -->\n")
+                        f.write(f"<!-- Headers: {dict(response.headers)} -->\n")
+                        f.write(f"<!-- Cookies Used: {len(cookies)} cookies -->\n")
+                        f.write(f"<!-- URL: {search_url} -->\n")
+                        f.write(f"<!-- Response Length: {len(response.text)} characters -->\n")
+                        f.write(f"<!-- ========================================== -->\n\n")
+                        f.write(response.text)
                     
-                    # Format view count
-                    formatted_view_count = format_view_count(view_count)
-                    
-                    # Format published time
-                    formatted_published_time = format_upload_date(upload_date)
-                    
-                    # Build video object
-                    video = {
-                        'id': video_id,
-                        'title': title,
-                        'thumbnail': thumbnail,
-                        'duration': formatted_duration,
-                        'channel': uploader,
-                        'view_count': formatted_view_count,
-                        'published_time': formatted_published_time,
-                        'url': f"https://www.youtube.com/watch?v={video_id}"
-                    }
-                    
-                    videos.append(video)
-                    
-                except json.JSONDecodeError as e:
-                    print(f"Error parsing yt-dlp JSON output: {e}")
-                    continue
-        
-        if not videos:
+                    print(f"Debug file saved to: {debug_filepath}")
+                except Exception as e:
+                    print(f"Error saving debug file: {e}")
+                
+                # Check for common error patterns
+                error_info = f"Status: {response.status_code}"
+                if response.status_code == 403:
+                    error_info += " (Forbidden - possibly blocked or rate limited)"
+                elif response.status_code == 429:
+                    error_info += " (Too Many Requests - rate limited)"
+                elif response.status_code == 404:
+                    error_info += " (Not Found)"
+                elif response.status_code >= 500:
+                    error_info += " (Server Error)"
+                elif response.status_code == 200:
+                    error_info += " (OK but not YouTube content - possibly redirected or blocked)"
+                
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid response from YouTube: {error_info}',
+                    'query': search_query,
+                    'status_code': response.status_code,
+                    'response_preview': response.text[:200] if len(response.text) > 0 else 'Empty response'
+                })
+            
+            # Parse the HTML response
+            soup = BeautifulSoup(response.text, 'html.parser')
+            print(f"BeautifulSoup created successfully")
+            
+            # Method 1: Try to extract from ytInitialData (most reliable)
+            print("Attempting to extract video data from ytInitialData...")
+            videos = extract_from_yt_initial_data(response.text)
+            
+            if videos:
+                print(f"Successfully extracted {len(videos)} videos from ytInitialData")
+                # Sort videos by recency and limit to 10 results
+                sorted_videos = sort_videos_by_recency(videos[:10])
+                return jsonify({
+                    'success': True,
+                    'results': sorted_videos,
+                    'query': search_query
+                })
+            
+            # Method 2: Try to extract from ytInitialData alternative format
+            print("Attempting to extract from alternative ytInitialData format...")
+            videos = extract_from_yt_initial_data_alt(response.text)
+            
+            if videos:
+                print(f"Successfully extracted {len(videos)} videos from alternative format")
+                # Sort videos by recency and limit to 10 results
+                sorted_videos = sort_videos_by_recency(videos[:10])
+                return jsonify({
+                    'success': True,
+                    'results': sorted_videos,
+                    'query': search_query
+                })
+            
+            # Method 3: Try to extract from embedded JSON data
+            print("Attempting to extract from embedded JSON data...")
+            videos = extract_from_embedded_json(response.text)
+            
+            if videos:
+                print(f"Successfully extracted {len(videos)} videos from embedded JSON")
+                # Sort videos by recency and limit to 10 results
+                sorted_videos = sort_videos_by_recency(videos[:10])
+                return jsonify({
+                    'success': True,
+                    'results': sorted_videos,
+                    'query': search_query
+                })
+            
+            # Method 4: Fallback to HTML parsing with better selectors
+            print("Falling back to HTML parsing with enhanced selectors...")
+            videos = extract_from_html_enhanced(soup)
+            
+            if videos:
+                print(f"Successfully extracted {len(videos)} videos from HTML parsing")
+                # Sort videos by recency and limit to 10 results
+                sorted_videos = sort_videos_by_recency(videos[:10])
+                return jsonify({
+                    'success': True,
+                    'results': sorted_videos,
+                    'query': search_query
+                })
+            
+            # If all methods fail, return error instead of mock data
+            print("All extraction methods failed, returning error")
             return jsonify({
                 'success': False,
-                'error': 'No videos found using yt-dlp search',
+                'error': 'Unable to extract video data from YouTube. This may be due to network restrictions or YouTube blocking requests.',
                 'query': search_query
             })
-        
-        print(f"Successfully found {len(videos)} videos using yt-dlp")
-        return jsonify({
-            'success': True,
-            'results': videos,
-            'query': search_query
-        })
-        
-    except subprocess.TimeoutExpired:
-        print("yt-dlp search timed out")
-        return jsonify({
-            'success': False,
-            'error': 'yt-dlp search timed out',
-            'query': search_query
-        })
-    except FileNotFoundError:
-        print("yt-dlp not found")
-        return jsonify({
-            'success': False,
-            'error': 'yt-dlp is not installed or not available',
-            'query': search_query
-        })
+                
+        except requests.RequestException as e:
+            print(f"Request error: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Network error: {str(e)}',
+                'query': search_query
+            })
+        except Exception as e:
+            print(f"Unexpected error during scraping: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Scraping error: {str(e)}',
+                'query': search_query
+            })
+            
     except Exception as e:
-        print(f"Error during yt-dlp search: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'yt-dlp search error: {str(e)}',
-            'query': search_query
-        })
+        print(f"YouTube search error: {e}")
+        return jsonify({'error': str(e)}), 500
 
-def format_duration_from_seconds(seconds):
-    """Format duration from seconds to MM:SS or HH:MM:SS"""
-    try:
-        if not seconds or seconds <= 0:
-            return "Unknown"
-        
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        seconds = seconds % 60
-        
-        if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        else:
-            return f"{minutes:02d}:{seconds:02d}"
-    except Exception:
-        return "Unknown"
-
-def format_view_count(view_count):
-    """Format view count to human readable format"""
-    try:
-        if not view_count or view_count <= 0:
-            return "Unknown"
-        
-        if view_count >= 1000000:
-            return f"{view_count/1000000:.1f}M views"
-        elif view_count >= 1000:
-            return f"{view_count/1000:.1f}K views"
-        else:
-            return f"{view_count:,} views"
-    except Exception:
-        return "Unknown"
-
-def format_upload_date(upload_date):
-    """Format upload date to human readable format"""
-    try:
-        if not upload_date or len(upload_date) != 8:
-            return "Unknown"
-        
-        from datetime import datetime, timezone
-        
-        # Parse YYYYMMDD format
-        year = int(upload_date[:4])
-        month = int(upload_date[4:6])
-        day = int(upload_date[6:8])
-        
-        upload_dt = datetime(year, month, day, tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
-        
-        # Calculate time difference
-        diff = now - upload_dt
-        
-        if diff.days > 0:
-            if diff.days == 1:
-                return "1 day ago"
-            elif diff.days < 7:
-                return f"{diff.days} days ago"
-            elif diff.days < 30:
-                weeks = diff.days // 7
-                return f"{weeks} week{'s' if weeks > 1 else ''} ago"
-            elif diff.days < 365:
-                months = diff.days // 30
-                return f"{months} month{'s' if months > 1 else ''} ago"
-            else:
-                years = diff.days // 365
-                return f"{years} year{'s' if years > 1 else ''} ago"
-        else:
-            return "Today"
-    except Exception:
-        return "Unknown"
 
 def extract_from_yt_initial_data(html_text):
     """Extract video data from ytInitialData (most reliable method)"""
@@ -18361,25 +18394,25 @@ if __name__ == '__main__':
     def run_with_signal_handling():
         """Run the server with proper signal handling"""
         try:
-            if config['server']['debug']:
-                # Development mode - use Werkzeug with allow_unsafe_werkzeug
-                socketio.run(
-                    app,
-                    debug=True,
-                    host=config['server']['host'],
-                    port=config['server']['port'],
-                    allow_unsafe_werkzeug=True
-                )
-            else:
-                # Production mode - use Flask development server
-                print("Starting production server...")
-                socketio.run(
-                    app,
-                    debug=False,
-                    host=config['server']['host'],
-                    port=config['server']['port'],
-                    allow_unsafe_werkzeug=True
-                )
+    if config['server']['debug']:
+        # Development mode - use Werkzeug with allow_unsafe_werkzeug
+        socketio.run(
+            app,
+            debug=True,
+            host=config['server']['host'],
+            port=config['server']['port'],
+            allow_unsafe_werkzeug=True
+        )
+    else:
+        # Production mode - use Flask development server
+        print("Starting production server...")
+        socketio.run(
+            app,
+            debug=False,
+            host=config['server']['host'],
+            port=config['server']['port'],
+            allow_unsafe_werkzeug=True
+        )
         except KeyboardInterrupt:
             print("\n🔄 Keyboard interrupt received, shutting down...")
             cleanup_on_exit()
