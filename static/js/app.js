@@ -453,9 +453,9 @@ class GameCollectionManager {
         const currentRowCount = this.taskGridApi.getDisplayedRowCount();
         const newRowCount = gridData.length;
         
-        // If row count changed significantly or it's the first load, use setRowData
+        // If row count changed significantly or it's the first load, use setGridOption
         if (currentRowCount === 0 || Math.abs(currentRowCount - newRowCount) > 2) {
-            this.taskGridApi.setRowData(gridData);
+            this.taskGridApi.setGridOption('rowData', gridData);
             // Update our stored data
             this.currentTaskData.clear();
             gridData.forEach(row => {
@@ -468,7 +468,7 @@ class GameCollectionManager {
     }
 
     updateTaskGridData(newGridData) {
-        // Efficiently update task grid using refreshCells instead of setRowData
+        // Efficiently update task grid using refreshCells instead of setGridOption
         const newDataMap = new Map();
         newGridData.forEach(row => {
             newDataMap.set(row.id, row);
@@ -498,8 +498,8 @@ class GameCollectionManager {
 
         // Handle row additions and removals
         if (rowsToAdd.length > 0 || rowsToRemove.length > 0) {
-            // If we have structural changes, fall back to setRowData
-            this.taskGridApi.setRowData(newGridData);
+            // If we have structural changes, fall back to setGridOption
+            this.taskGridApi.setGridOption('rowData', newGridData);
             this.currentTaskData = newDataMap;
             return;
         }
@@ -538,7 +538,7 @@ class GameCollectionManager {
     }
 
     async updateGameGridData(newGames) {
-        // Efficiently update game grid using refreshCells instead of setRowData
+        // Efficiently update game grid using refreshCells instead of setGridOption
         if (!this.gridApi || newGames === null || newGames === undefined) return;
 
         // Debug: Check for hidden games in the input
@@ -573,9 +573,9 @@ class GameCollectionManager {
         const currentRowCount = this.gridApi.getDisplayedRowCount();
         const newRowCount = dedupedGames.length;
         
-        // If row count changed significantly, it's the first load, or we're clearing the grid, use setRowData
+        // If row count changed significantly, it's the first load, or we're clearing the grid, use setGridOption
         if (currentRowCount === 0 || Math.abs(currentRowCount - newRowCount) > 5 || newRowCount === 0) {
-            this.gridApi.setRowData(dedupedGames);
+            this.gridApi.setGridOption('rowData', dedupedGames);
         // Update our stored data
         this.currentGameData.clear();
         dedupedGames.forEach(game => {
@@ -618,8 +618,8 @@ class GameCollectionManager {
         
         // Handle game additions and removals
         if (gamesToAdd.length > 0 || gamesToRemove.length > 0) {
-            // If we have structural changes, fall back to setRowData
-            this.gridApi.setRowData(dedupedGames);
+            // If we have structural changes, fall back to setGridOption
+            this.gridApi.setGridOption('rowData', dedupedGames);
             this.currentGameData = newDataMap;
             
             // Update the games counter to reflect displayed rows
@@ -1876,7 +1876,7 @@ class GameCollectionManager {
                     }
                     this.games = Array.from(uniqueByPath.values());
                     
-                    // Use AG Grid's setRowData to efficiently update the grid
+                    // Use AG Grid's setGridOption to efficiently update the grid
                     // This will preserve selection and scroll position
                     await this.refreshGridData();
                     // Keep our current game map in sync to ensure diff updates work later
@@ -1905,7 +1905,7 @@ class GameCollectionManager {
                     // Update the local games array
                     this.games = result.games;
                     
-                    // Use AG Grid's setRowData to efficiently update the grid
+                    // Use AG Grid's setGridOption to efficiently update the grid
                     // This will preserve selection and scroll position
                     await this.refreshGridData();
                     
@@ -2184,7 +2184,7 @@ class GameCollectionManager {
                 
                 // Set the row data directly for client-side row model
                 if (this.gridApi) {
-                    // Use efficient update method instead of setRowData
+                    // Use efficient update method instead of setGridOption
                     await this.updateGameGridData(this.games);
                     // Load saved column state
                     this.loadColumnState();
@@ -2463,7 +2463,6 @@ class GameCollectionManager {
                 }
             },
             // Filter configuration
-            suppressFilterResetOnNewData: false,
             suppressMenuHide: true,
             // Ensure grid stays visible during filtering
             suppressRowHoverHighlight: false,
@@ -11947,7 +11946,7 @@ class GameCollectionManager {
             duplicatesBtn.innerHTML = '<i class="bi bi-dup"></i> Show Duplicates';
             
             // Restore original games data
-            this.gridApi.setRowData(this.games);
+            this.gridApi.setGridOption('rowData', this.games);
             this.showToast('Duplicates filter disabled - showing all games', 'info');
         } else {
             // Turn on duplicates filter
