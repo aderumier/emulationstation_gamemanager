@@ -93,6 +93,15 @@ RUN (cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/sc
     chmod 644 /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default && \
     chown appuser:appuser /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default
 
+# Copy mediatype files to default location outside var (for volume mount scenarios)
+RUN (cp /opt/gamemanager/var/db/igdb/mediatype.txt /opt/gamemanager/igdb_mediatype.txt.default 2>/dev/null || echo 'cover\nscreenshots\nartworks\nlogos' > /opt/gamemanager/igdb_mediatype.txt.default) && \
+    (cp /opt/gamemanager/var/db/launchbox/mediatype.json /opt/gamemanager/launchbox_mediatype.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/launchbox_mediatype.json.default) && \
+    (cp /opt/gamemanager/var/db/screenscraper/mediastype.txt /opt/gamemanager/screenscraper_mediastype.txt.default 2>/dev/null || echo 'wheel\nscreenmarquee\nbox-2d\nbox-3d\ncartridge\nflyer\nfanart\nscreenshot\ntitlescreen\nvideo' > /opt/gamemanager/screenscraper_mediastype.txt.default) && \
+    (cp /opt/gamemanager/var/db/steam/mediastype.txt /opt/gamemanager/steam_mediastype.txt.default 2>/dev/null || echo 'capsule\nlogo\nhero\nscreenshot' > /opt/gamemanager/steam_mediastype.txt.default) && \
+    (cp /opt/gamemanager/var/db/steamgrid/mediastype.txt /opt/gamemanager/steamgrid_mediastype.txt.default 2>/dev/null || echo 'grids\nlogos\nheroes' > /opt/gamemanager/steamgrid_mediastype.txt.default) && \
+    chmod 644 /opt/gamemanager/igdb_mediatype.txt.default /opt/gamemanager/launchbox_mediatype.json.default /opt/gamemanager/screenscraper_mediastype.txt.default /opt/gamemanager/steam_mediastype.txt.default /opt/gamemanager/steamgrid_mediastype.txt.default && \
+    chown appuser:appuser /opt/gamemanager/igdb_mediatype.txt.default /opt/gamemanager/launchbox_mediatype.json.default /opt/gamemanager/screenscraper_mediastype.txt.default /opt/gamemanager/steam_mediastype.txt.default /opt/gamemanager/steamgrid_mediastype.txt.default
+
 # Ensure config files exist and are readable in var
 RUN ls -la /opt/gamemanager/var/config/ && \
     chmod 644 /opt/gamemanager/var/config/* && \
@@ -139,10 +148,21 @@ cp /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/var/db
 cp /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/var/db/igdb/platforms.json
 cp /opt/gamemanager/credentials.enc.default /opt/gamemanager/var/config/credentials.enc
 
+# Copy mediatype files to var/db (always copy to ensure they're in the volume)
+echo "Copying mediatype files to var/db..."
+cp /opt/gamemanager/igdb_mediatype.txt.default /opt/gamemanager/var/db/igdb/mediatype.txt
+cp /opt/gamemanager/launchbox_mediatype.json.default /opt/gamemanager/var/db/launchbox/mediatype.json
+cp /opt/gamemanager/screenscraper_mediastype.txt.default /opt/gamemanager/var/db/screenscraper/mediastype.txt
+cp /opt/gamemanager/steam_mediastype.txt.default /opt/gamemanager/var/db/steam/mediastype.txt
+cp /opt/gamemanager/steamgrid_mediastype.txt.default /opt/gamemanager/var/db/steamgrid/mediastype.txt
+
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/screenscraper/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/igdb/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/launchbox/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/steam/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/steamgrid/* 2>/dev/null || true
 
 echo "✅ All directories and configuration files ready"
 echo "Starting GameManager..."
