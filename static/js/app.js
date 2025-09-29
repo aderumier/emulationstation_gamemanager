@@ -2440,6 +2440,7 @@ class GameCollectionManager {
             // Apply custom row styling based on game properties using getRowClass
             getRowClass: (params) => {
                 if (params.data && params.data.hidden === 'true') {
+                    console.log(`Applying hidden-game-row class to: ${params.data.name}`);
                     return 'hidden-game-row';
                 }
                 return null;
@@ -2932,6 +2933,7 @@ class GameCollectionManager {
                 // Update the local data
                 this.games.forEach(game => {
                     if (romPaths.includes(game.path)) {
+                        console.log(`Updating game ${game.name}: hidden = ${hiddenValue ? 'true' : 'false'}`);
                         game.hidden = hiddenValue ? 'true' : 'false';
                     }
                 });
