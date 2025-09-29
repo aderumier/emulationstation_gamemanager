@@ -2395,6 +2395,16 @@ class GameCollectionManager {
                     flex: 1
                 },
                 { 
+                    field: 'video', 
+                    headerName: 'Video', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    flex: 1, 
+                    cellRenderer: this.mediaCellRenderer
+                },
+                { 
                     field: 'youtubeurl', 
                     headerName: 'YouTube URL', 
                     editable: true, 
@@ -3242,7 +3252,7 @@ class GameCollectionManager {
     }
     
     async generateDynamicMediaColumns() {
-        // Get media fields dynamically from config.json (excluding video as requested)
+        // Get media fields dynamically from config.json (excluding video since it's handled as a static column)
         let mediaFields;
         try {
             mediaFields = await this.getMediaFieldsFromConfig();
