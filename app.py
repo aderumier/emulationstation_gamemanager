@@ -8525,6 +8525,257 @@ def manual_scrap_game(system_name):
         app.logger.error(f'Error in manual scrap: {str(e)}')
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/explore-directory', methods=['GET'])
+@login_required
+def explore_directory(system_name):
+    """Explore directory contents within the system's ROM directory"""
+    try:
+        path = request.args.get('path', '/')
+        
+        # Ensure path is within the system's ROM directory
+        system_rom_dir = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_rom_dir):
+            return jsonify({'error': f'System ROM directory not found: {system_rom_dir}'}), 404
+        
+        # Resolve the full path
+        if path == '/':
+            full_path = system_rom_dir
+        else:
+            # Remove leading slash and join with system directory
+            clean_path = path.lstrip('/')
+            full_path = os.path.join(system_rom_dir, clean_path)
+        
+        # Security check: ensure path is within system directory
+        if not os.path.abspath(full_path).startswith(os.path.abspath(system_rom_dir)):
+            return jsonify({'error': 'Access denied: path outside system directory'}), 403
+        
+        if not os.path.exists(full_path):
+            return jsonify({'error': 'Directory not found'}), 404
+        
+        if not os.path.isdir(full_path):
+            return jsonify({'error': 'Path is not a directory'}), 400
+        
+        # Read directory contents
+        directories = []
+        files = []
+        
+        try:
+            for item in os.listdir(full_path):
+                item_path = os.path.join(full_path, item)
+                relative_path = os.path.relpath(item_path, system_rom_dir)
+                # Convert to forward slashes for consistency
+                relative_path = relative_path.replace('\\', '/')
+                if not relative_path.startswith('/'):
+                    relative_path = '/' + relative_path
+                
+                if os.path.isdir(item_path):
+                    directories.append({
+                        'name': item,
+                        'path': relative_path
+                    })
+                else:
+                    files.append({
+                        'name': item,
+                        'path': relative_path,
+                        'size': os.path.getsize(item_path)
+                    })
+        except PermissionError:
+            return jsonify({'error': 'Permission denied'}), 403
+        
+        # Sort directories and files
+        directories.sort(key=lambda x: x['name'].lower())
+        files.sort(key=lambda x: x['name'].lower())
+        
+        return jsonify({
+            'success': True,
+            'contents': {
+                'directories': directories,
+                'files': files
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error in explore_directory: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/create-directory', methods=['POST'])
+@login_required
+def create_directory(system_name):
+    """Create a new directory within the system's ROM directory"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        path = data.get('path', '/')
+        name = data.get('name', '')
+        
+        if not name or not name.strip():
+            return jsonify({'error': 'Directory name is required'}), 400
+        
+        # Sanitize directory name
+        name = name.strip()
+        if '/' in name or '\\' in name or name in ['.', '..']:
+            return jsonify({'error': 'Invalid directory name'}), 400
+        
+        # Ensure path is within the system's ROM directory
+        system_rom_dir = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_rom_dir):
+            return jsonify({'error': f'System ROM directory not found: {system_rom_dir}'}), 404
+        
+        # Resolve the full path
+        if path == '/':
+            full_path = system_rom_dir
+        else:
+            # Remove leading slash and join with system directory
+            clean_path = path.lstrip('/')
+            full_path = os.path.join(system_rom_dir, clean_path)
+        
+        # Security check: ensure path is within system directory
+        if not os.path.abspath(full_path).startswith(os.path.abspath(system_rom_dir)):
+            return jsonify({'error': 'Access denied: path outside system directory'}), 403
+        
+        if not os.path.exists(full_path):
+            return jsonify({'error': 'Parent directory not found'}), 404
+        
+        if not os.path.isdir(full_path):
+            return jsonify({'error': 'Parent path is not a directory'}), 400
+        
+        # Create the new directory
+        new_dir_path = os.path.join(full_path, name)
+        
+        if os.path.exists(new_dir_path):
+            return jsonify({'error': 'Directory already exists'}), 400
+        
+        try:
+            os.makedirs(new_dir_path)
+            return jsonify({'success': True, 'message': f'Directory "{name}" created successfully'})
+        except PermissionError:
+            return jsonify({'error': 'Permission denied'}), 403
+        except Exception as e:
+            return jsonify({'error': f'Failed to create directory: {str(e)}'}), 500
+        
+    except Exception as e:
+        print(f"Error in create_directory: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/move-rom', methods=['POST'])
+@login_required
+def move_rom(system_name):
+    """Move a ROM file/directory within the system's ROM directory"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_path = data.get('game_path', '')
+        destination_path = data.get('destination_path', '')
+        
+        if not game_path or not destination_path:
+            return jsonify({'error': 'Game path and destination path are required'}), 400
+        
+        # Ensure paths are within the system's ROM directory
+        system_rom_dir = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_rom_dir):
+            return jsonify({'error': f'System ROM directory not found: {system_rom_dir}'}), 404
+        
+        # Resolve full paths
+        if game_path.startswith('./'):
+            game_path = game_path[2:]  # Remove './' prefix
+        
+        full_game_path = os.path.join(system_rom_dir, game_path)
+        
+        if destination_path == '/':
+            full_destination_path = system_rom_dir
+        else:
+            clean_dest_path = destination_path.lstrip('/')
+            full_destination_path = os.path.join(system_rom_dir, clean_dest_path)
+        
+        # Security checks
+        if not os.path.abspath(full_game_path).startswith(os.path.abspath(system_rom_dir)):
+            return jsonify({'error': 'Access denied: game path outside system directory'}), 403
+        
+        if not os.path.abspath(full_destination_path).startswith(os.path.abspath(system_rom_dir)):
+            return jsonify({'error': 'Access denied: destination path outside system directory'}), 403
+        
+        if not os.path.exists(full_game_path):
+            return jsonify({'error': 'Game file/directory not found'}), 404
+        
+        if not os.path.exists(full_destination_path):
+            return jsonify({'error': 'Destination directory not found'}), 404
+        
+        if not os.path.isdir(full_destination_path):
+            return jsonify({'error': 'Destination is not a directory'}), 400
+        
+        # Get the filename/dirname for the destination
+        game_name = os.path.basename(full_game_path)
+        new_path = os.path.join(full_destination_path, game_name)
+        
+        if os.path.exists(new_path):
+            return jsonify({'error': 'A file/directory with that name already exists in the destination'}), 400
+        
+        try:
+            # Move the file/directory
+            shutil.move(full_game_path, new_path)
+            
+            # Update the gamelist
+            update_gamelist_after_move(system_name, game_path, new_path, system_rom_dir)
+            
+            return jsonify({
+                'success': True,
+                'message': f'ROM moved successfully to {destination_path}',
+                'new_path': os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+            })
+            
+        except PermissionError:
+            return jsonify({'error': 'Permission denied'}), 403
+        except Exception as e:
+            return jsonify({'error': f'Failed to move ROM: {str(e)}'}), 500
+        
+    except Exception as e:
+        print(f"Error in move_rom: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
+    """Update gamelist after moving a ROM file"""
+    try:
+        # Load gamelist from var/gamelists
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        
+        # Calculate relative paths
+        old_relative = os.path.relpath(old_path, system_rom_dir).replace('\\', '/')
+        new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+        
+        if not old_relative.startswith('./'):
+            old_relative = './' + old_relative
+        if not new_relative.startswith('./'):
+            new_relative = './' + new_relative
+        
+        # Update game paths in gamelist
+        updated = False
+        for game in games:
+            if game.get('path') == old_relative:
+                game['path'] = new_relative
+                updated = True
+                print(f"Updated game path: {old_relative} -> {new_relative}")
+        
+        if updated:
+            # Save updated gamelist
+            write_gamelist_xml(games, gamelist_path)
+            
+            # Sync to roms directory
+            save_gamelist_to_roms(system_name)
+            
+            # Notify clients
+            notify_gamelist_updated(system_name, len(games))
+            
+    except Exception as e:
+        print(f"Error updating gamelist after move: {e}")
+
 @app.route('/api/rom-system/<system_name>/games/update-hidden', methods=['POST'])
 @login_required
 def update_games_hidden(system_name):

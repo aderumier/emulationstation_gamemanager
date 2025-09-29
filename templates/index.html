@@ -2926,6 +2926,33 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- Directory Explorer Modal -->
+    <div class="modal fade" id="directoryExplorerModal" tabindex="-1" aria-labelledby="directoryExplorerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="directoryExplorerModalLabel">
+                        <i class="bi bi-folder2-open"></i> Move ROM - Directory Explorer
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Moving:</strong> <span id="movingGameName">-</span><br>
+                        <strong>Restricted to:</strong> <code>roms/<span id="currentSystemName">-</span>/</code>
+                    </div>
+                    <div id="directoryContents">
+                        <!-- Directory contents will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     

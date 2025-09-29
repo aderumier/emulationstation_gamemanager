@@ -2832,6 +2832,9 @@ class GameCollectionManager {
                 <a class="dropdown-item" href="#" onclick="gameManager.scanGameMedia(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-search"></i> Scan Media
                 </a>
+                <a class="dropdown-item" href="#" onclick="gameManager.moveRom(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                    <i class="bi bi-folder2-open"></i> Move ROM
+                </a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
@@ -2990,6 +2993,224 @@ class GameCollectionManager {
             for (const game of selectedGames) {
                 await this.deleteGame(game);
             }
+        }
+    }
+
+    async moveRom(game) {
+        this.movingGame = game;
+        await this.showDirectoryExplorer();
+    }
+
+    async showDirectoryExplorer() {
+        // Update modal with game information
+        document.getElementById('movingGameName').textContent = this.movingGame.name;
+        document.getElementById('currentSystemName').textContent = this.currentSystem;
+        
+        // Create and show the directory explorer modal
+        const modal = new bootstrap.Modal(document.getElementById('directoryExplorerModal'));
+        modal.show();
+        
+        // Load the root directory of the current system
+        await this.loadDirectoryContents('/');
+    }
+
+    async loadDirectoryContents(path) {
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/explore-directory?path=${encodeURIComponent(path)}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                this.displayDirectoryContents(result.contents, path);
+            } else {
+                this.showAlert(result.error || 'Failed to load directory contents', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading directory contents:', error);
+            this.showAlert('Failed to load directory contents', 'error');
+        }
+    }
+
+    displayDirectoryContents(contents, currentPath) {
+        const container = document.getElementById('directoryContents');
+        container.innerHTML = '';
+        
+        // Add breadcrumb navigation
+        const breadcrumb = document.createElement('nav');
+        breadcrumb.setAttribute('aria-label', 'breadcrumb');
+        breadcrumb.innerHTML = this.createBreadcrumb(currentPath);
+        container.appendChild(breadcrumb);
+        
+        // Add current path display
+        const pathDisplay = document.createElement('div');
+        pathDisplay.className = 'alert alert-info';
+        pathDisplay.innerHTML = `<strong>Current Path:</strong> ${currentPath}`;
+        container.appendChild(pathDisplay);
+        
+        // Add create directory button
+        const createDirBtn = document.createElement('button');
+        createDirBtn.className = 'btn btn-outline-primary mb-3';
+        createDirBtn.innerHTML = '<i class="bi bi-folder-plus"></i> Create New Directory';
+        createDirBtn.onclick = () => this.showCreateDirectoryDialog(currentPath);
+        container.appendChild(createDirBtn);
+        
+        // Add directory contents
+        const table = document.createElement('table');
+        table.className = 'table table-hover';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="directoryTableBody">
+            </tbody>
+        `;
+        container.appendChild(table);
+        
+        const tbody = document.getElementById('directoryTableBody');
+        
+        // Add parent directory entry if not at root
+        if (currentPath !== '/') {
+            const parentRow = document.createElement('tr');
+            parentRow.innerHTML = `
+                <td><i class="bi bi-arrow-up"></i> ..</td>
+                <td>Directory</td>
+                <td>-</td>
+                <td><button class="btn btn-sm btn-outline-primary" onclick="gameManager.loadDirectoryContents('${this.getParentPath(currentPath)}')">Open</button></td>
+            `;
+            tbody.appendChild(parentRow);
+        }
+        
+        // Add directories
+        contents.directories.forEach(dir => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><i class="bi bi-folder"></i> ${dir.name}</td>
+                <td>Directory</td>
+                <td>-</td>
+                <td><button class="btn btn-sm btn-outline-primary" onclick="gameManager.loadDirectoryContents('${dir.path}')">Open</button></td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        // Add files
+        contents.files.forEach(file => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><i class="bi bi-file"></i> ${file.name}</td>
+                <td>File</td>
+                <td>${this.formatFileSize(file.size)}</td>
+                <td><button class="btn btn-sm btn-outline-secondary" onclick="gameManager.selectMoveDestination('${file.path}')">Select</button></td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    createBreadcrumb(currentPath) {
+        const parts = currentPath.split('/').filter(part => part);
+        let breadcrumb = '<ol class="breadcrumb">';
+        breadcrumb += '<li class="breadcrumb-item"><a href="#" onclick="gameManager.loadDirectoryContents(\'/\')">Root</a></li>';
+        
+        let path = '';
+        parts.forEach(part => {
+            path += '/' + part;
+            breadcrumb += `<li class="breadcrumb-item"><a href="#" onclick="gameManager.loadDirectoryContents('${path}')">${part}</a></li>`;
+        });
+        
+        breadcrumb += '</ol>';
+        return breadcrumb;
+    }
+
+    getParentPath(currentPath) {
+        const parts = currentPath.split('/').filter(part => part);
+        if (parts.length <= 1) return '/';
+        return '/' + parts.slice(0, -1).join('/');
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    async showCreateDirectoryDialog(currentPath) {
+        const name = prompt('Enter directory name:');
+        if (name && name.trim()) {
+            await this.createDirectory(currentPath, name.trim());
+        }
+    }
+
+    async createDirectory(currentPath, name) {
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/create-directory`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    path: currentPath,
+                    name: name
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('Directory created successfully', 'success');
+                await this.loadDirectoryContents(currentPath);
+            } else {
+                this.showAlert(result.error || 'Failed to create directory', 'error');
+            }
+        } catch (error) {
+            console.error('Error creating directory:', error);
+            this.showAlert('Failed to create directory', 'error');
+        }
+    }
+
+    async selectMoveDestination(destinationPath) {
+        if (!this.movingGame) return;
+        
+        const confirmMessage = `Move "${this.movingGame.name}" to "${destinationPath}"?`;
+        if (confirm(confirmMessage)) {
+            await this.performMove(this.movingGame, destinationPath);
+        }
+    }
+
+    async performMove(game, destinationPath) {
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/move-rom`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    game_path: game.path,
+                    destination_path: destinationPath
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('ROM moved successfully', 'success');
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('directoryExplorerModal'));
+                modal.hide();
+                
+                // Refresh the grid
+                await this.loadRomSystem(this.currentSystem);
+            } else {
+                this.showAlert(result.error || 'Failed to move ROM', 'error');
+            }
+        } catch (error) {
+            console.error('Error moving ROM:', error);
+            this.showAlert('Failed to move ROM', 'error');
         }
     }
 
