@@ -6237,70 +6237,40 @@ class GameCollectionManager {
 
     async confirmRomScan(action) {
         try {
-            if (action === 'cancel') {
-                // For cancel action, find the ROM scan task in waiting_confirmation status and use general stop endpoint
-                const tasksResponse = await fetch('/api/tasks');
-                if (tasksResponse.ok) {
-                    const tasks = await tasksResponse.json();
-                    const romScanTask = tasks.find(t => t.type === 'rom_scan' && t.status === 'waiting_confirmation');
-                    
-                    if (romScanTask) {
-                        const response = await fetch(`/api/tasks/${romScanTask.id}/stop`, {
-                            method: 'POST'
-                        });
+            // Use the ROM scan confirmation endpoint for both cancel and proceed actions
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms-confirm`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    if (result.action_taken === 'completed') {
+                        // Reload the system to get updated game list
+                        await this.loadRomSystem(this.currentSystem);
+                        this.showAlert(`ROM scan completed! Added ${result.new_games_added} new games, removed ${result.games_removed} games with missing ROMs.`, 'success');
                         
-                        if (response.ok) {
-                            this.showAlert('ROM scan cancelled.', 'info');
-                            this.restoreScanButtonState();
-                            return;
-                        } else {
-                            const errorData = await response.json();
-                            this.showAlert(errorData.error || 'Failed to cancel ROM scan', 'danger');
-                            this.restoreScanButtonState();
-                            return;
-                        }
-                    } else {
-                        this.showAlert('No ROM scan task found to cancel', 'warning');
-                        this.restoreScanButtonState();
-                        return;
-                    }
-                } else {
-                    this.showAlert('Failed to fetch tasks', 'danger');
-                    this.restoreScanButtonState();
-                    return;
-                }
-            } else {
-                // For proceed action, use the ROM scan confirmation endpoint
-                const response = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms-confirm`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ action })
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.success) {
-                        if (result.action_taken === 'completed') {
-                            // Reload the system to get updated game list
-                            await this.loadRomSystem(this.currentSystem);
-                            this.showAlert(`ROM scan completed! Added ${result.new_games_added} new games, removed ${result.games_removed} games with missing ROMs.`, 'success');
-                            
-                            // Continue with media scan after ROM confirmation
-                            await this.continueWithMediaScan();
-                        }
-                    } else {
-                        this.showAlert(result.error || 'Error confirming ROM scan', 'danger');
-                        // Restore button state on error
+                        // Continue with media scan after ROM confirmation
+                        await this.continueWithMediaScan();
+                    } else if (result.action_taken === 'cancelled') {
+                        this.showAlert('ROM scan cancelled.', 'info');
+                        // Restore button state when cancelled
                         this.restoreScanButtonState();
                     }
                 } else {
-                    const errorData = await response.json();
-                    this.showAlert(errorData.error || 'Error confirming ROM scan', 'danger');
+                    this.showAlert(result.error || 'Error confirming ROM scan', 'danger');
                     // Restore button state on error
                     this.restoreScanButtonState();
                 }
+            } else {
+                const errorData = await response.json();
+                this.showAlert(errorData.error || 'Error confirming ROM scan', 'danger');
+                // Restore button state on error
+                this.restoreScanButtonState();
             }
         } catch (error) {
             console.error('Error confirming ROM scan:', error);
