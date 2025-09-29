@@ -9411,14 +9411,34 @@ class GameCollectionManager {
     }
     
     openSystemsConfigurationModal() {
-        // Load systems data before opening modal
-        this.loadSystemsData();
+        // Show loading state in modal body
+        this.showSystemsModalLoadingState();
         
-        // Open the modal
+        // Open the modal immediately
         const modal = new bootstrap.Modal(document.getElementById('systemsConfigurationModal'));
         modal.show();
+        
+        // Load systems data asynchronously after modal is shown
+        this.loadSystemsData();
     }
     
+    showSystemsModalLoadingState() {
+        const modalBody = document.querySelector('#systemsConfigurationModal .modal-body');
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div class="d-flex align-items-center justify-content-center py-5">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h6 class="text-muted">Loading systems configuration...</h6>
+                        <p class="text-muted small mb-0">Please wait while we fetch the latest data</p>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
     async loadSystemsData() {
         try {
             const response = await fetch('/api/systems');
@@ -9429,14 +9449,151 @@ class GameCollectionManager {
             } else {
                 console.error('Failed to load systems:', data.error);
                 this.showAlert('Failed to load systems data', 'danger');
+                this.showSystemsModalErrorState();
             }
         } catch (error) {
             console.error('Error loading systems:', error);
             this.showAlert('Error loading systems data', 'danger');
+            this.showSystemsModalErrorState();
+        }
+    }
+
+    showSystemsModalErrorState() {
+        const modalBody = document.querySelector('#systemsConfigurationModal .modal-body');
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    <h6 class="alert-heading">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Error Loading Data
+                    </h6>
+                    <p class="mb-2">Failed to load systems configuration data. Please try again.</p>
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.loadSystemsData()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    restoreSystemsModalStructure() {
+        const modalBody = document.querySelector('#systemsConfigurationModal .modal-body');
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div>
+                    <h6>Configured Systems</h6>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-success btn-sm" id="addMissingSystemsBtn">
+                            <i class="bi bi-folder-plus me-1"></i>Add Missing Systems
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" id="addSystemBtn">
+                            <i class="bi bi-plus-circle me-1"></i>Add System
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSystemsBtn">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped table-hover compact-table" id="systemsTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 15%">System</th>
+                                <th style="width: 20%">Launchbox</th>
+                                <th style="width: 20%">Screenscraper</th>
+                                <th style="width: 20%">IGDB</th>
+                                <th style="width: 40%">Extensions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="systemsTableBody">
+                            <!-- Systems will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-muted small mt-2">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Tip:</strong> Click on any field in the table to edit it directly. Changes are saved automatically when you click away or press Enter.
+                </div>
+            `;
+        }
+    }
+
+    attachSystemsModalEventListeners() {
+        // Add missing systems button
+        const addMissingSystemsBtn = document.getElementById('addMissingSystemsBtn');
+        if (addMissingSystemsBtn) {
+            addMissingSystemsBtn.addEventListener('click', () => {
+                this.showAddMissingSystemsModal();
+            });
+        }
+        
+        // Add system button
+        const addSystemBtn = document.getElementById('addSystemBtn');
+        if (addSystemBtn) {
+            addSystemBtn.addEventListener('click', () => {
+                this.showAddSystemPrompt();
+            });
+        }
+        
+        // Refresh button
+        const refreshSystemsBtn = document.getElementById('refreshSystemsBtn');
+        if (refreshSystemsBtn) {
+            refreshSystemsBtn.addEventListener('click', () => {
+                this.loadSystemsData();
+            });
+        }
+        
+        // Event delegation for dynamically created elements
+        const systemsTable = document.getElementById('systemsTable');
+        if (systemsTable) {
+            // Handle platform, ScreenScraper, and IGDB select changes
+            systemsTable.addEventListener('change', (e) => {
+                if (e.target.classList.contains('platform-select')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'launchbox', value);
+                } else if (e.target.classList.contains('screenscraper-select')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'screenscraper', value);
+                } else if (e.target.classList.contains('igdb-select')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'igdb', value);
+                }
+            });
+            
+            // Handle extensions input blur and enter
+            systemsTable.addEventListener('blur', (e) => {
+                if (e.target.classList.contains('extensions-input')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'extensions', value);
+                }
+            }, true);
+            
+            systemsTable.addEventListener('keypress', (e) => {
+                if (e.target.classList.contains('extensions-input') && e.key === 'Enter') {
+                    e.target.blur();
+                }
+            });
+            
+            // Handle delete button clicks
+            systemsTable.addEventListener('click', (e) => {
+                if (e.target.closest('.delete-system-btn')) {
+                    const systemName = e.target.closest('.delete-system-btn').dataset.system;
+                    this.deleteSystem(systemName);
+                }
+            });
         }
     }
     
     async populateSystemsTable(systems) {
+        // First, restore the original modal structure
+        this.restoreSystemsModalStructure();
+        
+        // Reattach event listeners after restoring structure
+        this.attachSystemsModalEventListeners();
+        
         const tbody = document.getElementById('systemsTableBody');
         if (!tbody) return;
         
