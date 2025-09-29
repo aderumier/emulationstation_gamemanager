@@ -299,23 +299,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openSystemsModal">
                             <i class="bi bi-controller me-2"></i>Systems Configuration
                         </a></li>
-                        <li><a class="dropdown-item" href="#" id="openMediaFieldsModal">
-                            <i class="bi bi-image me-2"></i>Media Fields Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openLaunchboxConfigModal">
-                            <i class="bi bi-box me-2"></i>Launchbox Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openIgdbConfigModal">
-                            <i class="bi bi-globe me-2"></i>IGDB Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openScreenscraperConfigModal">
-                            <i class="bi bi-image me-2"></i>ScreenScraper Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openSteamgriddbConfigModal">
-                            <i class="bi bi-steam me-2"></i>SteamGridDB Configuration
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" id="openSteamConfigModal">
-                            <i class="bi bi-steam me-2"></i>Steam Configuration
+                        <li><a class="dropdown-item" href="#" id="openScraperConfigModal">
+                            <i class="bi bi-gear me-2"></i>Scraper Configuration
                         </a></li>
                         <li><a class="dropdown-item" href="#" id="open2DBoxGeneratorConfigModal">
                             <i class="bi bi-box-seam me-2"></i>2D Box Generator Configuration
@@ -2598,6 +2583,200 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshSteamMappingsBtn">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
                     </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Scraper Configuration Modal -->
+    <div class="modal fade" id="scraperConfigModal" tabindex="-1" aria-labelledby="scraperConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="scraperConfigModalLabel">
+                        <i class="bi bi-gear me-2"></i>Scraper Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs" id="scraperConfigTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="media-fields-tab" data-bs-toggle="tab" data-bs-target="#media-fields" type="button" role="tab" aria-controls="media-fields" aria-selected="true">
+                                <i class="bi bi-image me-2"></i>Media Fields
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="launchbox-tab" data-bs-toggle="tab" data-bs-target="#launchbox" type="button" role="tab" aria-controls="launchbox" aria-selected="false">
+                                <i class="bi bi-box me-2"></i>LaunchBox
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="igdb-tab" data-bs-toggle="tab" data-bs-target="#igdb" type="button" role="tab" aria-controls="igdb" aria-selected="false">
+                                <i class="bi bi-globe me-2"></i>IGDB
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="screenscraper-tab" data-bs-toggle="tab" data-bs-target="#screenscraper" type="button" role="tab" aria-controls="screenscraper" aria-selected="false">
+                                <i class="bi bi-image me-2"></i>ScreenScraper
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="steam-tab" data-bs-toggle="tab" data-bs-target="#steam" type="button" role="tab" aria-controls="steam" aria-selected="false">
+                                <i class="bi bi-steam me-2"></i>Steam
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="steamgriddb-tab" data-bs-toggle="tab" data-bs-target="#steamgriddb" type="button" role="tab" aria-controls="steamgriddb" aria-selected="false">
+                                <i class="bi bi-steam me-2"></i>SteamGridDB
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="scraperConfigTabContent">
+                        <!-- Media Fields Tab -->
+                        <div class="tab-pane fade show active" id="media-fields" role="tabpanel" aria-labelledby="media-fields-tab">
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <h6>Configured Media Fields</h6>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-primary btn-sm" id="addMediaFieldBtn">
+                                            <i class="bi bi-plus-circle me-1"></i>Add Media Field
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshMediaFieldsBtn">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped table-hover compact-table" id="mediaFieldsTable">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 20%">Field Name</th>
+                                                <th style="width: 25%">Directory</th>
+                                                <th style="width: 30%">Extensions</th>
+                                                <th style="width: 15%">Target Extension</th>
+                                                <th style="width: 10%">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="mediaFieldsTableBody">
+                                            <!-- Media fields will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-muted small mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    <strong>Tip:</strong> Click on any field in the table to edit it directly. Changes are saved automatically when you click away or press Enter.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- LaunchBox Tab -->
+                        <div class="tab-pane fade" id="launchbox" role="tabpanel" aria-labelledby="launchbox-tab">
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="refreshLaunchboxMappingsBtn">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh Media Types
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Media Field</th>
+                                                <th>Priority Order</th>
+                                                <th>Available Types</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="launchboxMappingsTableBody">
+                                            <!-- LaunchBox mappings will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- IGDB Tab -->
+                        <div class="tab-pane fade" id="igdb" role="tabpanel" aria-labelledby="igdb-tab">
+                            <div class="mt-3">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Media Field</th>
+                                                <th>IGDB Image Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="igdbMappingsTableBody">
+                                            <!-- IGDB mappings will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ScreenScraper Tab -->
+                        <div class="tab-pane fade" id="screenscraper" role="tabpanel" aria-labelledby="screenscraper-tab">
+                            <div class="mt-3">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Media Field</th>
+                                                <th>Priority Order</th>
+                                                <th>Available Types</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="screenscraperMappingsTableBody">
+                                            <!-- ScreenScraper mappings will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Steam Tab -->
+                        <div class="tab-pane fade" id="steam" role="tabpanel" aria-labelledby="steam-tab">
+                            <div class="mt-3">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Media Field</th>
+                                                <th>Steam Image Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="steamMappingsTableBody">
+                                            <!-- Steam mappings will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SteamGridDB Tab -->
+                        <div class="tab-pane fade" id="steamgriddb" role="tabpanel" aria-labelledby="steamgriddb-tab">
+                            <div class="mt-3">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Media Field</th>
+                                                <th>SteamGridDB Image Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="steamgriddbMappingsTableBody">
+                                            <!-- SteamGridDB mappings will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>

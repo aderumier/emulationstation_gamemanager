@@ -8158,69 +8158,17 @@ class GameCollectionManager {
             console.warn('openSystemsModal element not found');
         }
 
-        // Add event listener for media fields modal
-        const openMediaFieldsModal = document.getElementById('openMediaFieldsModal');
-        if (openMediaFieldsModal) {
-            console.log('Found openMediaFieldsModal element, adding click listener');
-            openMediaFieldsModal.addEventListener('click', (e) => {
+        // Add event listener for unified scraper config modal
+        const openScraperConfigModal = document.getElementById('openScraperConfigModal');
+        if (openScraperConfigModal) {
+            console.log('Found openScraperConfigModal element, adding click listener');
+            openScraperConfigModal.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Media fields modal link clicked');
-                this.openMediaFieldsConfigurationModal();
+                console.log('Scraper config modal link clicked');
+                this.openScraperConfigurationModal();
             });
         } else {
-            console.warn('openMediaFieldsModal element not found');
-        }
-
-        // Add event listener for launchbox config modal
-        const openLaunchboxConfigModal = document.getElementById('openLaunchboxConfigModal');
-        if (openLaunchboxConfigModal) {
-            console.log('Found openLaunchboxConfigModal element, adding click listener');
-            openLaunchboxConfigModal.addEventListener('click', (e) => {
-                e.preventDefault();
-                console.log('Launchbox config modal link clicked');
-                this.openLaunchboxConfigurationModal();
-            });
-        } else {
-            console.warn('openLaunchboxConfigModal element not found');
-        }
-
-        // Add event listener for IGDB config modal
-        const openIgdbConfigModal = document.getElementById('openIgdbConfigModal');
-        if (openIgdbConfigModal) {
-            console.log('Found openIgdbConfigModal element, adding click listener');
-            openIgdbConfigModal.addEventListener('click', (e) => {
-                e.preventDefault();
-                console.log('IGDB config modal link clicked');
-                this.openIgdbConfigurationModal();
-            });
-        } else {
-            console.warn('openIgdbConfigModal element not found');
-        }
-
-        // Add event listener for ScreenScraper config modal
-        const openScreenscraperConfigModal = document.getElementById('openScreenscraperConfigModal');
-        if (openScreenscraperConfigModal) {
-            console.log('Found openScreenscraperConfigModal element, adding click listener');
-            openScreenscraperConfigModal.addEventListener('click', (e) => {
-                e.preventDefault();
-                console.log('ScreenScraper config modal link clicked');
-                this.openScreenscraperConfigurationModal();
-            });
-        } else {
-            console.warn('openScreenscraperConfigModal element not found');
-        }
-
-        // Add event listener for SteamGridDB config modal
-        const openSteamgriddbConfigModal = document.getElementById('openSteamgriddbConfigModal');
-        if (openSteamgriddbConfigModal) {
-            console.log('Found openSteamgriddbConfigModal element, adding click listener');
-            openSteamgriddbConfigModal.addEventListener('click', (e) => {
-                e.preventDefault();
-                console.log('SteamGridDB config modal link clicked');
-                this.openSteamgriddbConfigurationModal();
-            });
-        } else {
-            console.warn('openSteamgriddbConfigModal element not found');
+            console.warn('openScraperConfigModal element not found');
         }
 
         
@@ -10076,6 +10024,20 @@ class GameCollectionManager {
         }
     }
     
+    openScraperConfigurationModal() {
+        console.log('Opening unified scraper configuration modal');
+        const modal = new bootstrap.Modal(document.getElementById('scraperConfigModal'));
+        modal.show();
+        
+        // Load all scraper data when modal opens
+        this.loadMediaFieldsData();
+        this.loadLaunchboxMappingsData();
+        this.loadIgdbMappingsData();
+        this.loadScreenscraperMappingsData();
+        this.loadSteamMappingsData();
+        this.loadSteamgriddbMappingsData();
+    }
+
     openMediaFieldsConfigurationModal() {
         // Load media fields data before opening modal
         this.loadMediaFieldsData();
@@ -11316,14 +11278,6 @@ class GameCollectionManager {
             });
         }
         
-        // Load data when modal is opened
-        const openSteamConfigBtn = document.getElementById('openSteamConfigModal');
-        if (openSteamConfigBtn) {
-            openSteamConfigBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.openSteamConfigurationModal();
-            });
-        }
 
         // 2D Box Generator Configuration event listeners
         const open2DBoxGeneratorConfigBtn = document.getElementById('open2DBoxGeneratorConfigModal');
