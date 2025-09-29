@@ -2485,6 +2485,10 @@ class GameCollectionManager {
             suppressMenuHide: true,
             suppressRowHoverHighlight: false,
             suppressCellFocus: false,
+            // Context menu for Community version
+            onCellContextMenu: (event) => {
+                this.showContextMenu(event);
+            },
             // State persistence event handlers
             onColumnMoved: () => {
                 this.saveMainGridState();
@@ -2630,10 +2634,7 @@ class GameCollectionManager {
             }
         });
 
-        // Add right-click context menu
-        this.gridApi.addEventListener('cellContextMenu', (event) => {
-            this.showContextMenu(event);
-        });
+        // Context menu is handled by onCellContextMenu in gridOptions
 
         // Add filter event listeners to refresh data and maintain visibility
         this.gridApi.addEventListener('filterChanged', async () => {
@@ -2805,7 +2806,6 @@ class GameCollectionManager {
         const game = event.data;
         const selectedGames = this.gridApi.getSelectedRows();
         const isMultipleSelected = selectedGames.length > 1;
-        const isGameSelected = selectedGames.some(g => g.path === game.path);
         
         const contextMenu = document.createElement('div');
         contextMenu.className = 'dropdown-menu show position-fixed';
@@ -2833,9 +2833,6 @@ class GameCollectionManager {
             `;
         } else {
             // Multiple games selected - show bulk operations
-            const allHidden = selectedGames.every(g => g.hidden === 'true');
-            const allVisible = selectedGames.every(g => g.hidden !== 'true');
-            
             menuItems = `
                 <div class="dropdown-header">Bulk Operations (${selectedGames.length} games)</div>
                 <div class="dropdown-divider"></div>
