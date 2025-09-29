@@ -10551,7 +10551,7 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                this.populateIgdbMappingsTable(data.igdb_mappings, data.media_fields);
+                this.populateIgdbMappingsTable(data.igdb_mappings, data.media_fields, data.igdb_media_types);
             } else {
                 console.error('Failed to load IGDB mappings:', data.error);
                 this.showAlert('Failed to load IGDB mappings data', 'danger');
@@ -10562,13 +10562,15 @@ class GameCollectionManager {
         }
     }
     
-    async populateIgdbMappingsTable(igdbMappings, mediaFields) {
+    async populateIgdbMappingsTable(igdbMappings, mediaFields, igdbMediaTypes) {
         const tbody = document.getElementById('igdbMappingsTableBody');
         if (!tbody) return;
         
         tbody.innerHTML = '';
         
-        Object.entries(igdbMappings).forEach(([igdbType, mediaField]) => {
+        // Create rows for all IGDB media types, not just the ones that are mapped
+        igdbMediaTypes.forEach(igdbType => {
+            const mediaField = igdbMappings[igdbType] || '';
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>

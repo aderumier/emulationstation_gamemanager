@@ -4392,10 +4392,21 @@ def manage_igdb_mappings():
             # Return current mappings and available media fields
             igdb_mappings = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
+            
+            # Load IGDB media types from static file
+            igdb_media_types = []
+            try:
+                with open('var/db/igdb/mediatype.txt', 'r') as f:
+                    igdb_media_types = [line.strip() for line in f.readlines() if line.strip()]
+            except FileNotFoundError:
+                # Fallback to default values if file doesn't exist
+                igdb_media_types = ['cover', 'screenshots', 'artworks', 'logos']
+            
             return jsonify({
                 'success': True, 
                 'igdb_mappings': igdb_mappings,
-                'media_fields': media_fields
+                'media_fields': media_fields,
+                'igdb_media_types': igdb_media_types
             })
         
         elif request.method == 'PUT':
