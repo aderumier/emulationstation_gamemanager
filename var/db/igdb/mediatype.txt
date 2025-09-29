@@ -1,0 +1,4 @@
+cover
+screenshots
+artworks
+logos
