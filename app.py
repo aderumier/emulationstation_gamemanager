@@ -16260,6 +16260,9 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                         game = game_data['game']
                         game_name = game_data['name']
                         
+                        # Initialize downloaded_media as empty dict
+                        downloaded_media = {}
+                        
                         if game_name in batch_results:
                             downloaded_media = batch_results[game_name]
                             
