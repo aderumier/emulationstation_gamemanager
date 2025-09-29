@@ -1367,40 +1367,7 @@ class GameCollectionManager {
 
     async stopTask(taskId) {
         try {
-            // First, get the task details to check if it's a ROM scan task in waiting_confirmation status
-            const taskResponse = await fetch('/api/tasks');
-            if (taskResponse.ok) {
-                const tasks = await taskResponse.json();
-                const task = tasks.find(t => t.id === taskId);
-                
-                // If it's a ROM scan task in waiting_confirmation status, use the ROM scan confirmation endpoint
-                if (task && task.type === 'rom_scan' && task.status === 'waiting_confirmation') {
-                    const response = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms-confirm`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            action: 'cancel'
-                        })
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        this.showToast(result.message || 'ROM scan cancelled successfully', 'success');
-                        this.refreshTasks();
-                        // Restore scan button state when cancelling ROM scan
-                        this.restoreScanButtonState();
-                        return;
-                    } else {
-                        const errorData = await response.json();
-                        this.showToast(errorData.error || 'Failed to cancel ROM scan', 'error');
-                        return;
-                    }
-                }
-            }
-            
-            // For all other tasks, use the general task stop endpoint
+            // Use the general task stop endpoint for all tasks
             const response = await fetch(`/api/tasks/${taskId}/stop`, {
                 method: 'POST'
             });
@@ -1411,6 +1378,17 @@ class GameCollectionManager {
                 
                 // Refresh the task list to show updated status
                 this.refreshTasks();
+                
+                // If this was a ROM scan task, restore scan button state
+                const taskResponse = await fetch('/api/tasks');
+                if (taskResponse.ok) {
+                    const tasks = await taskResponse.json();
+                    const task = tasks.find(t => t.id === taskId);
+                    if (task && task.type === 'rom_scan') {
+                        this.restoreScanButtonState();
+                    }
+                }
+                
                 // Avoid an immediate manual grid reload here; rely on WebSocket/system update
                 // to perform a single, authoritative refresh and prevent duplicate updates.
             } else {
