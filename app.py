@@ -8746,13 +8746,18 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
         
         games = parse_gamelist_xml(gamelist_path)
         
-        # Calculate relative paths
-        old_relative = os.path.relpath(old_path, system_rom_dir).replace('\\', '/')
-        new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+        # Handle the old_path - it might already be relative or absolute
+        if old_path.startswith('./'):
+            # It's already a relative path from the gamelist perspective
+            old_relative = old_path
+        else:
+            # It's an absolute path, convert to relative
+            old_relative = os.path.relpath(old_path, system_rom_dir).replace('\\', '/')
+            if not old_relative.startswith('./'):
+                old_relative = './' + old_relative
         
-        # Ensure both paths start with './'
-        if not old_relative.startswith('./'):
-            old_relative = './' + old_relative
+        # Calculate new relative path
+        new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
         if not new_relative.startswith('./'):
             new_relative = './' + new_relative
         
@@ -8789,6 +8794,9 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
             print(f"Gamelist updated successfully for {system_name} - both var/gamelists and roms directories")
         else:
             print(f"No matching game found for path: {old_relative}")
+            print(f"Available paths in gamelist:")
+            for i, game in enumerate(games[:5]):  # Show first 5 games
+                print(f"  {i}: {game.get('path', 'NO_PATH')}")
             
     except Exception as e:
         print(f"Error updating gamelist after move: {e}")
