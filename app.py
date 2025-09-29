@@ -11869,6 +11869,14 @@ def update_gamelist_and_complete(task, system_path, output_filename, output_path
                         if game_path == rom_file:
                             # Update or add video field
                             game['video'] = f'./media/videos/{output_filename}'
+                            
+                            # Update YouTube URL field if we have the video URL
+                            # Extract video URL from the task data if available
+                            video_url = getattr(task, 'video_url', None)
+                            if video_url:
+                                game['youtubeurl'] = video_url
+                                task.update_progress(f"✅ Updated YouTube URL: {video_url}")
+                            
                             game_updated = True
                             task.update_progress(f"✅ MATCH FOUND! Updated gamelist for game: {game.get('name', 'Unknown')}")
                             break
@@ -11936,6 +11944,9 @@ def run_youtube_download_task(task_id, data):
         system_name = data.get('system_name')
         rom_file = data.get('rom_file')  # ROM file path (e.g., "./Pac-Man (USA).nes")
         auto_crop = data.get('auto_crop', False)
+        
+        # Store video URL in task for later use in gamelist update
+        task.video_url = video_url
         
         # Log the received parameters
         task.update_progress(f"Received parameters:")
