@@ -17439,16 +17439,20 @@ def cleanup_on_exit():
     
     print("✅ Cleanup completed")
 
-def signal_handler(signum, frame):
-    """Handle shutdown signals gracefully"""
-    print(f"\n🔄 Received signal {signum}, shutting down gracefully...")
-    cleanup_on_exit()
-    exit(0)
-
 if __name__ == '__main__':
     # Set up signal handlers for graceful shutdown
     import signal
     import atexit
+    import threading
+    import time
+    
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully"""
+        print(f"\n🔄 Received signal {signum}, shutting down gracefully...")
+        cleanup_on_exit()
+        # Force exit to bypass any blocking operations
+        import os
+        os._exit(0)
     
     # Register signal handlers
     signal.signal(signal.SIGTERM, signal_handler)
@@ -17490,7 +17494,6 @@ if __name__ == '__main__':
         print(f"Failed to start scraping worker: {e}")
     
     # Start cache loading in a separate thread
-    import threading
     def load_cache_background():
         print("🔄 Loading comprehensive metadata cache in background...")
         try:
@@ -17502,25 +17505,38 @@ if __name__ == '__main__':
     cache_thread = threading.Thread(target=load_cache_background, daemon=True)
     cache_thread.start()
     
-    try:
-        # Start the server using SocketIO
-        # In production, use Flask development server
-        if config['server']['debug']:
-            # Development mode - use Werkzeug with allow_unsafe_werkzeug
-            socketio.run(
-                app,
-                debug=True,
-                host=config['server']['host'],
-                port=config['server']['port'],
-                allow_unsafe_werkzeug=True
-            )
-        else:
-            # Production mode - use Flask development server
-            print("Starting production server...")
-    except KeyboardInterrupt:
-        print("\n🔄 Keyboard interrupt received, shutting down...")
-        cleanup_on_exit()
-    except Exception as e:
-        print(f"❌ Server error: {e}")
-        cleanup_on_exit()
-        raise
+    # Use a more robust approach with proper signal handling
+    import sys
+    
+    def run_with_signal_handling():
+        """Run the server with proper signal handling"""
+        try:
+            if config['server']['debug']:
+                # Development mode - use Werkzeug with allow_unsafe_werkzeug
+                socketio.run(
+                    app,
+                    debug=True,
+                    host=config['server']['host'],
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
+                )
+            else:
+                # Production mode - use Flask development server
+                print("Starting production server...")
+                socketio.run(
+                    app,
+                    debug=False,
+                    host=config['server']['host'],
+                    port=config['server']['port']
+                )
+        except KeyboardInterrupt:
+            print("\n🔄 Keyboard interrupt received, shutting down...")
+            cleanup_on_exit()
+            sys.exit(0)
+        except Exception as e:
+            print(f"❌ Server error: {e}")
+            cleanup_on_exit()
+            sys.exit(1)
+    
+    # Run the server
+    run_with_signal_handling()
