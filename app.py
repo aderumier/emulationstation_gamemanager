@@ -4589,48 +4589,66 @@ def manage_steamgriddb_mappings():
             # Return current mappings and available media fields
             steamgriddb_mappings = scrappers_config.get('steamgriddb', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
+            
+            # Load SteamGridDB media types from static file
+            steamgriddb_media_types = []
+            try:
+                with open('var/db/steamgrid/mediastype.txt', 'r') as f:
+                    steamgriddb_media_types = [line.strip() for line in f.readlines() if line.strip()]
+            except FileNotFoundError:
+                # Fallback to default values if file doesn't exist
+                steamgriddb_media_types = ['grids', 'logos', 'heroes']
+            
             return jsonify({
                 'success': True, 
                 'steamgriddb_mappings': steamgriddb_mappings,
-                'media_fields': media_fields
+                'media_fields': media_fields,
+                'steamgriddb_media_types': steamgriddb_media_types
             })
         
         elif request.method == 'PUT':
             # Update existing mapping
             data = request.get_json()
-            if not data or 'steamgriddb_type' not in data:
-                return jsonify({'error': 'SteamGridDB type is required'}), 400
+            if not data or 'steamgriddb_type' not in data or 'media_field' not in data:
+                return jsonify({'error': 'SteamGridDB type and media field are required'}), 400
             
             steamgriddb_type = data['steamgriddb_type']
-            media_field = data.get('media_field', '')
+            media_field = data['media_field']
             
             # Validate that the media field exists
-            if media_field and media_field not in config.get('media_fields', {}):
+            if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping
-            if 'steamgriddb' not in config:
-                config['steamgriddb'] = {}
-            if 'image_type_mappings' not in config['steamgriddb']:
-                config['steamgriddb']['image_type_mappings'] = {}
+            # Update the mapping (steamgriddb_type -> media_field)
+            if 'steamgriddb' not in scrappers_config:
+                scrappers_config['steamgriddb'] = {}
+            if 'image_type_mappings' not in scrappers_config['steamgriddb']:
+                scrappers_config['steamgriddb']['image_type_mappings'] = {}
             
-            config['steamgriddb']['image_type_mappings'][media_field] = steamgriddb_type
+            # Remove any existing mapping for this media field first
+            for existing_steamgriddb_type, existing_media_field in list(scrappers_config['steamgriddb']['image_type_mappings'].items()):
+                if existing_media_field == media_field:
+                    del scrappers_config['steamgriddb']['image_type_mappings'][existing_steamgriddb_type]
+            
+            # Add new mapping if steamgriddb_type is not empty
+            if steamgriddb_type:
+                scrappers_config['steamgriddb']['image_type_mappings'][steamgriddb_type] = media_field
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'SteamGridDB mapping updated successfully'})
         
         elif request.method == 'POST':
             # Reset mapping to default
             data = request.get_json()
-            if not data or 'steamgriddb_type' not in data or not data.get('reset'):
-                return jsonify({'error': 'Reset operation requires steamgriddb_type and reset flag'}), 400
+            if not data or 'media_field' not in data or not data.get('reset'):
+                return jsonify({'error': 'Reset operation requires media_field and reset flag'}), 400
             
-            steamgriddb_type = data['steamgriddb_type']
+            media_field = data['media_field']
             
-            # Define default mappings
+            # Define default mappings (media_field -> steamgriddb_type)
             default_mappings = {
                 "boxart": "grids",
                 "marquee": "logos",
@@ -4638,17 +4656,24 @@ def manage_steamgriddb_mappings():
             }
             
             # Reset to default value
-            if 'steamgriddb' not in config:
-                config['steamgriddb'] = {}
-            if 'image_type_mappings' not in config['steamgriddb']:
-                config['steamgriddb']['image_type_mappings'] = {}
+            if 'steamgriddb' not in scrappers_config:
+                scrappers_config['steamgriddb'] = {}
+            if 'image_type_mappings' not in scrappers_config['steamgriddb']:
+                scrappers_config['steamgriddb']['image_type_mappings'] = {}
             
-            default_value = default_mappings.get(steamgriddb_type, '')
-            config['steamgriddb']['image_type_mappings'][media_field] = default_value
+            # Remove any existing mapping for this media field first
+            for existing_steamgriddb_type, existing_media_field in list(scrappers_config['steamgriddb']['image_type_mappings'].items()):
+                if existing_media_field == media_field:
+                    del scrappers_config['steamgriddb']['image_type_mappings'][existing_steamgriddb_type]
+            
+            # Add default mapping if it exists
+            default_steamgriddb_type = default_mappings.get(media_field)
+            if default_steamgriddb_type:
+                scrappers_config['steamgriddb']['image_type_mappings'][default_steamgriddb_type] = media_field
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'SteamGridDB mapping reset to default'})
     
@@ -5129,66 +5154,92 @@ def manage_steam_mappings():
             # Return current mappings and available media fields
             steam_mappings = scrappers_config.get('steam', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
+            
+            # Load Steam media types from static file
+            steam_media_types = []
+            try:
+                with open('var/db/steam/mediastype.txt', 'r') as f:
+                    steam_media_types = [line.strip() for line in f.readlines() if line.strip()]
+            except FileNotFoundError:
+                # Fallback to default values if file doesn't exist
+                steam_media_types = ['capsule', 'logo', 'hero', 'screenshot']
+            
             return jsonify({
                 'success': True, 
                 'steam_mappings': steam_mappings,
-                'media_fields': media_fields
+                'media_fields': media_fields,
+                'steam_media_types': steam_media_types
             })
         
         elif request.method == 'PUT':
             # Update existing mapping
             data = request.get_json()
-            if not data or 'steam_type' not in data:
-                return jsonify({'error': 'Steam type is required'}), 400
+            if not data or 'steam_type' not in data or 'media_field' not in data:
+                return jsonify({'error': 'Steam type and media field are required'}), 400
             
             steam_type = data['steam_type']
-            media_field = data.get('media_field', '')
+            media_field = data['media_field']
             
             # Validate that the media field exists
-            if media_field and media_field not in config.get('media_fields', {}):
+            if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping
-            if 'steam' not in config:
-                config['steam'] = {}
-            if 'image_type_mappings' not in config['steam']:
-                config['steam']['image_type_mappings'] = {}
+            # Update the mapping (steam_type -> media_field)
+            if 'steam' not in scrappers_config:
+                scrappers_config['steam'] = {}
+            if 'image_type_mappings' not in scrappers_config['steam']:
+                scrappers_config['steam']['image_type_mappings'] = {}
             
-            config['steam']['image_type_mappings'][media_field] = steam_type
+            # Remove any existing mapping for this media field first
+            for existing_steam_type, existing_media_field in list(scrappers_config['steam']['image_type_mappings'].items()):
+                if existing_media_field == media_field:
+                    del scrappers_config['steam']['image_type_mappings'][existing_steam_type]
+            
+            # Add new mapping if steam_type is not empty
+            if steam_type:
+                scrappers_config['steam']['image_type_mappings'][steam_type] = media_field
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'Steam mapping updated successfully'})
         
         elif request.method == 'POST':
             # Reset mapping to default
             data = request.get_json()
-            if not data or 'steam_type' not in data or not data.get('reset'):
-                return jsonify({'error': 'Reset operation requires steam_type and reset flag'}), 400
+            if not data or 'media_field' not in data or not data.get('reset'):
+                return jsonify({'error': 'Reset operation requires media_field and reset flag'}), 400
             
-            steam_type = data['steam_type']
+            media_field = data['media_field']
             
-            # Define default mappings
+            # Define default mappings (media_field -> steam_type)
             default_mappings = {
                 "boxart": "capsule",
                 "marquee": "logo",
-                "fanart": "hero"
+                "fanart": "hero",
+                "image": "screenshot"
             }
             
             # Reset to default value
-            if 'steam' not in config:
-                config['steam'] = {}
-            if 'image_type_mappings' not in config['steam']:
-                config['steam']['image_type_mappings'] = {}
+            if 'steam' not in scrappers_config:
+                scrappers_config['steam'] = {}
+            if 'image_type_mappings' not in scrappers_config['steam']:
+                scrappers_config['steam']['image_type_mappings'] = {}
             
-            default_value = default_mappings.get(steam_type, '')
-            config['steam']['image_type_mappings'][media_field] = default_value
+            # Remove any existing mapping for this media field first
+            for existing_steam_type, existing_media_field in list(scrappers_config['steam']['image_type_mappings'].items()):
+                if existing_media_field == media_field:
+                    del scrappers_config['steam']['image_type_mappings'][existing_steam_type]
+            
+            # Add default mapping if it exists
+            default_steam_type = default_mappings.get(media_field)
+            if default_steam_type:
+                scrappers_config['steam']['image_type_mappings'][default_steam_type] = media_field
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'Steam mapping reset to default'})
     

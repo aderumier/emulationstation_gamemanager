@@ -10943,7 +10943,7 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                this.populateSteamgriddbMappingsTable(data.steamgriddb_mappings, data.media_fields);
+                this.populateSteamgriddbMappingsTable(data.steamgriddb_mappings, data.media_fields, data.steamgriddb_media_types);
             } else {
                 console.error('Failed to load SteamGridDB mappings:', data.error);
                 this.showAlert('Failed to load SteamGridDB mappings data', 'danger');
@@ -10954,34 +10954,31 @@ class GameCollectionManager {
         }
     }
     
-    async populateSteamgriddbMappingsTable(steamgriddbMappings, mediaFields) {
+    async populateSteamgriddbMappingsTable(steamgriddbMappings, mediaFields, steamgriddbMediaTypes) {
         const tbody = document.getElementById('steamgriddbMappingsTableBody');
         if (!tbody) return;
         
         tbody.innerHTML = '';
         
-        Object.entries(steamgriddbMappings).forEach(([steamgriddbType, mediaField]) => {
+        // Create rows for all media fields, not just the ones that are mapped
+        Object.keys(mediaFields).forEach(mediaField => {
+            // Find which SteamGridDB type maps to this media field
+            // steamgriddbMappings structure: { "grids": "boxart", "logos": "marquee", ... }
+            const steamgriddbType = steamgriddbMappings[mediaField] || '';
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
-                    <span class="steamgriddb-type-display">${steamgriddbType}</span>
+                    <span class="media-field-display">${mediaField}</span>
                 </td>
                 <td>
                     <select class="form-select form-select-sm" 
-                            data-steamgriddb-type="${steamgriddbType}" 
-                            onchange="gameManager.updateSteamgriddbMapping('${steamgriddbType}', this.value)">
-                        <option value="">-- Select Media Field --</option>
-                        ${Object.keys(mediaFields).map(field => 
-                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
+                            data-media-field="${mediaField}" 
+                            onchange="gameManager.updateSteamgriddbMapping(this.value, '${mediaField}')">
+                        <option value="">-- Select SteamGridDB Image Type --</option>
+                        ${steamgriddbMediaTypes.map(type => 
+                            `<option value="${type}" ${type === steamgriddbType ? 'selected' : ''}>${type}</option>`
                         ).join('')}
                     </select>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-secondary" 
-                            onclick="gameManager.resetSteamgriddbMapping('${steamgriddbType}')"
-                            title="Reset to default">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
                 </td>
             `;
             tbody.appendChild(row);
@@ -11004,8 +11001,8 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated SteamGridDB mapping: ${steamgriddbType} -> ${mediaField}`);
-                this.showAlert(`SteamGridDB mapping updated: ${steamgriddbType} → ${mediaField}`, 'success');
+                console.log(`Successfully updated SteamGridDB mapping: ${mediaField} <- ${steamgriddbType}`);
+                this.showAlert(`SteamGridDB mapping updated: ${mediaField} ← ${steamgriddbType}`, 'success');
             } else {
                 this.showAlert(`Failed to update SteamGridDB mapping: ${data.error}`, 'danger');
                 // Reload data to revert changes
@@ -11019,36 +11016,6 @@ class GameCollectionManager {
         }
     }
     
-    async resetSteamgriddbMapping(steamgriddbType) {
-        if (!confirm(`Reset SteamGridDB mapping for "${steamgriddbType}" to default?`)) {
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/steamgriddb-mappings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    steamgriddb_type: steamgriddbType,
-                    reset: true
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showAlert(`SteamGridDB mapping reset for "${steamgriddbType}"`, 'success');
-                this.loadSteamgriddbMappingsData(); // Reload the table
-            } else {
-                this.showAlert(`Failed to reset SteamGridDB mapping: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            console.error('Error resetting SteamGridDB mapping:', error);
-            this.showAlert('Error resetting SteamGridDB mapping', 'danger');
-        }
-    }
     
     async loadSteamgriddbCredentialsStatus() {
         try {
@@ -11265,7 +11232,7 @@ class GameCollectionManager {
             const response = await fetch('/api/steam-mappings');
             if (response.ok) {
                 const data = await response.json();
-                this.populateSteamMappingsTable(data.steam_mappings, data.media_fields);
+                this.populateSteamMappingsTable(data.steam_mappings, data.media_fields, data.steam_media_types);
             } else {
                 console.error('Failed to load Steam mappings');
             }
@@ -11274,66 +11241,33 @@ class GameCollectionManager {
         }
     }
     
-    populateSteamMappingsTable(steamMappings, mediaFields) {
+    populateSteamMappingsTable(steamMappings, mediaFields, steamMediaTypes) {
         const tbody = document.getElementById('steamMappingsTableBody');
         if (!tbody) return;
         
         tbody.innerHTML = '';
         
-        const steamTypes = ['capsule', 'logo', 'hero', 'screenshot'];
-        
-        steamTypes.forEach(steamType => {
+        // Create rows for all media fields, not just the ones that are mapped
+        Object.keys(mediaFields).forEach(mediaField => {
+            // Find which Steam type maps to this media field
+            // steamMappings structure: { "capsule": "boxart", "logo": "marquee", ... }
+            const steamType = steamMappings[mediaField] || '';
             const row = document.createElement('tr');
-            
-            // Steam type column
-            const typeCell = document.createElement('td');
-            typeCell.textContent = steamType.charAt(0).toUpperCase() + steamType.slice(1);
-            typeCell.style.fontWeight = 'bold';
-            row.appendChild(typeCell);
-            
-            // Media field dropdown
-            const fieldCell = document.createElement('td');
-            const select = document.createElement('select');
-            select.className = 'form-select form-select-sm';
-            select.id = `steamMapping_${steamType}`;
-            
-            // Add empty option
-            const emptyOption = document.createElement('option');
-            emptyOption.value = '';
-            emptyOption.textContent = '-- Select Media Field --';
-            select.appendChild(emptyOption);
-            
-            // Add media field options
-            Object.keys(mediaFields).forEach(fieldName => {
-                const option = document.createElement('option');
-                option.value = fieldName;
-                option.textContent = fieldName;
-                if (steamMappings[steamType] === fieldName) {
-                    option.selected = true;
-                }
-                select.appendChild(option);
-            });
-            
-            // Add change event listener
-            select.addEventListener('change', () => {
-                this.updateSteamMapping(steamType, select.value);
-            });
-            
-            fieldCell.appendChild(select);
-            row.appendChild(fieldCell);
-            
-            // Actions column
-            const actionsCell = document.createElement('td');
-            const resetBtn = document.createElement('button');
-            resetBtn.className = 'btn btn-outline-secondary btn-sm';
-            resetBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
-            resetBtn.title = 'Reset to default';
-            resetBtn.addEventListener('click', () => {
-                this.resetSteamMapping(steamType);
-            });
-            actionsCell.appendChild(resetBtn);
-            row.appendChild(actionsCell);
-            
+            row.innerHTML = `
+                <td>
+                    <span class="media-field-display">${mediaField}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" 
+                            data-media-field="${mediaField}" 
+                            onchange="gameManager.updateSteamMapping(this.value, '${mediaField}')">
+                        <option value="">-- Select Steam Image Type --</option>
+                        ${steamMediaTypes.map(type => 
+                            `<option value="${type}" ${type === steamType ? 'selected' : ''}>${type}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+            `;
             tbody.appendChild(row);
         });
     }
@@ -11354,47 +11288,22 @@ class GameCollectionManager {
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    console.log(`Steam mapping updated: ${steamType} -> ${mediaField}`);
+                    console.log(`Steam mapping updated: ${mediaField} <- ${steamType}`);
+                    this.showAlert(`Steam mapping updated: ${mediaField} ← ${steamType}`, 'success');
                 } else {
                     console.error('Failed to update Steam mapping:', result.error);
+                    this.showAlert(`Failed to update Steam mapping: ${result.error}`, 'danger');
                 }
             } else {
                 console.error('Failed to update Steam mapping');
+                this.showAlert('Failed to update Steam mapping', 'danger');
             }
         } catch (error) {
             console.error('Error updating Steam mapping:', error);
+            this.showAlert('Error updating Steam mapping', 'danger');
         }
     }
     
-    async resetSteamMapping(steamType) {
-        try {
-            const response = await fetch('/api/steam-mappings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    steam_type: steamType,
-                    reset: true
-                })
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    console.log(`Steam mapping reset: ${steamType}`);
-                    // Reload the mappings to reflect the reset
-                    this.loadSteamMappingsData();
-                } else {
-                    console.error('Failed to reset Steam mapping:', result.error);
-                }
-            } else {
-                console.error('Failed to reset Steam mapping');
-            }
-        } catch (error) {
-            console.error('Error resetting Steam mapping:', error);
-        }
-    }
     
     initializeAppConfigurationModal() {
         console.log('Initializing application configuration modal...');
