@@ -12815,8 +12815,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         if actually_used_sections:
             task.update_progress(f"  ✂️ Video downloaded with sections, skipping additional cutting")
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
-        elif used_full_download_without_sections or needs_auto_cut:
-            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, cut_start_time, cut_end_time)
+        elif used_full_download_without_sections:
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
         else:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
         
