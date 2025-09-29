@@ -8800,10 +8800,8 @@ class GameCollectionManager {
             allFields.forEach(field => {
                 const cookieName = `igdbField_${field}`;
                 const savedValue = this.getCookie(cookieName);
-                // Convert field name to checkbox ID format: field_name -> FieldName
-                const fieldId = field.split('_').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
-                ).join('');
+                // Convert field name to checkbox ID format: field -> Field
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 const checkboxId = `igdbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 
@@ -8829,9 +8827,7 @@ class GameCollectionManager {
         container.innerHTML = '';
         
         mediaFields.forEach(field => {
-                const fieldId = field.split('_').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
-                ).join('');
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 const checkboxId = `igdbField${fieldId}`;
             
             const div = document.createElement('div');
@@ -8857,10 +8853,8 @@ class GameCollectionManager {
             
             // Save field selections to cookies
             allFields.forEach(field => {
-                // Convert field name to checkbox ID format: field_name -> FieldName
-                const fieldId = field.split('_').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
-                ).join('');
+                // Convert field name to checkbox ID format: field -> Field
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 const checkboxId = `igdbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 const cookieName = `igdbField_${field}`;
