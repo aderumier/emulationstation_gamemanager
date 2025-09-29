@@ -8444,9 +8444,7 @@ class GameCollectionManager {
                 if (field === 'youtubeurl') {
                     fieldId = 'YoutubeUrl'; // Special case for YouTube URL
                 } else {
-                    fieldId = field.split('_').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                    ).join('');
+                    fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 }
                 const checkboxId = `steamField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
@@ -8475,9 +8473,7 @@ class GameCollectionManager {
         container.innerHTML = '';
         
         mediaFields.forEach(field => {
-            const fieldId = field.split('_').map(word => 
-                word.charAt(0).toUpperCase() + word.slice(1)
-            ).join('');
+            const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
             const checkboxId = `steamField${fieldId}`;
             
             const div = document.createElement('div');
@@ -8487,6 +8483,14 @@ class GameCollectionManager {
                 <label class="form-check-label" for="${checkboxId}">${field}</label>
             `;
             container.appendChild(div);
+            
+            // Attach event listener to the newly created checkbox
+            const checkbox = document.getElementById(checkboxId);
+            if (checkbox) {
+                checkbox.addEventListener('change', async () => {
+                    await this.saveSteamFieldSettings();
+                });
+            }
         });
     }
     
@@ -8507,9 +8511,7 @@ class GameCollectionManager {
                 if (field === 'youtubeurl') {
                     fieldId = 'YoutubeUrl'; // Special case for YouTube URL
                 } else {
-                    fieldId = field.split('_').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                    ).join('');
+                    fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 }
                 const checkboxId = `steamField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
@@ -8569,9 +8571,7 @@ class GameCollectionManager {
                 const cookieName = `steamgriddbField_${field}`;
                 const savedValue = this.getCookie(cookieName);
                 // Convert field name to checkbox ID format: field -> Field
-                const fieldId = field.split('_').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
-                ).join('');
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 const checkboxId = `steamgriddbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 
@@ -8599,9 +8599,7 @@ class GameCollectionManager {
         container.innerHTML = '';
         
         mediaFields.forEach(field => {
-            const fieldId = field.split('_').map(word => 
-                word.charAt(0).toUpperCase() + word.slice(1)
-            ).join('');
+            const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
             const checkboxId = `steamgriddbField${fieldId}`;
             
             const div = document.createElement('div');
@@ -8611,6 +8609,14 @@ class GameCollectionManager {
                 <label class="form-check-label" for="${checkboxId}">${field}</label>
             `;
             container.appendChild(div);
+            
+            // Attach event listener to the newly created checkbox
+            const checkbox = document.getElementById(checkboxId);
+            if (checkbox) {
+                checkbox.addEventListener('change', async () => {
+                    await this.saveSteamGridDBFieldSettings();
+                });
+            }
         });
     }
     
@@ -8627,9 +8633,7 @@ class GameCollectionManager {
             // Save field selections to cookies
             allFields.forEach(field => {
                 // Convert field name to checkbox ID format: field -> Field
-                const fieldId = field.split('_').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
-                ).join('');
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 const checkboxId = `steamgriddbField${fieldId}`;
                 const checkbox = document.getElementById(checkboxId);
                 const cookieName = `steamgriddbField_${field}`;
@@ -8837,6 +8841,14 @@ class GameCollectionManager {
                 <label class="form-check-label" for="${checkboxId}">${field}</label>
             `;
             container.appendChild(div);
+            
+            // Attach event listener to the newly created checkbox
+            const checkbox = document.getElementById(checkboxId);
+            if (checkbox) {
+                checkbox.addEventListener('change', async () => {
+                    await this.saveIgdbFieldSettings();
+                });
+            }
         });
     }
     
