@@ -4967,6 +4967,22 @@ def search_igdb_games():
             else:
                 games = []
         
+        # Convert cover IDs to image URLs for display
+        for game in games:
+            if game.get('cover'):
+                # Convert cover ID to image URL
+                cover_id = game['cover']
+                if isinstance(cover_id, dict) and 'image_id' in cover_id:
+                    image_id = cover_id['image_id']
+                else:
+                    image_id = cover_id
+                
+                # Create IGDB image URL
+                cover_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg"
+                game['cover_url'] = cover_url
+            else:
+                game['cover_url'] = None
+        
         return jsonify({
             'success': True,
             'games': games

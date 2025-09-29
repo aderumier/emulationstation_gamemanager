@@ -4646,9 +4646,15 @@ class GameCollectionManager {
                 ? game.platforms.map(p => p.name).join(', ') 
                 : 'Unknown Platform';
             
+            // Add cover image if available
+            const coverImage = game.cover_url ? 
+                `<img src="${game.cover_url}" class="card-img-top" alt="${game.name}" style="height: 200px; object-fit: cover;">` : 
+                '<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;"><i class="bi bi-image text-muted" style="font-size: 2rem;"></i></div>';
+            
             html += `
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card h-100">
+                        ${coverImage}
                         <div class="card-body">
                             <h6 class="card-title">${game.name}</h6>
                             <p class="card-text small text-muted">${summary}</p>
