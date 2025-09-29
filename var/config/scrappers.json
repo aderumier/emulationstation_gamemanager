@@ -91,23 +91,19 @@
         ],
         "image_type_mappings": {
             "marquee": [
-                "wheel",
-                "screenmarquee"
+                "wheel"
             ],
             "boxart": [
-                "box-2D",
-                "box-texture"
+                "box-2D"
             ],
             "thumbnail": [
                 "box-3D"
             ],
             "boxback": [
-                "box-2D-back",
-                "box-2D-side"
+                "box-2D-back"
             ],
             "image": [
-                "ss",
-                "sstitle"
+                "ss"
             ],
             "titleshot": [
                 "sstitle"
@@ -116,16 +112,13 @@
                 "manuel"
             ],
             "video": [
-                "video",
-                "videotable",
-                "videotable4k"
+                "video"
             ],
             "fanart": [
                 "fanart"
             ],
             "cartridge": [
                 "support-2D",
-                "support-texture",
                 "support-scan"
             ]
         }
