@@ -14673,7 +14673,11 @@ class GameCollectionManager {
             
             if (response.ok) {
                 const data = await response.json();
-                this.displayYouTubeResults(data.results);
+                if (data.success) {
+                    this.displayYouTubeResults(data.results);
+                } else {
+                    this.showYouTubeError(data.error || 'Search failed');
+                }
             } else {
                 throw new Error('Search failed');
             }
@@ -14713,6 +14717,15 @@ class GameCollectionManager {
         } else {
             noResults.classList.add('d-none');
         }
+    }
+
+    showYouTubeError(errorMessage) {
+        const noResults = document.getElementById('youtubeNoResults');
+        const errorText = noResults.querySelector('.text-muted');
+        if (errorText) {
+            errorText.textContent = `Error: ${errorMessage}`;
+        }
+        this.showYouTubeNoResults(true);
     }
 
     displayYouTubeResults(results) {

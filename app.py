@@ -10198,6 +10198,16 @@ def youtube_search():
             
             print(f"Response status: {response.status_code}")
             print(f"Response length: {len(response.text)} characters")
+            print(f"Response headers: {dict(response.headers)}")
+            
+            # Check if we got a valid HTML response
+            if 'youtube' not in response.text.lower():
+                print("WARNING: Response doesn't appear to be from YouTube")
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid response from YouTube (not a YouTube page)',
+                    'query': search_query
+                })
             
             # Parse the HTML response
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -10259,18 +10269,30 @@ def youtube_search():
                     'query': search_query
                 })
             
-            # If all methods fail, use mock data
-            print("All extraction methods failed, using mock data")
-            return generate_mock_videos(search_query)
+            # If all methods fail, return error instead of mock data
+            print("All extraction methods failed, returning error")
+            return jsonify({
+                'success': False,
+                'error': 'Unable to extract video data from YouTube. This may be due to network restrictions or YouTube blocking requests.',
+                'query': search_query
+            })
                 
         except requests.RequestException as e:
             print(f"Request error: {e}")
-            return generate_mock_videos(search_query)
+            return jsonify({
+                'success': False,
+                'error': f'Network error: {str(e)}',
+                'query': search_query
+            })
         except Exception as e:
             print(f"Unexpected error during scraping: {e}")
             import traceback
             traceback.print_exc()
-            return generate_mock_videos(search_query)
+            return jsonify({
+                'success': False,
+                'error': f'Scraping error: {str(e)}',
+                'query': search_query
+            })
             
     except Exception as e:
         print(f"YouTube search error: {e}")
