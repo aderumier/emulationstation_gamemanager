@@ -6472,7 +6472,7 @@ def load_image_mappings():
     """Load image type mappings from consolidated config.json"""
     return {
         'image_type_mappings': scrappers_config.get('launchbox', {}).get('image_type_mappings', {}),
-        'launchbox_image_base_url': scrappers_config.get('launchbox', {}).get('image_base_url', 'https://images.launchbox-app.com/'),
+        'launchbox_image_base_url': 'https://images.launchbox-app.com/',
         'download_settings': config.get('download', {})
     }
 
@@ -6496,7 +6496,7 @@ def get_launchbox_box_image_url(launchbox_id):
         
         # Load image config for base URL and mappings
         image_config = load_image_mappings()
-        base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
+        base_url = 'https://images.launchbox-app.com/'
         
         # Get boxart mapping from configuration
         launchbox_config = scrappers_config.get('launchbox', {})
@@ -6869,7 +6869,7 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
                     media_directory = gamelist_field  # fallback to field name if no mapping found
                 
                 # Construct download URL and local path
-                base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
+                base_url = 'https://images.launchbox-app.com/'
                 download_url = base_url + best_image['filename']
                 file_extension = os.path.splitext(best_image['filename'])[1]
                 local_filename = create_media_filename(rom_filename, file_extension)
@@ -9036,7 +9036,7 @@ async def scrape_launchbox_manual(game, system_name):
             
             # Get LaunchBox image base URL from config
             image_config = load_image_mappings()
-            base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
+            base_url = 'https://images.launchbox-app.com/'
             
             for image in images:
                 if hasattr(image, 'tag'):  # XML element
@@ -13131,7 +13131,7 @@ def get_launchbox_media(launchbox_id, media_type):
                         region_elem = image_element.find('Region')
                         
                         if filename_elem is not None and filename_elem.text:
-                            base_url = image_config.get('launchbox_image_base_url', 'https://images.launchbox-app.com/')
+                            base_url = 'https://images.launchbox-app.com/'
                             media_url = base_url + filename_elem.text
                             
                             available_media.append({

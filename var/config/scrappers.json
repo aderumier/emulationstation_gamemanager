@@ -10,7 +10,6 @@
             "MaxPlayers": "players",
             "VideoURL": "youtubeurl"
         },
-        "image_base_url": "https://images.launchbox-app.com/",
         "image_type_mappings": {
             "boxart": [
                 "Box - Front",
