@@ -10510,42 +10510,13 @@ def search_youtube_with_web_scraping(search_query):
         }
         
         try:
-            # Check if YouTube cookies are available
-            cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
-            cookies_present = os.path.isfile(cookie_path) and os.path.getsize(cookie_path) > 0
-            
-            if cookies_present:
-                print(f"Using YouTube cookies from: {cookie_path}")
-                # Parse cookies from the file
-                cookies = {}
-                try:
-                    with open(cookie_path, 'r', encoding='utf-8') as f:
-                        for line in f:
-                            line = line.strip()
-                            if line and not line.startswith('#') and '\t' in line:
-                                parts = line.split('\t')
-                                if len(parts) >= 7:
-                                    domain = parts[0]
-                                    if 'youtube.com' in domain:
-                                        name = parts[5]
-                                        value = parts[6]
-                                        cookies[name] = value
-                    print(f"Loaded {len(cookies)} YouTube cookies")
-                except Exception as e:
-                    print(f"Error loading cookies: {e}")
-                    cookies = {}
-            else:
-                print("No YouTube cookies found, proceeding without authentication")
-                cookies = {}
-            
             print(f"Making request to: {search_url}")
-            response = requests.get(search_url, headers=headers, cookies=cookies, timeout=15)
+            response = requests.get(search_url, headers=headers, timeout=15)
             response.raise_for_status()
             
             print(f"Response status: {response.status_code}")
             print(f"Response length: {len(response.text)} characters")
             print(f"Response headers: {dict(response.headers)}")
-            print(f"Request made with {len(cookies)} cookies: {list(cookies.keys()) if cookies else 'None'}")
             
             # Check if we got a valid HTML response
             if 'youtube' not in response.text.lower():
@@ -10583,7 +10554,6 @@ def search_youtube_with_web_scraping(search_query):
                         f.write(f"<!-- Status Code: {response.status_code} -->\n")
                         f.write(f"<!-- Timestamp: {timestamp} -->\n")
                         f.write(f"<!-- Headers: {dict(response.headers)} -->\n")
-                        f.write(f"<!-- Cookies Used: {len(cookies)} cookies -->\n")
                         f.write(f"<!-- URL: {search_url} -->\n")
                         f.write(f"<!-- Response Length: {len(response.text)} characters -->\n")
                         f.write(f"<!-- ========================================== -->\n\n")
