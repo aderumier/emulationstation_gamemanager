@@ -9601,7 +9601,7 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Description', 'Overview']:
                 # Handle both Description and Overview fields for description
                 if 'desc' not in text_fields or not text_fields['desc']:
-                text_fields['desc'] = text
+                    text_fields['desc'] = text
                     print(f"DEBUG: Set desc field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'Developer':
                 text_fields['developer'] = text
