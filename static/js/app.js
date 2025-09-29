@@ -3190,8 +3190,10 @@ class GameCollectionManager {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('directoryExplorerModal'));
                 modal.hide();
                 
-                // Refresh the grid
+                // Refresh the grid to show updated paths
+                console.log('Refreshing grid after ROM move...');
                 await this.loadRomSystem(this.currentSystem);
+                console.log('Grid refreshed successfully');
             } else {
                 this.showAlert(result.error || 'Failed to move ROM', 'error');
             }

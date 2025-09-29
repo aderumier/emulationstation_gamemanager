@@ -8750,18 +8750,30 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
         old_relative = os.path.relpath(old_path, system_rom_dir).replace('\\', '/')
         new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
         
+        # Ensure both paths start with './'
         if not old_relative.startswith('./'):
             old_relative = './' + old_relative
         if not new_relative.startswith('./'):
             new_relative = './' + new_relative
         
+        print(f"Updating gamelist: {old_relative} -> {new_relative}")
+        
         # Update game paths in gamelist
         updated = False
         for game in games:
-            if game.get('path') == old_relative:
+            current_path = game.get('path', '')
+            if current_path == old_relative:
                 game['path'] = new_relative
                 updated = True
-                print(f"Updated game path: {old_relative} -> {new_relative}")
+                print(f"Updated game path: {current_path} -> {new_relative}")
+            elif current_path and current_path.startswith('./') and old_relative.startswith('./'):
+                # Also check if the path matches without the './' prefix
+                current_without_prefix = current_path[2:] if current_path.startswith('./') else current_path
+                old_without_prefix = old_relative[2:] if old_relative.startswith('./') else old_relative
+                if current_without_prefix == old_without_prefix:
+                    game['path'] = new_relative
+                    updated = True
+                    print(f"Updated game path (without prefix): {current_path} -> {new_relative}")
         
         if updated:
             # Save updated gamelist
@@ -8772,6 +8784,9 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
             
             # Notify clients
             notify_gamelist_updated(system_name, len(games))
+            print(f"Gamelist updated successfully for {system_name}")
+        else:
+            print(f"No matching game found for path: {old_relative}")
             
     except Exception as e:
         print(f"Error updating gamelist after move: {e}")
