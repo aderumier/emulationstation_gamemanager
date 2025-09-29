@@ -17553,7 +17553,8 @@ if __name__ == '__main__':
                     app,
                     debug=False,
                     host=config['server']['host'],
-                    port=config['server']['port']
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
                 )
         except KeyboardInterrupt:
             print("\n🔄 Keyboard interrupt received, shutting down...")
