@@ -9142,15 +9142,39 @@ class GameCollectionManager {
     }
 
     async getSelectedSteamFields() {
-        // For now, return all available fields
-        // In the future, this could be made configurable
-        return ['capsule', 'logo', 'hero', 'screenshot'];
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get Steam field mappings from config
+            const textFields = Object.keys(config.steam?.mapping || {});
+            const mediaFields = Object.keys(config.steam?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            return allFields;
+        } catch (error) {
+            console.error('Error getting Steam fields:', error);
+            return ['boxart', 'marquee', 'fanart', 'image'];
+        }
     }
 
     async getSelectedSteamgriddbFields() {
-        // For now, return all available fields
-        // In the future, this could be made configurable
-        return ['grids', 'logos', 'heroes'];
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get SteamGridDB field mappings from config
+            const textFields = Object.keys(config.steamgriddb?.mapping || {});
+            const mediaFields = Object.keys(config.steamgriddb?.image_type_mappings || {});
+            const allFields = [...textFields, ...mediaFields];
+            
+            return allFields;
+        } catch (error) {
+            console.error('Error getting SteamGridDB fields:', error);
+            return ['boxart', 'marquee', 'fanart'];
+        }
     }
 
     async loadLaunchboxFieldSettings() {

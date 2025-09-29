@@ -4417,7 +4417,7 @@ def manage_igdb_mappings():
             if 'image_type_mappings' not in config['igdb']:
                 config['igdb']['image_type_mappings'] = {}
             
-            config['igdb']['image_type_mappings'][igdb_type] = media_field
+            config['igdb']['image_type_mappings'][media_field] = igdb_type
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
@@ -4447,7 +4447,7 @@ def manage_igdb_mappings():
                 config['igdb']['image_type_mappings'] = {}
             
             default_value = default_mappings.get(igdb_type, '')
-            config['igdb']['image_type_mappings'][igdb_type] = default_value
+            config['igdb']['image_type_mappings'][media_field] = default_value
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
@@ -4588,7 +4588,7 @@ def manage_steamgriddb_mappings():
             if 'image_type_mappings' not in config['steamgriddb']:
                 config['steamgriddb']['image_type_mappings'] = {}
             
-            config['steamgriddb']['image_type_mappings'][steamgriddb_type] = media_field
+            config['steamgriddb']['image_type_mappings'][media_field] = steamgriddb_type
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
@@ -4606,9 +4606,9 @@ def manage_steamgriddb_mappings():
             
             # Define default mappings
             default_mappings = {
-                "grids": "boxart",
-                "logos": "marquee",
-                "heroes": "fanart"
+                "boxart": "grids",
+                "marquee": "logos",
+                "fanart": "heroes"
             }
             
             # Reset to default value
@@ -4618,7 +4618,7 @@ def manage_steamgriddb_mappings():
                 config['steamgriddb']['image_type_mappings'] = {}
             
             default_value = default_mappings.get(steamgriddb_type, '')
-            config['steamgriddb']['image_type_mappings'][steamgriddb_type] = default_value
+            config['steamgriddb']['image_type_mappings'][media_field] = default_value
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
@@ -5128,7 +5128,7 @@ def manage_steam_mappings():
             if 'image_type_mappings' not in config['steam']:
                 config['steam']['image_type_mappings'] = {}
             
-            config['steam']['image_type_mappings'][steam_type] = media_field
+            config['steam']['image_type_mappings'][media_field] = steam_type
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
@@ -5146,9 +5146,9 @@ def manage_steam_mappings():
             
             # Define default mappings
             default_mappings = {
-                "capsule": "boxart",
-                "logo": "marquee",
-                "hero": "fanart"
+                "boxart": "capsule",
+                "marquee": "logo",
+                "fanart": "hero"
             }
             
             # Reset to default value
@@ -5158,7 +5158,7 @@ def manage_steam_mappings():
                 config['steam']['image_type_mappings'] = {}
             
             default_value = default_mappings.get(steam_type, '')
-            config['steam']['image_type_mappings'][steam_type] = default_value
+            config['steam']['image_type_mappings'][media_field] = default_value
             
             # Save to file
             with open('var/config/config.json', 'w') as f:
@@ -8560,7 +8560,15 @@ async def scrape_igdb_manual(game, system_name, system_config):
             if logos:
                 for logo in logos:
                     if logo and logo.get('url'):
-                        add_media(igdb_image_mapping.get('logos', 'marquee'), logo.get('url'))
+                        # Find the gamelist field that maps to logos
+                        logo_field = None
+                        for field, igdb_type in igdb_image_mapping.items():
+                            if igdb_type == 'logos':
+                                logo_field = field
+                                break
+                        if not logo_field:
+                            logo_field = 'marquee'
+                        add_media(logo_field, logo.get('url'))
         except Exception as e:
             print(f"Error getting IGDB logos: {e}")
         
@@ -8629,9 +8637,26 @@ async def scrape_steam_manual(game, system_name):
         hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
 
         # Map and append as arrays
-        capsule_field = steam_image_mapping.get('capsule', 'boxart')
-        logo_field = steam_image_mapping.get('logo', 'marquee')
-        hero_field = steam_image_mapping.get('hero', 'fanart')
+        capsule_field = None
+        logo_field = None
+        hero_field = None
+        
+        # Find the gamelist fields that map to these Steam types
+        for field, steam_type in steam_image_mapping.items():
+            if steam_type == 'capsule':
+                capsule_field = field
+            elif steam_type == 'logo':
+                logo_field = field
+            elif steam_type == 'hero':
+                hero_field = field
+        
+        # Use defaults if not found
+        if not capsule_field:
+            capsule_field = 'boxart'
+        if not logo_field:
+            logo_field = 'marquee'
+        if not hero_field:
+            hero_field = 'fanart'
 
         media_fields.setdefault(capsule_field, []).append(capsule_url)
         media_fields.setdefault(logo_field, []).append(logo_url)
@@ -8639,8 +8664,8 @@ async def scrape_steam_manual(game, system_name):
 
         # Also include header_image from API if present
         if steam_data.get('header_image'):
-            mapped = steam_image_mapping.get('header_image', capsule_field)
-            media_fields.setdefault(mapped, []).append(steam_data['header_image'])
+            # Use capsule field for header image as fallback
+            media_fields.setdefault(capsule_field, []).append(steam_data['header_image'])
         
         return {
             'text_fields': text_fields,
@@ -8827,7 +8852,14 @@ async def scrape_steamgriddb_manual(game, system_name):
         def map_and_append(items: List[Dict], sgd_type: str, default_field: str):
             if not items:
                 return
-            target_field = sgd_image_mapping.get(sgd_type, default_field)
+            # Find the gamelist field that maps to this SteamGridDB type
+            target_field = None
+            for field, sgd_mapped_type in sgd_image_mapping.items():
+                if sgd_mapped_type == sgd_type:
+                    target_field = field
+                    break
+            if not target_field:
+                target_field = default_field
             urls = [it.get('url') for it in items if it.get('url')]
             if urls:
                 media_fields.setdefault(target_field, []).extend(urls)
@@ -14060,8 +14092,12 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
         igdb_config = scrappers_config.get('igdb', {})
         image_type_mappings = igdb_config.get('image_type_mappings', {})
         # Map IGDB image type to gamelist field using config
-        # image_type should now be a config key (artworks, screenshots, logos, cover)
-        gamelist_field = image_type_mappings.get(image_type)
+        # Find the gamelist field that maps to this IGDB image type
+        gamelist_field = None
+        for field, igdb_type in image_type_mappings.items():
+            if igdb_type == image_type:
+                gamelist_field = field
+                break
         if not gamelist_field:
             print(f"{emoji} DEBUG: No mapping found for IGDB image type: {image_type}")
             media_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'images')
@@ -15029,7 +15065,14 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             if not selected_fields or 'logos' in selected_fields:
                 print(f"🏷️ DEBUG: Logo field is selected or no field selection (all fields)")
                 # Check if logo field is selected or if no field selection (all fields)
-                logo_field = igdb_image_mapping.get('logos', 'marquee')
+                # Find the gamelist field that maps to logos
+                logo_field = None
+                for field, igdb_type in igdb_image_mapping.items():
+                    if igdb_type == 'logos':
+                        logo_field = field
+                        break
+                if not logo_field:
+                    logo_field = 'marquee'
                 marquee_elem = game.find(logo_field)
                 overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
                 
@@ -15976,9 +16019,9 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
             roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
             steam_config = scrappers_config.get('steam', {})
             image_type_mappings = steam_config.get('image_type_mappings', {
-                'capsule': 'boxart',
-                'logo': 'marquee',
-                'hero': 'fanart'
+                'boxart': 'capsule',
+                'marquee': 'logo',
+                'fanart': 'hero'
             })
             
             # Get selected fields from task data
@@ -16670,9 +16713,9 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
             roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
             steamgriddb_config = scrappers_config.get('steamgriddb', {})
             image_type_mappings = steamgriddb_config.get('image_type_mappings', {
-                'grids': 'boxart',
-                'logos': 'marquee',
-                'heroes': 'fanart'
+                'boxart': 'grids',
+                'marquee': 'logos',
+                'fanart': 'heroes'
             })
             
             # Get selected fields from task data

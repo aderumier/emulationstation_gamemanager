@@ -70,10 +70,10 @@
             "youtubeurl": "youtubeurl"
         },
         "image_type_mappings": {
-            "cover": "boxart",
-            "screenshots": "image",
-            "artworks": "fanart",
-            "logos": "marquee"
+            "boxart": "cover",
+            "image": "screenshots",
+            "fanart": "artworks",
+            "marquee": "logos"
         },
         "region_priority": [
             "World",
@@ -125,17 +125,17 @@
     },
     "steamgriddb": {
         "image_type_mappings": {
-            "grids": "boxart",
-            "logos": "marquee",
-            "heroes": "fanart"
+            "boxart": "grids",
+            "marquee": "logos",
+            "fanart": "heroes"
         }
     },
     "steam": {
         "image_type_mappings": {
-            "capsule": "boxart",
-            "logo": "marquee",
-            "hero": "fanart",
-            "screenshot": "image"
+            "boxart": "capsule",
+            "marquee": "logo",
+            "fanart": "hero",
+            "image": "screenshot"
         }
     }
 }
