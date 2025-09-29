@@ -12307,6 +12307,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
 
         used_po_token = False
         used_full_download_without_sections = False
+        actually_used_sections = False
         # Determine if cookies are present
         try:
             cookie_path_check = os.path.join('var', 'config', 'youtube_cookie.txt')
@@ -12344,11 +12345,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             first_mode = 'sections'
             use_cookies_first = False
             used_full_download_without_sections = False
+            actually_used_sections = True
         else:
             # No cookies - use sections mode
             first_mode = 'sections'
             use_cookies_first = False
-            used_full_download_without_sections = False                                                
+            used_full_download_without_sections = False
+            actually_used_sections = True                                                
 
         download_cmd = build_download_cmd(first_mode, use_cookies_first)
         if is_steam_store:
@@ -12514,6 +12517,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 if process.returncode == 0:
                     fallback_success = True
                     used_full_download_without_sections = True
+                    # Don't change actually_used_sections - preserve the original mode
                     task.update_progress(f"  ✅ Download succeeded with full download for {game_name}")
                 else:
                     task.update_progress(f"  ❌ Download failed even with full download (code: {process.returncode})")
@@ -12605,6 +12609,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             if not fallback_success and video_config.get('enable_youtube_po_token', False) and is_youtube_url:
                 used_po_token = True
                 used_full_download_without_sections = True
+                # Don't change actually_used_sections - preserve the original mode
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 task.update_progress(f"  🔁 Trying YouTube PO token provider: {youtube_po_token_provider}")
                 
@@ -12838,7 +12843,11 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         video_config = config.get('video', {})
         is_youtube_url = 'youtube.com' in video_url.lower() or 'youtu.be' in video_url.lower()
         
-        if used_full_download_without_sections or needs_auto_cut:
+        # Don't cut video if it was downloaded with sections (already the correct length)
+        if actually_used_sections:
+            task.update_progress(f"  ✂️ Video downloaded with sections, skipping additional cutting")
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
+        elif used_full_download_without_sections or needs_auto_cut:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, cut_start_time, cut_end_time)
         else:
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
