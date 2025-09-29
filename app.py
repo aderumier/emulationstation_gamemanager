@@ -12829,26 +12829,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         final_source_path = processed_path if os.path.exists(processed_path) else temp_path
         
         task.update_progress(f"  📁 Temp file: {temp_file}")
-        task.update_progress(f"  📁 Processed path: {processed_path}")
+        task.update_progress(f"  📁 Processed path: {os.path.basename(processed_path)}")
         task.update_progress(f"  📁 Processed exists: {os.path.exists(processed_path)}")
-        
-        # Debug: List all files in temp directory to see what was actually created
-        temp_files_debug = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_')]
-        task.update_progress(f"  📁 All temp files: {temp_files_debug}")
-        
-        # Look for any file that might be the processed file (with different naming)
-        processed_candidates = [f for f in temp_files_debug if 'processed' in f.lower() or f.endswith('_processed.mp4')]
-        task.update_progress(f"  📁 Processed candidates: {processed_candidates}")
-        
-        # If we found processed candidates, use the most recent one
-        if processed_candidates:
-            processed_candidates_with_time = [(f, os.path.getmtime(os.path.join(temp_videos_dir, f))) for f in processed_candidates]
-            processed_candidates_with_time.sort(key=lambda x: x[1], reverse=True)
-            actual_processed_file = processed_candidates_with_time[0][0]
-            actual_processed_path = os.path.join(temp_videos_dir, actual_processed_file)
-            final_source_path = actual_processed_path
-            task.update_progress(f"  📁 Found actual processed file: {actual_processed_file}")
-        
         task.update_progress(f"  📁 Final source file: {os.path.basename(final_source_path)}")
         task.update_progress(f"  📁 Target output: {output_filename_only}")
         
