@@ -932,6 +932,7 @@ _worker_result_queue = None
 _worker_manager = None
 _worker_cancel_map = None  # dict-like shared across processes: {task_id: True}
 _igdb_cancel_maps = {}  # dict of {task_id: cancel_map} for IGDB tasks
+_cleanup_in_progress = False  # Flag to prevent multiple cleanup attempts
 
 def _ensure_worker_started():
     """Start the single scraping worker process and the result listener thread."""
@@ -18315,10 +18316,17 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread.start()
 def cleanup_on_exit():
     """Clean up resources when the application exits"""
+    global _cleanup_in_progress, _worker_process
+    
+    # Prevent multiple cleanup attempts
+    if _cleanup_in_progress:
+        print("🔄 Cleanup already in progress, skipping...")
+        return
+    
+    _cleanup_in_progress = True
     print("🔄 Cleaning up resources...")
     
     # Terminate worker process if it exists
-    global _worker_process
     if _worker_process is not None and _worker_process.is_alive():
         print(f"🔄 Terminating worker process (PID: {_worker_process.pid})...")
         try:
@@ -18334,6 +18342,9 @@ def cleanup_on_exit():
                         print("⚠️  Worker process still alive after kill, continuing...")
         except Exception as e:
             print(f"⚠️  Error terminating worker process: {e}")
+        finally:
+            # Clear the process reference after cleanup
+            _worker_process = None
     
     # Clean up multiprocessing manager
     global _worker_manager
