@@ -4719,7 +4719,7 @@ def manage_steamgriddb_credentials():
     except Exception as e:
         return jsonify({'error': f'Failed to manage SteamGridDB credentials: {str(e)}'}), 500
 
-@app.route('/api/youtube-credentials', methods=['GET', 'POST'])
+@app.route('/api/youtube-credentials', methods=['GET', 'POST', 'DELETE'])
 @login_required
 def manage_youtube_credentials():
     """Manage YouTube Data API v3 credentials"""
