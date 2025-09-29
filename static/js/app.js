@@ -835,6 +835,7 @@ class GameCollectionManager {
                 cellRenderer: (params) => {
                     const status = params.data.status;
                     const taskId = params.data.id;
+                    const taskType = params.data.type;
                     let buttons = '';
                     
                     if (status === 'running') {
@@ -844,6 +845,10 @@ class GameCollectionManager {
                     } else if (status === 'queued') {
                         buttons = `<button class="btn btn-outline-danger btn-sm" onclick="window.gameManager.deleteTask('${taskId}')">
                             <i class="bi bi-trash"></i> Delete
+                        </button>`;
+                    } else if (status === 'waiting_confirmation' && taskType === 'rom_scan') {
+                        buttons = `<button class="btn btn-outline-danger btn-sm" onclick="window.gameManager.stopTask('${taskId}')">
+                            <i class="bi bi-x-circle"></i> Cancel
                         </button>`;
                     }
                     
@@ -1362,6 +1367,38 @@ class GameCollectionManager {
 
     async stopTask(taskId) {
         try {
+            // First, get the task details to check if it's a ROM scan task in waiting_confirmation status
+            const taskResponse = await fetch('/api/tasks');
+            if (taskResponse.ok) {
+                const tasks = await taskResponse.json();
+                const task = tasks.find(t => t.id === taskId);
+                
+                // If it's a ROM scan task in waiting_confirmation status, use the ROM scan confirmation endpoint
+                if (task && task.type === 'rom_scan' && task.status === 'waiting_confirmation') {
+                    const response = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms-confirm`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            action: 'cancel'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        this.showToast(result.message || 'ROM scan cancelled successfully', 'success');
+                        this.refreshTasks();
+                        return;
+                    } else {
+                        const errorData = await response.json();
+                        this.showToast(errorData.error || 'Failed to cancel ROM scan', 'error');
+                        return;
+                    }
+                }
+            }
+            
+            // For all other tasks, use the general task stop endpoint
             const response = await fetch(`/api/tasks/${taskId}/stop`, {
                 method: 'POST'
             });
