@@ -9252,7 +9252,19 @@ class GameCollectionManager {
             const mediaFields = Object.keys(config.steam?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
-            return allFields;
+            // Read field selections from cookies
+            const selectedFields = [];
+            allFields.forEach(field => {
+                const cookieName = `steamField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                // If no cookie or cookie is true, include the field
+                if (cookieValue === null || cookieValue === 'true') {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
         } catch (error) {
             console.error('Error getting Steam fields:', error);
             return ['boxart', 'marquee', 'fanart', 'image'];
@@ -9270,7 +9282,19 @@ class GameCollectionManager {
             const mediaFields = Object.keys(config.steamgriddb?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
-            return allFields;
+            // Read field selections from cookies
+            const selectedFields = [];
+            allFields.forEach(field => {
+                const cookieName = `steamgriddbField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                // If no cookie or cookie is true, include the field
+                if (cookieValue === null || cookieValue === 'true') {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
         } catch (error) {
             console.error('Error getting SteamGridDB fields:', error);
             return ['boxart', 'marquee', 'fanart'];
