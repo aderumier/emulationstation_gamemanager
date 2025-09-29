@@ -10236,6 +10236,15 @@ def youtube_search():
                 print(f"Response content preview (first 500 chars): {response.text[:500]}")
                 print(f"Response headers: {dict(response.headers)}")
                 
+                # Log the full HTML response for debugging
+                print("=" * 80)
+                print("FULL HTML RESPONSE FROM YOUTUBE:")
+                print("=" * 80)
+                print(response.text)
+                print("=" * 80)
+                print("END OF HTML RESPONSE")
+                print("=" * 80)
+                
                 # Check for common error patterns
                 error_info = f"Status: {response.status_code}"
                 if response.status_code == 403:
@@ -10246,6 +10255,8 @@ def youtube_search():
                     error_info += " (Not Found)"
                 elif response.status_code >= 500:
                     error_info += " (Server Error)"
+                elif response.status_code == 200:
+                    error_info += " (OK but not YouTube content - possibly redirected or blocked)"
                 
                 return jsonify({
                     'success': False,
