@@ -10039,7 +10039,31 @@ class GameCollectionManager {
         await this.loadSteamgriddbMappingsData();
         
         console.log('All data loaded, showing modal...');
+        
+        // Debug: Check if tab content is visible
+        const mediaFieldsTab = document.getElementById('media-fields');
+        const addMediaFieldBtn = document.getElementById('addMediaFieldBtn');
+        const refreshMediaFieldsBtn = document.getElementById('refreshMediaFieldsBtn');
+        console.log('Media Fields tab element:', mediaFieldsTab);
+        console.log('Add Media Field button:', addMediaFieldBtn);
+        console.log('Refresh Media Fields button:', refreshMediaFieldsBtn);
+        console.log('Media Fields tab classes:', mediaFieldsTab?.className);
+        console.log('Media Fields tab style display:', mediaFieldsTab?.style.display);
+        
         modal.show();
+        
+        // Debug after modal is shown
+        setTimeout(() => {
+            const mediaFieldsTab = document.getElementById('media-fields');
+            const addMediaFieldBtn = document.getElementById('addMediaFieldBtn');
+            const refreshMediaFieldsBtn = document.getElementById('refreshMediaFieldsBtn');
+            console.log('After modal shown - Media Fields tab element:', mediaFieldsTab);
+            console.log('After modal shown - Add Media Field button:', addMediaFieldBtn);
+            console.log('After modal shown - Refresh Media Fields button:', refreshMediaFieldsBtn);
+            console.log('After modal shown - Media Fields tab classes:', mediaFieldsTab?.className);
+            console.log('After modal shown - Media Fields tab style display:', mediaFieldsTab?.style.display);
+            console.log('After modal shown - Media Fields tab offsetHeight:', mediaFieldsTab?.offsetHeight);
+        }, 500);
     }
 
     openMediaFieldsConfigurationModal() {
