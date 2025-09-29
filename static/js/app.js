@@ -10571,7 +10571,8 @@ class GameCollectionManager {
         // Create rows for all media fields, not just the ones that are mapped
         Object.keys(mediaFields).forEach(mediaField => {
             // Find which IGDB type maps to this media field
-            const igdbType = Object.keys(igdbMappings).find(type => igdbMappings[type] === mediaField) || '';
+            // igdbMappings structure: { "boxart": "cover", "image": "screenshots", ... }
+            const igdbType = igdbMappings[mediaField] || '';
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
