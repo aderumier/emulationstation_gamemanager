@@ -8716,10 +8716,14 @@ def move_rom(system_name):
         
         try:
             # Move the file/directory
+            print(f"Moving file from {full_game_path} to {new_path}")
             shutil.move(full_game_path, new_path)
+            print(f"File moved successfully")
             
             # Update the gamelist
+            print(f"Updating gamelist for {system_name}")
             update_gamelist_after_move(system_name, game_path, new_path, system_rom_dir)
+            print(f"Gamelist update completed")
             
             return jsonify({
                 'success': True,
@@ -8765,12 +8769,15 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
         
         # Update game paths in gamelist
         updated = False
-        for game in games:
+        print(f"Checking {len(games)} games for path matching...")
+        for i, game in enumerate(games):
             current_path = game.get('path', '')
+            print(f"  Game {i}: path='{current_path}', name='{game.get('name', 'NO_NAME')}'")
+            
             if current_path == old_relative:
                 game['path'] = new_relative
                 updated = True
-                print(f"Updated game path: {current_path} -> {new_relative}")
+                print(f"  ✅ MATCH FOUND! Updated game path: {current_path} -> {new_relative}")
             elif current_path and current_path.startswith('./') and old_relative.startswith('./'):
                 # Also check if the path matches without the './' prefix
                 current_without_prefix = current_path[2:] if current_path.startswith('./') else current_path
@@ -8778,7 +8785,7 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
                 if current_without_prefix == old_without_prefix:
                     game['path'] = new_relative
                     updated = True
-                    print(f"Updated game path (without prefix): {current_path} -> {new_relative}")
+                    print(f"  ✅ MATCH FOUND (without prefix)! Updated game path: {current_path} -> {new_relative}")
         
         if updated:
             # Save updated gamelist to var/gamelists
