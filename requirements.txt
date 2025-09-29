@@ -15,9 +15,6 @@ aiofiles>=23.2.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 
-# Date parsing for YouTube API
-python-dateutil>=2.8.0
-
 # Image processing
 Pillow>=10.0.0
 
