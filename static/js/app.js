@@ -3059,9 +3059,7 @@ class GameCollectionManager {
         table.innerHTML = `
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Size</th>
+                    <th>Directory Name</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -3077,8 +3075,6 @@ class GameCollectionManager {
             const parentRow = document.createElement('tr');
             parentRow.innerHTML = `
                 <td><i class="bi bi-arrow-up"></i> ..</td>
-                <td>Directory</td>
-                <td>-</td>
                 <td><button class="btn btn-sm btn-outline-primary" onclick="gameManager.loadDirectoryContents('${this.getParentPath(currentPath)}')">Open</button></td>
             `;
             tbody.appendChild(parentRow);
@@ -3089,24 +3085,15 @@ class GameCollectionManager {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td><i class="bi bi-folder"></i> ${dir.name}</td>
-                <td>Directory</td>
-                <td>-</td>
-                <td><button class="btn btn-sm btn-outline-primary" onclick="gameManager.loadDirectoryContents('${dir.path}')">Open</button></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="gameManager.loadDirectoryContents('${dir.path}')">Open</button>
+                    <button class="btn btn-sm btn-outline-success" onclick="gameManager.selectMoveDestination('${dir.path}')">Select</button>
+                </td>
             `;
             tbody.appendChild(row);
         });
         
-        // Add files
-        contents.files.forEach(file => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td><i class="bi bi-file"></i> ${file.name}</td>
-                <td>File</td>
-                <td>${this.formatFileSize(file.size)}</td>
-                <td><button class="btn btn-sm btn-outline-secondary" onclick="gameManager.selectMoveDestination('${file.path}')">Select</button></td>
-            `;
-            tbody.appendChild(row);
-        });
+        // Files are not displayed - only directories for ROM moving
     }
 
     createBreadcrumb(currentPath) {
