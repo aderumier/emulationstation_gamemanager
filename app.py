@@ -911,6 +911,7 @@ task_stop_event = threading.Event()
 
 # Global cancel maps for different task types
 _screenscraper_cancel_maps = {}
+_rom_scan_cancel_maps = {}
 
 # Client tracking for system-specific notifications
 client_systems = {}  # {client_sid: system_name}
@@ -9340,6 +9341,20 @@ def stop_task_endpoint(task_id):
             except Exception as e:
                 print(f"Warning: could not set SteamGridDB cancel flag: {e}")
         
+        # For ROM scan tasks, we need to handle cancellation
+        # since they run in background threads
+        if task.type == 'rom_scan':
+            task.update_progress("🛑 ROM scan task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for ROM scan tasks
+            try:
+                global _rom_scan_cancel_maps
+                if '_rom_scan_cancel_maps' not in globals():
+                    _rom_scan_cancel_maps = {}
+                _rom_scan_cancel_maps[task_id] = True
+                print(f"DEBUG: Set ROM scan cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set ROM scan cancel flag: {e}")
+        
         # For Steam tasks, we need to handle cancellation
         if task.type == 'steam_scraping':
             task.update_progress("🛑 Steam task stop requested - worker will save partial changes and exit")
@@ -10252,7 +10267,7 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
 
 def run_rom_scan_task(system_name):
     """Run ROM scan task in background thread"""
-    global current_task_id
+    global current_task_id, _rom_scan_cancel_maps
     
     try:
         if not current_task_id or current_task_id not in tasks:
@@ -10260,6 +10275,9 @@ def run_rom_scan_task(system_name):
             return
         
         task = tasks[current_task_id]
+        
+        # Add task to cancel map
+        _rom_scan_cancel_maps[current_task_id] = False
         
         # Initialize task state
         task.update_progress("Starting ROM scan")
@@ -10315,7 +10333,7 @@ def run_rom_scan_task(system_name):
         
         for root, dirs, files in os.walk(system_path):
             # Check for cancellation before processing each directory
-            if is_task_stopped():
+            if _rom_scan_cancel_maps.get(current_task_id, False) or is_task_stopped():
                 task.update_progress("🛑 ROM scan cancelled by user")
                 task.complete(False, "ROM scan cancelled by user")
                 return
@@ -10390,7 +10408,7 @@ def run_rom_scan_task(system_name):
                     rom_files.append(rel_path)
         
         # Check for cancellation after scanning is complete
-        if is_task_stopped():
+        if _rom_scan_cancel_maps.get(current_task_id, False) or is_task_stopped():
             task.update_progress("🛑 ROM scan cancelled by user")
             task.complete(False, "ROM scan cancelled by user")
             return
@@ -10477,7 +10495,7 @@ def run_rom_scan_task(system_name):
         is_initial_import = not os.path.exists(gamelist_path)
         
         # Check for cancellation before showing confirmation
-        if is_task_stopped():
+        if _rom_scan_cancel_maps.get(current_task_id, False) or is_task_stopped():
             task.update_progress("🛑 ROM scan cancelled by user")
             task.complete(False, "ROM scan cancelled by user")
             return
@@ -10513,6 +10531,10 @@ def run_rom_scan_task(system_name):
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].error(str(e))
         return
+    finally:
+        # Clean up cancel map
+        if current_task_id in _rom_scan_cancel_maps:
+            del _rom_scan_cancel_maps[current_task_id]
 @app.route('/api/rom-system/<system_name>/scan-roms', methods=['GET'])
 @login_required
 def get_rom_scan_results(system_name):
