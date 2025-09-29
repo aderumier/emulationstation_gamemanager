@@ -10314,6 +10314,12 @@ def run_rom_scan_task(system_name):
         scanned_files = 0
         
         for root, dirs, files in os.walk(system_path):
+            # Check for cancellation before processing each directory
+            if is_task_stopped():
+                task.update_progress("🛑 ROM scan cancelled by user")
+                task.complete(False, "ROM scan cancelled by user")
+                return
+            
             scanned_dirs += 1
             scanned_files += len(files)
             
@@ -10382,6 +10388,12 @@ def run_rom_scan_task(system_name):
                     # Get relative path from system directory
                     rel_path = os.path.relpath(os.path.join(root, filename), system_path)
                     rom_files.append(rel_path)
+        
+        # Check for cancellation after scanning is complete
+        if is_task_stopped():
+            task.update_progress("🛑 ROM scan cancelled by user")
+            task.complete(False, "ROM scan cancelled by user")
+            return
         
         task.update_progress(f"Scan complete: {scanned_dirs} directories, {scanned_files} files scanned")
         task.update_progress(f"Found {len(rom_files)} ROM files in system directory (including subdirectories)")
@@ -10463,6 +10475,12 @@ def run_rom_scan_task(system_name):
         
         # Check if this is an initial import (no existing gamelist file)
         is_initial_import = not os.path.exists(gamelist_path)
+        
+        # Check for cancellation before showing confirmation
+        if is_task_stopped():
+            task.update_progress("🛑 ROM scan cancelled by user")
+            task.complete(False, "ROM scan cancelled by user")
+            return
         
         # Always store scan results and show confirmation modal
         task.scan_results = {
