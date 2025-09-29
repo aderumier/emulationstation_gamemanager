@@ -8681,9 +8681,12 @@ def move_rom(system_name):
         
         # Resolve full paths
         if game_path.startswith('./'):
-            game_path = game_path[2:]  # Remove './' prefix
+            # Remove './' prefix for file system operations
+            game_path_for_filesystem = game_path[2:]
+        else:
+            game_path_for_filesystem = game_path
         
-        full_game_path = os.path.join(system_rom_dir, game_path)
+        full_game_path = os.path.join(system_rom_dir, game_path_for_filesystem)
         
         if destination_path == '/':
             full_destination_path = system_rom_dir
@@ -8722,6 +8725,8 @@ def move_rom(system_name):
             
             # Update the gamelist
             print(f"Updating gamelist for {system_name}")
+            print(f"  Original game_path: {game_path}")
+            print(f"  New path: {new_path}")
             update_gamelist_after_move(system_name, game_path, new_path, system_rom_dir)
             print(f"Gamelist update completed")
             
