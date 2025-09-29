@@ -12795,40 +12795,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
 
         
         # Find the downloaded file - look for the specific temp file we created
-        expected_temp_base = temp_filename
-        temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith(expected_temp_base)]
+        temp_file = f"{temp_filename}.mp4"
+        temp_path = os.path.join(temp_videos_dir, temp_file)
         
-        # If not found with exact name, look for any temp file that starts with our expected name
-        if not temp_files:
-            search_name = rom_name if rom_file else os.path.splitext(os.path.basename(output_path))[0]
-            temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_') and search_name in f]
-        
-        # If still not found, look for any temp file (fallback)
-        if not temp_files:
-            temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_')]
-        
-        if not temp_files:
-            task.update_progress(f"  ❌ No temporary file found for {game_name}")
-            task.update_progress(f"  Expected temp file: {expected_temp_base}")
+        if not os.path.exists(temp_path):
+            task.update_progress(f"  ❌ Expected temp file not found: {temp_file}")
             task.update_progress(f"  Available files: {os.listdir(temp_videos_dir)}")
             return False
-        
-        # Prioritize files that match the ROM name, then fall back to most recent
-        rom_name = rom_name if rom_file else os.path.splitext(os.path.basename(output_path))[0]
-        matching_files = [f for f in temp_files if rom_name in f]
-        
-        if matching_files:
-            # Use the file that matches the ROM name (most specific match)
-            temp_file = matching_files[0]
-            task.update_progress(f"  🎯 Found ROM-specific temp file: {temp_file}")
-        else:
-            # Fallback to most recently modified file if no ROM-specific match
-            temp_files_with_time = [(f, os.path.getmtime(os.path.join(temp_videos_dir, f))) for f in temp_files]
-            temp_files_with_time.sort(key=lambda x: x[1], reverse=True)  # Sort by modification time, newest first
-            temp_file = temp_files_with_time[0][0]
-            task.update_progress(f"  ⚠️ No ROM-specific file found, using most recent: {temp_file}")
-        
-        temp_path = os.path.join(temp_videos_dir, temp_file)
         
         task.update_progress(f"  📁 Using downloaded file: {temp_file}")
         
