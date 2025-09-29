@@ -6,9 +6,9 @@
 set -e
 
 # Configuration
-IMAGE_NAME="gamemanager"
-VERSION="2.2.5-1"
-DOCKERHUB_USERNAME=""
+IMAGE_NAME="emulationstation_gamemanager"
+VERSION="2.3.3"
+DOCKERHUB_USERNAME="aderumier"
 
 # Colors for output
 RED='\033[0;31m'

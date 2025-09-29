@@ -3,9 +3,12 @@ Docker Hub Repository Information
 
 Correct Docker Hub Repository: aderumier/emulationstation_gamemanager
 
-Tags:
-- aderumier/emulationstation_gamemanager:2.0
+Current Tags:
+- aderumier/emulationstation_gamemanager:2.3.3 (latest with mediatype files fix)
 - aderumier/emulationstation_gamemanager:latest
+- aderumier/emulationstation_gamemanager:2.3.2
+- aderumier/emulationstation_gamemanager:2.3.1
+- aderumier/emulationstation_gamemanager:2.3.0
 
 This file serves as a reminder to always use the correct repository name when pushing Docker images.
 
