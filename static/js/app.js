@@ -10038,11 +10038,29 @@ class GameCollectionManager {
         
         modal.show();
         
-        // Manually activate the first tab if it's not active
+        // Reset all tabs and activate the first tab (Media Fields)
         setTimeout(() => {
-            const mediaFieldsTab = document.getElementById('media-fields');
-            if (mediaFieldsTab && !mediaFieldsTab.classList.contains('show')) {
-                mediaFieldsTab.classList.add('show', 'active');
+            // Remove active class from all tab buttons
+            const allTabButtons = document.querySelectorAll('#scraperConfigTabs .nav-link');
+            allTabButtons.forEach(button => {
+                button.classList.remove('active');
+                button.setAttribute('aria-selected', 'false');
+            });
+            
+            // Remove active and show classes from all tab panes
+            const allTabPanes = document.querySelectorAll('#scraperConfigTabContent .tab-pane');
+            allTabPanes.forEach(pane => {
+                pane.classList.remove('active', 'show');
+            });
+            
+            // Activate the first tab (Media Fields)
+            const firstTabButton = document.getElementById('media-fields-tab');
+            const firstTabPane = document.getElementById('media-fields');
+            
+            if (firstTabButton && firstTabPane) {
+                firstTabButton.classList.add('active');
+                firstTabButton.setAttribute('aria-selected', 'true');
+                firstTabPane.classList.add('active', 'show');
             }
         }, 100);
     }
