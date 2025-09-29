@@ -10241,7 +10241,7 @@ def youtube_search():
                 'q': api_query,
                 'type': 'video',
                 'maxResults': 10,
-                'order': 'relevance',
+                'order': 'date',  # Sort by date with most recent videos first
                 'key': youtube_api_key
             }
             
