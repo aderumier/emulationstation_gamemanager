@@ -10052,7 +10052,7 @@ class GameCollectionManager {
         
         modal.show();
         
-        // Debug after modal is shown
+        // Debug after modal is shown and manually activate the first tab
         setTimeout(() => {
             const mediaFieldsTab = document.getElementById('media-fields');
             const addMediaFieldBtn = document.getElementById('addMediaFieldBtn');
@@ -10063,6 +10063,14 @@ class GameCollectionManager {
             console.log('After modal shown - Media Fields tab classes:', mediaFieldsTab?.className);
             console.log('After modal shown - Media Fields tab style display:', mediaFieldsTab?.style.display);
             console.log('After modal shown - Media Fields tab offsetHeight:', mediaFieldsTab?.offsetHeight);
+            
+            // Manually activate the first tab if it's not active
+            if (mediaFieldsTab && !mediaFieldsTab.classList.contains('show')) {
+                console.log('Manually activating Media Fields tab...');
+                mediaFieldsTab.classList.add('show', 'active');
+                console.log('After manual activation - Media Fields tab classes:', mediaFieldsTab.className);
+                console.log('After manual activation - Media Fields tab offsetHeight:', mediaFieldsTab.offsetHeight);
+            }
         }, 500);
     }
 
