@@ -10024,25 +10024,21 @@ class GameCollectionManager {
         }
     }
     
-    openScraperConfigurationModal() {
+    async openScraperConfigurationModal() {
         console.log('Opening unified scraper configuration modal');
         const modalElement = document.getElementById('scraperConfigModal');
         const modal = new bootstrap.Modal(modalElement);
         
-        // Function to load all data
-        const loadAllData = () => {
-            console.log('Loading all scraper data...');
-            this.loadMediaFieldsData();
-            this.loadLaunchboxMappingsData();
-            this.loadIgdbMappingsData();
-            this.loadScreenscraperMappingsData();
-            this.loadSteamMappingsData();
-            this.loadSteamgriddbMappingsData();
-        };
+        // Load all data BEFORE showing the modal
+        console.log('Loading all scraper data before showing modal...');
+        await this.loadMediaFieldsData();
+        await this.loadLaunchboxMappingsData();
+        await this.loadIgdbMappingsData();
+        await this.loadScreenscraperMappingsData();
+        await this.loadSteamMappingsData();
+        await this.loadSteamgriddbMappingsData();
         
-        // Always load data when modal opens
-        modalElement.addEventListener('shown.bs.modal', loadAllData, { once: true });
-        
+        console.log('All data loaded, showing modal...');
         modal.show();
     }
 
@@ -10072,21 +10068,12 @@ class GameCollectionManager {
         }
     }
     
-    async populateMediaFieldsTable(mediaFields, retryCount = 0) {
+    async populateMediaFieldsTable(mediaFields) {
         const tbody = document.getElementById('mediaFieldsTableBody');
-        console.log('populateMediaFieldsTable called, tbody found:', !!tbody, 'retry count:', retryCount);
+        console.log('populateMediaFieldsTable called, tbody found:', !!tbody);
         if (!tbody) {
-            if (retryCount < 5) {
-                console.error('mediaFieldsTableBody not found! Retrying in 100ms...');
-                // Retry after a short delay
-                setTimeout(() => {
-                    this.populateMediaFieldsTable(mediaFields, retryCount + 1);
-                }, 100);
-                return;
-            } else {
-                console.error('mediaFieldsTableBody not found after 5 retries, giving up');
-                return;
-            }
+            console.error('mediaFieldsTableBody not found!');
+            return;
         }
         
         tbody.innerHTML = '';
