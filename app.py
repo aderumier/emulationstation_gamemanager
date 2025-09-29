@@ -4422,20 +4422,18 @@ def manage_igdb_mappings():
             if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping (igdb_type -> media_field)
+            # Update the mapping (media_field -> igdb_type)
             if 'igdb' not in scrappers_config:
                 scrappers_config['igdb'] = {}
             if 'image_type_mappings' not in scrappers_config['igdb']:
                 scrappers_config['igdb']['image_type_mappings'] = {}
             
-            # Remove any existing mapping for this media field first
-            for existing_igdb_type, existing_media_field in list(scrappers_config['igdb']['image_type_mappings'].items()):
-                if existing_media_field == media_field:
-                    del scrappers_config['igdb']['image_type_mappings'][existing_igdb_type]
-            
-            # Add new mapping if igdb_type is not empty
+            # Update the mapping directly
             if igdb_type:
-                scrappers_config['igdb']['image_type_mappings'][igdb_type] = media_field
+                scrappers_config['igdb']['image_type_mappings'][media_field] = igdb_type
+            else:
+                # Remove mapping if empty
+                scrappers_config['igdb']['image_type_mappings'].pop(media_field, None)
             
             # Save to file
             with open('var/config/scrappers.json', 'w') as f:
@@ -4465,15 +4463,10 @@ def manage_igdb_mappings():
             if 'image_type_mappings' not in scrappers_config['igdb']:
                 scrappers_config['igdb']['image_type_mappings'] = {}
             
-            # Remove any existing mapping for this media field first
-            for existing_igdb_type, existing_media_field in list(scrappers_config['igdb']['image_type_mappings'].items()):
-                if existing_media_field == media_field:
-                    del scrappers_config['igdb']['image_type_mappings'][existing_igdb_type]
-            
             # Add default mapping if it exists
             default_igdb_type = default_mappings.get(media_field)
             if default_igdb_type:
-                scrappers_config['igdb']['image_type_mappings'][default_igdb_type] = media_field
+                scrappers_config['igdb']['image_type_mappings'][media_field] = default_igdb_type
             
             # Save to file
             with open('var/config/scrappers.json', 'w') as f:
@@ -4619,20 +4612,18 @@ def manage_steamgriddb_mappings():
             if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping (steamgriddb_type -> media_field)
+            # Update the mapping (media_field -> steamgriddb_type)
             if 'steamgriddb' not in scrappers_config:
                 scrappers_config['steamgriddb'] = {}
             if 'image_type_mappings' not in scrappers_config['steamgriddb']:
                 scrappers_config['steamgriddb']['image_type_mappings'] = {}
             
-            # Remove any existing mapping for this media field first
-            for existing_steamgriddb_type, existing_media_field in list(scrappers_config['steamgriddb']['image_type_mappings'].items()):
-                if existing_media_field == media_field:
-                    del scrappers_config['steamgriddb']['image_type_mappings'][existing_steamgriddb_type]
-            
-            # Add new mapping if steamgriddb_type is not empty
+            # Update the mapping directly
             if steamgriddb_type:
-                scrappers_config['steamgriddb']['image_type_mappings'][steamgriddb_type] = media_field
+                scrappers_config['steamgriddb']['image_type_mappings'][media_field] = steamgriddb_type
+            else:
+                # Remove mapping if empty
+                scrappers_config['steamgriddb']['image_type_mappings'].pop(media_field, None)
             
             # Save to file
             with open('var/config/scrappers.json', 'w') as f:
@@ -4661,15 +4652,10 @@ def manage_steamgriddb_mappings():
             if 'image_type_mappings' not in scrappers_config['steamgriddb']:
                 scrappers_config['steamgriddb']['image_type_mappings'] = {}
             
-            # Remove any existing mapping for this media field first
-            for existing_steamgriddb_type, existing_media_field in list(scrappers_config['steamgriddb']['image_type_mappings'].items()):
-                if existing_media_field == media_field:
-                    del scrappers_config['steamgriddb']['image_type_mappings'][existing_steamgriddb_type]
-            
             # Add default mapping if it exists
             default_steamgriddb_type = default_mappings.get(media_field)
             if default_steamgriddb_type:
-                scrappers_config['steamgriddb']['image_type_mappings'][default_steamgriddb_type] = media_field
+                scrappers_config['steamgriddb']['image_type_mappings'][media_field] = default_steamgriddb_type
             
             # Save to file
             with open('var/config/scrappers.json', 'w') as f:
@@ -5184,20 +5170,18 @@ def manage_steam_mappings():
             if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping (steam_type -> media_field)
+            # Update the mapping (media_field -> steam_type)
             if 'steam' not in scrappers_config:
                 scrappers_config['steam'] = {}
             if 'image_type_mappings' not in scrappers_config['steam']:
                 scrappers_config['steam']['image_type_mappings'] = {}
             
-            # Remove any existing mapping for this media field first
-            for existing_steam_type, existing_media_field in list(scrappers_config['steam']['image_type_mappings'].items()):
-                if existing_media_field == media_field:
-                    del scrappers_config['steam']['image_type_mappings'][existing_steam_type]
-            
-            # Add new mapping if steam_type is not empty
+            # Update the mapping directly
             if steam_type:
-                scrappers_config['steam']['image_type_mappings'][steam_type] = media_field
+                scrappers_config['steam']['image_type_mappings'][media_field] = steam_type
+            else:
+                # Remove mapping if empty
+                scrappers_config['steam']['image_type_mappings'].pop(media_field, None)
             
             # Save to file
             with open('var/config/scrappers.json', 'w') as f:
@@ -5227,15 +5211,10 @@ def manage_steam_mappings():
             if 'image_type_mappings' not in scrappers_config['steam']:
                 scrappers_config['steam']['image_type_mappings'] = {}
             
-            # Remove any existing mapping for this media field first
-            for existing_steam_type, existing_media_field in list(scrappers_config['steam']['image_type_mappings'].items()):
-                if existing_media_field == media_field:
-                    del scrappers_config['steam']['image_type_mappings'][existing_steam_type]
-            
             # Add default mapping if it exists
             default_steam_type = default_mappings.get(media_field)
             if default_steam_type:
-                scrappers_config['steam']['image_type_mappings'][default_steam_type] = media_field
+                scrappers_config['steam']['image_type_mappings'][media_field] = default_steam_type
             
             # Save to file
             with open('var/config/scrappers.json', 'w') as f:

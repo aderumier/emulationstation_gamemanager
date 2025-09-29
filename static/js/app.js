@@ -11051,7 +11051,7 @@ class GameCollectionManager {
         // Create rows for all media fields, not just the ones that are mapped
         Object.keys(mediaFields).forEach(mediaField => {
             // Find which SteamGridDB type maps to this media field
-            // steamgriddbMappings structure: { "grids": "boxart", "logos": "marquee", ... }
+            // steamgriddbMappings structure: { "boxart": "grids", "marquee": "logos", ... }
             const steamgriddbType = steamgriddbMappings[mediaField] || '';
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -11338,7 +11338,7 @@ class GameCollectionManager {
         // Create rows for all media fields, not just the ones that are mapped
         Object.keys(mediaFields).forEach(mediaField => {
             // Find which Steam type maps to this media field
-            // steamMappings structure: { "capsule": "boxart", "logo": "marquee", ... }
+            // steamMappings structure: { "boxart": "capsule", "marquee": "logo", ... }
             const steamType = steamMappings[mediaField] || '';
             const row = document.createElement('tr');
             row.innerHTML = `
