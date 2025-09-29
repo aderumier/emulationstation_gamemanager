@@ -2955,6 +2955,11 @@ class GameCollectionManager {
                     });
                     // Also refresh the viewport to ensure row classes are reapplied
                     this.gridApi.redrawRows();
+                    
+                    // If hidden filter is active, refresh it to show newly hidden games
+                    if (this.hiddenFilterActive) {
+                        this.refreshHiddenFilter();
+                    }
                 }, 100);
                 
                 // Show success message
@@ -12427,6 +12432,19 @@ class GameCollectionManager {
 
     findHiddenGames() {
         return this.games.filter(game => game.hidden === 'true');
+    }
+
+    async refreshHiddenFilter() {
+        // Refresh the hidden filter to show updated hidden games
+        if (this.hiddenFilterActive) {
+            // Show all games (including newly hidden ones)
+            await this.updateGameGridData(this.games);
+            
+            const hiddenGames = this.findHiddenGames();
+            if (hiddenGames.length > 0) {
+                this.showToast(`Showing all games including ${hiddenGames.length} hidden games`, 'info');
+            }
+        }
     }
 
     async resetDuplicatesFilter() {
