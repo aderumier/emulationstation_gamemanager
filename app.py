@@ -17405,7 +17405,58 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread = threading.Thread(target=run_async)
     thread.daemon = True
     thread.start()
+def cleanup_on_exit():
+    """Clean up resources when the application exits"""
+    print("🔄 Cleaning up resources...")
+    
+    # Terminate worker process if it exists
+    global _worker_process
+    if _worker_process is not None and _worker_process.is_alive():
+        print("🔄 Terminating worker process...")
+        try:
+            _worker_process.terminate()
+            _worker_process.join(timeout=5)  # Wait up to 5 seconds
+            if _worker_process.is_alive():
+                print("⚠️  Worker process didn't terminate gracefully, forcing...")
+                _worker_process.kill()
+                _worker_process.join()
+        except Exception as e:
+            print(f"⚠️  Error terminating worker process: {e}")
+    
+    # Clean up multiprocessing manager
+    global _worker_manager
+    if _worker_manager is not None:
+        try:
+            _worker_manager.shutdown()
+        except Exception as e:
+            print(f"⚠️  Error shutting down manager: {e}")
+    
+    # Clean up temporary files
+    try:
+        cleanup_temp_files()
+    except Exception as e:
+        print(f"⚠️  Error cleaning up temp files: {e}")
+    
+    print("✅ Cleanup completed")
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    print(f"\n🔄 Received signal {signum}, shutting down gracefully...")
+    cleanup_on_exit()
+    exit(0)
+
 if __name__ == '__main__':
+    # Set up signal handlers for graceful shutdown
+    import signal
+    import atexit
+    
+    # Register signal handlers
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # Register cleanup function for normal exit
+    atexit.register(cleanup_on_exit)
+    
     # Ensure yt-dlp binary is available
     yt_dlp_path = ensure_yt_dlp_binary()
     if yt_dlp_path:
@@ -17451,25 +17502,25 @@ if __name__ == '__main__':
     cache_thread = threading.Thread(target=load_cache_background, daemon=True)
     cache_thread.start()
     
-    # Start the server using SocketIO
-    # In production, use Flask development server
-    if config['server']['debug']:
-        # Development mode - use Werkzeug with allow_unsafe_werkzeug
-        socketio.run(
-            app,
-            debug=True,
-            host=config['server']['host'],
-            port=config['server']['port'],
-            allow_unsafe_werkzeug=True
-        )
-    else:
-        # Production mode - use Flask development server
-        print("Starting production server...")
-        print("To run manually: python3 app.py")
-        socketio.run(
-            app,
-            debug=False,
-            host=config['server']['host'],
-            port=config['server']['port'],
-            allow_unsafe_werkzeug=True
-        )
+    try:
+        # Start the server using SocketIO
+        # In production, use Flask development server
+        if config['server']['debug']:
+            # Development mode - use Werkzeug with allow_unsafe_werkzeug
+            socketio.run(
+                app,
+                debug=True,
+                host=config['server']['host'],
+                port=config['server']['port'],
+                allow_unsafe_werkzeug=True
+            )
+        else:
+            # Production mode - use Flask development server
+            print("Starting production server...")
+    except KeyboardInterrupt:
+        print("\n🔄 Keyboard interrupt received, shutting down...")
+        cleanup_on_exit()
+    except Exception as e:
+        print(f"❌ Server error: {e}")
+        cleanup_on_exit()
+        raise
