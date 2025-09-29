@@ -9480,7 +9480,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     for nom in genre['noms']:
                         if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
                             genre_names.append(nom['text'])
-                            break
+                                break
             if genre_names:
                 text_fields['genre'] = '/'.join(genre_names)
         
@@ -9601,7 +9601,7 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Description', 'Overview']:
                 # Handle both Description and Overview fields for description
                 if 'desc' not in text_fields or not text_fields['desc']:
-                    text_fields['desc'] = text
+                text_fields['desc'] = text
                     print(f"DEBUG: Set desc field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'Developer':
                 text_fields['developer'] = text
@@ -9610,10 +9610,10 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
-                    text_fields['genre'] = text
+                text_fields['genre'] = text
                     print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
-                if text:
+                        if text:
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
@@ -11985,7 +11985,7 @@ def run_youtube_download_task(task_id, data):
         # Use the common download helper function
         success = download_youtube_video_for_game(
             task, video_url, start_time, auto_crop, 
-            output_path, videos_dir, output_filename, 1, temp_videos_dir  # playlist_index=1 for single downloads
+            output_path, videos_dir, output_filename, 1, temp_videos_dir, rom_file  # playlist_index=1 for single downloads
         )
         
         if success:
@@ -12132,7 +12132,7 @@ def run_youtube_download_batch_task(system_name, task_id, selected_games, start_
                 # Download the video using the existing YouTube download logic
                 success = download_youtube_video_for_game(
                     task, youtube_url, start_time, auto_crop, 
-                    output_path, videos_dir, game_name, playlist_index, temp_videos_dir
+                    output_path, videos_dir, game_name, playlist_index, temp_videos_dir, rom_path
                 )
                 
                 if success:
@@ -12223,7 +12223,7 @@ def get_video_duration(video_path):
         print(f"Error getting video duration: {e}")
         return None
 
-def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None):
+def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None, rom_file=None):
     """Download a single YouTube video for a game (helper function)"""
     try:
         # Check if yt-dlp is available
@@ -12236,9 +12236,18 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         
         task.update_progress(f"  📁 Using temp directory: {temp_videos_dir}")
         
-        # Use just the filename for output to avoid path issues
-        output_filename_only = os.path.basename(output_path)
-        temp_filename = f"temp_{output_filename_only}"
+        # Use ROM name for temp file naming if available, otherwise fall back to output filename
+        if rom_file:
+            # Extract ROM name without extension and path
+            rom_name = os.path.splitext(os.path.basename(rom_file))[0]
+            temp_filename = f"temp_{rom_name}"
+            task.update_progress(f"  🎮 Using ROM name for temp file: {temp_filename}")
+        else:
+            # Fallback to output filename
+            output_filename_only = os.path.basename(output_path)
+            temp_filename = f"temp_{output_filename_only}"
+            task.update_progress(f"  📁 Using output filename for temp file: {temp_filename}")
+        
         output_template = os.path.join(temp_videos_dir, temp_filename.replace('.mp4', '.%(ext)s'))
         
         # Calculate end time for the 30-second section
@@ -12778,12 +12787,13 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
 
         
         # Find the downloaded file - look for the specific temp file we created
-        expected_temp_base = f"temp_{output_filename_only}"
+        expected_temp_base = temp_filename
         temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith(expected_temp_base)]
         
         # If not found with exact name, look for any temp file that starts with our expected name
         if not temp_files:
-            temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_') and output_filename_only.replace('.mp4', '') in f]
+            search_name = rom_name if rom_file else os.path.splitext(os.path.basename(output_path))[0]
+            temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_') and search_name in f]
         
         # If still not found, look for any temp file (fallback)
         if not temp_files:
