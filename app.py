@@ -4751,6 +4751,15 @@ def manage_youtube_credentials():
                 return jsonify({'success': True, 'message': 'YouTube API credentials saved successfully'})
             else:
                 return jsonify({'error': 'Failed to save YouTube API credentials'}), 500
+        
+        elif request.method == 'DELETE':
+            # Clear credentials
+            success = save_youtube_api_key('')
+            
+            if success:
+                return jsonify({'success': True, 'message': 'YouTube API credentials cleared successfully'})
+            else:
+                return jsonify({'error': 'Failed to clear YouTube API credentials'}), 500
     
     except Exception as e:
         return jsonify({'error': f'Failed to manage YouTube credentials: {str(e)}'}), 500

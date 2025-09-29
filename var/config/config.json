@@ -127,10 +127,10 @@
     },
     "video": {
         "force_video_resolution": "720",
-        "enable_fadin_fadout": false,
+        "enable_fadin_fadout": true,
         "enable_cuda": false,
         "enable_youtube_po_token": false,
         "youtube_po_token_provider": "http://127.0.0.1:4416",
-        "youtube_skip_cookie_for_video_duration_bigger_than": 60
+        "youtube_skip_cookie_for_video_duration_bigger_than": 10
     }
 }

@@ -2755,6 +2755,56 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <p class="text-muted small">Configure YouTube-specific settings for video downloading and processing.</p>
                             </div>
                             
+                            <!-- YouTube API Settings -->
+                            <div class="mb-4">
+                                <h6>YouTube Data API v3 Settings</h6>
+                                <p class="text-muted small">Configure YouTube Data API v3 for enhanced video search capabilities. If not configured, the system will fall back to web scraping.</p>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="youtubeApiKey" class="form-label">YouTube Data API v3 Key</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="youtubeApiKey" placeholder="Enter your YouTube Data API v3 key">
+                                            <button class="btn btn-outline-secondary" type="button" id="toggleYoutubeApiKeyVisibility">
+                                                <i class="bi bi-eye" id="youtubeApiKeyToggleIcon"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Get your API key from <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">API Key Status</label>
+                                        <div class="form-control-plaintext" id="youtubeApiKeyStatus">
+                                            <span class="badge bg-secondary">Not loaded</span>
+                                        </div>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" id="saveYoutubeApiKeyBtn">
+                                                <i class="bi bi-save me-1"></i>Save API Key
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger btn-sm ms-1" id="clearYoutubeApiKeyBtn">
+                                                <i class="bi bi-trash me-1"></i>Clear
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <strong>Setup Instructions:</strong>
+                                <ol class="mb-0">
+                                    <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                                    <li>Create a new project or select an existing one</li>
+                                    <li>Enable the YouTube Data API v3</li>
+                                    <li>Create credentials (API Key)</li>
+                                    <li>Copy the API key and paste it above</li>
+                                </ol>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
                             <div class="row mb-3">
                                 <div class="col-md-8">
                                     <label for="youtubeCookieTextarea" class="form-label">YouTube Cookies (netscape format)</label>
