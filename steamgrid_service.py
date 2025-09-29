@@ -384,16 +384,23 @@ class SteamGridService:
         
         if not image_type_mappings:
             image_type_mappings = {
-                'grids': 'boxart',
-                'logos': 'marquee',
-                'heroes': 'fanart'
+                'boxart': 'grids',
+                'marquee': 'logos',
+                'fanart': 'heroes'
             }
         
         if not selected_fields:
             selected_fields = list(image_type_mappings.keys())
         
+        # Convert selected gamelist fields to SteamGridDB types
+        steamgrid_types = []
+        for gamelist_field in selected_fields:
+            steamgrid_type = image_type_mappings.get(gamelist_field)
+            if steamgrid_type:
+                steamgrid_types.append(steamgrid_type)
+        
         # Get media from SteamGridDB
-        media_data = await self.get_steamgrid_media(steamgrid_id, selected_fields, api_key)
+        media_data = await self.get_steamgrid_media(steamgrid_id, steamgrid_types, api_key)
         
         if not media_data:
             logger.warning(f"No media data received from SteamGridDB for {game_name}")
@@ -405,16 +412,23 @@ class SteamGridService:
         fields_to_download = {}
         
         for media_type, media_list in media_data.items():
-            if not media_list or media_type not in image_type_mappings:
+            if not media_list:
+                continue
+            
+            # Find the gamelist field that maps to this SteamGridDB type
+            target_field = None
+            for gamelist_field, sg_type in image_type_mappings.items():
+                if sg_type == media_type:
+                    target_field = gamelist_field
+                    break
+            
+            if not target_field:
                 continue
             
             # Check if this field is selected
-            if selected_fields and media_type not in selected_fields:
-                logger.debug(f"Skipping {media_type} -> {image_type_mappings[media_type]} (not selected)")
+            if selected_fields and target_field not in selected_fields:
+                logger.debug(f"Skipping {media_type} -> {target_field} (not selected)")
                 continue
-            
-            # Get the target field name
-            target_field = image_type_mappings[media_type]
             
             # Check if we should skip this media field based on overwrite setting
             should_download = True
@@ -567,9 +581,9 @@ class SteamGridService:
         
         if not image_type_mappings:
             image_type_mappings = {
-                'grids': 'boxart',
-                'logos': 'marquee', 
-                'heroes': 'fanart'
+                'boxart': 'grids',
+                'marquee': 'logos', 
+                'fanart': 'heroes'
             }
         
         if not selected_fields:
