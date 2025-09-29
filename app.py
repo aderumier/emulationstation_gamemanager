@@ -8982,6 +8982,16 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     # Convert various date formats to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(date_text)
         
+        # Extract publisher from editeur.text
+        if detailed_data.get('editeur') and isinstance(detailed_data['editeur'], dict):
+            if 'text' in detailed_data['editeur']:
+                text_fields['publisher'] = detailed_data['editeur']['text']
+        
+        # Extract developer from developpeur.text
+        if detailed_data.get('developpeur') and isinstance(detailed_data['developpeur'], dict):
+            if 'text' in detailed_data['developpeur']:
+                text_fields['developer'] = detailed_data['developpeur']['text']
+        
         # Extract genres from genres[noms[text]] with langue='en', concatenate with '/'
         if detailed_data.get('genres') and isinstance(detailed_data['genres'], list):
             genre_names = []
