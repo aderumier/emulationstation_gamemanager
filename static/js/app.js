@@ -3127,17 +3127,22 @@ class GameCollectionManager {
             tbody.appendChild(rootRow);
         }
         
-        // Add directories
+        // Add directories (filter out directories with file extensions)
         contents.directories.forEach(dir => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td><i class="bi bi-folder"></i> ${dir.name}</td>
-                <td>
-                    <button class="btn btn-sm btn-outline-primary me-2" onclick="gameManager.loadDirectoryContents('${dir.path}')">Open</button>
-                    <button class="btn btn-sm btn-outline-success" onclick="gameManager.selectMoveDestination('${dir.path}')">Select</button>
-                </td>
-            `;
-            tbody.appendChild(row);
+            // Check if directory name has a file extension
+            const hasExtension = /\.[a-zA-Z0-9]+$/.test(dir.name);
+            
+            if (!hasExtension) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><i class="bi bi-folder"></i> ${dir.name}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick="gameManager.loadDirectoryContents('${dir.path}')">Open</button>
+                        <button class="btn btn-sm btn-outline-success" onclick="gameManager.selectMoveDestination('${dir.path}')">Select</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            }
         });
         
         // Files are not displayed - only directories for ROM moving
