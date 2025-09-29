@@ -8744,7 +8744,7 @@ class GameCollectionManager {
             div.className = 'form-check mb-2';
             div.innerHTML = `
                 <input class="form-check-input igdb-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${field}" checked>
-                <label class="form-check-label" for="${checkboxId}">${this.formatFieldName(field)}</label>
+                <label class="form-check-label" for="${checkboxId}">${field}</label>
             `;
             container.appendChild(div);
         });
