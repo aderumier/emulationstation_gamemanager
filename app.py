@@ -9480,7 +9480,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     for nom in genre['noms']:
                         if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
                             genre_names.append(nom['text'])
-                                break
+                            break
             if genre_names:
                 text_fields['genre'] = '/'.join(genre_names)
         
@@ -9601,7 +9601,7 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Description', 'Overview']:
                 # Handle both Description and Overview fields for description
                 if 'desc' not in text_fields or not text_fields['desc']:
-                text_fields['desc'] = text
+                    text_fields['desc'] = text
                     print(f"DEBUG: Set desc field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'Developer':
                 text_fields['developer'] = text
@@ -9610,10 +9610,10 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
-                text_fields['genre'] = text
+                    text_fields['genre'] = text
                     print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
-                        if text:
+                if text:
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
