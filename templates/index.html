@@ -2660,10 +2660,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <h6>Video Resolution Settings</h6>
-                        <p class="text-muted small">Configure video resolution settings for downloaded videos. When a resolution is selected, videos will be resized using ffmpeg after download.</p>
-                    </div>
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs mb-3" id="videoConfigTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab" aria-controls="general" aria-selected="true">
+                                <i class="bi bi-gear me-1"></i>General
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="youtube-tab" data-bs-toggle="tab" data-bs-target="#youtube" type="button" role="tab" aria-controls="youtube" aria-selected="false">
+                                <i class="bi bi-youtube me-1"></i>YouTube
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="videoConfigTabContent">
+                        <!-- General Tab -->
+                        <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+                            <div class="mb-3">
+                                <h6>Video Resolution Settings</h6>
+                                <p class="text-muted small">Configure video resolution settings for downloaded videos. When a resolution is selected, videos will be resized using ffmpeg after download.</p>
+                            </div>
                     
                     <div class="row">
                         <div class="col-md-8">
@@ -2728,12 +2746,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                         </div>
                     </div>
-                    
-                    <hr class="my-4">
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-8">
-                            <label for="youtubeCookieTextarea" class="form-label">YouTube Cookies (netscape format)</label>
+                        </div>
+                        
+                        <!-- YouTube Tab -->
+                        <div class="tab-pane fade" id="youtube" role="tabpanel" aria-labelledby="youtube-tab">
+                            <div class="mb-3">
+                                <h6>YouTube Configuration</h6>
+                                <p class="text-muted small">Configure YouTube-specific settings for video downloading and processing.</p>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="youtubeCookieTextarea" class="form-label">YouTube Cookies (netscape format)</label>
                             <textarea class="form-control" id="youtubeCookieTextarea" rows="6" placeholder="# Paste exported cookies here..."></textarea>
                             <div class="form-text">Contents will be saved to <code>var/config/youtube_cookie.txt</code> and used by yt-dlp when present.</div>
                             <div class="alert alert-info mt-2" role="alert">
@@ -2820,13 +2844,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        <strong>Setup Required:</strong> You need to install the bgutil token provider Docker container with the following command:
-                        <br><br>
-                        <code>docker run --name bgutil-provider -d -p 4416:4416 --init brainicism/bgutil-ytdlp-pot-provider</code>
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <strong>Setup Required:</strong> You need to install the bgutil token provider Docker container with the following command:
+                                <br><br>
+                                <code>docker run --name bgutil-provider -d -p 4416:4416 --init brainicism/bgutil-ytdlp-pot-provider</code>
+                            </div>
+                        </div>
                     </div>
-                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshVideoConfigBtn">
