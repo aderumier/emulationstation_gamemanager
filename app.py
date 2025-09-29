@@ -9480,7 +9480,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     for nom in genre['noms']:
                         if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
                             genre_names.append(nom['text'])
-                                break
+                            break
             if genre_names:
                 text_fields['genre'] = '/'.join(genre_names)
         
@@ -9601,7 +9601,7 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Description', 'Overview']:
                 # Handle both Description and Overview fields for description
                 if 'desc' not in text_fields or not text_fields['desc']:
-                text_fields['desc'] = text
+                    text_fields['desc'] = text
                     print(f"DEBUG: Set desc field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'Developer':
                 text_fields['developer'] = text
@@ -9610,10 +9610,10 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
-                text_fields['genre'] = text
+                    text_fields['genre'] = text
                     print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
-                        if text:
+                if text:
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
@@ -12248,7 +12248,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         else:
             # Fallback to output filename
             rom_name = os.path.splitext(output_filename_only)[0]  # Extract name without extension
-        temp_filename = f"temp_{output_filename_only}"
+            temp_filename = f"temp_{output_filename_only}"
             task.update_progress(f"  📁 Using output filename for temp file: {temp_filename}")
         
         output_template = os.path.join(temp_videos_dir, temp_filename.replace('.mp4', '.%(ext)s'))
@@ -12805,7 +12805,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         
         # If still not found, look for any temp file (fallback)
         if not temp_files:
-        temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_')]
+            temp_files = [f for f in os.listdir(temp_videos_dir) if f.startswith('temp_')]
         
         if not temp_files:
             task.update_progress(f"  ❌ No temporary file found for {game_name}")
@@ -18467,25 +18467,25 @@ if __name__ == '__main__':
     def run_with_signal_handling():
         """Run the server with proper signal handling"""
         try:
-    if config['server']['debug']:
-        # Development mode - use Werkzeug with allow_unsafe_werkzeug
-        socketio.run(
-            app,
-            debug=True,
-            host=config['server']['host'],
-            port=config['server']['port'],
-            allow_unsafe_werkzeug=True
-        )
-    else:
-        # Production mode - use Flask development server
-        print("Starting production server...")
-        socketio.run(
-            app,
-            debug=False,
-            host=config['server']['host'],
-            port=config['server']['port'],
-            allow_unsafe_werkzeug=True
-        )
+            if config['server']['debug']:
+                # Development mode - use Werkzeug with allow_unsafe_werkzeug
+                socketio.run(
+                    app,
+                    debug=True,
+                    host=config['server']['host'],
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
+                )
+            else:
+                # Production mode - use Flask development server
+                print("Starting production server...")
+                socketio.run(
+                    app,
+                    debug=False,
+                    host=config['server']['host'],
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
+                )
         except KeyboardInterrupt:
             print("\n🔄 Keyboard interrupt received, shutting down...")
             cleanup_on_exit()
