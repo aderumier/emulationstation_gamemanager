@@ -12823,35 +12823,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             task.update_progress(f"  Available files: {os.listdir(temp_videos_dir)}")
             return False
         
-        # If the file is not MP4, convert it to MP4
-        if not temp_file.endswith('.mp4'):
-            task.update_progress(f"  🔄 Converting {temp_file} to MP4 format")
-            mp4_file = f"{temp_filename}.mp4"
-            mp4_path = os.path.join(temp_videos_dir, mp4_file)
-            
-            # Use ffmpeg to convert to MP4
-            ffmpeg_cmd = [
-                'ffmpeg', '-i', temp_path,
-                '-c:v', 'libx264', '-c:a', 'aac',
-                '-y',  # Overwrite output file
-                mp4_path
-            ]
-            
-            try:
-                result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=300)
-                if result.returncode == 0:
-                    # Remove the original file and update paths
-                    os.remove(temp_path)
-                    temp_file = mp4_file
-                    temp_path = mp4_path
-                    task.update_progress(f"  ✅ Successfully converted to MP4")
-                else:
-                    task.update_progress(f"  ⚠️ FFmpeg conversion failed, using original format")
-                    task.update_progress(f"  FFmpeg error: {result.stderr}")
-            except subprocess.TimeoutExpired:
-                task.update_progress(f"  ⚠️ FFmpeg conversion timed out, using original format")
-            except Exception as e:
-                task.update_progress(f"  ⚠️ FFmpeg conversion error: {e}, using original format")
+        # Note: Format conversion will be handled by apply_video_processing later
+        # which already does x264 encoding, so we don't need to convert here
         
         task.update_progress(f"  📁 Using downloaded file: {temp_file}")
         
