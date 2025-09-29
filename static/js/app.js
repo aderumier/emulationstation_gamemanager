@@ -2936,20 +2936,28 @@ class GameCollectionManager {
                     }
                 });
 
-                // Refresh the grid with current data
-                this.gridApi.setGridOption('rowData', this.games);
+                // Force update the grid with the new data
+                this.gridApi.setGridOption('rowData', [...this.games]);
                 
                 // Restore filter state after data update
                 if (currentFilterModel && Object.keys(currentFilterModel).length > 0) {
                     this.gridApi.setFilterModel(currentFilterModel);
                 }
                 
+                // Force refresh all cells to update styling and row classes
+                setTimeout(() => {
+                    this.gridApi.refreshCells({ 
+                        force: true,
+                        suppressFlash: false,
+                        rowNodes: undefined
+                    });
+                    // Also refresh the viewport to ensure row classes are reapplied
+                    this.gridApi.redrawRows();
+                }, 100);
+                
                 // Show success message
                 const action = hiddenValue ? 'hidden' : 'shown';
                 this.showAlert(`${result.updated_count} games ${action} successfully`, 'success');
-                
-                // Refresh the grid to show updated data
-                this.refreshGameGrid();
             } else {
                 this.showAlert(result.error || 'Failed to update games', 'error');
             }
