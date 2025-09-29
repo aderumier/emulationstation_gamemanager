@@ -12813,31 +12813,26 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             task.update_progress(f"  Available files: {os.listdir(temp_videos_dir)}")
             return False
         
-        # Use the most recently modified temp file (most likely the one just downloaded)
-        temp_files_with_time = [(f, os.path.getmtime(os.path.join(temp_videos_dir, f))) for f in temp_files]
-        temp_files_with_time.sort(key=lambda x: x[1], reverse=True)  # Sort by modification time, newest first
-        temp_file = temp_files_with_time[0][0]
+        # Prioritize files that match the ROM name, then fall back to most recent
+        rom_name = rom_name if rom_file else os.path.splitext(os.path.basename(output_path))[0]
+        matching_files = [f for f in temp_files if rom_name in f]
+        
+        if matching_files:
+            # Use the file that matches the ROM name (most specific match)
+            temp_file = matching_files[0]
+            task.update_progress(f"  🎯 Found ROM-specific temp file: {temp_file}")
+        else:
+            # Fallback to most recently modified file if no ROM-specific match
+            temp_files_with_time = [(f, os.path.getmtime(os.path.join(temp_videos_dir, f))) for f in temp_files]
+            temp_files_with_time.sort(key=lambda x: x[1], reverse=True)  # Sort by modification time, newest first
+            temp_file = temp_files_with_time[0][0]
+            task.update_progress(f"  ⚠️ No ROM-specific file found, using most recent: {temp_file}")
+        
         temp_path = os.path.join(temp_videos_dir, temp_file)
         
         task.update_progress(f"  📁 Using downloaded file: {temp_file}")
         
-        # Check video duration and apply automatic 30-second cutting if needed
-        video_duration = get_video_duration(temp_path)
-        needs_auto_cut = False
-        cut_start_time = start_time
-        cut_end_time = start_time + 30
-        
-        if video_duration is not None:
-            task.update_progress(f"  ⏱️ Downloaded video duration: {video_duration:.1f} seconds")
-            if video_duration > 30:
-                needs_auto_cut = True
-                task.update_progress(f"  ✂️ Video is longer than 30s, will cut to 30-second section ({cut_start_time}s-{cut_end_time}s)")
-            else:
-                task.update_progress(f"  ✅ Video is 30s or shorter, no cutting needed")
-        else:
-            task.update_progress(f"  ⚠️ Could not determine video duration, will attempt to cut anyway")
-            needs_auto_cut = True
-        
+            
         # Apply video processing (crop and/or resize) if needed
         # If we downloaded full video (full fallback or PO token), cut to section
         video_config = config.get('video', {})
