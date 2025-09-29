@@ -1,3 +1,10 @@
+gamemanager (2.3.3) stable; urgency=medium
+
+  * Fix mediatype files deployment to match platforms.json behavior
+  * Always copy mediatype files to var/db (same as platforms.json)
+  * Remove conditional copying that was preventing proper volume mount support
+  * Ensure mediatype files are always available in persistent volume
+
 gamemanager (2.3.1) stable; urgency=medium
 
   * Fix Werkzeug production error by adding allow_unsafe_werkzeug=True
