@@ -164,14 +164,14 @@ cp /opt/gamemanager/steamgrid_mediastype.txt.default /opt/gamemanager/var/db/ste
 
 # Copy additional database files to var/db (always copy to ensure they're in the volume)
 echo "Copying additional database files to var/db..."
-# Create empty files for cache and data files that will be populated by the application
-touch /opt/gamemanager/var/db/igdb/companies.json
-touch /opt/gamemanager/var/db/igdb/genres.json
-touch /opt/gamemanager/var/db/igdb/regions_cache.json
-touch /opt/gamemanager/var/db/igdb/sample_games.json
-touch /opt/gamemanager/var/db/screenscraper/user_info.json
-touch /opt/gamemanager/var/db/launchbox/Metadata.xml
-touch /opt/gamemanager/var/db/steam/appindex.json
+# Create empty files for cache and data files that will be populated by the application (only if they don't exist)
+[ ! -f /opt/gamemanager/var/db/igdb/companies.json ] && touch /opt/gamemanager/var/db/igdb/companies.json
+[ ! -f /opt/gamemanager/var/db/igdb/genres.json ] && touch /opt/gamemanager/var/db/igdb/genres.json
+[ ! -f /opt/gamemanager/var/db/igdb/regions_cache.json ] && touch /opt/gamemanager/var/db/igdb/regions_cache.json
+[ ! -f /opt/gamemanager/var/db/igdb/sample_games.json ] && touch /opt/gamemanager/var/db/igdb/sample_games.json
+[ ! -f /opt/gamemanager/var/db/screenscraper/user_info.json ] && touch /opt/gamemanager/var/db/screenscraper/user_info.json
+[ ! -f /opt/gamemanager/var/db/launchbox/Metadata.xml ] && touch /opt/gamemanager/var/db/launchbox/Metadata.xml
+[ ! -f /opt/gamemanager/var/db/steam/appindex.json ] && touch /opt/gamemanager/var/db/steam/appindex.json
 
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
