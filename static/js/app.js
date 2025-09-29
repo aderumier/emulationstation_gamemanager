@@ -2938,7 +2938,7 @@ class GameCollectionManager {
                 await this.updateGameGridData(duplicateGames);
             } else {
                 // Normal refresh - use all games
-                await this.updateGameGridData(this.games);
+            await this.updateGameGridData(this.games);
             }
         }
     }
@@ -6630,12 +6630,12 @@ class GameCollectionManager {
                     await this.refreshGridData();
                 } else {
                     // Normal refresh - reload all games
-                    await this.loadRomSystem(this.currentSystem);
-                    
-                    // Also refresh the grid cells to ensure proper display
-                    if (this.gridApi) {
-                        this.gridApi.refreshCells();
-                        console.log('Grid refreshed after saving changes');
+                await this.loadRomSystem(this.currentSystem);
+                
+                // Also refresh the grid cells to ensure proper display
+                if (this.gridApi) {
+                    this.gridApi.refreshCells();
+                    console.log('Grid refreshed after saving changes');
                     }
                 }
             } else {
@@ -10212,13 +10212,13 @@ class GameCollectionManager {
                             <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px;">
                                 ${launchboxMediaTypes.filter(type => !launchboxTypes.includes(type)).map(type => 
                                     `<option value="${type}">${type}</option>`
-                                ).join('')}
-                            </select>
+                        ).join('')}
+                    </select>
                         </div>
                         <div class="col-2 d-flex flex-column justify-content-center align-items-center">
                             <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="gameManager.addLaunchboxType('${mediaField}')" title="Add selected type">
                                 <i class="bi bi-chevron-right"></i>
-                            </button>
+                    </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="gameManager.removeLaunchboxType('${mediaField}')" title="Remove selected type">
                                 <i class="bi bi-chevron-left"></i>
                             </button>
@@ -10449,7 +10449,7 @@ class GameCollectionManager {
                 
                 if (afterElement == null) {
                     container.appendChild(draggedElement);
-                } else {
+            } else {
                     container.insertBefore(draggedElement, afterElement);
                 }
                 
@@ -10588,13 +10588,6 @@ class GameCollectionManager {
                         ).join('')}
                     </select>
                 </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-secondary" 
-                            onclick="gameManager.resetIgdbMapping('${mediaField}')"
-                            title="Reset to default">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
-                </td>
             `;
             tbody.appendChild(row);
         });
@@ -10631,36 +10624,6 @@ class GameCollectionManager {
         }
     }
     
-    async resetIgdbMapping(mediaField) {
-        if (!confirm(`Reset IGDB mapping for "${mediaField}" to default?`)) {
-            return;
-        }
-        
-        try {
-            const response = await fetch('/api/igdb-mappings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    media_field: mediaField,
-                    reset: true
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showAlert(`IGDB mapping reset for "${mediaField}"`, 'success');
-                this.loadIgdbMappingsData(); // Reload the table
-            } else {
-                this.showAlert(`Failed to reset IGDB mapping: ${data.error}`, 'danger');
-            }
-        } catch (error) {
-            console.error('Error resetting IGDB mapping:', error);
-            this.showAlert('Error resetting IGDB mapping', 'danger');
-        }
-    }
     
     openScreenscraperConfigurationModal() {
         // Load ScreenScraper mappings data before opening modal
@@ -10712,13 +10675,13 @@ class GameCollectionManager {
                             <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px;">
                                 ${screenscraperMediaTypes.filter(type => !screenscraperTypes.includes(type)).map(type => 
                                     `<option value="${type}">${type}</option>`
-                                ).join('')}
-                            </select>
+                        ).join('')}
+                    </select>
                         </div>
                         <div class="col-2 d-flex flex-column justify-content-center align-items-center">
                             <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="gameManager.addScreenscraperType('${mediaField}')" title="Add selected type">
                                 <i class="bi bi-chevron-right"></i>
-                            </button>
+                    </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="gameManager.removeScreenscraperType('${mediaField}')" title="Remove selected type">
                                 <i class="bi bi-chevron-left"></i>
                             </button>
