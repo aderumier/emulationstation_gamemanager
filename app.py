@@ -3474,9 +3474,10 @@ def list_rom_systems():
 def get_config():
     """Get or update application configuration"""
     if request.method == 'GET':
-        # Include scrapers configuration in the response
+        # Include scrapers configuration and systems configuration in the response
         full_config = config.copy()
         full_config.update(scrappers_config)
+        full_config['systems'] = load_systems_config()
         return jsonify(full_config)
     elif request.method == 'PUT':
         try:
