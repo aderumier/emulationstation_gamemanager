@@ -757,6 +757,10 @@ def ensure_gamelist_exists(system_name):
             # Copy the gamelist.xml from ROMs to var
             shutil.copy2(roms_gamelist_path, var_gamelist_path)
             print(f"📋 Copied gamelist.xml from ROMs to var for system: {system_name}")
+            
+            # Format release dates in the copied gamelist
+            format_releasedates_in_gamelist(var_gamelist_path)
+            
             return True
         except Exception as e:
             print(f"❌ Error copying gamelist.xml for {system_name}: {e}")
@@ -882,6 +886,9 @@ def save_gamelist_to_roms(system_name):
         # Copy the gamelist
         shutil.copy2(gamelist_path, roms_gamelist_path)
         print(f"Copied gamelist from {gamelist_path} to {roms_gamelist_path}")
+        
+        # Format release dates in the copied gamelist
+        format_releasedates_in_gamelist(roms_gamelist_path)
         
         return {'success': True, 'message': f'Gamelist saved to roms/{system_name}/gamelist.xml'}
     except Exception as e:
@@ -4399,7 +4406,7 @@ def manage_igdb_mappings():
             try:
                 with open('var/db/igdb/mediatype.txt', 'r') as f:
                     igdb_media_types = [line.strip() for line in f.readlines() if line.strip()]
-            except FileNotFoundError:
+            except FileNotFoundError:                                           
                 # Fallback to default values if file doesn't exist
                 igdb_media_types = ['cover', 'screenshots', 'artworks', 'logos']
             
@@ -5868,6 +5875,10 @@ def write_gamelist_xml(games, file_path):
             
             # Add all game fields
             for field, value in game.items():
+                # Format releasedate field to ISO 8601 format
+                if field == 'releasedate' and value:
+                    value = format_releasedate_to_iso8601(value)
+                
                 # Always include media-related fields, even if empty
                 if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']:
                     field_elem = ET.SubElement(game_elem, field)
@@ -7381,6 +7392,140 @@ def save_formatted_gamelist_xml(tree, gamelist_path):
             raise fallback_error
 
 
+def format_releasedate_to_iso8601(date_input):
+    """
+    Format a release date to basic ISO 8601 date-time format (YYYYMMDDTHHMMSS).
+    
+    Args:
+        date_input: Can be:
+            - A datetime object
+            - A timestamp (int/float)
+            - A string in various formats (YYYY, YYYY-MM, YYYY-MM-DD, etc.)
+            - A string already in YYYYMMDD format
+    
+    Returns:
+        str: Formatted date in YYYYMMDDTHHMMSS format
+        
+    Examples:
+        - "1990" -> "19900101T000000"
+        - "1990-02" -> "19900201T000000" 
+        - "1990-02-01" -> "19900201T000000"
+        - "1990-02-01T12:30:45" -> "19900201T123045"
+    """
+    import datetime
+    import re
+    
+    if date_input is None or date_input == '':
+        return None
+    
+    # If it's already a datetime object
+    if isinstance(date_input, datetime.datetime):
+        return date_input.strftime('%Y%m%dT%H%M%S')
+    
+    # If it's a timestamp (int or float)
+    if isinstance(date_input, (int, float)):
+        try:
+            dt = datetime.datetime.fromtimestamp(date_input)
+            return dt.strftime('%Y%m%dT%H%M%S')
+        except (ValueError, OSError):
+            return None
+    
+    # If it's a string, try to parse it
+    if isinstance(date_input, str):
+        date_str = date_input.strip()
+        
+        # If already in YYYYMMDD format, add time
+        if re.match(r'^\d{8}$', date_str):
+            return f"{date_str}T000000"
+        
+        # If already in YYYYMMDDTHHMMSS format, return as is
+        if re.match(r'^\d{8}T\d{6}$', date_str):
+            return date_str
+        
+        # Try various date formats
+        date_formats = [
+            '%Y-%m-%dT%H:%M:%S',      # 1990-02-01T12:30:45
+            '%Y-%m-%dT%H:%M:%S%z',    # 1990-02-01T12:30:45+00:00
+            '%Y-%m-%dT%H:%M:%S.%f',   # 1990-02-01T12:30:45.123456
+            '%Y-%m-%dT%H:%M:%S.%f%z', # 1990-02-01T12:30:45.123456+00:00
+            '%Y-%m-%d %H:%M:%S',      # 1990-02-01 12:30:45
+            '%Y-%m-%d',               # 1990-02-01
+            '%Y/%m/%d',               # 1990/02/01
+            '%m/%d/%Y',               # 02/01/1990
+            '%d/%m/%Y',               # 01/02/1990
+            '%d %b, %Y',              # 01 Feb, 1990 (Steam format)
+            '%Y-%m',                  # 1990-02
+            '%Y',                     # 1990
+        ]
+        
+        for fmt in date_formats:
+            try:
+                dt = datetime.datetime.strptime(date_str, fmt)
+                
+                # If only year is provided, use first day of year
+                if fmt == '%Y':
+                    dt = dt.replace(month=1, day=1, hour=0, minute=0, second=0)
+                # If only year-month is provided, use first day of month
+                elif fmt == '%Y-%m':
+                    dt = dt.replace(day=1, hour=0, minute=0, second=0)
+                # If no time is provided, use midnight
+                elif 'T' not in fmt and ' ' not in fmt:
+                    dt = dt.replace(hour=0, minute=0, second=0)
+                
+                return dt.strftime('%Y%m%dT%H%M%S')
+            except ValueError:
+                continue
+        
+        # If all parsing attempts failed, return None
+        return None
+    
+    return None
+
+
+def format_releasedates_in_gamelist(gamelist_path):
+    """
+    Format all release dates in an existing gamelist.xml file to ISO 8601 format.
+    
+    Args:
+        gamelist_path: Path to the gamelist.xml file to process
+    """
+    try:
+        if not os.path.exists(gamelist_path):
+            return False
+        
+        # Parse the XML file
+        tree = ET.parse(gamelist_path)
+        root = tree.getroot()
+        
+        if root.tag != 'gameList':
+            print(f"Invalid gamelist format: expected 'gameList' root, got '{root.tag}' in {gamelist_path}")
+            return False
+        
+        updated_count = 0
+        
+        # Process each game
+        for game in root.findall('game'):
+            releasedate_elem = game.find('releasedate')
+            if releasedate_elem is not None and releasedate_elem.text:
+                original_date = releasedate_elem.text.strip()
+                if original_date:
+                    # Format the release date
+                    formatted_date = format_releasedate_to_iso8601(original_date)
+                    if formatted_date and formatted_date != original_date:
+                        releasedate_elem.text = formatted_date
+                        updated_count += 1
+        
+        if updated_count > 0:
+            # Save the updated gamelist
+            save_formatted_gamelist_xml(tree, gamelist_path)
+            print(f"📅 Formatted {updated_count} release dates in {gamelist_path}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error formatting release dates in {gamelist_path}: {e}")
+        return False
+
 
 @app.route('/api/rom-system/<system_name>/scan-media', methods=['POST'])
 @login_required
@@ -8495,6 +8640,9 @@ async def scrape_igdb_manual(game, system_name, system_config):
         # Get async client
         async_client = await get_igdb_async_client()
         
+        # Ensure genre cache is up to date
+        await ensure_igdb_genre_cache()
+        
         # Get game name
         game_name = game.get('name', '')
         if not game_name:
@@ -8544,17 +8692,15 @@ async def scrape_igdb_manual(game, system_name, system_config):
         if igdb_game.get('summary'):
             text_fields['desc'] = igdb_game['summary']
         if igdb_game.get('first_release_date'):
-            # Convert timestamp to date
-            import datetime
-            release_date = datetime.datetime.fromtimestamp(igdb_game['first_release_date'])
-            text_fields['releasedate'] = release_date.strftime('%Y%m%d')
+            # Convert timestamp to ISO 8601 format
+            text_fields['releasedate'] = format_releasedate_to_iso8601(igdb_game['first_release_date'])
         
         # Get genres
         if igdb_game.get('genres'):
             try:
                 genre_ids = igdb_game['genres']
-                # Convert genre IDs to strings (same as existing code)
-                genre_names = [str(g) for g in genre_ids]
+                # Map genre IDs to names using cache
+                genre_names = map_igdb_genre_ids_to_names(genre_ids)
                 if genre_names:
                     text_fields['genre'] = ', '.join(genre_names)
             except Exception as e:
@@ -8685,15 +8831,10 @@ async def scrape_steam_manual(game, system_name):
         if steam_data.get('short_description'):
             text_fields['desc'] = steam_data['short_description']
         if steam_data.get('release_date', {}).get('date'):
-            # Convert Steam date format to YYYYMMDD
+            # Convert Steam date format to ISO 8601 format
             release_date = steam_data['release_date']['date']
             if release_date:
-                try:
-                    import datetime
-                    date_obj = datetime.datetime.strptime(release_date, '%d %b, %Y')
-                    text_fields['releasedate'] = date_obj.strftime('%Y%m%d')
-                except:
-                    pass
+                text_fields['releasedate'] = format_releasedate_to_iso8601(release_date)
         
         # Get developers and publishers
         if steam_data.get('developers'):
@@ -8838,28 +8979,8 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                 else:
                     date_text = str(dates[0])
                 if date_text:
-                    try:
-                        # Convert various date formats to YYYYMMDD
-                        import datetime
-                        import re
-                        
-                        # Try different date formats
-                        date_formats = [
-                            '%Y-%m-%d',
-                            '%Y',
-                            '%m/%d/%Y',
-                            '%d/%m/%Y'
-                        ]
-                        
-                        for fmt in date_formats:
-                            try:
-                                date_obj = datetime.datetime.strptime(date_text, fmt)
-                                text_fields['releasedate'] = date_obj.strftime('%Y%m%d')
-                                break
-                            except:
-                                continue
-                    except:
-                        pass
+                    # Convert various date formats to ISO 8601 format
+                    text_fields['releasedate'] = format_releasedate_to_iso8601(date_text)
         
         # Extract media fields grouped by configured gamelist media fields
         media_fields: Dict[str, List[str]] = {}
@@ -8981,23 +9102,9 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag == 'Genre':
                 text_fields['genre'] = text
             elif tag == 'ReleaseDate':
-                if text and len(text) == 8:
-                    # Already in YYYYMMDD format
-                    text_fields['releasedate'] = text
-                else:
-                    try:
-                        import datetime
-                        if text:
-                            # Try to parse various date formats including ISO format
-                            for fmt in ['%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S+00:00', '%Y-%m-%d', '%Y/%m/%d', '%m/%d/%Y', '%d/%m/%Y']:
-                                try:
-                                    date_obj = datetime.datetime.strptime(text, fmt)
-                                    text_fields['releasedate'] = date_obj.strftime('%Y%m%d')
-                                    break
-                                except:
-                                    continue
-                    except:
-                        pass
+                if text:
+                    # Convert to ISO 8601 format
+                    text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
     return text_fields
 
@@ -14769,6 +14876,174 @@ async def ensure_igdb_company_cache(company_ids):
     return cache
 
 # =============================================================================
+# IGDB Genre Mapping
+# =============================================================================
+
+def get_igdb_genre_cache_path():
+    """Get the path to the IGDB genre cache file"""
+    return os.path.join('var', 'db', 'igdb', 'genres.json')
+
+def load_igdb_genre_cache():
+    """Load IGDB genre cache from file"""
+    cache_path = get_igdb_genre_cache_path()
+    try:
+        if os.path.exists(cache_path):
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+                return cache_data
+    except Exception as e:
+        print(f"Error loading IGDB genre cache: {e}")
+    return {}
+
+def save_igdb_genre_cache(cache_data):
+    """Save IGDB genre cache to file"""
+    cache_path = get_igdb_genre_cache_path()
+    try:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error saving IGDB genre cache: {e}")
+        return False
+
+def is_igdb_genre_cache_valid(cache_data):
+    """Check if the IGDB genre cache is still valid (1 month)"""
+    if not cache_data or 'timestamp' not in cache_data:
+        return False
+    
+    cache_time = cache_data['timestamp']
+    current_time = time.time()
+    
+    # Cache is valid for 1 month (30 days)
+    cache_duration = 30 * 24 * 60 * 60  # 30 days in seconds
+    
+    return (current_time - cache_time) < cache_duration
+
+async def fetch_igdb_genres_async(access_token, client_id, async_client):
+    """Fetch all genres from IGDB API"""
+    try:
+        # IGDB API query to get all genres
+        query = """
+        fields id, name, slug;
+        sort id;
+        limit 500;
+        """
+        
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'text/plain'
+        }
+        
+        response = await async_client.post(
+            'https://api.igdb.com/v4/genres/',
+            headers=headers,
+            data=query
+        )
+        
+        if response.status_code == 200:
+            genres = response.json()
+            return genres
+        else:
+            print(f"Error fetching IGDB genres: {response.status_code} - {response.text}")
+            return []
+            
+    except Exception as e:
+        print(f"Error fetching IGDB genres: {e}")
+        return []
+
+async def ensure_igdb_genre_cache():
+    """Ensure IGDB genre cache is up to date"""
+    cache_data = load_igdb_genre_cache()
+    
+    # Check if cache is valid
+    if is_igdb_genre_cache_valid(cache_data):
+        return cache_data.get('genres', {})
+    
+    # Cache is invalid or doesn't exist, fetch fresh data
+    print("🔄 Refreshing IGDB genre cache...")
+    
+    # Get IGDB configuration
+    igdb_config = get_igdb_config()
+    if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+        print("❌ IGDB configuration not found")
+        return {}
+    
+    # Get access token
+    access_token = get_igdb_access_token()
+    if not access_token:
+        print("❌ Could not get IGDB access token")
+        return {}
+    
+    # Get async client
+    async_client = await get_igdb_async_client()
+    
+    # Fetch genres
+    genres = await fetch_igdb_genres_async(access_token, igdb_config['client_id'], async_client)
+    
+    if genres:
+        # Create genre mapping (ID -> name)
+        genre_mapping = {}
+        for genre in genres:
+            genre_id = genre.get('id')
+            genre_name = genre.get('name')
+            if genre_id and genre_name:
+                genre_mapping[genre_id] = genre_name
+        
+        # Update cache
+        cache_data = {
+            'timestamp': time.time(),
+            'genres': genre_mapping
+        }
+        
+        if save_igdb_genre_cache(cache_data):
+            print(f"✅ IGDB genre cache updated with {len(genre_mapping)} genres")
+            return genre_mapping
+        else:
+            print("❌ Failed to save IGDB genre cache")
+            return {}
+    else:
+        print("❌ No genres fetched from IGDB")
+        return {}
+
+def get_igdb_genre_name(genre_id, genre_cache=None):
+    """Get genre name from ID using cache"""
+    if genre_cache is None:
+        # Load cache synchronously (for non-async contexts)
+        cache_data = load_igdb_genre_cache()
+        if is_igdb_genre_cache_valid(cache_data):
+            genre_cache = cache_data.get('genres', {})
+        else:
+            return str(genre_id)  # Fallback to ID if cache is invalid
+    
+    # Convert genre_id to string for cache lookup
+    genre_key = str(genre_id)
+    return genre_cache.get(genre_key, str(genre_id))
+
+def map_igdb_genre_ids_to_names(genre_ids, genre_cache=None):
+    """Map a list of genre IDs to genre names"""
+    if not genre_ids:
+        return []
+    
+    if genre_cache is None:
+        # Load cache synchronously (for non-async contexts)
+        cache_data = load_igdb_genre_cache()
+        if is_igdb_genre_cache_valid(cache_data):
+            genre_cache = cache_data.get('genres', {})
+        else:
+            return [str(gid) for gid in genre_ids]  # Fallback to IDs if cache is invalid
+    
+    genre_names = []
+    for genre_id in genre_ids:
+        # Convert genre_id to string for cache lookup
+        genre_key = str(genre_id)
+        genre_name = genre_cache.get(genre_key, str(genre_id))
+        genre_names.append(genre_name)
+    
+    return genre_names
+
+# =============================================================================
 # IGDB Scraper Task
 # =============================================================================
 
@@ -14810,15 +15085,20 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
                             publisher_names.append(company_name)
         
         # Map IGDB fields to gamelist fields
+        # Get genre names from IDs
+        genre_names = []
+        if igdb_game.get('genres'):
+            genre_names = map_igdb_genre_ids_to_names(igdb_game['genres'])
+        
         field_mappings = {
             'name': igdb_game.get('name', ''),
             'summary': igdb_game.get('summary', ''),
             'developer': ', '.join(developer_names) if developer_names else '',
             'publisher': ', '.join(publisher_names) if publisher_names else '',
-            'genre': ', '.join([str(g) for g in igdb_game.get('genres', [])]) if igdb_game.get('genres') else '',
+            'genre': ', '.join(genre_names) if genre_names else '',
             'rating': str(int(igdb_game.get('total_rating', 0))) if igdb_game.get('total_rating') else '',
             'players': str(igdb_game.get('player_perspectives', [0])[0]) if igdb_game.get('player_perspectives') else '',
-            'release_date': str(igdb_game.get('first_release_date', '')) if igdb_game.get('first_release_date') else ''
+            'release_date': format_releasedate_to_iso8601(igdb_game.get('first_release_date')) if igdb_game.get('first_release_date') else ''
         }
         
         # Clean up empty values
@@ -15480,6 +15760,9 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             
             # Get async client
             async_client = await get_igdb_async_client()
+            
+            # Ensure genre cache is up to date
+            await ensure_igdb_genre_cache()
             
             # Collect all company IDs from games to cache them
             all_company_ids = set()

@@ -2854,6 +2854,7 @@ class GameCollectionManager {
         document.getElementById('editPublisher').value = '';
         document.getElementById('editRating').value = '';
         document.getElementById('editPlayers').value = '';
+        document.getElementById('editReleasedate').value = '';
         document.getElementById('editLaunchboxId').value = '';
         document.getElementById('editIgdbId').value = '';
         document.getElementById('editScreenscraperId').value = '';
@@ -2870,6 +2871,15 @@ class GameCollectionManager {
         document.getElementById('editPublisher').value = game.publisher || '';
         document.getElementById('editRating').value = game.rating || '';
         document.getElementById('editPlayers').value = game.players || '';
+        
+        // Handle release date with automatic format conversion
+        let releaseDateValue = game.releasedate || '';
+        if (releaseDateValue) {
+            // Convert to ISO 8601 format if not already in correct format
+            releaseDateValue = this.convertReleaseDateToISO8601(releaseDateValue);
+        }
+        document.getElementById('editReleasedate').value = releaseDateValue;
+        
         document.getElementById('editLaunchboxId').value = game.launchboxid || '';
         document.getElementById('editIgdbId').value = game.igdbid || '';
         document.getElementById('editScreenscraperId').value = game.screenscraperid || '';
@@ -2936,6 +2946,171 @@ class GameCollectionManager {
         
         // Initialize Find Best Match button
         this.initializeFindBestMatchButton();
+        
+        // Add release date validation
+        const releasedateField = document.getElementById('editReleasedate');
+        if (releasedateField) {
+            releasedateField.addEventListener('blur', () => {
+                this.validateReleaseDate(releasedateField);
+            });
+        }
+    }
+    
+    validateReleaseDate(field) {
+        const value = field.value.trim();
+        if (!value) {
+            // Clear any previous validation state
+            field.classList.remove('is-valid', 'is-invalid');
+            return;
+        }
+        
+        // Check if the value matches the expected ISO 8601 format (YYYYMMDDTHHMMSS)
+        const iso8601Pattern = /^\d{8}T\d{6}$/;
+        if (iso8601Pattern.test(value)) {
+            field.classList.remove('is-invalid');
+            field.classList.add('is-valid');
+        } else {
+            field.classList.remove('is-valid');
+            field.classList.add('is-invalid');
+            
+            // Show a helpful message
+            this.showAlert('Release date should be in format YYYYMMDDTHHMMSS (e.g., 19900201T000000)', 'warning');
+        }
+    }
+    
+    convertReleaseDateToISO8601(dateInput) {
+        /**
+         * Convert various date formats to ISO 8601 format (YYYYMMDDTHHMMSS)
+         * This is a JavaScript implementation of the Python format_releasedate_to_iso8601 function
+         */
+        if (!dateInput || dateInput === '') {
+            return '';
+        }
+        
+        // If already in correct format, return as-is
+        const iso8601Pattern = /^\d{8}T\d{6}$/;
+        if (iso8601Pattern.test(dateInput)) {
+            return dateInput;
+        }
+        
+        try {
+            // Handle timestamps (numbers)
+            if (!isNaN(dateInput) && !isNaN(parseFloat(dateInput))) {
+                const timestamp = parseFloat(dateInput);
+                const date = new Date(timestamp * 1000); // Convert to milliseconds
+                return this.formatDateToISO8601(date);
+            }
+            
+            // Handle various string formats
+            const dateStr = dateInput.toString().trim();
+            
+            // If already in YYYYMMDD format, add time
+            if (/^\d{8}$/.test(dateStr)) {
+                return dateStr + 'T000000';
+            }
+            
+            // Try to parse various date formats
+            const formats = [
+                // ISO formats
+                /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/,  // 1990-02-01T12:30:45
+                /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.\d+/,  // 1990-02-01T12:30:45.123456
+                /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z/,  // 1990-02-01T12:30:45Z
+                /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\+\d{2}:\d{2}/,  // 1990-02-01T12:30:45+00:00
+                
+                // Date only formats
+                /^(\d{4})-(\d{2})-(\d{2})$/,  // 1990-02-01
+                /^(\d{4})\/(\d{2})\/(\d{2})$/,  // 1990/02/01
+                /^(\d{2})\/(\d{2})\/(\d{4})$/,  // 02/01/1990
+                /^(\d{2})\/(\d{2})\/(\d{4})$/,  // 01/02/1990
+                
+                // Year-month only
+                /^(\d{4})-(\d{2})$/,  // 1990-02
+                
+                // Year only
+                /^(\d{4})$/,  // 1990
+                
+                // Steam format
+                /^(\d{1,2})\s+(\w{3}),\s+(\d{4})$/,  // 01 Feb, 1990
+            ];
+            
+            for (const format of formats) {
+                const match = dateStr.match(format);
+                if (match) {
+                    let year, month, day, hour = 0, minute = 0, second = 0;
+                    
+                    if (format.source.includes('T')) {
+                        // ISO format with time
+                        [, year, month, day, hour, minute, second] = match;
+                    } else if (format.source.includes('\\w{3}')) {
+                        // Steam format: 01 Feb, 1990
+                        [, day, monthName, year] = match;
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        month = (monthNames.indexOf(monthName) + 1).toString().padStart(2, '0');
+                        day = day.padStart(2, '0');
+                    } else if (format.source.includes('\\d{4}')) {
+                        // Various date formats
+                        if (format.source.includes('\\d{4}-\\d{2}-\\d{2}')) {
+                            // YYYY-MM-DD
+                            [, year, month, day] = match;
+                        } else if (format.source.includes('\\d{4}/\\d{2}/\\d{2}')) {
+                            // YYYY/MM/DD
+                            [, year, month, day] = match;
+                        } else if (format.source.includes('\\d{2}/\\d{2}/\\d{4}')) {
+                            // MM/DD/YYYY or DD/MM/YYYY (assume MM/DD/YYYY)
+                            [, month, day, year] = match;
+                        } else if (format.source.includes('\\d{4}-\\d{2}')) {
+                            // YYYY-MM
+                            [, year, month] = match;
+                            day = '01';
+                        } else if (format.source.includes('^\\d{4}$')) {
+                            // YYYY
+                            [, year] = match;
+                            month = '01';
+                            day = '01';
+                        }
+                    }
+                    
+                    if (year) {
+                        // Ensure proper padding
+                        year = year.padStart(4, '0');
+                        month = (month || '01').padStart(2, '0');
+                        day = (day || '01').padStart(2, '0');
+                        hour = (hour || '00').padStart(2, '0');
+                        minute = (minute || '00').padStart(2, '0');
+                        second = (second || '00').padStart(2, '0');
+                        
+                        return `${year}${month}${day}T${hour}${minute}${second}`;
+                    }
+                }
+            }
+            
+            // If no format matched, try to parse as a general date
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+                return this.formatDateToISO8601(date);
+            }
+            
+        } catch (error) {
+            console.warn('Error converting release date:', error);
+        }
+        
+        // If all parsing attempts failed, return the original value
+        return dateInput;
+    }
+    
+    formatDateToISO8601(date) {
+        /**
+         * Format a JavaScript Date object to ISO 8601 format (YYYYMMDDTHHMMSS)
+         */
+        const year = date.getFullYear().toString().padStart(4, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const hour = date.getHours().toString().padStart(2, '0');
+        const minute = date.getMinutes().toString().padStart(2, '0');
+        const second = date.getSeconds().toString().padStart(2, '0');
+        
+        return `${year}${month}${day}T${hour}${minute}${second}`;
     }
     
     initializeFindBestMatchButton() {
@@ -3779,6 +3954,7 @@ class GameCollectionManager {
         game.publisher = document.getElementById('editPublisher').value;
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
+        game.releasedate = document.getElementById('editReleasedate').value;
         game.launchboxid = document.getElementById('editLaunchboxId').value;
         game.igdbid = document.getElementById('editIgdbId').value;
         game.screenscraperid = document.getElementById('editScreenscraperId').value;
@@ -3795,6 +3971,7 @@ class GameCollectionManager {
         if (originalGame.publisher !== game.publisher) changedFields.push('publisher');
         if (originalGame.rating !== game.rating) changedFields.push('rating');
         if (originalGame.players !== game.players) changedFields.push('players');
+        if (originalGame.releasedate !== game.releasedate) changedFields.push('releasedate');
         if (originalGame.launchboxid !== game.launchboxid) changedFields.push('launchboxid');
         if (originalGame.igdbid !== game.igdbid) changedFields.push('igdbid');
         if (originalGame.screenscraperid !== game.screenscraperid) changedFields.push('screenscraperid');
