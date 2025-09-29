@@ -15317,6 +15317,13 @@ class GameCollectionManager {
             
             // Mark the game as modified so changes can be saved
             this.markGameAsModified(currentGame);
+            
+            // Auto-save the YouTube URL change to gamelist.xml
+            try {
+                await this.saveGameChanges();
+            } catch (error) {
+                console.warn('Failed to auto-save YouTube URL change:', error);
+            }
         }
         
         // Debug logging
