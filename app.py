@@ -4412,57 +4412,72 @@ def manage_igdb_mappings():
         elif request.method == 'PUT':
             # Update existing mapping
             data = request.get_json()
-            if not data or 'igdb_type' not in data:
-                return jsonify({'error': 'IGDB type is required'}), 400
+            if not data or 'igdb_type' not in data or 'media_field' not in data:
+                return jsonify({'error': 'IGDB type and media field are required'}), 400
             
             igdb_type = data['igdb_type']
-            media_field = data.get('media_field', '')
+            media_field = data['media_field']
             
             # Validate that the media field exists
-            if media_field and media_field not in config.get('media_fields', {}):
+            if media_field not in config.get('media_fields', {}):
                 return jsonify({'error': 'Invalid media field'}), 400
             
-            # Update the mapping
-            if 'igdb' not in config:
-                config['igdb'] = {}
-            if 'image_type_mappings' not in config['igdb']:
-                config['igdb']['image_type_mappings'] = {}
+            # Update the mapping (igdb_type -> media_field)
+            if 'igdb' not in scrappers_config:
+                scrappers_config['igdb'] = {}
+            if 'image_type_mappings' not in scrappers_config['igdb']:
+                scrappers_config['igdb']['image_type_mappings'] = {}
             
-            config['igdb']['image_type_mappings'][media_field] = igdb_type
+            # Remove any existing mapping for this media field first
+            for existing_igdb_type, existing_media_field in list(scrappers_config['igdb']['image_type_mappings'].items()):
+                if existing_media_field == media_field:
+                    del scrappers_config['igdb']['image_type_mappings'][existing_igdb_type]
+            
+            # Add new mapping if igdb_type is not empty
+            if igdb_type:
+                scrappers_config['igdb']['image_type_mappings'][igdb_type] = media_field
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'IGDB mapping updated successfully'})
         
         elif request.method == 'POST':
             # Reset mapping to default
             data = request.get_json()
-            if not data or 'igdb_type' not in data or not data.get('reset'):
-                return jsonify({'error': 'Reset operation requires igdb_type and reset flag'}), 400
+            if not data or 'media_field' not in data or not data.get('reset'):
+                return jsonify({'error': 'Reset operation requires media_field and reset flag'}), 400
             
-            igdb_type = data['igdb_type']
+            media_field = data['media_field']
             
-            # Define default mappings (these should match the original config)
+            # Define default mappings (media_field -> igdb_type)
             default_mappings = {
-                "cover": "thumbnail",
-                "screenshots": "image",
-                "artworks": "fanart"
+                "boxart": "cover",
+                "image": "screenshots", 
+                "fanart": "artworks",
+                "marquee": "logos"
             }
             
             # Reset to default value
-            if 'igdb' not in config:
-                config['igdb'] = {}
-            if 'image_type_mappings' not in config['igdb']:
-                config['igdb']['image_type_mappings'] = {}
+            if 'igdb' not in scrappers_config:
+                scrappers_config['igdb'] = {}
+            if 'image_type_mappings' not in scrappers_config['igdb']:
+                scrappers_config['igdb']['image_type_mappings'] = {}
             
-            default_value = default_mappings.get(igdb_type, '')
-            config['igdb']['image_type_mappings'][media_field] = default_value
+            # Remove any existing mapping for this media field first
+            for existing_igdb_type, existing_media_field in list(scrappers_config['igdb']['image_type_mappings'].items()):
+                if existing_media_field == media_field:
+                    del scrappers_config['igdb']['image_type_mappings'][existing_igdb_type]
+            
+            # Add default mapping if it exists
+            default_igdb_type = default_mappings.get(media_field)
+            if default_igdb_type:
+                scrappers_config['igdb']['image_type_mappings'][default_igdb_type] = media_field
             
             # Save to file
-            with open('var/config/config.json', 'w') as f:
-                json.dump(config, f, indent=4)
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
             
             return jsonify({'success': True, 'message': 'IGDB mapping reset to default'})
     

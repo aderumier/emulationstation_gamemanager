@@ -10568,27 +10568,28 @@ class GameCollectionManager {
         
         tbody.innerHTML = '';
         
-        // Create rows for all IGDB media types, not just the ones that are mapped
-        igdbMediaTypes.forEach(igdbType => {
-            const mediaField = igdbMappings[igdbType] || '';
+        // Create rows for all media fields, not just the ones that are mapped
+        Object.keys(mediaFields).forEach(mediaField => {
+            // Find which IGDB type maps to this media field
+            const igdbType = Object.keys(igdbMappings).find(type => igdbMappings[type] === mediaField) || '';
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
-                    <span class="igdb-type-display">${igdbType}</span>
+                    <span class="media-field-display">${mediaField}</span>
                 </td>
                 <td>
                     <select class="form-select form-select-sm" 
-                            data-igdb-type="${igdbType}" 
-                            onchange="gameManager.updateIgdbMapping('${igdbType}', this.value)">
-                        <option value="">-- Select Media Field --</option>
-                        ${Object.keys(mediaFields).map(field => 
-                            `<option value="${field}" ${field === mediaField ? 'selected' : ''}>${field}</option>`
+                            data-media-field="${mediaField}" 
+                            onchange="gameManager.updateIgdbMapping(this.value, '${mediaField}')">
+                        <option value="">-- Select IGDB Image Type --</option>
+                        ${igdbMediaTypes.map(type => 
+                            `<option value="${type}" ${type === igdbType ? 'selected' : ''}>${type}</option>`
                         ).join('')}
                     </select>
                 </td>
                 <td>
                     <button class="btn btn-sm btn-outline-secondary" 
-                            onclick="gameManager.resetIgdbMapping('${igdbType}')"
+                            onclick="gameManager.resetIgdbMapping('${mediaField}')"
                             title="Reset to default">
                         <i class="bi bi-arrow-clockwise"></i>
                     </button>
@@ -10614,8 +10615,8 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                console.log(`Successfully updated IGDB mapping: ${igdbType} -> ${mediaField}`);
-                this.showAlert(`IGDB mapping updated: ${igdbType} → ${mediaField}`, 'success');
+                console.log(`Successfully updated IGDB mapping: ${mediaField} <- ${igdbType}`);
+                this.showAlert(`IGDB mapping updated: ${mediaField} ← ${igdbType}`, 'success');
             } else {
                 this.showAlert(`Failed to update IGDB mapping: ${data.error}`, 'danger');
                 // Reload data to revert changes
@@ -10629,8 +10630,8 @@ class GameCollectionManager {
         }
     }
     
-    async resetIgdbMapping(igdbType) {
-        if (!confirm(`Reset IGDB mapping for "${igdbType}" to default?`)) {
+    async resetIgdbMapping(mediaField) {
+        if (!confirm(`Reset IGDB mapping for "${mediaField}" to default?`)) {
             return;
         }
         
@@ -10641,7 +10642,7 @@ class GameCollectionManager {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    igdb_type: igdbType,
+                    media_field: mediaField,
                     reset: true
                 })
             });
@@ -10649,7 +10650,7 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success) {
-                this.showAlert(`IGDB mapping reset for "${igdbType}"`, 'success');
+                this.showAlert(`IGDB mapping reset for "${mediaField}"`, 'success');
                 this.loadIgdbMappingsData(); // Reload the table
             } else {
                 this.showAlert(`Failed to reset IGDB mapping: ${data.error}`, 'danger');
