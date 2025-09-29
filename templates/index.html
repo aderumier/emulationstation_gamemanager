@@ -2757,6 +2757,51 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                     </div>
                     
+                    <hr class="my-4">
+                    
+                    <div class="mb-3">
+                        <h6>YouTube API Settings</h6>
+                        <p class="text-muted small">Configure YouTube Data API v3 for safe and reliable video searching. This replaces the unsafe web scraping method.</p>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="youtubeApiKeyInput" class="form-label">YouTube Data API v3 Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="youtubeApiKeyInput" placeholder="Enter your YouTube API key...">
+                                <button class="btn btn-outline-secondary" type="button" id="toggleYoutubeApiKeyVisibility">
+                                    <i class="bi bi-eye" id="youtubeApiKeyToggleIcon"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Get your API key from <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a> 
+                                (enable YouTube Data API v3). This is required for video search functionality.
+                            </div>
+                            <div class="alert alert-info mt-2" role="alert">
+                                <strong>Setup Instructions:</strong>
+                                <ol class="mb-0">
+                                    <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                                    <li>Create a new project or select an existing one</li>
+                                    <li>Enable the YouTube Data API v3</li>
+                                    <li>Create credentials (API key)</li>
+                                    <li>Copy the API key and paste it here</li>
+                                </ol>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">API Key Status</label>
+                            <div id="youtubeApiKeyStatus" class="form-control-plaintext">
+                                <span class="badge bg-secondary">Not loaded</span>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="saveYoutubeApiKeyBtn">
+                                <i class="bi bi-save me-1"></i>Save API Key
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm mt-2 ms-1" id="clearYoutubeApiKeyBtn">
+                                <i class="bi bi-trash me-1"></i>Clear
+                            </button>
+                        </div>
+                    </div>
+                    
                     <div class="mb-3">
                         <h6>YouTube PO Token Settings</h6>
                         <p class="text-muted small">Configure YouTube PO token provider for enhanced YouTube video downloading capabilities.</p>

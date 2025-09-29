@@ -11642,6 +11642,28 @@ class GameCollectionManager {
         
         // Add auto-save event listeners for form elements
         this.setupVideoConfigAutoSave();
+        
+        // Add YouTube API credentials event listeners
+        const saveYoutubeApiKeyBtn = document.getElementById('saveYoutubeApiKeyBtn');
+        if (saveYoutubeApiKeyBtn) {
+            saveYoutubeApiKeyBtn.addEventListener('click', () => {
+                this.saveYoutubeApiKey();
+            });
+        }
+        
+        const clearYoutubeApiKeyBtn = document.getElementById('clearYoutubeApiKeyBtn');
+        if (clearYoutubeApiKeyBtn) {
+            clearYoutubeApiKeyBtn.addEventListener('click', () => {
+                this.clearYoutubeApiKey();
+            });
+        }
+        
+        const toggleYoutubeApiKeyVisibilityBtn = document.getElementById('toggleYoutubeApiKeyVisibility');
+        if (toggleYoutubeApiKeyVisibilityBtn) {
+            toggleYoutubeApiKeyVisibilityBtn.addEventListener('click', () => {
+                this.toggleYoutubeApiKeyVisibility();
+            });
+        }
     }
     
     setupVideoConfigAutoSave() {
@@ -11816,6 +11838,18 @@ class GameCollectionManager {
                     cookieStatus.innerHTML = exists ? '<span class="badge bg-success">Cookie file present</span>' : '<span class="badge bg-secondary">No cookie file</span>';
                 }
                 
+                // Update YouTube API key status
+                const apiKeyStatus = document.getElementById('youtubeApiKeyStatus');
+                if (apiKeyStatus) {
+                    const exists = !!config.youtube_api_key_exists;
+                    const length = config.youtube_api_key_length || 0;
+                    if (exists) {
+                        apiKeyStatus.innerHTML = `<span class="badge bg-success">API key configured (${length} chars)</span>`;
+                    } else {
+                        apiKeyStatus.innerHTML = '<span class="badge bg-secondary">No API key</span>';
+                    }
+                }
+                
             } else {
                 this.showToast('Failed to load video configuration', 'error');
             }
@@ -11915,6 +11949,79 @@ class GameCollectionManager {
             }
         } catch (e) {
             this.showToast('Failed to save YouTube cookie', 'error');
+        }
+    }
+    
+    async saveYoutubeApiKey() {
+        try {
+            const apiKeyInput = document.getElementById('youtubeApiKeyInput');
+            const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+            
+            if (!apiKey) {
+                this.showToast('Please enter a YouTube API key', 'error');
+                return;
+            }
+            
+            const resp = await fetch('/api/youtube-credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: apiKey })
+            });
+            
+            if (!resp.ok) {
+                const error = await resp.text();
+                throw new Error(error);
+            }
+            
+            this.showToast('YouTube API key saved successfully', 'success');
+            
+            // Refresh status
+            await this.loadVideoConfiguration();
+        } catch (e) {
+            this.showToast('Failed to save YouTube API key', 'error');
+        }
+    }
+    
+    async clearYoutubeApiKey() {
+        try {
+            const resp = await fetch('/api/youtube-credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: '' })
+            });
+            
+            if (!resp.ok) {
+                const error = await resp.text();
+                throw new Error(error);
+            }
+            
+            // Clear the input field
+            const apiKeyInput = document.getElementById('youtubeApiKeyInput');
+            if (apiKeyInput) {
+                apiKeyInput.value = '';
+            }
+            
+            this.showToast('YouTube API key cleared', 'success');
+            
+            // Refresh status
+            await this.loadVideoConfiguration();
+        } catch (e) {
+            this.showToast('Failed to clear YouTube API key', 'error');
+        }
+    }
+    
+    toggleYoutubeApiKeyVisibility() {
+        const apiKeyInput = document.getElementById('youtubeApiKeyInput');
+        const toggleIcon = document.getElementById('youtubeApiKeyToggleIcon');
+        
+        if (apiKeyInput && toggleIcon) {
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                toggleIcon.className = 'bi bi-eye-slash';
+            } else {
+                apiKeyInput.type = 'password';
+                toggleIcon.className = 'bi bi-eye';
+            }
         }
     }
     

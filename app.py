@@ -3579,6 +3579,10 @@ def manage_video_config():
             # Check youtube cookie presence
             youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
             youtube_cookie_exists = os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0
+            
+            # Check YouTube API key presence
+            youtube_api_key = get_youtube_api_key()
+            youtube_api_key_exists = bool(youtube_api_key)
 
             return jsonify({
                 'force_video_resolution': video_config.get('force_video_resolution', ''),
@@ -3588,7 +3592,9 @@ def manage_video_config():
                 'youtube_po_token_provider': video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416'),
                 'youtube_skip_cookie_for_video_duration_bigger_than': video_config.get('youtube_skip_cookie_for_video_duration_bigger_than', 60),
                 'available_resolutions': available_resolutions,
-                'youtube_cookie_exists': youtube_cookie_exists
+                'youtube_cookie_exists': youtube_cookie_exists,
+                'youtube_api_key_exists': youtube_api_key_exists,
+                'youtube_api_key_length': len(youtube_api_key) if youtube_api_key else 0
             })
         elif request.method == 'PUT':
             new_config = request.get_json()
