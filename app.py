@@ -9104,7 +9104,7 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
     text_fields = {}
     
     # Always extract these standard fields regardless of mapping config
-    standard_fields = ['Name', 'Description', 'Overview', 'Developer', 'Publisher', 'Genre', 'ReleaseDate', 'Platform', 'DatabaseID']
+    standard_fields = ['Name', 'Description', 'Overview', 'Developer', 'Publisher', 'Genre', 'Genres', 'ReleaseDate', 'Platform', 'DatabaseID']
     
     # Extract text from XML element
     for child in game_elem:
@@ -9127,8 +9127,11 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
                 text_fields['developer'] = text
             elif tag == 'Publisher':
                 text_fields['publisher'] = text
-            elif tag == 'Genre':
-                text_fields['genre'] = text
+            elif tag in ['Genre', 'Genres']:
+                # Handle both Genre and Genres fields for genre
+                if 'genre' not in text_fields or not text_fields['genre']:
+                    text_fields['genre'] = text
+                    print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
                 if text:
                     # Convert to ISO 8601 format
