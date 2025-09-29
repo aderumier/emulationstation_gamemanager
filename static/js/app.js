@@ -2487,6 +2487,9 @@ class GameCollectionManager {
             suppressCellFocus: false,
             // Context menu for Community version
             onCellContextMenu: (event) => {
+                console.log('onCellContextMenu triggered', event);
+                event.event.preventDefault();
+                event.event.stopPropagation();
                 this.showContextMenu(event);
             },
             // State persistence event handlers
@@ -2515,6 +2518,12 @@ class GameCollectionManager {
         
         // Apply custom CSS class to prevent theme conflicts with popups
         gridDiv.classList.add('game-grid-container');
+        
+        // Prevent browser context menu on the grid
+        gridDiv.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+        });
         
         // Setup lazy loading for thumbnail view
         setTimeout(() => {
@@ -2801,6 +2810,7 @@ class GameCollectionManager {
     }
 
     showContextMenu(event) {
+        console.log('showContextMenu called', event);
         event.preventDefault();
         
         const game = event.data;
