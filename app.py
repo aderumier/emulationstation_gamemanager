@@ -13442,8 +13442,7 @@ def save_screenscraper_credentials(dev_id, dev_password, ss_id, ss_password):
 def ensure_igdb_directory():
     """Ensure IGDB database directory exists"""
     try:
-        igdb_config = get_igdb_config()
-        igdb_dir = igdb_config.get('database_directory', 'var/db/igdb')
+        igdb_dir = 'var/db/igdb'
         os.makedirs(igdb_dir, exist_ok=True)
         return igdb_dir
     except Exception as e:
