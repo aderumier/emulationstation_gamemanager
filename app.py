@@ -12822,6 +12822,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             task.update_progress(f"  ✂️ Cutting full video to 30-second section ({cut_start_time}s-{cut_end_time}s)")
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, cut_start_time, cut_end_time)
         else:
+            # This should not happen - all downloads should be either sections or full
+            task.update_progress(f"  ⚠️ Unexpected download type - no cutting applied")
             processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
         
         if not processing_success:
