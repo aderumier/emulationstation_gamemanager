@@ -10025,12 +10025,10 @@ class GameCollectionManager {
     }
     
     async openScraperConfigurationModal() {
-        console.log('Opening unified scraper configuration modal');
         const modalElement = document.getElementById('scraperConfigModal');
         const modal = new bootstrap.Modal(modalElement);
         
         // Load all data BEFORE showing the modal
-        console.log('Loading all scraper data before showing modal...');
         await this.loadMediaFieldsData();
         await this.loadLaunchboxMappingsData();
         await this.loadIgdbMappingsData();
@@ -10038,40 +10036,15 @@ class GameCollectionManager {
         await this.loadSteamMappingsData();
         await this.loadSteamgriddbMappingsData();
         
-        console.log('All data loaded, showing modal...');
-        
-        // Debug: Check if tab content is visible
-        const mediaFieldsTab = document.getElementById('media-fields');
-        const addMediaFieldBtn = document.getElementById('addMediaFieldBtn');
-        const refreshMediaFieldsBtn = document.getElementById('refreshMediaFieldsBtn');
-        console.log('Media Fields tab element:', mediaFieldsTab);
-        console.log('Add Media Field button:', addMediaFieldBtn);
-        console.log('Refresh Media Fields button:', refreshMediaFieldsBtn);
-        console.log('Media Fields tab classes:', mediaFieldsTab?.className);
-        console.log('Media Fields tab style display:', mediaFieldsTab?.style.display);
-        
         modal.show();
         
-        // Debug after modal is shown and manually activate the first tab
+        // Manually activate the first tab if it's not active
         setTimeout(() => {
             const mediaFieldsTab = document.getElementById('media-fields');
-            const addMediaFieldBtn = document.getElementById('addMediaFieldBtn');
-            const refreshMediaFieldsBtn = document.getElementById('refreshMediaFieldsBtn');
-            console.log('After modal shown - Media Fields tab element:', mediaFieldsTab);
-            console.log('After modal shown - Add Media Field button:', addMediaFieldBtn);
-            console.log('After modal shown - Refresh Media Fields button:', refreshMediaFieldsBtn);
-            console.log('After modal shown - Media Fields tab classes:', mediaFieldsTab?.className);
-            console.log('After modal shown - Media Fields tab style display:', mediaFieldsTab?.style.display);
-            console.log('After modal shown - Media Fields tab offsetHeight:', mediaFieldsTab?.offsetHeight);
-            
-            // Manually activate the first tab if it's not active
             if (mediaFieldsTab && !mediaFieldsTab.classList.contains('show')) {
-                console.log('Manually activating Media Fields tab...');
                 mediaFieldsTab.classList.add('show', 'active');
-                console.log('After manual activation - Media Fields tab classes:', mediaFieldsTab.className);
-                console.log('After manual activation - Media Fields tab offsetHeight:', mediaFieldsTab.offsetHeight);
             }
-        }, 500);
+        }, 100);
     }
 
     openMediaFieldsConfigurationModal() {
@@ -10102,9 +10075,7 @@ class GameCollectionManager {
     
     async populateMediaFieldsTable(mediaFields) {
         const tbody = document.getElementById('mediaFieldsTableBody');
-        console.log('populateMediaFieldsTable called, tbody found:', !!tbody);
         if (!tbody) {
-            console.error('mediaFieldsTableBody not found!');
             return;
         }
         
