@@ -3075,9 +3075,35 @@ class GameCollectionManager {
             const parentRow = document.createElement('tr');
             parentRow.innerHTML = `
                 <td><i class="bi bi-arrow-up"></i> ..</td>
-                <td><button class="btn btn-sm btn-outline-primary" onclick="gameManager.loadDirectoryContents('${this.getParentPath(currentPath)}')">Open</button></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="gameManager.loadDirectoryContents('${this.getParentPath(currentPath)}')">Open</button>
+                    <button class="btn btn-sm btn-outline-success" onclick="gameManager.selectMoveDestination('${this.getParentPath(currentPath)}')">Select</button>
+                </td>
             `;
             tbody.appendChild(parentRow);
+        }
+        
+        // Add root directory selection if not already at root
+        if (currentPath !== '/') {
+            const rootRow = document.createElement('tr');
+            rootRow.innerHTML = `
+                <td><i class="bi bi-house"></i> Root Directory</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="gameManager.loadDirectoryContents('/')">Open</button>
+                    <button class="btn btn-sm btn-outline-success" onclick="gameManager.selectMoveDestination('/')">Select</button>
+                </td>
+            `;
+            tbody.appendChild(rootRow);
+        } else {
+            // If we're at root, add a "Select Root" option
+            const rootRow = document.createElement('tr');
+            rootRow.innerHTML = `
+                <td><i class="bi bi-house"></i> Root Directory (Current)</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success" onclick="gameManager.selectMoveDestination('/')">Select Root</button>
+                </td>
+            `;
+            tbody.appendChild(rootRow);
         }
         
         // Add directories
@@ -3162,7 +3188,13 @@ class GameCollectionManager {
     async selectMoveDestination(destinationPath) {
         if (!this.movingGame) return;
         
-        const confirmMessage = `Move "${this.movingGame.name}" to "${destinationPath}"?`;
+        // Format the destination path for display
+        let displayPath = destinationPath;
+        if (destinationPath === '/') {
+            displayPath = 'Root Directory';
+        }
+        
+        const confirmMessage = `Move "${this.movingGame.name}" to "${displayPath}"?`;
         if (confirm(confirmMessage)) {
             await this.performMove(this.movingGame, destinationPath);
         }
