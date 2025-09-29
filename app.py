@@ -9610,10 +9610,10 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
             elif tag in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
-                text_fields['genre'] = text
+                    text_fields['genre'] = text
                     print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
-                        if text:
+                if text:
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
@@ -10281,15 +10281,15 @@ def youtube_search():
                 videos = get_youtube_video_details(videos, youtube_api_key)
             
             print(f"Successfully retrieved {len(videos)} videos from YouTube API")
-                return jsonify({
-                    'success': True,
+            return jsonify({
+                'success': True,
                 'results': videos,
-                    'query': search_query
-                })
+                'query': search_query
+            })
             
         except requests.RequestException as e:
             print(f"YouTube API request error: {e}")
-                return jsonify({
+            return jsonify({
                 'success': False,
                 'error': f'YouTube API request failed: {str(e)}',
                 'query': search_query
@@ -18364,25 +18364,25 @@ if __name__ == '__main__':
     def run_with_signal_handling():
         """Run the server with proper signal handling"""
         try:
-    if config['server']['debug']:
-        # Development mode - use Werkzeug with allow_unsafe_werkzeug
-        socketio.run(
-            app,
-            debug=True,
-            host=config['server']['host'],
-            port=config['server']['port'],
-            allow_unsafe_werkzeug=True
-        )
-    else:
-        # Production mode - use Flask development server
-        print("Starting production server...")
-        socketio.run(
-            app,
-            debug=False,
-            host=config['server']['host'],
-            port=config['server']['port'],
-            allow_unsafe_werkzeug=True
-        )
+            if config['server']['debug']:
+                # Development mode - use Werkzeug with allow_unsafe_werkzeug
+                socketio.run(
+                    app,
+                    debug=True,
+                    host=config['server']['host'],
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
+                )
+            else:
+                # Production mode - use Flask development server
+                print("Starting production server...")
+                socketio.run(
+                    app,
+                    debug=False,
+                    host=config['server']['host'],
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
+                )
         except KeyboardInterrupt:
             print("\n🔄 Keyboard interrupt received, shutting down...")
             cleanup_on_exit()
