@@ -1,5 +1,11 @@
-gamemanager (2.2.3) stable; urgency=medium
+gamemanager (2.3.0) stable; urgency=medium
 
+  * Fix Screenscraper developer and publisher extraction in manual scrap
+  * Fix LaunchBox genre extraction in manual scrap (handle both 'Genre' and 'Genres' fields)
+  * Fix IGDB company name mapping in manual scrap (use company cache)
+  * Move ID fields to left column in game edit modal for better organization
+  * Implement graceful shutdown mechanism to prevent defunct processes
+  * Add debug logging for LaunchBox description extraction
   * Fix LaunchBox scrapper overwrite_text_fields logic
   * Fix LaunchBox scrapper launchboxid priority lookup
   * Remove SteamGridDB scrapper task debug logs
