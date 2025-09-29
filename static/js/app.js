@@ -2811,7 +2811,6 @@ class GameCollectionManager {
 
     showContextMenu(event) {
         console.log('showContextMenu called', event);
-        event.preventDefault();
         
         const game = event.data;
         const selectedGames = this.gridApi.getSelectedRows();
