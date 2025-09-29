@@ -121,9 +121,15 @@ mkdir -p /opt/gamemanager/var/db
 mkdir -p /opt/gamemanager/var/db/launchbox
 mkdir -p /opt/gamemanager/var/db/igdb
 mkdir -p /opt/gamemanager/var/db/screenscraper
+mkdir -p /opt/gamemanager/var/db/steam
+mkdir -p /opt/gamemanager/var/db/steamgrid
 mkdir -p /opt/gamemanager/var/sessions
 mkdir -p /opt/gamemanager/var/task_logs
 mkdir -p /opt/gamemanager/var/gamelists
+mkdir -p /opt/gamemanager/var/cache
+mkdir -p /opt/gamemanager/var/temp
+mkdir -p /opt/gamemanager/var/temp/medias
+mkdir -p /opt/gamemanager/var/temp/videos
 
 # Copy default config files if they don't exist in var/config
 if [ ! -f /opt/gamemanager/var/config/config.json ]; then
@@ -155,6 +161,17 @@ cp /opt/gamemanager/launchbox_mediatype.json.default /opt/gamemanager/var/db/lau
 cp /opt/gamemanager/screenscraper_mediastype.txt.default /opt/gamemanager/var/db/screenscraper/mediastype.txt
 cp /opt/gamemanager/steam_mediastype.txt.default /opt/gamemanager/var/db/steam/mediastype.txt
 cp /opt/gamemanager/steamgrid_mediastype.txt.default /opt/gamemanager/var/db/steamgrid/mediastype.txt
+
+# Copy additional database files to var/db (always copy to ensure they're in the volume)
+echo "Copying additional database files to var/db..."
+# Create empty files for cache and data files that will be populated by the application
+touch /opt/gamemanager/var/db/igdb/companies.json
+touch /opt/gamemanager/var/db/igdb/genres.json
+touch /opt/gamemanager/var/db/igdb/regions_cache.json
+touch /opt/gamemanager/var/db/igdb/sample_games.json
+touch /opt/gamemanager/var/db/screenscraper/user_info.json
+touch /opt/gamemanager/var/db/launchbox/Metadata.xml
+touch /opt/gamemanager/var/db/steam/appindex.json
 
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
