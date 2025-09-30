@@ -14576,24 +14576,31 @@ class GameCollectionManager {
     }
 
     async loadAvailableSystems() {
+        console.log('loadAvailableSystems called');
         try {
+            console.log('Fetching from /api/rom-systems...');
             const response = await fetch('/api/rom-systems', {
                 credentials: 'same-origin'
             });
-            
+            console.log('Response status:', response.status);
             if (response.ok) {
                 const systems = await response.json();
+                console.log('Systems received:', systems);
                 this.populateSystemDropdown(systems);
             } else {
+                console.error('Response not ok:', response.status, response.statusText);
             }
         } catch (error) {
+            console.error('Error loading available systems:', error);
         }
     }
 
     populateSystemDropdown(systems) {
+        console.log('populateSystemDropdown called with:', systems);
         // Store systems data
         this.allSystems = systems || [];
         this.selectedSystem = null;
+        console.log('Stored systems:', this.allSystems.length);
         
         // Update Select2 with new systems
         this.updateSelect2Options();
@@ -14639,11 +14646,18 @@ class GameCollectionManager {
     }
     
     updateSelect2Options() {
+        console.log('updateSelect2Options called, select2Instance:', this.select2Instance);
         if (!this.select2Instance) {
-            return;
+            console.log('Select2 instance not found, trying to initialize...');
+            this.initializeSelect2();
+            if (!this.select2Instance) {
+                console.error('Failed to initialize Select2');
+                return;
+            }
         }
 
         const selectElement = document.getElementById('systemSelect');
+        console.log('Select element found:', selectElement);
         
         // Clear existing options
         $(selectElement).empty();
