@@ -2144,8 +2144,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <div class="form-check mt-3">
                             <input class="form-check-input" type="checkbox" id="deleteOrphanMedias" unchecked>
                             <label class="form-check-label" for="deleteOrphanMedias">
-                                <i class="bi bi-trash me-1 text-warning"></i>Delete orphan medias
+                                <i class="bi bi-trash me-1 text-danger"></i>Delete orphan medias
                                 <small class="text-muted d-block">Remove media files in <code>roms/<span id="gamelistSaveDestPath2"></span>/media/</code> that are not referenced in the gamelist</small>
+                                <div class="alert alert-warning mt-2" id="orphanMediaWarning" style="display: none;">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    <strong>Warning:</strong> This will permanently delete media files that are not referenced in the gamelist. Make sure you have a backup!
+                                </div>
                             </label>
                         </div>
                     </div>

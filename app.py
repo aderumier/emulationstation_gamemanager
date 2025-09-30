@@ -911,11 +911,13 @@ def delete_orphan_media_files(system_name):
         # Path to the media directory
         media_dir = os.path.join(ROMS_FOLDER, system_name, 'media')
         if not os.path.exists(media_dir):
+            print(f"Media directory does not exist: {media_dir}")
             return deleted_files
         
         # Load the gamelist to get referenced media files
         gamelist_path = os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
         if not os.path.exists(gamelist_path):
+            print(f"Gamelist does not exist: {gamelist_path}")
             return deleted_files
         
         # Parse the gamelist to extract all media file references
@@ -923,6 +925,8 @@ def delete_orphan_media_files(system_name):
         try:
             tree = ET.parse(gamelist_path)
             root = tree.getroot()
+            
+            print(f"Parsing gamelist for media references...")
             
             # Find all media elements (image, video, marquee, etc.)
             for game in root.findall('game'):
@@ -936,44 +940,81 @@ def delete_orphan_media_files(system_name):
                             if media_path.startswith('./'):
                                 media_path = media_path[2:]
                             
-                            # Convert to absolute path for comparison
-                            abs_media_path = os.path.join(media_dir, media_path)
-                            referenced_files.add(os.path.normpath(abs_media_path))
-                            
-                            # Also add the relative path for comparison
-                            referenced_files.add(os.path.normpath(media_path))
+                            # Check if this is a media file (starts with 'media/')
+                            if media_path.startswith('media/'):
+                                # Remove 'media/' prefix to get path relative to media directory
+                                media_relative_path = media_path[6:]  # Remove 'media/' prefix
+                                
+                                # Convert to absolute path for comparison
+                                abs_media_path = os.path.join(media_dir, media_relative_path)
+                                referenced_files.add(os.path.normpath(abs_media_path))
+                                
+                                # Also add the relative path for comparison
+                                referenced_files.add(os.path.normpath(media_relative_path))
+                                
+                                print(f"Found referenced media: {media_relative_path}")
+                            else:
+                                print(f"Skipping non-media path: {media_path}")
         except Exception as e:
             print(f"Error parsing gamelist for orphan detection: {e}")
             return deleted_files
         
+        print(f"Found {len(referenced_files)} referenced media files in gamelist")
+        
+        # Safety check: if no referenced files found, don't delete anything
+        if len(referenced_files) == 0:
+            print("WARNING: No referenced media files found in gamelist. Skipping deletion to prevent data loss.")
+            return deleted_files
+        
         # Walk through the media directory and find orphaned files
+        all_files = []
         for root_dir, dirs, files in os.walk(media_dir):
             for file in files:
                 file_path = os.path.join(root_dir, file)
-                normalized_abs_path = os.path.normpath(file_path)
-                
-                # Get relative path from media directory
-                relative_path = os.path.relpath(file_path, media_dir)
-                normalized_rel_path = os.path.normpath(relative_path)
-                
-                # Skip if this file is referenced in the gamelist (check both absolute and relative paths)
-                if (normalized_abs_path in referenced_files or 
-                    normalized_rel_path in referenced_files):
-                    continue
-                
-                # Skip certain file types that might be system files
-                if file.startswith('.') or file.endswith('.tmp'):
-                    continue
-                
-                # Delete the orphaned file
-                try:
-                    os.remove(file_path)
-                    deleted_files.append(relative_path)
-                    print(f"Deleted orphaned media file: {relative_path}")
-                except Exception as e:
-                    print(f"Error deleting orphaned file {file_path}: {e}")
+                all_files.append(file_path)
         
-        print(f"Found {len(referenced_files)} referenced media files in gamelist")
+        print(f"Found {len(all_files)} total files in media directory")
+        
+        for file_path in all_files:
+            normalized_abs_path = os.path.normpath(file_path)
+            
+            # Get relative path from media directory
+            relative_path = os.path.relpath(file_path, media_dir)
+            normalized_rel_path = os.path.normpath(relative_path)
+            
+            # Skip certain file types that might be system files
+            if file_path.split(os.sep)[-1].startswith('.') or file_path.split(os.sep)[-1].endswith('.tmp'):
+                print(f"Skipping system file: {relative_path}")
+                continue
+            
+            # Check if this file is referenced in the gamelist
+            is_referenced = (normalized_abs_path in referenced_files or 
+                           normalized_rel_path in referenced_files)
+            
+            if is_referenced:
+                print(f"Keeping referenced file: {relative_path}")
+                continue
+            
+            # Additional safety: check if file exists in any subdirectory structure
+            file_name = os.path.basename(file_path)
+            is_referenced_by_name = False
+            for ref_path in referenced_files:
+                if os.path.basename(ref_path) == file_name:
+                    is_referenced_by_name = True
+                    break
+            
+            if is_referenced_by_name:
+                print(f"Keeping file (referenced by name): {relative_path}")
+                continue
+            
+            # Delete the orphaned file
+            try:
+                os.remove(file_path)
+                deleted_files.append(relative_path)
+                print(f"Deleted orphaned media file: {relative_path}")
+            except Exception as e:
+                print(f"Error deleting orphaned file {file_path}: {e}")
+        
         print(f"Deleted {len(deleted_files)} orphaned media files for system {system_name}")
         return deleted_files
         

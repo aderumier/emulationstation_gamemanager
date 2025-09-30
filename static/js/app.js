@@ -6699,6 +6699,18 @@ class GameCollectionManager {
         document.getElementById('gamelistSaveSourcePath').textContent = this.currentSystem;
         document.getElementById('gamelistSaveDestPath').textContent = this.currentSystem;
         document.getElementById('gamelistSaveDestPath2').textContent = this.currentSystem;
+        
+        // Add event listener for orphan media checkbox
+        const deleteOrphanMediasCheckbox = document.getElementById('deleteOrphanMedias');
+        const orphanMediaWarning = document.getElementById('orphanMediaWarning');
+        
+        deleteOrphanMediasCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                orphanMediaWarning.style.display = 'block';
+            } else {
+                orphanMediaWarning.style.display = 'none';
+            }
+        });
 
         // Show loading state
         document.getElementById('gamelistSaveLoading').style.display = 'block';
