@@ -6698,6 +6698,7 @@ class GameCollectionManager {
         document.getElementById('gamelistSaveSystemName').textContent = this.currentSystem;
         document.getElementById('gamelistSaveSourcePath').textContent = this.currentSystem;
         document.getElementById('gamelistSaveDestPath').textContent = this.currentSystem;
+        document.getElementById('gamelistSaveDestPath2').textContent = this.currentSystem;
 
         // Show loading state
         document.getElementById('gamelistSaveLoading').style.display = 'block';
@@ -6784,9 +6785,18 @@ class GameCollectionManager {
             button.innerHTML = '<i class="spinner-border spinner-border-sm"></i>';
             button.disabled = true;
 
+            // Get checkbox state
+            const deleteOrphanMedias = document.getElementById('deleteOrphanMedias').checked;
+
             // Call the save API
             const response = await fetch(`/api/rom-system/${this.currentSystem}/save-gamelist`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    delete_orphan_medias: deleteOrphanMedias
+                })
             });
 
             if (response.ok) {

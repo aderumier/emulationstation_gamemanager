@@ -863,7 +863,7 @@ def compare_gamelist_files(system_name):
     except Exception as e:
         return {'success': False, 'error': f'Error comparing gamelist files: {str(e)}'}
 
-def save_gamelist_to_roms(system_name):
+def save_gamelist_to_roms(system_name, delete_orphan_medias=False):
     """Copy gamelist from var/gamelists to roms/ directory"""
     gamelist_path = get_gamelist_path(system_name)
     roms_gamelist_path = os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
@@ -890,9 +890,83 @@ def save_gamelist_to_roms(system_name):
         # Format release dates in the copied gamelist
         format_releasedates_in_gamelist(roms_gamelist_path)
         
-        return {'success': True, 'message': f'Gamelist saved to roms/{system_name}/gamelist.xml'}
+        # Delete orphan medias if requested
+        deleted_files = []
+        if delete_orphan_medias:
+            deleted_files = delete_orphan_media_files(system_name)
+        
+        message = f'Gamelist saved to roms/{system_name}/gamelist.xml'
+        if deleted_files:
+            message += f' and {len(deleted_files)} orphan media files deleted'
+        
+        return {'success': True, 'message': message, 'deleted_files': deleted_files}
     except Exception as e:
         return {'success': False, 'error': f'Error saving gamelist: {str(e)}'}
+
+def delete_orphan_media_files(system_name):
+    """Delete media files in roms/<system>/media/ that are not referenced in the gamelist"""
+    deleted_files = []
+    
+    try:
+        # Path to the media directory
+        media_dir = os.path.join(ROMS_FOLDER, system_name, 'media')
+        if not os.path.exists(media_dir):
+            return deleted_files
+        
+        # Load the gamelist to get referenced media files
+        gamelist_path = os.path.join(ROMS_FOLDER, system_name, 'gamelist.xml')
+        if not os.path.exists(gamelist_path):
+            return deleted_files
+        
+        # Parse the gamelist to extract all media file references
+        referenced_files = set()
+        try:
+            tree = etree.parse(gamelist_path)
+            root = tree.getroot()
+            
+            # Find all media elements (image, video, marquee, etc.)
+            for game in root.findall('game'):
+                for media_type in ['image', 'video', 'marquee', 'thumbnail', 'fanart']:
+                    media_elem = game.find(media_type)
+                    if media_elem is not None and media_elem.text:
+                        # Get the relative path from the media element
+                        media_path = media_elem.text.strip()
+                        if media_path:
+                            # Convert to absolute path for comparison
+                            abs_media_path = os.path.join(media_dir, media_path)
+                            referenced_files.add(os.path.normpath(abs_media_path))
+        except Exception as e:
+            print(f"Error parsing gamelist for orphan detection: {e}")
+            return deleted_files
+        
+        # Walk through the media directory and find orphaned files
+        for root_dir, dirs, files in os.walk(media_dir):
+            for file in files:
+                file_path = os.path.join(root_dir, file)
+                normalized_path = os.path.normpath(file_path)
+                
+                # Skip if this file is referenced in the gamelist
+                if normalized_path in referenced_files:
+                    continue
+                
+                # Skip certain file types that might be system files
+                if file.startswith('.') or file.endswith('.tmp'):
+                    continue
+                
+                # Delete the orphaned file
+                try:
+                    os.remove(file_path)
+                    deleted_files.append(os.path.relpath(file_path, media_dir))
+                    print(f"Deleted orphaned media file: {os.path.relpath(file_path, media_dir)}")
+                except Exception as e:
+                    print(f"Error deleting orphaned file {file_path}: {e}")
+        
+        print(f"Deleted {len(deleted_files)} orphaned media files for system {system_name}")
+        return deleted_files
+        
+    except Exception as e:
+        print(f"Error during orphan media cleanup: {e}")
+        return deleted_files
 
 # Launchbox scraping configuration
 def get_launchbox_metadata_path():
@@ -5511,7 +5585,11 @@ def gamelist_diff_endpoint(system_name):
 def save_gamelist_endpoint(system_name):
     """Save gamelist from var/gamelists to roms/ directory"""
     try:
-        result = save_gamelist_to_roms(system_name)
+        # Get request data
+        data = request.get_json() or {}
+        delete_orphan_medias = data.get('delete_orphan_medias', False)
+        
+        result = save_gamelist_to_roms(system_name, delete_orphan_medias=delete_orphan_medias)
         if result['success']:
             return jsonify(result)
         else:
