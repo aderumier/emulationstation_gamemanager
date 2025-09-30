@@ -932,9 +932,16 @@ def delete_orphan_media_files(system_name):
                         # Get the relative path from the media element
                         media_path = media_elem.text.strip()
                         if media_path:
+                            # Remove leading ./ if present
+                            if media_path.startswith('./'):
+                                media_path = media_path[2:]
+                            
                             # Convert to absolute path for comparison
                             abs_media_path = os.path.join(media_dir, media_path)
                             referenced_files.add(os.path.normpath(abs_media_path))
+                            
+                            # Also add the relative path for comparison
+                            referenced_files.add(os.path.normpath(media_path))
         except Exception as e:
             print(f"Error parsing gamelist for orphan detection: {e}")
             return deleted_files
@@ -943,10 +950,15 @@ def delete_orphan_media_files(system_name):
         for root_dir, dirs, files in os.walk(media_dir):
             for file in files:
                 file_path = os.path.join(root_dir, file)
-                normalized_path = os.path.normpath(file_path)
+                normalized_abs_path = os.path.normpath(file_path)
                 
-                # Skip if this file is referenced in the gamelist
-                if normalized_path in referenced_files:
+                # Get relative path from media directory
+                relative_path = os.path.relpath(file_path, media_dir)
+                normalized_rel_path = os.path.normpath(relative_path)
+                
+                # Skip if this file is referenced in the gamelist (check both absolute and relative paths)
+                if (normalized_abs_path in referenced_files or 
+                    normalized_rel_path in referenced_files):
                     continue
                 
                 # Skip certain file types that might be system files
@@ -956,11 +968,12 @@ def delete_orphan_media_files(system_name):
                 # Delete the orphaned file
                 try:
                     os.remove(file_path)
-                    deleted_files.append(os.path.relpath(file_path, media_dir))
-                    print(f"Deleted orphaned media file: {os.path.relpath(file_path, media_dir)}")
+                    deleted_files.append(relative_path)
+                    print(f"Deleted orphaned media file: {relative_path}")
                 except Exception as e:
                     print(f"Error deleting orphaned file {file_path}: {e}")
         
+        print(f"Found {len(referenced_files)} referenced media files in gamelist")
         print(f"Deleted {len(deleted_files)} orphaned media files for system {system_name}")
         return deleted_files
         
