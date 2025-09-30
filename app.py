@@ -921,7 +921,7 @@ def delete_orphan_media_files(system_name):
         # Parse the gamelist to extract all media file references
         referenced_files = set()
         try:
-            tree = etree.parse(gamelist_path)
+            tree = ET.parse(gamelist_path)
             root = tree.getroot()
             
             # Find all media elements (image, video, marquee, etc.)
@@ -9714,9 +9714,9 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
                     text_fields['genre'] = text
                     print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
-                if text:
-                    # Convert to ISO 8601 format
-                    text_fields['releasedate'] = format_releasedate_to_iso8601(text)
+                    if text:
+                        # Convert to ISO 8601 format
+                        text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
     return text_fields
 
@@ -12360,8 +12360,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         else:
             # Fallback to output filename
             rom_name = os.path.splitext(output_filename_only)[0]  # Extract name without extension
-            temp_filename = f"temp_{output_filename_only}"
-            task.update_progress(f"  📁 Using output filename for temp file: {temp_filename}")
+        temp_filename = f"temp_{output_filename_only}"
+        task.update_progress(f"  📁 Using output filename for temp file: {temp_filename}")
         
         output_template = os.path.join(temp_videos_dir, temp_filename.replace('.mp4', '.%(ext)s'))
         
@@ -12462,7 +12462,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             # No cookies - use sections mode
             first_mode = 'sections'
             use_cookies_first = False
-            used_full_download_without_sections = False
+            used_full_download_without_sections = False                                                
             actually_used_sections = True                                                
 
         download_cmd = build_download_cmd(first_mode, use_cookies_first)
@@ -12930,7 +12930,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         
         task.update_progress(f"  📁 Using downloaded file: {temp_file}")
         
-            
+        
         # Apply video processing (crop and/or resize) if needed
         # If we downloaded full video (full fallback or PO token), cut to section
         video_config = config.get('video', {})
@@ -18563,22 +18563,22 @@ if __name__ == '__main__':
             if config['server']['debug']:
                 # Development mode - use Werkzeug with allow_unsafe_werkzeug
                 socketio.run(
-                    app,
-                    debug=True,
-                    host=config['server']['host'],
-                    port=config['server']['port'],
-                    allow_unsafe_werkzeug=True
+                app,
+                debug=True,
+                host=config['server']['host'],
+                port=config['server']['port'],
+                allow_unsafe_werkzeug=True
                 )
             else:
                 # Production mode - use Flask development server
                 print("Starting production server...")
                 socketio.run(
-                    app,
-                    debug=False,
-                    host=config['server']['host'],
-                    port=config['server']['port'],
-                    allow_unsafe_werkzeug=True
-                )
+                app,
+                debug=False,
+                host=config['server']['host'],
+                port=config['server']['port'],
+                allow_unsafe_werkzeug=True
+        )
         except KeyboardInterrupt:
             print("\n🔄 Keyboard interrupt received, shutting down...")
             cleanup_on_exit()
