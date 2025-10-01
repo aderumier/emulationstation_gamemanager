@@ -3323,8 +3323,16 @@ class GameCollectionManager {
             releaseDateValue = this.convertISO8601ToDateInput(releaseDateValue);
             console.log('After date input conversion:', releaseDateValue);
         }
-        document.getElementById('editReleasedate').value = releaseDateValue;
-        console.log('Final date input value:', document.getElementById('editReleasedate').value);
+        // Set the date value with a small delay to ensure the modal is fully rendered
+        setTimeout(() => {
+            const dateInputElement = document.getElementById('editReleasedate');
+            if (dateInputElement) {
+                dateInputElement.value = releaseDateValue;
+                console.log('Final date input value:', dateInputElement.value);
+            } else {
+                console.error('editReleasedate element not found!');
+            }
+        }, 100);
         
         document.getElementById('editLaunchboxId').value = game.launchboxid || '';
         document.getElementById('editIgdbId').value = game.igdbid || '';
