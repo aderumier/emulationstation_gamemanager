@@ -9653,9 +9653,17 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                         mapped_field = 'video'
                 
                 if mapped_field:
+                    # Extract region information from ScreenScraper media
+                    region_code = media.get('region', '')
+                    region_name = 'Unknown'
+                    if region_code:
+                        # Import the region mapping from screenscraper_service
+                        from screenscraper_service import REGION_MAPPING
+                        region_name = REGION_MAPPING.get(region_code, region_code.upper())
+                    
                     media_fields.setdefault(mapped_field, []).append({
                         'url': media_url,
-                        'region': 'Unknown',  # ScreenScraper doesn't provide region info
+                        'region': region_name,
                         'type': media_type
                     })
         
