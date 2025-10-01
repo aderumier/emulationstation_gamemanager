@@ -4687,10 +4687,7 @@ class GameCollectionManager {
                     this.manualScrapSelectedMedia[mediaKey] = { source, index, url };
                 });
 
-                // Load image dimensions for images (not videos)
-                if (mediaKey !== 'video' && url) {
-                    this.loadImageMetadata(tile, url);
-                }
+                // Image resolution will be loaded automatically via onload event
 
                 col.appendChild(tile);
                 return col;
@@ -4761,7 +4758,7 @@ class GameCollectionManager {
         if (mediaType === 'video') {
             return `<video src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: cover;" controls></video>`;
         } else {
-            return `<img src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: contain;" onerror="gameManager.handleImageError(this)">`;
+            return `<img src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: contain;" onload="gameManager.handleImageLoad(this)" onerror="gameManager.handleImageError(this)">`;
         }
     }
 
@@ -4770,47 +4767,23 @@ class GameCollectionManager {
         imgEl.parentElement.innerHTML = '<div class="media-placeholder"><i class="bi bi-image"></i><br>Error</div>';
     }
 
-    async getImageDimensions(imageUrl) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-                resolve({
-                    width: img.naturalWidth,
-                    height: img.naturalHeight,
-                    resolution: `${img.naturalWidth}x${img.naturalHeight}`
-                });
-            };
-            img.onerror = () => {
-                resolve({
-                    width: 0,
-                    height: 0,
-                    resolution: 'Unknown'
-                });
-            };
-            img.src = imageUrl;
-        });
-    }
+    handleImageLoad(imgEl) {
+        // Find the tile containing this image
+        const tile = imgEl.closest('.selectable-media-item');
+        if (!tile) return;
 
-    async loadImageMetadata(tile, imageUrl) {
-        try {
-            const dimensions = await this.getImageDimensions(imageUrl);
-            const resolutionInfo = tile.querySelector('.resolution-info');
-            if (resolutionInfo) {
-                if (dimensions.resolution !== 'Unknown') {
-                    resolutionInfo.textContent = `Resolution: ${dimensions.resolution}`;
-                } else {
-                    resolutionInfo.textContent = 'Resolution: Unknown';
-                }
-            }
-        } catch (error) {
-            console.error('Error loading image metadata:', error);
-            const resolutionInfo = tile.querySelector('.resolution-info');
-            if (resolutionInfo) {
-                resolutionInfo.textContent = 'Resolution: Error';
-            }
+        // Get the resolution info element
+        const resolutionInfo = tile.querySelector('.resolution-info');
+        if (!resolutionInfo) return;
+
+        // Update the resolution display
+        if (imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) {
+            resolutionInfo.textContent = `Resolution: ${imgEl.naturalWidth}x${imgEl.naturalHeight}`;
+        } else {
+            resolutionInfo.textContent = 'Resolution: Unknown';
         }
     }
+
 
     async applyManualScrapResults() {
         try {
