@@ -381,11 +381,14 @@ def is_discord_auth_enabled():
 
 def should_bypass_auth():
     """Check if authentication should be bypassed (disable_local_auth=true and no Discord config)"""
-    if not is_local_auth_disabled():
+    local_auth_disabled = is_local_auth_disabled()
+    discord_auth_enabled = is_discord_auth_enabled()
+    
+    if not local_auth_disabled:
         return False
     
     # If local auth is disabled, check if Discord is not configured
-    if not is_discord_auth_enabled():
+    if not discord_auth_enabled:
         return True
     
     return False
@@ -421,20 +424,6 @@ def get_or_create_admin_user():
     
     return None
 
-@app.before_request
-def handle_bypass_auth():
-    """Handle bypass authentication before each request"""
-    # Skip bypass auth for login and logout routes to avoid infinite loops
-    if request.endpoint in ['login', 'logout', 'discord_login', 'discord_callback']:
-        return
-    
-    # If authentication should be bypassed and user is not authenticated, auto-login as admin
-    if should_bypass_auth() and not current_user.is_authenticated:
-        admin_user = get_or_create_admin_user()
-        if admin_user:
-            login_user(admin_user, remember=True)
-            update_user_last_login(admin_user.id)
-            print(f"Auto-logged in as admin (bypass authentication)")
 
 def should_auto_create_discord_user(discord_id, access_token, discord_config):
     """Check if Discord user should be auto-created based on server membership and role
@@ -767,6 +756,24 @@ def log_request_info():
     # Skip logging for frequent API calls to reduce console spam
     if request.path not in ['/api/tasks', '/api/task/queue']:
         print(f"DEBUG REQUEST: {request.method} {request.path} - Endpoint: {request.endpoint}")
+
+@app.before_request
+def handle_bypass_auth():
+    """Handle bypass authentication before each request"""
+    # Skip bypass auth for login and logout routes to avoid infinite loops
+    if request.endpoint in ['login', 'logout', 'discord_login', 'discord_callback']:
+        return
+    
+    # Check if authentication should be bypassed
+    bypass_auth = should_bypass_auth()
+    
+    # If authentication should be bypassed and user is not authenticated, auto-login as admin
+    if bypass_auth and not current_user.is_authenticated:
+        admin_user = get_or_create_admin_user()
+        if admin_user:
+            login_user(admin_user, remember=True)
+            update_user_last_login(admin_user.id)
+            print(f"Auto-logged in as admin (bypass authentication)")
 
 # Disable Flask's default HTTP request logging to reduce console spam
 import logging
