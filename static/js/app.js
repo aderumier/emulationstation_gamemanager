@@ -3312,11 +3312,13 @@ class GameCollectionManager {
         document.getElementById('editRating').value = game.rating || '';
         document.getElementById('editPlayers').value = game.players || '';
         
-        // Handle release date with automatic format conversion
+        // Handle release date with calendar widget conversion
         let releaseDateValue = game.releasedate || '';
         if (releaseDateValue) {
             // Convert to ISO 8601 format if not already in correct format
             releaseDateValue = this.convertReleaseDateToISO8601(releaseDateValue);
+            // Convert to YYYY-MM-DD format for date input
+            releaseDateValue = this.convertISO8601ToDateInput(releaseDateValue);
         }
         document.getElementById('editReleasedate').value = releaseDateValue;
         
@@ -3404,17 +3406,23 @@ class GameCollectionManager {
             return;
         }
         
-        // Check if the value matches the expected ISO 8601 format (YYYYMMDDTHHMMSS)
-        const iso8601Pattern = /^\d{8}T\d{6}$/;
-        if (iso8601Pattern.test(value)) {
-            field.classList.remove('is-invalid');
-            field.classList.add('is-valid');
+        // Check if the value matches the expected date input format (YYYY-MM-DD)
+        const dateInputPattern = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateInputPattern.test(value)) {
+            // Additional validation: check if it's a valid date
+            const date = new Date(value + 'T00:00:00');
+            if (!isNaN(date.getTime())) {
+                field.classList.remove('is-invalid');
+                field.classList.add('is-valid');
+            } else {
+                field.classList.remove('is-valid');
+                field.classList.add('is-invalid');
+                this.showAlert('Please select a valid date', 'warning');
+            }
         } else {
             field.classList.remove('is-valid');
             field.classList.add('is-invalid');
-            
-            // Show a helpful message
-            this.showAlert('Release date should be in format YYYYMMDDTHHMMSS (e.g., 19900201T000000)', 'warning');
+            this.showAlert('Please select a valid date using the calendar widget', 'warning');
         }
     }
     
@@ -3551,6 +3559,43 @@ class GameCollectionManager {
         const second = date.getSeconds().toString().padStart(2, '0');
         
         return `${year}${month}${day}T${hour}${minute}${second}`;
+    }
+    
+    convertISO8601ToDateInput(iso8601Date) {
+        /**
+         * Convert ISO 8601 format (YYYYMMDDTHHMMSS) to YYYY-MM-DD for date input
+         */
+        if (!iso8601Date || iso8601Date === '') {
+            return '';
+        }
+        
+        // Extract date part (YYYYMMDD) from YYYYMMDDTHHMMSS
+        const datePart = iso8601Date.substring(0, 8);
+        if (datePart.length === 8) {
+            const year = datePart.substring(0, 4);
+            const month = datePart.substring(4, 6);
+            const day = datePart.substring(6, 8);
+            return `${year}-${month}-${day}`;
+        }
+        
+        return '';
+    }
+    
+    convertDateInputToISO8601(dateInputValue) {
+        /**
+         * Convert YYYY-MM-DD from date input to ISO 8601 format (YYYYMMDDTHHMMSS)
+         */
+        if (!dateInputValue || dateInputValue === '') {
+            return '';
+        }
+        
+        // Date input provides YYYY-MM-DD format
+        const date = new Date(dateInputValue + 'T00:00:00');
+        if (!isNaN(date.getTime())) {
+            return this.formatDateToISO8601(date);
+        }
+        
+        return '';
     }
     
     initializeFindBestMatchButton() {
@@ -4394,7 +4439,9 @@ class GameCollectionManager {
         game.publisher = document.getElementById('editPublisher').value;
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
-        game.releasedate = document.getElementById('editReleasedate').value;
+        // Convert date input back to internal format
+        const dateInputValue = document.getElementById('editReleasedate').value;
+        game.releasedate = this.convertDateInputToISO8601(dateInputValue);
         game.launchboxid = document.getElementById('editLaunchboxId').value;
         game.igdbid = document.getElementById('editIgdbId').value;
         game.screenscraperid = document.getElementById('editScreenscraperId').value;
