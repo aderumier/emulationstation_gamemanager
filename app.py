@@ -21,6 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from sys import dont_write_bytecode
 from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, Response, redirect, url_for, session, flash, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from functools import wraps
 # from flask_session import Session
 # from flask_session.sessions import FileSystemSessionInterface
 import asyncio
@@ -377,6 +378,63 @@ def is_discord_auth_enabled():
     from credential_manager import credential_manager
     discord_config = credential_manager.get_discord_credentials()
     return bool(discord_config.get('client_id') and discord_config.get('client_secret'))
+
+def should_bypass_auth():
+    """Check if authentication should be bypassed (disable_local_auth=true and no Discord config)"""
+    if not is_local_auth_disabled():
+        return False
+    
+    # If local auth is disabled, check if Discord is not configured
+    if not is_discord_auth_enabled():
+        return True
+    
+    return False
+
+def get_or_create_admin_user():
+    """Get or create admin user for bypass authentication"""
+    users = load_users()
+    
+    # Look for existing admin user
+    for user_id, user_data in users.items():
+        if user_data.get('username') == 'admin':
+            return User(
+                user_id=user_id,
+                username=user_data['username'],
+                email=user_data.get('email'),
+                discord_id=user_data.get('discord_id'),
+                is_active=user_data.get('is_active', True),
+                is_validated=user_data.get('is_validated', True),  # Auto-validate for bypass
+                created_at=user_data.get('created_at'),
+                last_login=user_data.get('last_login')
+            )
+    
+    # Create admin user if it doesn't exist
+    admin_user, error = create_user('admin', 'admin123', 'admin@localhost')
+    if admin_user:
+        # Auto-validate the admin user
+        admin_user.is_validated = True
+        users = load_users()
+        if admin_user.id in users:
+            users[admin_user.id]['is_validated'] = True
+            save_users(users)
+        return admin_user
+    
+    return None
+
+@app.before_request
+def handle_bypass_auth():
+    """Handle bypass authentication before each request"""
+    # Skip bypass auth for login and logout routes to avoid infinite loops
+    if request.endpoint in ['login', 'logout', 'discord_login', 'discord_callback']:
+        return
+    
+    # If authentication should be bypassed and user is not authenticated, auto-login as admin
+    if should_bypass_auth() and not current_user.is_authenticated:
+        admin_user = get_or_create_admin_user()
+        if admin_user:
+            login_user(admin_user, remember=True)
+            update_user_last_login(admin_user.id)
+            print(f"Auto-logged in as admin (bypass authentication)")
 
 def should_auto_create_discord_user(discord_id, access_token, discord_config):
     """Check if Discord user should be auto-created based on server membership and role
@@ -9771,9 +9829,9 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
                     text_fields['genre'] = text
                     print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
             elif tag == 'ReleaseDate':
-                    if text:
-                        # Convert to ISO 8601 format
-                        text_fields['releasedate'] = format_releasedate_to_iso8601(text)
+                if text:
+                    # Convert to ISO 8601 format
+                    text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
     return text_fields
 
@@ -13908,6 +13966,20 @@ def get_media_fields():
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Check if authentication should be bypassed
+    if should_bypass_auth():
+        # Auto-login as admin user
+        admin_user = get_or_create_admin_user()
+        if admin_user:
+            login_user(admin_user, remember=True)
+            update_user_last_login(admin_user.id)
+            flash('Logged in as admin (authentication bypassed)', 'info')
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
+        else:
+            flash('Failed to create admin user for bypass authentication', 'error')
+            return render_template('login.html', discord_only=True, discord_disabled=True, discord_enabled=False)
+    
     # Check if local authentication is disabled
     if is_local_auth_disabled():
         if not is_discord_auth_enabled():
@@ -18633,22 +18705,22 @@ if __name__ == '__main__':
             if config['server']['debug']:
                 # Development mode - use Werkzeug with allow_unsafe_werkzeug
                 socketio.run(
-                app,
-                debug=True,
-                host=config['server']['host'],
-                port=config['server']['port'],
-                allow_unsafe_werkzeug=True
+                    app,
+                    debug=True,
+                    host=config['server']['host'],
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
                 )
             else:
                 # Production mode - use Flask development server
                 print("Starting production server...")
                 socketio.run(
-                app,
-                debug=False,
-                host=config['server']['host'],
-                port=config['server']['port'],
-                allow_unsafe_werkzeug=True
-        )
+                    app,
+                    debug=False,
+                    host=config['server']['host'],
+                    port=config['server']['port'],
+                    allow_unsafe_werkzeug=True
+                )
         except KeyboardInterrupt:
             print("\n🔄 Keyboard interrupt received, shutting down...")
             cleanup_on_exit()
