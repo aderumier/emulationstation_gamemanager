@@ -3314,23 +3314,17 @@ class GameCollectionManager {
         
         // Handle release date with calendar widget conversion
         let releaseDateValue = game.releasedate || '';
-        console.log('Original release date:', releaseDateValue);
         if (releaseDateValue) {
             // Convert to ISO 8601 format if not already in correct format
             releaseDateValue = this.convertReleaseDateToISO8601(releaseDateValue);
-            console.log('After ISO8601 conversion:', releaseDateValue);
             // Convert to YYYY-MM-DD format for date input
             releaseDateValue = this.convertISO8601ToDateInput(releaseDateValue);
-            console.log('After date input conversion:', releaseDateValue);
         }
         // Set the date value with a small delay to ensure the modal is fully rendered
         setTimeout(() => {
             const dateInputElement = document.getElementById('editReleasedate');
             if (dateInputElement) {
                 dateInputElement.value = releaseDateValue;
-                console.log('Final date input value:', dateInputElement.value);
-            } else {
-                console.error('editReleasedate element not found!');
             }
         }, 100);
         
@@ -3577,25 +3571,19 @@ class GameCollectionManager {
         /**
          * Convert ISO 8601 format (YYYYMMDDTHHMMSS) to YYYY-MM-DD for date input
          */
-        console.log('convertISO8601ToDateInput input:', iso8601Date);
         if (!iso8601Date || iso8601Date === '') {
-            console.log('Empty date, returning empty string');
             return '';
         }
         
         // Extract date part (YYYYMMDD) from YYYYMMDDTHHMMSS
         const datePart = iso8601Date.substring(0, 8);
-        console.log('Date part extracted:', datePart);
         if (datePart.length === 8) {
             const year = datePart.substring(0, 4);
             const month = datePart.substring(4, 6);
             const day = datePart.substring(6, 8);
-            const result = `${year}-${month}-${day}`;
-            console.log('Converted to date input format:', result);
-            return result;
+            return `${year}-${month}-${day}`;
         }
         
-        console.log('Date part length not 8, returning empty string');
         return '';
     }
     
