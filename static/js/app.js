@@ -4650,7 +4650,7 @@ class GameCollectionManager {
             grid.className = 'row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2';
 
             // Helper to create a selectable tile
-            const createTile = (source, url, index) => {
+            const createTile = (source, url, index, metadata = {}) => {
                 const col = document.createElement('div');
                 col.className = 'col';
                 const tile = document.createElement('div');
@@ -4665,6 +4665,10 @@ class GameCollectionManager {
                     </div>
                     <div class="card-body py-2">
                         <div class="small text-muted">${source.charAt(0).toUpperCase() + source.slice(1)}</div>
+                        <div class="image-metadata" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                            <div class="resolution-info">Loading...</div>
+                            ${metadata.region ? `<div class="region-info">Region: ${metadata.region}</div>` : ''}
+                        </div>
                     </div>
                 `;
                 // Hover full preview like game grid (images only)
@@ -4682,6 +4686,12 @@ class GameCollectionManager {
                     if (!this.manualScrapSelectedMedia) this.manualScrapSelectedMedia = {};
                     this.manualScrapSelectedMedia[mediaKey] = { source, index, url };
                 });
+
+                // Load image dimensions for images (not videos)
+                if (mediaKey !== 'video' && url) {
+                    this.loadImageMetadata(tile, url);
+                }
+
                 col.appendChild(tile);
                 return col;
             };
@@ -4693,13 +4703,20 @@ class GameCollectionManager {
             if (!this.manualScrapSelectedMedia) this.manualScrapSelectedMedia = {};
             this.manualScrapSelectedMedia[mediaKey] = { source: 'current', index: -1, url: mediaData.current };
 
-            // Add tiles for each source. Each source may be an array of URLs.
+            // Add tiles for each source. Each source may be an array of URLs or metadata objects.
             const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb'];
             sources.forEach(source => {
                 const values = mediaData.sources[source];
                 if (!values) return;
-                const urls = Array.isArray(values) ? values : [values];
-                urls.forEach((url, idx) => grid.appendChild(createTile(source, url, idx)));
+                const items = Array.isArray(values) ? values : [values];
+                items.forEach((item, idx) => {
+                    // Handle both old format (URL strings) and new format (metadata objects)
+                    if (typeof item === 'string') {
+                        grid.appendChild(createTile(source, item, idx));
+                    } else if (typeof item === 'object' && item.url) {
+                        grid.appendChild(createTile(source, item.url, idx, item));
+                    }
+                });
             });
 
             sourcesSection.appendChild(grid);
@@ -4751,6 +4768,48 @@ class GameCollectionManager {
     handleImageError(imgEl) {
         if (!imgEl || !imgEl.parentElement) return;
         imgEl.parentElement.innerHTML = '<div class="media-placeholder"><i class="bi bi-image"></i><br>Error</div>';
+    }
+
+    async getImageDimensions(imageUrl) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                resolve({
+                    width: img.naturalWidth,
+                    height: img.naturalHeight,
+                    resolution: `${img.naturalWidth}x${img.naturalHeight}`
+                });
+            };
+            img.onerror = () => {
+                resolve({
+                    width: 0,
+                    height: 0,
+                    resolution: 'Unknown'
+                });
+            };
+            img.src = imageUrl;
+        });
+    }
+
+    async loadImageMetadata(tile, imageUrl) {
+        try {
+            const dimensions = await this.getImageDimensions(imageUrl);
+            const resolutionInfo = tile.querySelector('.resolution-info');
+            if (resolutionInfo) {
+                if (dimensions.resolution !== 'Unknown') {
+                    resolutionInfo.textContent = `Resolution: ${dimensions.resolution}`;
+                } else {
+                    resolutionInfo.textContent = 'Resolution: Unknown';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading image metadata:', error);
+            const resolutionInfo = tile.querySelector('.resolution-info');
+            if (resolutionInfo) {
+                resolutionInfo.textContent = 'Resolution: Error';
+            }
+        }
     }
 
     async applyManualScrapResults() {

@@ -9627,7 +9627,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                 text_fields['genre'] = '/'.join(genre_names)
         
         # Extract media fields grouped by configured gamelist media fields
-        media_fields: Dict[str, List[str]] = {}
+        media_fields: Dict[str, List[Dict]] = {}
         ss_image_mapping = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
         if detailed_data.get('medias'):
             for media in detailed_data['medias']:
@@ -9653,7 +9653,11 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                         mapped_field = 'video'
                 
                 if mapped_field:
-                    media_fields.setdefault(mapped_field, []).append(media_url)
+                    media_fields.setdefault(mapped_field, []).append({
+                        'url': media_url,
+                        'region': 'Unknown',  # ScreenScraper doesn't provide region info
+                        'type': media_type
+                    })
         
         return {
             'text_fields': text_fields,
@@ -9691,7 +9695,7 @@ async def scrape_steamgriddb_manual(game, system_name):
         media_data = await steamgrid_service.get_steamgrid_media(steamgrid_id, media_types, api_key)
         
         # Extract media fields as arrays, using mapping
-        media_fields: Dict[str, List[str]] = {}
+        media_fields: Dict[str, List[Dict]] = {}
         sgd_image_mapping = scrappers_config.get('steamgriddb', {}).get('image_type_mappings', {})
 
         def map_and_append(items: List[Dict], sgd_type: str, default_field: str):
@@ -9705,9 +9709,13 @@ async def scrape_steamgriddb_manual(game, system_name):
                     break
             if not target_field:
                 target_field = default_field
-            urls = [it.get('url') for it in items if it.get('url')]
-            if urls:
-                media_fields.setdefault(target_field, []).extend(urls)
+            for item in items:
+                if item.get('url'):
+                    media_fields.setdefault(target_field, []).append({
+                        'url': item.get('url'),
+                        'region': 'Unknown',  # SteamGridDB doesn't provide region info
+                        'type': sgd_type
+                    })
 
         map_and_append(media_data.get('grids', []), 'grids', 'boxart')
         map_and_append(media_data.get('heroes', []), 'heroes', 'fanart')
@@ -9791,7 +9799,7 @@ async def scrape_launchbox_manual(game, system_name):
         print(f"DEBUG: LaunchBox manual scrap extracted text_fields: {text_fields}")
         
         # Extract media fields from the images in the metadata (arrays per field)
-        media_fields: Dict[str, List[str]] = {}
+        media_fields: Dict[str, List[Dict]] = {}
         
         # Get media URLs from LaunchBox images in the metadata
         if 'images' in game_metadata and game_metadata['images']:
@@ -9815,23 +9823,36 @@ async def scrape_launchbox_manual(game, system_name):
                             # Construct full URL from base URL + filename
                             image_url = base_url + filename
                             
+                            # Extract region information
+                            region_elem = image.find('Region')
+                            region = region_elem.text.strip() if region_elem is not None and region_elem.text else 'Unknown'
+                            
                             # Map LaunchBox image types to gamelist fields via config
                             lb_map = image_config.get('image_type_mappings', {})
                             
                             # Check all fields to see if this image type maps to any of them
                             for gamelist_field, launchbox_types in lb_map.items():
                                 if image_type in launchbox_types:
-                                    media_fields.setdefault(gamelist_field, []).append(image_url)
+                                    media_fields.setdefault(gamelist_field, []).append({
+                                        'url': image_url,
+                                        'region': region,
+                                        'type': image_type
+                                    })
                 elif isinstance(image, dict):
                     image_type = image.get('type', '').lower()
                     image_url = image.get('url')
+                    region = image.get('region', 'Unknown')
                     
                     lb_map = image_config.get('image_type_mappings', {})
                     
                     # Check all fields to see if this image type maps to any of them
                     for gamelist_field, launchbox_types in lb_map.items():
                         if image_type in launchbox_types and image_url:
-                            media_fields.setdefault(gamelist_field, []).append(image_url)
+                            media_fields.setdefault(gamelist_field, []).append({
+                                'url': image_url,
+                                'region': region,
+                                'type': image_type
+                            })
         
         return {
             'text_fields': text_fields,
