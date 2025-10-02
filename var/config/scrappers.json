@@ -152,6 +152,9 @@
             ],
             "cartridge": [
                 "Media"
+            ],
+            "titleshot": [
+                "Title Screen"
             ]
         },
         "description": "MobyGames local database scrapper. Maps game data from local JSON databases to gamelist.xml fields."
