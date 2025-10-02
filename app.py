@@ -18488,21 +18488,28 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                     if t:
                                         t.update_progress(f"🖼️  Processing {gamelist_field} for '{game_name}'")
                                     
+                                    # Get media field configuration
+                                    media_config = config.get('media_fields', {}).get(gamelist_field, {})
+                                    media_directory = media_config.get('directory', gamelist_field)
+                                    target_extension = media_config.get('target_extension', '.jpg')
+                                    
                                     # Try to find matching cover type
                                     for mobygames_type in mobygames_types:
                                         try:
-                                            # Download the media
-                                            media_filename = f"{game_name}_{gamelist_field}.jpg"
+                                            # Generate filename: romname + target_extension
+                                            rom_name = os.path.splitext(os.path.basename(rom_path))[0]
+                                            media_filename = f"{rom_name}{target_extension}"
                                             # Sanitize filename
                                             media_filename = re.sub(r'[<>:"/\\|?*]', '_', media_filename)
                                             
-                                            media_path = os.path.join(system_path, 'media', gamelist_field, media_filename)
+                                            # Create media path using config directory
+                                            media_path = os.path.join(system_path, 'media', media_directory, media_filename)
                                             
                                             # Create directory if it doesn't exist
                                             os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                             
                                             # Download the media using direct approach
-                                            # For titleshot and image, try screenshots first, then covers
+                                            # For titleshot and image, use screenshots; for others, use covers
                                             if gamelist_field in ['titleshot', 'image']:
                                                 success = download_mobygames_screenshots(
                                                     str(mobygames_game['id']), 
@@ -18512,16 +18519,6 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                                     platform_mapping,
                                                     service
                                                 )
-                                                # If screenshots failed, try covers as fallback
-                                                if not success:
-                                                    success = download_mobygames_media(
-                                                        str(mobygames_game['id']), 
-                                                        mobygames_system, 
-                                                        mobygames_type, 
-                                                        media_path,
-                                                        platform_mapping,
-                                                        service
-                                                    )
                                             else:
                                                 success = download_mobygames_media(
                                                     str(mobygames_game['id']), 
@@ -18534,7 +18531,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                             
                                             if success:
                                                 # Update gamelist with relative path
-                                                relative_path = f"./media/{gamelist_field}/{media_filename}"
+                                                relative_path = f"./media/{media_directory}/{media_filename}"
                                                 game[gamelist_field] = relative_path
                                                 game_updated = True
                                                 logger.info(f"✅ Downloaded {gamelist_field} for '{game_name}': {relative_path}")
