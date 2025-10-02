@@ -5146,19 +5146,24 @@ def scrap_mobygames_system(system_name):
         data = request.get_json() or {}
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
+        selected_media_fields = data.get('selected_media_fields', [])
         overwrite_text_fields = data.get('overwrite_text_fields', False)
         overwrite_media_fields = data.get('overwrite_media_fields', False)
         
-        print(f"🔧 DEBUG: MobyGames API - selected_games: {len(selected_games)} games")
-        print(f"🔧 DEBUG: MobyGames API - selected_fields: {selected_fields}")
-        print(f"🔧 DEBUG: MobyGames API - overwrite_text_fields: {overwrite_text_fields}")
-        print(f"🔧 DEBUG: MobyGames API - overwrite_media_fields: {overwrite_media_fields}")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔧 DEBUG: MobyGames API - selected_games: {len(selected_games)} games")
+        logger.info(f"🔧 DEBUG: MobyGames API - selected_fields: {selected_fields}")
+        logger.info(f"🔧 DEBUG: MobyGames API - selected_media_fields: {selected_media_fields}")
+        logger.info(f"🔧 DEBUG: MobyGames API - overwrite_text_fields: {overwrite_text_fields}")
+        logger.info(f"🔧 DEBUG: MobyGames API - overwrite_media_fields: {overwrite_media_fields}")
         
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
             'selected_fields': selected_fields,
+            'selected_media_fields': selected_media_fields,
             'overwrite_text_fields': overwrite_text_fields,
             'overwrite_media_fields': overwrite_media_fields
         }
@@ -5172,6 +5177,7 @@ def scrap_mobygames_system(system_name):
             task.id, 
             selected_games, 
             selected_fields, 
+            selected_media_fields,
             overwrite_text_fields, 
             overwrite_media_fields
         ))
@@ -17659,12 +17665,336 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
     thread = threading.Thread(target=run_async, daemon=True)
     thread.start()
 
-def run_mobygames_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
-    """Run MobyGames task for a specific system"""
-    print(f"🔧 DEBUG: run_mobygames_task called with - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+def load_mobygames_platform_mapping():
+    """Load MobyGames platform mapping with permanent cache"""
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        import random
+        import time
+        from datetime import datetime, timedelta
+        
+        static_mapping_path = 'var/db/mobygames/platform_mapping.json'
+        cache_metadata_path = 'var/db/mobygames/platform_mapping_cache.json'
+        
+        # Check if we have a recent cache (less than 7 days old)
+        should_scrape = True
+        if os.path.exists(static_mapping_path) and os.path.exists(cache_metadata_path):
+            try:
+                with open(cache_metadata_path, 'r', encoding='utf-8') as f:
+                    cache_metadata = json.load(f)
+                    cache_time = datetime.fromisoformat(cache_metadata.get('timestamp', ''))
+                    if datetime.now() - cache_time < timedelta(days=7):
+                        should_scrape = False
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.info("🔧 DEBUG: Using cached platform mapping (less than 7 days old)")
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"🔧 DEBUG: Error reading cache metadata: {e}")
+        
+        if should_scrape:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info("🔧 DEBUG: Scraping MobyGames platform mapping from website...")
+            
+            # Create HTTP client with realistic headers
+            user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+            ]
+            
+            headers = {
+                'User-Agent': random.choice(user_agents),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            
+            # Add random delay
+            time.sleep(random.uniform(1.0, 3.0))
+            
+            platform_mapping = {}
+            
+            with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
+                response = client.get('https://www.mobygames.com/platform/')
+                if response.status_code == 200:
+                    logger.info("✅ DEBUG: Successfully fetched platform page")
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    # Find all platform links
+                    platform_links = soup.find_all('a', href=True)
+                    for link in platform_links:
+                        href = link.get('href', '')
+                        if '/platform/' in href and href != '/platform/':
+                            # Extract platform name from URL
+                            platform_name = href.replace('/platform/', '').replace('/', '')
+                            if platform_name:
+                                # Get the display name from the link text
+                                display_name = link.get_text(strip=True)
+                                if display_name and platform_name != display_name:
+                                    platform_mapping[display_name] = platform_name
+                                    logger.info(f"🔧 DEBUG: Found mapping: {display_name} -> {platform_name}")
+                    
+                    logger.info(f"✅ DEBUG: Scraped {len(platform_mapping)} platform mappings")
+                    
+                    # Save to static file for future use
+                    os.makedirs(os.path.dirname(static_mapping_path), exist_ok=True)
+                    with open(static_mapping_path, 'w', encoding='utf-8') as f:
+                        json.dump(platform_mapping, f, indent=4)
+                    
+                    # Save cache metadata
+                    cache_metadata = {
+                        'timestamp': datetime.now().isoformat(),
+                        'count': len(platform_mapping),
+                        'source': 'mobygames_website'
+                    }
+                    with open(cache_metadata_path, 'w', encoding='utf-8') as f:
+                        json.dump(cache_metadata, f, indent=4)
+                    
+                    logger.info(f"✅ DEBUG: Saved platform mapping to {static_mapping_path}")
+                    return platform_mapping
+                else:
+                    logger.error(f"❌ DEBUG: Failed to fetch platform page: HTTP {response.status_code}")
+                    # Fallback to existing cache if available
+                    if os.path.exists(static_mapping_path):
+                        with open(static_mapping_path, 'r', encoding='utf-8') as f:
+                            return json.load(f)
+                    return {}
+        else:
+            # Load from cache
+            with open(static_mapping_path, 'r', encoding='utf-8') as f:
+                platform_mapping = json.load(f)
+                logger.info(f"✅ DEBUG: Loaded {len(platform_mapping)} platform mappings from cache")
+                return platform_mapping
+                
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ DEBUG: Error loading MobyGames platform mapping: {e}")
+        # Fallback to static file if available
+        try:
+            static_mapping_path = 'var/db/mobygames/platform_mapping.json'
+            if os.path.exists(static_mapping_path):
+                with open(static_mapping_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as fallback_error:
+            print(f"❌ DEBUG: Error loading static fallback: {fallback_error}")
+        return {}
+
+def download_mobygames_media(game_id, mobygames_system_name, media_type, target_path, platform_mapping, service=None):
+    """Download specific media type for a game from MobyGames"""
+    import logging
+    logger = logging.getLogger(__name__)
     
     try:
-        print(f"Starting MobyGames task for system: {system_name}")
+        import httpx
+        import asyncio
+        from bs4 import BeautifulSoup
+        import random
+        import time
+        
+        # Get platform short name
+        platform_short = platform_mapping.get(mobygames_system_name)
+        if not platform_short:
+            logger.error(f"❌ DEBUG: No platform mapping found for {mobygames_system_name}")
+            return False
+        
+        # Get game URL from database
+        if service is None:
+            from mobygames_service import MobyGamesService
+            service = MobyGamesService(load_config(), load_scrappers_config(), load_systems_config())
+        
+        # mobygames_system_name is already the MobyGames system name
+        if mobygames_system_name not in service.databases:
+            logger.error(f"❌ DEBUG: No MobyGames system found for {mobygames_system_name}")
+            return False
+        
+        # Convert game_id to int if it's a string (database uses int keys)
+        try:
+            game_id_int = int(game_id)
+        except (ValueError, TypeError):
+            logger.error(f"❌ DEBUG: Invalid game ID format: {game_id}")
+            return False
+        
+        game_data = service.databases[mobygames_system_name].get(game_id_int)
+        if not game_data or 'url' not in game_data:
+            logger.error(f"❌ DEBUG: No game data or URL found for game ID {game_id_int}")
+            return False
+        
+        game_url = game_data['url']
+        # Remove trailing slash from game_url to avoid double slashes
+        if game_url.endswith('/'):
+            game_url = game_url[:-1]
+        covers_url = f"{game_url}/covers/"
+        
+        logger.info(f"🔧 DEBUG: Fetching covers from: {covers_url}")
+        
+        # Create HTTP client
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+        ]
+        
+        headers = {
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        }
+        
+        # Add random delay
+        time.sleep(random.uniform(1.0, 3.0))
+        
+        with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
+            # Get covers page
+            response = client.get(covers_url)
+            if response.status_code != 200:
+                logger.error(f"❌ DEBUG: Failed to fetch covers page: HTTP {response.status_code}")
+                return False
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find cover links for the specific platform
+            cover_links = []
+            
+            # First, find the platform heading that matches our target platform
+            target_platform = platform_mapping.get(mobygames_system_name, '').replace('-', ' ').title()
+            logger.info(f"🔧 DEBUG: Looking for platform: {target_platform}")
+            
+            # Look for platform headings
+            platform_heading = None
+            for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                heading_text = heading.get_text(strip=True).lower()
+                if target_platform.lower() in heading_text or mobygames_system_name.lower() in heading_text:
+                    platform_heading = heading
+                    logger.info(f"🔧 DEBUG: Found platform heading: {heading.get_text(strip=True)}")
+                    break
+            
+            if platform_heading:
+                # Find cover links under this platform heading
+                current_element = platform_heading
+                while current_element:
+                    # Look for cover links in the current element and its siblings
+                    for link in current_element.find_all('a', href=True):
+                        href = link['href']
+                        if '/cover/group-' in href and '/cover-' in href:
+                            cover_links.append(href)
+                    
+                    # Move to next sibling until we hit another heading of same or higher level
+                    current_element = current_element.find_next_sibling()
+                    if current_element and current_element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                        break
+            else:
+                # Fallback: get all cover links if platform not found
+                logger.warning(f"🔧 DEBUG: Platform {target_platform} not found, using all covers")
+                for link in soup.find_all('a', href=True):
+                    href = link['href']
+                    if '/cover/group-' in href and '/cover-' in href:
+                        cover_links.append(href)
+            
+            logger.info(f"🔧 DEBUG: Found {len(cover_links)} cover links for platform {target_platform}")
+            
+            # Look for matching cover type
+            for cover_link in cover_links:
+                try:
+                    # Add random delay
+                    time.sleep(random.uniform(0.5, 1.5))
+                    
+                    # Handle both relative and absolute URLs
+                    if cover_link.startswith('http'):
+                        cover_url = cover_link
+                    else:
+                        cover_url = f"https://www.mobygames.com{cover_link}"
+                    logger.info(f"🔧 DEBUG: Checking cover: {cover_url}")
+                    
+                    cover_response = client.get(cover_url)
+                    if cover_response.status_code != 200:
+                        continue
+                    
+                    cover_soup = BeautifulSoup(cover_response.text, 'html.parser')
+                    
+                    # Check if this cover matches our media type
+                    # Look for cover type in various places
+                    cover_title = cover_soup.find('h1')
+                    cover_alt = cover_soup.find('figure')
+                    if cover_alt:
+                        cover_alt = cover_alt.find('img')
+                        if cover_alt:
+                            cover_alt = cover_alt.get('alt', '')
+                    
+                    # Check if media type appears in title or alt text
+                    title_text = cover_title.get_text().lower() if cover_title else ''
+                    alt_text = cover_alt.lower() if cover_alt else ''
+                    
+                    if media_type.lower() in title_text or media_type.lower() in alt_text:
+                        # Find the image
+                        img = cover_soup.find('figure').find('img')
+                        if img and img.get('src'):
+                            image_url = img['src']
+                            if not image_url.startswith('http'):
+                                image_url = f"https://www.mobygames.com{image_url}"
+                            
+                            logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                            
+                            # Download image
+                            img_response = client.get(image_url)
+                            if img_response.status_code == 200:
+                                # Save raw image first
+                                temp_path = target_path + '.tmp'
+                                with open(temp_path, 'wb') as f:
+                                    f.write(img_response.content)
+                                
+                                # Convert to target format using game_utils
+                                from game_utils import convert_image_to_format
+                                success = convert_image_to_format(temp_path, target_path, 'jpg')
+                                
+                                # Clean up temp file
+                                if os.path.exists(temp_path):
+                                    os.remove(temp_path)
+                                
+                                if success:
+                                    logger.info(f"✅ DEBUG: Downloaded {media_type} to {target_path}")
+                                    return True
+                                else:
+                                    logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                                    return False
+                            
+                except Exception as e:
+                    logger.error(f"❌ DEBUG: Error processing cover {cover_link}: {e}")
+                    continue
+        
+        logger.warning(f"❌ DEBUG: No matching cover found for {media_type}")
+        return False
+        
+    except Exception as e:
+        logger.error(f"❌ DEBUG: Error downloading MobyGames media: {e}")
+        return False
+
+def run_mobygames_task(system_name, task_id, selected_games=None, selected_fields=None, selected_media_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
+    """Run MobyGames task for a specific system"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔧 DEBUG: run_mobygames_task called with:")
+    logger.info(f"  - system_name: {system_name}")
+    logger.info(f"  - selected_games: {selected_games}")
+    logger.info(f"  - selected_fields: {selected_fields}")
+    logger.info(f"  - selected_media_fields: {selected_media_fields}")
+    logger.info(f"  - overwrite_text_fields: {overwrite_text_fields}")
+    logger.info(f"  - overwrite_media_fields: {overwrite_media_fields}")
+    
+    try:
+        logger.info(f"Starting MobyGames task for system: {system_name}")
         
         # Load config
         config = load_config()
@@ -17682,15 +18012,23 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
         from mobygames_service import MobyGamesService
         service = MobyGamesService(config, scrappers_config, systems_config)
         
+        # Load platform mapping for media scraping
+        platform_mapping = load_mobygames_platform_mapping()
+        
         # Add field selection settings to config
         mobygames_config = scrappers_config.get('mobygames', {})
         mobygames_config['selected_fields'] = selected_fields or []
         mobygames_config['overwrite_text_fields'] = overwrite_text_fields
         mobygames_config['overwrite_media_fields'] = overwrite_media_fields
         
-        print(f"🔧 DEBUG: MobyGames task - selected_fields: {selected_fields}")
-        print(f"🔧 DEBUG: MobyGames task - overwrite_text_fields: {overwrite_text_fields}")
-        print(f"🔧 DEBUG: MobyGames task - overwrite_media_fields: {overwrite_media_fields}")
+        logger.info(f"🔧 DEBUG: MobyGames task - selected_fields: {selected_fields}")
+        logger.info(f"🔧 DEBUG: MobyGames task - overwrite_text_fields: {overwrite_text_fields}")
+        logger.info(f"🔧 DEBUG: MobyGames task - overwrite_media_fields: {overwrite_media_fields}")
+        
+        # Get task object for progress updates
+        t = get_task(task_id)
+        if t:
+            t.update_progress("🔧 Loading MobyGames configuration...")
         
         # Load games for the system
         gamelist_path = get_gamelist_path(system_name)
@@ -17715,7 +18053,10 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
             games_to_process = all_games
         
         total_games = len(games_to_process)
-        print(f"🎮 Processing {total_games} games for MobyGames scraping")
+        
+        if t:
+            t.update_progress(f"🎮 Processing {total_games} games for MobyGames scraping")
+        logger.info(f"🎮 Processing {total_games} games for MobyGames scraping")
         
         # Update task with total count
         t = get_task(task_id)
@@ -17732,25 +18073,30 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                     print(f"⚠️  Skipping game with no name: {game.get('path', 'Unknown')}")
                     continue
                 
-                print(f"🔍 Searching MobyGames for: {game_name}")
+                # Update progress
+                if t:
+                    progress_percent = int((i / total_games) * 100)
+                    t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {game_name}", progress_percent, i+1, total_games)
+                
+                logger.info(f"🔍 Searching MobyGames for: {game_name}")
                 
                 # Check if game already has mobygamesid - if so, use it directly
                 mobygames_game = None
                 if game.get('mobygamesid'):
-                    print(f"🎯 Game already has mobygamesid: {game['mobygamesid']}, looking up by ID")
+                    logger.info(f"🎯 Game already has mobygamesid: {game['mobygamesid']}, looking up by ID")
                     mobygames_game = service.find_game_by_id(system_name, game['mobygamesid'])
                     if mobygames_game:
-                        print(f"✅ Found MobyGames game by ID: {mobygames_game.get('title', 'Unknown')}")
+                        logger.info(f"✅ Found MobyGames game by ID: {mobygames_game.get('title', 'Unknown')}")
                     else:
-                        print(f"❌ No MobyGames game found with ID: {game['mobygamesid']}")
+                        logger.info(f"❌ No MobyGames game found with ID: {game['mobygamesid']}")
                 
                 # If no mobygamesid or lookup by ID failed, try name matching
                 if not mobygames_game:
-                    print(f"🔍 No existing mobygamesid, searching by name: {game_name}")
+                    logger.info(f"🔍 No existing mobygamesid, searching by name: {game_name}")
                     mobygames_game = service.find_game_exact(system_name, game_name)
                 
                 if mobygames_game:
-                    print(f"✅ Found MobyGames match for '{game_name}': {mobygames_game.get('title', 'Unknown')}")
+                    logger.info(f"✅ Found MobyGames match for '{game_name}': {mobygames_game.get('title', 'Unknown')}")
                     
                     # Update game data based on mapping configuration and selected fields
                     mapping = mobygames_config.get('mapping', {})
@@ -17809,26 +18155,40 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                             game[gamelist_field] = final_value
                             game_updated = True
                     
-                    # Process media fields if media scraping is enabled
-                    if overwrite_media_fields and 'id' in mobygames_game:
-                        print(f"🖼️  Processing media for '{game_name}' (ID: {mobygames_game['id']})")
+                    # Process media fields if we have a MobyGames ID and selected media fields
+                    logger.info(f"🔧 DEBUG: Media processing check - overwrite_media_fields: {overwrite_media_fields}, has_id: {'id' in mobygames_game}, selected_media_fields: {selected_media_fields}")
+                    if 'id' in mobygames_game:
+                        logger.info(f"🔧 DEBUG: Game has ID: {mobygames_game['id']}")
+                    if 'id' in mobygames_game and selected_media_fields and len(selected_media_fields) > 0:
+                        logger.info(f"🖼️  Processing media for '{game_name}' (ID: {mobygames_game['id']})")
+                        if t:
+                            t.update_progress(f"🖼️  Processing media for '{game_name}' (ID: {mobygames_game['id']})")
                         
                         try:
-                            # Load platform mapping if not already loaded
-                            if not service.web_service.platform_mapping:
-                                service.load_platform_mapping()
-                            
                             # Get image type mappings
                             image_type_mappings = mobygames_config.get('image_type_mappings', {})
                             
+                            # Filter image_type_mappings by selected_media_fields
+                            if selected_media_fields and len(selected_media_fields) > 0:
+                                image_type_mappings = {k: v for k, v in image_type_mappings.items() if k in selected_media_fields}
+                            
                             # Get system path for media storage
-                            system_path = get_system_path(system_name)
+                            system_path = os.path.join(ROMS_FOLDER, system_name)
                             if system_path and image_type_mappings:
                                 # Process each media type
                                 for gamelist_field, mobygames_types in image_type_mappings.items():
+                                    # Check if field is empty or if we should overwrite
+                                    current_media_value = game.get(gamelist_field, '')
+                                    field_is_empty = not current_media_value or (isinstance(current_media_value, str) and current_media_value.strip() == '')
+                                    
                                     # Skip if field is not empty and we're not overwriting
-                                    if game.get(gamelist_field) and not overwrite_media_fields:
+                                    if not field_is_empty and not overwrite_media_fields:
+                                        logger.info(f"🔧 DEBUG: Skipping {gamelist_field} - field not empty and overwrite disabled")
                                         continue
+                                    
+                                    logger.info(f"🔧 DEBUG: Processing {gamelist_field} - empty: {field_is_empty}, overwrite: {overwrite_media_fields}")
+                                    if t:
+                                        t.update_progress(f"🖼️  Processing {gamelist_field} for '{game_name}'")
                                     
                                     # Try to find matching cover type
                                     for mobygames_type in mobygames_types:
@@ -17843,12 +18203,14 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                             # Create directory if it doesn't exist
                                             os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                             
-                                            # Download the media
-                                            success = service.download_game_media(
+                                            # Download the media using direct approach
+                                            success = download_mobygames_media(
                                                 str(mobygames_game['id']), 
-                                                system_name, 
+                                                mobygames_system, 
                                                 mobygames_type, 
-                                                media_path
+                                                media_path,
+                                                platform_mapping,
+                                                service
                                             )
                                             
                                             if success:
@@ -17856,18 +18218,29 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                                 relative_path = f"./media/{gamelist_field}/{media_filename}"
                                                 game[gamelist_field] = relative_path
                                                 game_updated = True
-                                                print(f"✅ Downloaded {gamelist_field} for '{game_name}': {relative_path}")
+                                                logger.info(f"✅ Downloaded {gamelist_field} for '{game_name}': {relative_path}")
+                                                if t:
+                                                    t.update_progress(f"✅ Downloaded {gamelist_field} for '{game_name}'")
                                                 break  # Found and downloaded, move to next field
                                                 
                                         except Exception as e:
-                                            print(f"❌ Error downloading {gamelist_field} for '{game_name}': {e}")
+                                            logger.error(f"❌ Error downloading {gamelist_field} for '{game_name}': {e}")
                                             continue
                             else:
-                                print(f"⚠️  Skipping media download - system_path: {system_path}, image_type_mappings: {bool(image_type_mappings)}")
+                                logger.warning(f"⚠️  Skipping media download - system_path: {system_path}, image_type_mappings: {bool(image_type_mappings)}")
                                 
                         except Exception as e:
-                            print(f"❌ Error processing media for '{game_name}': {e}")
+                            logger.error(f"❌ Error processing media for '{game_name}': {e}")
                             # Continue with text processing even if media fails
+                    else:
+                        if 'id' not in mobygames_game:
+                            logger.warning(f"⚠️  Skipping media processing - no MobyGames ID found")
+                            if t:
+                                t.update_progress(f"⚠️  Skipping media processing - no MobyGames ID found")
+                        if not selected_media_fields or len(selected_media_fields) == 0:
+                            logger.warning(f"⚠️  Skipping media processing - no selected media fields")
+                            if t:
+                                t.update_progress(f"⚠️  Skipping media processing - no selected media fields")
                     
                     # Set mobygamesid only if it doesn't exist yet
                     if 'id' in mobygames_game and not game.get('mobygamesid'):
@@ -17876,7 +18249,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                     
                     if game_updated:
                         updated_count += 1
-                        print(f"✅ Updated game data for '{game_name}'")
+                        logger.info(f"✅ Updated game data for '{game_name}'")
                         
                         # Log the update
                         t = get_task(task_id)
@@ -17914,10 +18287,10 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
             }
             t.complete(True, f"MobyGames scraping completed. Updated {updated_count} games out of {processed_count} processed.")
         
-        print(f"✅ MobyGames task completed for {system_name}. Updated {updated_count} games.")
+        logger.info(f"✅ MobyGames task completed for {system_name}. Updated {updated_count} games.")
         
     except Exception as e:
-        print(f"❌ Error in MobyGames task: {e}")
+        logger.error(f"❌ Error in MobyGames task: {e}")
         import traceback
         traceback.print_exc()
         

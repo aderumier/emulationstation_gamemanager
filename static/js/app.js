@@ -8971,6 +8971,9 @@ class GameCollectionManager {
         // Load current settings before opening modal
         this.loadMobygamesSettings();
         
+        // Populate media fields
+        await this.populateMobygamesMediaFields();
+        
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('mobygamesConfigurationModal'));
         modal.show();
@@ -9006,6 +9009,75 @@ class GameCollectionManager {
         
         // Add event listeners for field selection
         this.initializeMobygamesFieldCheckboxes();
+    }
+    
+    async populateMobygamesMediaFields() {
+        try {
+            // Get MobyGames field mappings from config
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            if (!config) {
+                console.error('Failed to load config');
+                return;
+            }
+            
+            const imageTypeMappings = config.mobygames?.image_type_mappings || {};
+            
+            // Get the media fields container
+            const mediaFieldsContainer = document.getElementById('mobygamesMediaFieldsContainer');
+            
+            // Clear existing media field checkboxes
+            mediaFieldsContainer.innerHTML = '';
+            
+            // Add media field checkboxes dynamically
+            Object.keys(imageTypeMappings).forEach(gamelistField => {
+                const fieldId = gamelistField.replace(/[^a-zA-Z0-9]/g, '');
+                const checkboxId = `mobygamesMediaField${fieldId}`;
+                
+                // Create checkbox container
+                const checkboxContainer = document.createElement('div');
+                checkboxContainer.className = 'form-check mb-2';
+                
+                // Get the MobyGames media types for this gamelist field
+                const mobygamesTypes = imageTypeMappings[gamelistField];
+                const mobygamesTypesText = Array.isArray(mobygamesTypes) ? mobygamesTypes.join(', ') : mobygamesTypes;
+                
+                checkboxContainer.innerHTML = `
+                    <input class="form-check-input mobygames-media-field-checkbox" type="checkbox" id="${checkboxId}" data-gamelist-field="${gamelistField}" checked>
+                    <label class="form-check-label" for="${checkboxId}">
+                        ${gamelistField.charAt(0).toUpperCase() + gamelistField.slice(1)}
+                        <small class="text-muted d-block">(${mobygamesTypesText})</small>
+                    </label>
+                `;
+                
+                mediaFieldsContainer.appendChild(checkboxContainer);
+            });
+            
+            // Initialize media field checkboxes
+            this.initializeMobygamesMediaFieldCheckboxes();
+            
+        } catch (error) {
+            console.error('Error populating MobyGames media fields:', error);
+        }
+    }
+    
+    initializeMobygamesMediaFieldCheckboxes() {
+        // Load saved media field selections from cookies
+        const mediaFieldCheckboxes = document.querySelectorAll('.mobygames-media-field-checkbox');
+        mediaFieldCheckboxes.forEach(checkbox => {
+            const gamelistField = checkbox.dataset.gamelistField;
+            const savedState = this.getCookie(`mobygamesMediaField_${gamelistField}`);
+            if (savedState !== null) {
+                checkbox.checked = savedState === 'true';
+            }
+            
+            // Add event listeners for media field checkboxes
+            checkbox.addEventListener('change', (e) => {
+                // Save media field selection to cookies
+                this.setCookie(`mobygamesMediaField_${gamelistField}`, e.target.checked.toString(), 365);
+            });
+        });
     }
     
     initializeMobygamesFieldCheckboxes() {
@@ -13901,6 +13973,13 @@ class GameCollectionManager {
                 selectedFields.push(checkbox.dataset.field);
             });
             
+            // Get selected media fields from modal checkboxes
+            const selectedMediaFields = [];
+            const mediaFieldCheckboxes = document.querySelectorAll('.mobygames-media-field-checkbox:checked');
+            mediaFieldCheckboxes.forEach(checkbox => {
+                selectedMediaFields.push(checkbox.dataset.gamelistField);
+            });
+            
             // mobygamesid is always scraped automatically, no need to include in selected_fields
             
             // Get overwrite settings from cookies
@@ -13915,6 +13994,7 @@ class GameCollectionManager {
                 body: JSON.stringify({
                     selected_games: selectedGames,
                     selected_fields: selectedFields,
+                    selected_media_fields: selectedMediaFields,
                     overwrite_text_fields: overwriteTextFields,
                     overwrite_media_fields: overwriteMediaFields
                 })
