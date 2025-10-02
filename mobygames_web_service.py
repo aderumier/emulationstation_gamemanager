@@ -12,6 +12,7 @@ import json
 import httpx
 import asyncio
 import time
+import random
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
@@ -27,24 +28,43 @@ class MobyGamesWebService:
         self.platform_mapping = {}
         self.client = None
         
+    def _get_random_user_agent(self) -> str:
+        """Get a random realistic user agent"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0'
+        ]
+        return random.choice(user_agents)
+        
     async def __aenter__(self):
         """Async context manager entry"""
         # Create httpx client with HTTP/2 and connection pooling
+        user_agent = self._get_random_user_agent()
         self.client = httpx.AsyncClient(
             http2=True,
             limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
             timeout=30.0,
             headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'User-Agent': user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
                 'DNT': '1',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1',
                 'Sec-Fetch-Dest': 'document',
                 'Sec-Fetch-Mode': 'navigate',
                 'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
                 'Cache-Control': 'max-age=0'
             },
             follow_redirects=True
@@ -75,8 +95,8 @@ class MobyGamesWebService:
         # Fallback to web scraping
         try:
             print("🌐 Loading MobyGames platform mapping from website...")
-            # Add delay to be respectful to the website
-            await asyncio.sleep(1)
+            # Add random delay to be respectful to the website
+            await asyncio.sleep(random.uniform(1.0, 3.0))
             response = await self.client.get(f"{self.base_url}/platform/")
             response.raise_for_status()
             
@@ -121,8 +141,8 @@ class MobyGamesWebService:
             cover_url = f"{game_url}/cover/{platform_short}"
             print(f"🔍 Fetching covers from: {cover_url}")
             
-            # Add delay to be respectful to the website
-            await asyncio.sleep(1)
+            # Add random delay to be respectful to the website
+            await asyncio.sleep(random.uniform(1.0, 3.0))
             response = await self.client.get(cover_url)
             response.raise_for_status()
             
@@ -151,8 +171,8 @@ class MobyGamesWebService:
     async def get_cover_image(self, cover_page_url: str, cover_type: str) -> Optional[Dict[str, str]]:
         """Get cover image data from a cover page"""
         try:
-            # Add delay to be respectful to the website
-            await asyncio.sleep(0.5)
+            # Add random delay to be respectful to the website
+            await asyncio.sleep(random.uniform(0.5, 1.5))
             response = await self.client.get(cover_page_url)
             response.raise_for_status()
             
@@ -187,8 +207,8 @@ class MobyGamesWebService:
         """Download and convert image to target format"""
         try:
             print(f"📥 Downloading image: {img_url}")
-            # Add delay to be respectful to the website
-            await asyncio.sleep(0.5)
+            # Add random delay to be respectful to the website
+            await asyncio.sleep(random.uniform(0.5, 1.5))
             response = await self.client.get(img_url)
             response.raise_for_status()
             
