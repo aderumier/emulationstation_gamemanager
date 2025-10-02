@@ -155,6 +155,9 @@
             ],
             "titleshot": [
                 "Title Screen"
+            ],
+            "image": [
+                "Gameplay"
             ]
         },
         "description": "MobyGames local database scrapper. Maps game data from local JSON databases to gamelist.xml fields."

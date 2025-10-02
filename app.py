@@ -18097,39 +18097,76 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
             
             logger.info(f"🔧 DEBUG: Found {len(screenshot_links)} screenshot links for platform {target_platform}")
             
-            # Look for matching screenshot type
-            for screenshot_link in screenshot_links:
-                try:
-                    # Add random delay
-                    time.sleep(random.uniform(0.5, 1.5))
-                    
-                    # Handle both relative and absolute URLs
-                    if screenshot_link.startswith('http'):
-                        screenshot_url = screenshot_link
-                    else:
-                        screenshot_url = f"https://www.mobygames.com{screenshot_link}"
-                    logger.info(f"🔧 DEBUG: Checking screenshot: {screenshot_url}")
-                    
-                    screenshot_response = client.get(screenshot_url)
-                    if screenshot_response.status_code != 200:
-                        continue
-                    
-                    screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
-                    
-                    # Check if this screenshot matches our media type
-                    # Look for screenshot type in various places
-                    screenshot_title = screenshot_soup.find('h1')
-                    screenshot_alt = screenshot_soup.find('figure')
-                    if screenshot_alt:
-                        screenshot_alt = screenshot_alt.find('img')
+            # Special handling for "image" media type (gameplay screenshots)
+            if media_type.lower() == 'gameplay':
+                # Filter out screenshots with "screen*" text and collect valid ones
+                valid_screenshots = []
+                
+                for screenshot_link in screenshot_links:
+                    try:
+                        # Add random delay
+                        time.sleep(random.uniform(0.5, 1.5))
+                        
+                        # Handle both relative and absolute URLs
+                        if screenshot_link.startswith('http'):
+                            screenshot_url = screenshot_link
+                        else:
+                            screenshot_url = f"https://www.mobygames.com{screenshot_link}"
+                        logger.info(f"🔧 DEBUG: Checking screenshot: {screenshot_url}")
+                        
+                        screenshot_response = client.get(screenshot_url)
+                        if screenshot_response.status_code != 200:
+                            continue
+                        
+                        screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
+                        
+                        # Check if this screenshot has "screen*" text (exclude these)
+                        screenshot_title = screenshot_soup.find('h1')
+                        screenshot_alt = screenshot_soup.find('figure')
                         if screenshot_alt:
-                            screenshot_alt = screenshot_alt.get('alt', '')
+                            screenshot_alt = screenshot_alt.find('img')
+                            if screenshot_alt:
+                                screenshot_alt = screenshot_alt.get('alt', '')
+                        
+                        # Check if screenshot contains "screen*" text (exclude these)
+                        title_text = screenshot_title.get_text().lower() if screenshot_title else ''
+                        alt_text = screenshot_alt.lower() if screenshot_alt else ''
+                        
+                        # Skip screenshots with "screen" in title or alt text
+                        if 'screen' in title_text or 'screen' in alt_text:
+                            logger.info(f"🔧 DEBUG: Skipping screenshot with 'screen' text: {title_text} / {alt_text}")
+                            continue
+                        
+                        # This is a valid gameplay screenshot
+                        valid_screenshots.append({
+                            'url': screenshot_url,
+                            'title': title_text,
+                            'alt': alt_text
+                        })
+                        
+                    except Exception as e:
+                        logger.error(f"❌ DEBUG: Error processing screenshot {screenshot_link}: {e}")
+                        continue
+                
+                logger.info(f"🔧 DEBUG: Found {len(valid_screenshots)} valid gameplay screenshots (excluding 'screen*' text)")
+                
+                # Select the middle screenshot
+                if valid_screenshots:
+                    # Calculate middle index
+                    total_count = len(valid_screenshots)
+                    selected_index = total_count // 2
                     
-                    # Check if media type appears in title or alt text
-                    title_text = screenshot_title.get_text().lower() if screenshot_title else ''
-                    alt_text = screenshot_alt.lower() if screenshot_alt else ''
+                    # Ensure index is within bounds
+                    selected_index = min(selected_index, total_count - 1)
                     
-                    if media_type.lower() in title_text or media_type.lower() in alt_text:
+                    selected_screenshot = valid_screenshots[selected_index]
+                    logger.info(f"🔧 DEBUG: Selected screenshot {selected_index + 1}/{total_count}: {selected_screenshot['title']}")
+                    
+                    # Download the selected screenshot
+                    screenshot_response = client.get(selected_screenshot['url'])
+                    if screenshot_response.status_code == 200:
+                        screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
+                        
                         # Find the image
                         img = screenshot_soup.find('figure').find('img')
                         if img and img.get('src'):
@@ -18161,10 +18198,78 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                 else:
                                     logger.error(f"❌ DEBUG: Failed to convert image to JPG")
                                     return False
-                            
-                except Exception as e:
-                    logger.error(f"❌ DEBUG: Error processing screenshot {screenshot_link}: {e}")
-                    continue
+                else:
+                    logger.warning(f"❌ DEBUG: No valid gameplay screenshots found (all had 'screen*' text)")
+                    return False
+            else:
+                # Original logic for other media types (titleshot, etc.)
+                for screenshot_link in screenshot_links:
+                    try:
+                        # Add random delay
+                        time.sleep(random.uniform(0.5, 1.5))
+                        
+                        # Handle both relative and absolute URLs
+                        if screenshot_link.startswith('http'):
+                            screenshot_url = screenshot_link
+                        else:
+                            screenshot_url = f"https://www.mobygames.com{screenshot_link}"
+                        logger.info(f"🔧 DEBUG: Checking screenshot: {screenshot_url}")
+                        
+                        screenshot_response = client.get(screenshot_url)
+                        if screenshot_response.status_code != 200:
+                            continue
+                        
+                        screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
+                        
+                        # Check if this screenshot matches our media type
+                        # Look for screenshot type in various places
+                        screenshot_title = screenshot_soup.find('h1')
+                        screenshot_alt = screenshot_soup.find('figure')
+                        if screenshot_alt:
+                            screenshot_alt = screenshot_alt.find('img')
+                            if screenshot_alt:
+                                screenshot_alt = screenshot_alt.get('alt', '')
+                        
+                        # Check if media type appears in title or alt text
+                        title_text = screenshot_title.get_text().lower() if screenshot_title else ''
+                        alt_text = screenshot_alt.lower() if screenshot_alt else ''
+                        
+                        if media_type.lower() in title_text or media_type.lower() in alt_text:
+                            # Find the image
+                            img = screenshot_soup.find('figure').find('img')
+                            if img and img.get('src'):
+                                image_url = img['src']
+                                if not image_url.startswith('http'):
+                                    image_url = f"https://www.mobygames.com{image_url}"
+                                
+                                logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                                
+                                # Download image
+                                img_response = client.get(image_url)
+                                if img_response.status_code == 200:
+                                    # Save raw image first
+                                    temp_path = target_path + '.tmp'
+                                    with open(temp_path, 'wb') as f:
+                                        f.write(img_response.content)
+                                    
+                                    # Convert to target format using game_utils
+                                    from game_utils import convert_image_to_format
+                                    success = convert_image_to_format(temp_path, target_path, 'jpg')
+                                    
+                                    # Clean up temp file
+                                    if os.path.exists(temp_path):
+                                        os.remove(temp_path)
+                                    
+                                    if success:
+                                        logger.info(f"✅ DEBUG: Downloaded {media_type} to {target_path}")
+                                        return True
+                                    else:
+                                        logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                                        return False
+                                
+                    except Exception as e:
+                        logger.error(f"❌ DEBUG: Error processing screenshot {screenshot_link}: {e}")
+                        continue
         
         logger.warning(f"❌ DEBUG: No matching screenshot found for {media_type}")
         return False
@@ -18397,8 +18502,8 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                             os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                             
                                             # Download the media using direct approach
-                                            # For titleshot, try screenshots first, then covers
-                                            if gamelist_field == 'titleshot':
+                                            # For titleshot and image, try screenshots first, then covers
+                                            if gamelist_field in ['titleshot', 'image']:
                                                 success = download_mobygames_screenshots(
                                                     str(mobygames_game['id']), 
                                                     mobygames_system, 
