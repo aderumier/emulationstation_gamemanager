@@ -354,6 +354,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openSteamGridDBModal">
                             <i class="bi bi-grid-3x3-gap me-2"></i>SteamGridDB Scrap Preferences
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openMobygamesModal">
+                            <i class="bi bi-database me-2"></i>MobyGames Scrap Preferences
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
                             <i class="bi bi-people me-2"></i>User Management
@@ -444,6 +447,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </button>
                 <button id="scrapScreenscraperBtn" class="btn btn-warning btn-sm ms-2" disabled>
                     <i class="bi bi-search"></i> ScreenScraper
+                </button>
+                <button id="scrapMobygamesBtn" class="btn btn-secondary btn-sm ms-2" disabled>
+                    <i class="bi bi-database"></i> MobyGames
                 </button>
                 <button id="globalFindBestMatchBtn" class="btn btn-outline-info btn-sm ms-2" disabled>
                     <i class="bi bi-search"></i> Find Best Match
@@ -708,6 +714,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <input type="text" class="form-control" id="editSteamgridid">
                                                 <button type="button" class="btn btn-outline-secondary" id="modalFindSteamgridMatchBtn" title="Search for the best matching game in the SteamGridDB database">
                                                     <i class="bi bi-grid-3x3-gap"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editMobygamesid" class="form-label">MobyGames ID</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="editMobygamesid">
+                                                <button type="button" class="btn btn-outline-danger" id="modalFindMobygamesMatchBtn" title="Search for the best matching game in the MobyGames database">
+                                                    <i class="bi bi-database"></i>
                                                 </button>
                                             </div>
                                         </div>
@@ -1038,6 +1053,42 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <!-- Search results will be populated here -->
                     </div>
                     <div id="steamgridSearchError" class="alert alert-danger" style="display: none;">
+                        <!-- Error messages will be shown here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MobyGames Search Modal -->
+    <div class="modal fade" id="mobygamesSearchModal" tabindex="-1" aria-labelledby="mobygamesSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mobygamesSearchModalLabel">
+                        <i class="bi bi-database me-2 text-danger"></i>MobyGames Game Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Searching for:</strong> <span id="mobygamesSearchGameName"></span>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>Search Results:</strong></span>
+                            <div class="spinner-border spinner-border-sm text-danger" id="mobygamesSearchSpinner" style="display: none;" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="mobygamesSearchResults" class="row">
+                        <!-- Search results will be populated here -->
+                    </div>
+                    <div id="mobygamesSearchError" class="alert alert-danger" style="display: none;">
                         <!-- Error messages will be shown here -->
                     </div>
                 </div>
@@ -1755,6 +1806,105 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- MobyGames Configuration Modal -->
+    <div class="modal fade" id="mobygamesConfigurationModal" tabindex="-1" aria-labelledby="mobygamesConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mobygamesConfigurationModalLabel">
+                        <i class="bi bi-database me-2"></i>MobyGames Scrap Preferences
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Scraping Options -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-database-fill"></i> Scraping Options</h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Overwrite Text Fields Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="overwriteTextFieldsMobygamesModal">
+                                <label class="form-check-label" for="overwriteTextFieldsMobygamesModal">
+                                    <i class="bi bi-file-text me-2"></i>Overwrite Text Fields
+                                </label>
+                                <div class="form-text">Always overwrite text fields (name, rating, release date, genre) during MobyGames scraping, even if they already have values</div>
+                            </div>
+                            
+                            <!-- Overwrite Media Fields Option -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="overwriteMediaFieldsMobygamesModal">
+                                <label class="form-check-label" for="overwriteMediaFieldsMobygamesModal">
+                                    <i class="bi bi-image me-2"></i>Overwrite Media Fields
+                                </label>
+                                <div class="form-text">Always overwrite media fields during MobyGames scraping, even if they already have values (Note: MobyGames doesn't provide media files)</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Field Selection -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-list-check"></i> Field Selection</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Text Fields -->
+                                <div class="col-12">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-file-text me-2"></i>Text Fields</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldTitle" data-field="title" checked>
+                                                <label class="form-check-label" for="mobygamesFieldTitle">Name (Title)</label>
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldMobyScore" data-field="moby_score" checked>
+                                                <label class="form-check-label" for="mobygamesFieldMobyScore">Rating (Moby Score)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldReleaseYear" data-field="release_year" checked>
+                                                <label class="form-check-label" for="mobygamesFieldReleaseYear">Release Date</label>
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldGenres" data-field="genres" checked>
+                                                <label class="form-check-label" for="mobygamesFieldGenres">Genre</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary" id="selectAllMobygamesFields">
+                                        <i class="bi bi-check-all me-1"></i>Select All
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="deselectAllMobygamesFields">
+                                        <i class="bi bi-x-square me-1"></i>Deselect All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Information -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> These settings control how the MobyGames scraping process behaves. MobyGames uses local JSON databases, so no API credentials are required. When disabled, only empty fields will be populated. Changes are applied immediately and will affect all future MobyGames scraping operations.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Application Configuration Modal -->
     <div class="modal fade" id="appConfigurationModal" tabindex="-1" aria-labelledby="appConfigurationModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -2193,11 +2343,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <table class="table table-sm table-striped table-hover compact-table" id="systemsTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 15%">System</th>
-                                    <th style="width: 20%">Launchbox</th>
-                                    <th style="width: 20%">Screenscraper</th>
-                                    <th style="width: 20%">IGDB</th>
-                                    <th style="width: 40%">Extensions</th>
+                                    <th style="width: 12%">System</th>
+                                    <th style="width: 15%">Launchbox</th>
+                                    <th style="width: 15%">Screenscraper</th>
+                                    <th style="width: 15%">IGDB</th>
+                                    <th style="width: 15%">MobyGames</th>
+                                    <th style="width: 28%">Extensions</th>
                                 </tr>
                             </thead>
                             <tbody id="systemsTableBody">
@@ -2264,6 +2415,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="steamgriddb-tab" data-bs-toggle="tab" data-bs-target="#steamgriddb" type="button" role="tab" aria-controls="steamgriddb" aria-selected="false">
                                 <i class="bi bi-steam me-2"></i>SteamGridDB
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="mobygames-tab" data-bs-toggle="tab" data-bs-target="#mobygames" type="button" role="tab" aria-controls="mobygames" aria-selected="false">
+                                <i class="bi bi-database me-2"></i>MobyGames
                             </button>
                         </li>
                     </ul>
@@ -2551,6 +2707,62 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                             </button>
                                                             <button type="button" class="btn btn-outline-secondary btn-sm" id="testSteamgriddbConnectionBtn">
                                                                 <i class="bi bi-wifi me-1"></i>Test
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- MobyGames Tab -->
+                        <div class="tab-pane fade" id="mobygames" role="tabpanel" aria-labelledby="mobygames-tab">
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <h6>MobyGames Field Mappings</h6>
+                                    <p class="text-muted small">Configure which MobyGames fields map to gamelist.xml fields. These mappings determine how MobyGames data is applied to your games.</p>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped table-hover compact-table" id="mobygamesMappingsTable">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 50%">Gamelist Field</th>
+                                                <th style="width: 50%">MobyGames Field</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="mobygamesMappingsTableBody">
+                                            <!-- Mappings will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-muted small mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    <strong>Note:</strong> MobyGames uses local JSON databases. No API credentials are required.
+                                </div>
+                                
+                                <!-- MobyGames Database Status -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <h6><i class="bi bi-database me-2"></i>MobyGames Database Status</h6>
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-8">
+                                                        <div class="mb-3">
+                                                            <label class="form-label">Available Systems</label>
+                                                            <div id="mobygamesSystemsList" class="text-muted">
+                                                                <i class="bi bi-hourglass-split me-1"></i>Loading systems...
+                                                            </div>
+                                                            <div class="form-text">Systems with available MobyGames databases in var/db/mobygames/</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <div class="d-flex gap-2">
+                                                            <button type="button" class="btn btn-outline-primary btn-sm" id="refreshMobygamesSystemsBtn">
+                                                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
                                                             </button>
                                                         </div>
                                                     </div>

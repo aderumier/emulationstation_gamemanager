@@ -72,6 +72,16 @@ class GameCollectionManager {
         // Grid refresh tracking for completed tasks
         this.processedGridRefreshTasks = new Set();
         
+        // Systems configuration cache
+        this.systemsConfigCache = {
+            platforms: null,
+            screenscraperSystems: null,
+            igdbPlatforms: null,
+            mobygamesSystems: null,
+            lastUpdated: null,
+            cacheTimeout: 5 * 60 * 1000 // 5 minutes
+        };
+        
         // Task panel resizing
         this.taskPanelResizing = false;
         this.taskPanelStartHeight = 0;
@@ -127,6 +137,9 @@ class GameCollectionManager {
         
         // Initialize ScreenScraper configuration modal
         this.initializeScreenscraperConfigModal();
+        
+        // Initialize MobyGames configuration modal
+        this.initializeMobygamesConfigModal();
         
         // Initialize SteamGridDB configuration modal
         this.initializeSteamgriddbConfigModal();
@@ -1455,6 +1468,8 @@ class GameCollectionManager {
         } else {
         }
         
+        document.getElementById('scrapMobygamesBtn').addEventListener('click', () => this.scrapMobygames());
+        
         document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
@@ -2326,6 +2341,21 @@ class GameCollectionManager {
                     headerTooltip: 'SteamGridDB Game ID for media downloads. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#e2e3e5',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em'
+                    }
+                },
+                { 
+                    field: 'mobygamesid', 
+                    headerName: 'MobyGames ID', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true, 
+                    resizable: true, 
+                    flex: 1,
+                    headerTooltip: 'MobyGames Database ID for exact matching. Auto-populated when scraping.',
+                    cellStyle: { 
+                        backgroundColor: '#f8d7da',
                         fontFamily: 'monospace',
                         fontSize: '0.9em'
                     }
@@ -3333,6 +3363,7 @@ class GameCollectionManager {
         document.getElementById('editScreenscraperId').value = game.screenscraperid || '';
         document.getElementById('editSteamId').value = game.steamid || '';
         document.getElementById('editSteamgridid').value = game.steamgridid || '';
+        document.getElementById('editMobygamesid').value = game.mobygamesid || '';
         document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
         // Populate the media tab with the same media display as the preview panel
@@ -3361,6 +3392,9 @@ class GameCollectionManager {
         
         // Initialize SteamGridDB search button for edit modal
         this.initializeEditModalSteamgridSearch();
+        
+        // Initialize MobyGames search button for edit modal
+        this.initializeEditModalMobygamesSearch();
         
         // Initialize YouTube preview button for edit modal
         this.initializeEditModalYoutubePreview();
@@ -4453,6 +4487,7 @@ class GameCollectionManager {
         game.screenscraperid = document.getElementById('editScreenscraperId').value;
         game.steamid = document.getElementById('editSteamId').value;
         game.steamgridid = document.getElementById('editSteamgridid').value;
+        game.mobygamesid = document.getElementById('editMobygamesid').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
 
         // Detect which fields changed
@@ -4470,6 +4505,7 @@ class GameCollectionManager {
         if (originalGame.screenscraperid !== game.screenscraperid) changedFields.push('screenscraperid');
         if (originalGame.steamid !== game.steamid) changedFields.push('steamid');
         if (originalGame.steamgridid !== game.steamgridid) changedFields.push('steamgridid');
+        if (originalGame.mobygamesid !== game.mobygamesid) changedFields.push('mobygamesid');
         if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
 
         try {
@@ -5495,6 +5531,133 @@ class GameCollectionManager {
         
         // Show the SteamGridDB search modal
         this.showSteamgridSearchModal(gameName, systemName);
+    }
+    
+    async showGameEditMobygamesSearch() {
+        // Get current game data from edit modal
+        const gameName = document.getElementById('editName').value;
+        const systemName = this.currentSystem;
+        
+        if (!gameName || !systemName) {
+            this.showAlert('Please select a game and system first', 'warning');
+            return;
+        }
+        
+        // Store current modal context
+        this.currentModalContext = 'gameEdit';
+        this.currentModalData = {
+            name: gameName,
+            system: systemName
+        };
+        
+        // Show the MobyGames search modal
+        this.showMobygamesSearchModal(gameName, systemName);
+    }
+    
+    async showMobygamesSearchModal(gameName, systemName) {
+        // Set the game name in the modal
+        document.getElementById('mobygamesSearchGameName').textContent = gameName;
+        
+        // Store system name for use in results display
+        this.currentMobygamesSearchSystem = systemName;
+        
+        // Clear previous results
+        document.getElementById('mobygamesSearchResults').innerHTML = '';
+        document.getElementById('mobygamesSearchError').style.display = 'none';
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('mobygamesSearchModal'));
+        modal.show();
+        
+        // Show spinner
+        document.getElementById('mobygamesSearchSpinner').style.display = 'inline-block';
+        
+        try {
+            // Search for games in MobyGames
+            const response = await fetch('/api/mobygames/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: systemName,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('mobygamesSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displayMobygamesSearchResults(result.games);
+            } else {
+                this.showMobygamesSearchError(result.error || 'Failed to search MobyGames games');
+            }
+            
+        } catch (error) {
+            document.getElementById('mobygamesSearchSpinner').style.display = 'none';
+            this.showMobygamesSearchError('Error searching MobyGames games: ' + error.message);
+        }
+    }
+    
+    displayMobygamesSearchResults(games) {
+        const resultsContainer = document.getElementById('mobygamesSearchResults');
+        
+        if (!games || games.length === 0) {
+            resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in MobyGames database.</div></div>';
+            return;
+        }
+        
+        let html = '';
+        games.forEach((game, index) => {
+            const score = game.score ? ` (${(game.score * 100).toFixed(1)}% match)` : '';
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">${game.title}${score}</h6>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    <strong>ID:</strong> ${game.id}<br>
+                                    <strong>System:</strong> ${game.system}
+                                </small>
+                            </p>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn btn-danger btn-sm w-100" onclick="gameManager.selectMobygamesGame('${game.id}', '${game.title.replace(/'/g, "\\'")}')">
+                                <i class="bi bi-check-circle me-1"></i>Select This Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+    }
+    
+    showMobygamesSearchError(message) {
+        const errorContainer = document.getElementById('mobygamesSearchError');
+        errorContainer.innerHTML = message;
+        errorContainer.style.display = 'block';
+    }
+    
+    selectMobygamesGame(gameId, gameTitle) {
+        // Set the MobyGames ID in the edit modal
+        document.getElementById('editMobygamesid').value = gameId;
+        
+        // Close the search modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('mobygamesSearchModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // Show success message
+        this.showAlert(`MobyGames ID set to ${gameId} for "${gameTitle}"`, 'success');
     }
     
     async showSteamgridSearchModal(gameName, systemName) {
@@ -7513,6 +7676,15 @@ class GameCollectionManager {
         }
     }
     
+    initializeEditModalMobygamesSearch() {
+        const modalFindMobygamesMatchBtn = document.getElementById('modalFindMobygamesMatchBtn');
+        if (modalFindMobygamesMatchBtn) {
+            modalFindMobygamesMatchBtn.addEventListener('click', () => {
+                this.showGameEditMobygamesSearch();
+            });
+        }
+    }
+    
     initializeEditModalYoutubePreview() {
         const modalPreviewYoutubeBtn = document.getElementById('modalPreviewYoutubeBtn');
         if (modalPreviewYoutubeBtn) {
@@ -8349,6 +8521,15 @@ class GameCollectionManager {
             });
         } else {
         }
+        
+        // Add event listener for opening MobyGames modal
+        const openMobygamesModal = document.getElementById('openMobygamesModal');
+        if (openMobygamesModal) {
+            openMobygamesModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openMobygamesScrapPreferencesModal();
+            });
+        }
 
         // Add event listener for opening Systems modal
         const openSystemsModal = document.getElementById('openSystemsModal');
@@ -8784,6 +8965,98 @@ class GameCollectionManager {
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('screenscraperConfigurationModal'));
         modal.show();
+    }
+    
+    async openMobygamesScrapPreferencesModal() {
+        // Load current settings before opening modal
+        this.loadMobygamesSettings();
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('mobygamesConfigurationModal'));
+        modal.show();
+    }
+    
+    loadMobygamesSettings() {
+        // Load saved settings from cookies
+        const overwriteTextFields = this.getCookie('overwriteTextFieldsMobygames') === 'true';
+        const overwriteMediaFields = this.getCookie('overwriteMediaFieldsMobygames') === 'true';
+        
+        // Set checkbox states
+        const overwriteTextFieldsCheckbox = document.getElementById('overwriteTextFieldsMobygamesModal');
+        const overwriteMediaFieldsCheckbox = document.getElementById('overwriteMediaFieldsMobygamesModal');
+        
+        if (overwriteTextFieldsCheckbox) {
+            overwriteTextFieldsCheckbox.checked = overwriteTextFields;
+        }
+        if (overwriteMediaFieldsCheckbox) {
+            overwriteMediaFieldsCheckbox.checked = overwriteMediaFields;
+        }
+        
+        // Add event listeners for immediate cookie saving
+        if (overwriteTextFieldsCheckbox) {
+            overwriteTextFieldsCheckbox.addEventListener('change', (e) => {
+                this.setCookie('overwriteTextFieldsMobygames', e.target.checked.toString(), 365);
+            });
+        }
+        if (overwriteMediaFieldsCheckbox) {
+            overwriteMediaFieldsCheckbox.addEventListener('change', (e) => {
+                this.setCookie('overwriteMediaFieldsMobygames', e.target.checked.toString(), 365);
+            });
+        }
+        
+        // Add event listeners for field selection
+        this.initializeMobygamesFieldCheckboxes();
+    }
+    
+    initializeMobygamesFieldCheckboxes() {
+        // Load saved field selections from cookies
+        const fieldCheckboxes = document.querySelectorAll('.mobygames-field-checkbox');
+        fieldCheckboxes.forEach(checkbox => {
+            const field = checkbox.dataset.field;
+            const savedState = this.getCookie(`mobygamesField_${field}`);
+            if (savedState !== null) {
+                checkbox.checked = savedState === 'true';
+            }
+            
+            // Add event listeners for field checkboxes
+            checkbox.addEventListener('change', (e) => {
+                // Save field selection to cookies
+                this.setCookie(`mobygamesField_${field}`, e.target.checked.toString(), 365);
+            });
+        });
+        
+        // Add select all/deselect all functionality
+        const selectAllBtn = document.getElementById('selectAllMobygamesFields');
+        const deselectAllBtn = document.getElementById('deselectAllMobygamesFields');
+        
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                fieldCheckboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                    const field = checkbox.dataset.field;
+                    this.setCookie(`mobygamesField_${field}`, 'true', 365);
+                });
+            });
+        }
+        
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', () => {
+                fieldCheckboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                    const field = checkbox.dataset.field;
+                    this.setCookie(`mobygamesField_${field}`, 'false', 365);
+                });
+            });
+        }
+        
+        // Load saved field selections
+        fieldCheckboxes.forEach(checkbox => {
+            const field = checkbox.dataset.field;
+            const saved = this.getCookie(`mobygamesField_${field}`);
+            if (saved !== null) {
+                checkbox.checked = saved === 'true';
+            }
+        });
     }
     
     loadScreenscraperSettings() {
@@ -9573,11 +9846,12 @@ class GameCollectionManager {
                     <table class="table table-sm table-striped table-hover compact-table" id="systemsTable">
                         <thead>
                             <tr>
-                                <th style="width: 15%">System</th>
-                                <th style="width: 20%">Launchbox</th>
-                                <th style="width: 20%">Screenscraper</th>
-                                <th style="width: 20%">IGDB</th>
-                                <th style="width: 40%">Extensions</th>
+                                <th style="width: 12%">System</th>
+                                <th style="width: 15%">Launchbox</th>
+                                <th style="width: 15%">Screenscraper</th>
+                                <th style="width: 15%">IGDB</th>
+                                <th style="width: 15%">MobyGames</th>
+                                <th style="width: 28%">Extensions</th>
                             </tr>
                         </thead>
                         <tbody id="systemsTableBody">
@@ -9621,7 +9895,7 @@ class GameCollectionManager {
         // Event delegation for dynamically created elements
         const systemsTable = document.getElementById('systemsTable');
         if (systemsTable) {
-            // Handle platform, ScreenScraper, and IGDB select changes
+            // Handle platform, ScreenScraper, IGDB, and MobyGames select changes
             systemsTable.addEventListener('change', (e) => {
                 if (e.target.classList.contains('platform-select')) {
                     const systemName = e.target.dataset.system;
@@ -9635,6 +9909,10 @@ class GameCollectionManager {
                     const systemName = e.target.dataset.system;
                     const value = e.target.value;
                     this.saveInlineField(systemName, 'igdb', value);
+                } else if (e.target.classList.contains('mobygames-select')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'mobygames', value);
                 }
             });
             
@@ -9663,6 +9941,21 @@ class GameCollectionManager {
         }
     }
     
+    isSystemsConfigCacheValid() {
+        if (!this.systemsConfigCache.lastUpdated) return false;
+        const now = Date.now();
+        return (now - this.systemsConfigCache.lastUpdated) < this.systemsConfigCache.cacheTimeout;
+    }
+    
+    clearSystemsConfigCache() {
+        this.systemsConfigCache.platforms = null;
+        this.systemsConfigCache.screenscraperSystems = null;
+        this.systemsConfigCache.igdbPlatforms = null;
+        this.systemsConfigCache.mobygamesSystems = null;
+        this.systemsConfigCache.lastUpdated = null;
+        console.log('Cleared systems configuration cache');
+    }
+    
     async populateSystemsTable(systems) {
         // First, restore the original modal structure
         this.restoreSystemsModalStructure();
@@ -9673,35 +9966,74 @@ class GameCollectionManager {
         const tbody = document.getElementById('systemsTableBody');
         if (!tbody) return;
         
+        // Check if we have valid cached data
+        if (this.isSystemsConfigCacheValid() && 
+            this.systemsConfigCache.platforms && 
+            this.systemsConfigCache.screenscraperSystems && 
+            this.systemsConfigCache.igdbPlatforms && 
+            this.systemsConfigCache.mobygamesSystems) {
+            
+            console.log('Using cached systems configuration data');
+            // Load systems data for cached version
+            fetch('/api/systems').then(response => response.json()).then(data => {
+                if (data.success) {
+                    this.populateSystemsTableWithData(
+                        this.systemsConfigCache.platforms,
+                        this.systemsConfigCache.screenscraperSystems,
+                        this.systemsConfigCache.igdbPlatforms,
+                        this.systemsConfigCache.mobygamesSystems,
+                        data.systems
+                    );
+                } else {
+                    throw new Error('Failed to load systems data');
+                }
+            }).catch(error => {
+                console.error('Error loading systems data for cached version:', error);
+                // Fall back to loading fresh data
+                this.loadSystemsData();
+            });
+            return;
+        }
+        
         // Show loading message while fetching platform data
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center py-4">
+                <td colspan="6" class="text-center py-4">
                     <div class="d-flex align-items-center justify-content-center">
                         <div class="spinner-border spinner-border-sm me-2" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <span>Loading platform data from ScreenScraper and IGDB APIs...</span>
+                        <span>Loading platform data from ScreenScraper, IGDB, and MobyGames APIs...</span>
                     </div>
                 </td>
             </tr>
         `;
         
-        // Load LaunchBox platforms, ScreenScraper systems, and IGDB platforms for comboboxes
-        let platforms = [], screenscraperSystems = [], igdbPlatforms = [];
+        // Load LaunchBox platforms, ScreenScraper systems, IGDB platforms, and MobyGames systems for comboboxes
+        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [];
         
         try {
-            [platforms, screenscraperSystems, igdbPlatforms] = await Promise.all([
+            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems] = await Promise.all([
                 this.loadLaunchBoxPlatforms(),
                 this.loadScreenScraperSystems(),
-                this.loadIgdbPlatforms()
+                this.loadIgdbPlatforms(),
+                this.loadMobygamesSystems()
             ]);
+
+            // Cache the results
+            this.systemsConfigCache.platforms = platforms;
+            this.systemsConfigCache.screenscraperSystems = screenscraperSystems;
+            this.systemsConfigCache.igdbPlatforms = igdbPlatforms;
+            this.systemsConfigCache.mobygamesSystems = mobygamesSystems;
+            this.systemsConfigCache.lastUpdated = Date.now();
+            
+            console.log('Cached systems configuration data');
 
         } catch (error) {
             // Show error message
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center py-4">
+                    <td colspan="6" class="text-center py-4">
                         <div class="alert alert-warning mb-0">
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             Error loading platform data. Some comboboxes may be empty.
@@ -9712,9 +10044,39 @@ class GameCollectionManager {
             return;
         }
         
+        // Load systems data and populate table
+        this.loadSystemsData().then(() => {
+            // Get systems data from the API
+            return fetch('/api/systems').then(response => response.json());
+        }).then(data => {
+            if (data.success) {
+                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, data.systems);
+            } else {
+                throw new Error('Failed to load systems data');
+            }
+        }).catch(error => {
+            console.error('Error loading systems config:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Error loading systems configuration.
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+    
+    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, systems) {
+        const tbody = document.getElementById('systemsTableBody');
+        if (!tbody) return;
+        
         // Clear loading message and populate table
         tbody.innerHTML = '';
         
+        // Use the systems data passed as parameter
         Object.entries(systems).forEach(([systemName, systemData]) => {
             const row = document.createElement('tr');
             
@@ -9734,6 +10096,15 @@ class GameCollectionManager {
                     `<option value="${platform.id}" ${platform.id == systemData.igdb ? 'selected' : ''}>${platform.name}</option>`
                 ).join('')
                 : '<option value="" disabled>No IGDB platforms available (configure credentials to load)</option>';
+            
+            // Create MobyGames systems combobox options
+            const mobygamesOptions = mobygamesSystems.map(system => {
+                const isSelected = system === systemData.mobygames;
+                if (isSelected) {
+                    console.log(`MobyGames: Selected ${system} for ${systemName} (${systemData.mobygames})`);
+                }
+                return `<option value="${system}" ${isSelected ? 'selected' : ''}>${system}</option>`;
+            }).join('');
             
             row.innerHTML = `
                 <td>
@@ -9766,6 +10137,14 @@ class GameCollectionManager {
                             data-field="igdb">
                         <option value="">Select Platform...</option>
                         ${igdbOptions}
+                    </select>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm mobygames-select" 
+                            data-system="${systemName}"
+                            data-field="mobygames">
+                        <option value="">Select Platform...</option>
+                        ${mobygamesOptions}
                     </select>
                 </td>
                 <td>
@@ -9838,6 +10217,27 @@ class GameCollectionManager {
         }
     }
     
+    async loadMobygamesSystems() {
+        try {
+            const response = await fetch('/api/mobygames-systems');
+            
+            if (!response.ok) {
+                return [];
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.systems) {
+                // Sort systems alphabetically
+                return data.systems.sort((a, b) => a.localeCompare(b));
+            } else {
+                return [];
+            }
+        } catch (error) {
+            return [];
+        }
+    }
+    
     async saveInlineField(systemName, field, value) {
         try {
             // Get current system data
@@ -9885,6 +10285,9 @@ class GameCollectionManager {
             const saveData = await saveResponse.json();
             
             if (saveData.success) {
+                // Clear systems configuration cache since data changed
+                this.clearSystemsConfigCache();
+                
                 // Show subtle success feedback
                 const input = document.querySelector(`[data-system="${systemName}"][data-field="${field}"]`);
                 if (input) {
@@ -10137,7 +10540,7 @@ class GameCollectionManager {
         // Event delegation for dynamically created elements
         const systemsTable = document.getElementById('systemsTable');
         if (systemsTable) {
-            // Handle platform, ScreenScraper, and IGDB select changes
+            // Handle platform, ScreenScraper, IGDB, and MobyGames select changes
             systemsTable.addEventListener('change', (e) => {
                 if (e.target.classList.contains('platform-select')) {
                     const systemName = e.target.dataset.system;
@@ -10151,6 +10554,10 @@ class GameCollectionManager {
                     const systemName = e.target.dataset.system;
                     const value = e.target.value;
                     this.saveInlineField(systemName, 'igdb', value);
+                } else if (e.target.classList.contains('mobygames-select')) {
+                    const systemName = e.target.dataset.system;
+                    const value = e.target.value;
+                    this.saveInlineField(systemName, 'mobygames', value);
                 }
             });
             
@@ -11441,6 +11848,54 @@ class GameCollectionManager {
             });
         }
     }
+    
+    initializeMobygamesConfigModal() {
+        // Refresh button
+        const refreshMobygamesSystemsBtn = document.getElementById('refreshMobygamesSystemsBtn');
+        if (refreshMobygamesSystemsBtn) {
+            refreshMobygamesSystemsBtn.addEventListener('click', () => {
+                this.loadMobygamesSystemsData();
+            });
+        }
+        
+        // Load initial data
+        this.loadMobygamesSystemsData();
+    }
+    
+    async loadMobygamesSystemsData() {
+        try {
+            const systemsList = document.getElementById('mobygamesSystemsList');
+            if (systemsList) {
+                systemsList.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading systems...';
+                
+                // Get available systems from the config
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                const systems = config.systems || {};
+                
+                // Filter systems that have MobyGames configuration
+                const mobygamesSystems = Object.entries(systems)
+                    .filter(([key, value]) => value.mobygames)
+                    .map(([key, value]) => ({ key, name: value.mobygames }));
+                
+                if (mobygamesSystems.length > 0) {
+                    const systemsHtml = mobygamesSystems.map(system => 
+                        `<span class="badge bg-primary me-1 mb-1">${system.name}</span>`
+                    ).join('');
+                    systemsList.innerHTML = systemsHtml;
+                } else {
+                    systemsList.innerHTML = '<span class="text-muted">No MobyGames systems configured</span>';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading MobyGames systems:', error);
+            const systemsList = document.getElementById('mobygamesSystemsList');
+            if (systemsList) {
+                systemsList.innerHTML = '<span class="text-danger">Error loading systems</span>';
+            }
+        }
+    }
+    
     initializeSteamgriddbConfigModal() {
         // Refresh button
         const refreshSteamgriddbMappingsBtn = document.getElementById('refreshSteamgriddbMappingsBtn');
@@ -13155,6 +13610,11 @@ class GameCollectionManager {
             screenscraperBtn.disabled = false; // Allow ScreenScraper scraping
         } else {
         }
+        
+        const mobygamesBtn = document.getElementById('scrapMobygamesBtn');
+        if (mobygamesBtn) {
+            mobygamesBtn.disabled = false; // Allow MobyGames scraping
+        }
 
         // Update selection display
         this.updateSelectionDisplay();
@@ -13412,6 +13872,71 @@ class GameCollectionManager {
             // Restore button state
             const button = document.getElementById('scrapScreenscraperBtn');
             button.innerHTML = '<i class="bi bi-search"></i> ScreenScraper';
+            button.disabled = false;
+        }
+    }
+
+    async scrapMobygames() {
+        
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapMobygamesBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Get selected games
+            const selectedGames = this.gridApi.getSelectedRows().map(row => row.path);
+            
+            // Get selected fields from modal checkboxes
+            const selectedFields = [];
+            const fieldCheckboxes = document.querySelectorAll('.mobygames-field-checkbox:checked');
+            fieldCheckboxes.forEach(checkbox => {
+                selectedFields.push(checkbox.dataset.field);
+            });
+            
+            // mobygamesid is always scraped automatically, no need to include in selected_fields
+            
+            // Get overwrite settings from cookies
+            const overwriteTextFields = this.getCookie('overwriteTextFieldsMobygames') === 'true';
+            const overwriteMediaFields = this.getCookie('overwriteMediaFieldsMobygames') === 'true';
+            
+            const response = await fetch(`/api/scrap-mobygames/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    selected_games: selectedGames,
+                    selected_fields: selectedFields,
+                    overwrite_text_fields: overwriteTextFields,
+                    overwrite_media_fields: overwriteMediaFields
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert(`✅ MobyGames task started for ${this.currentSystem}`, 'success');
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Failed to start MobyGames task: ${result.error}`, 'danger');
+            }
+            
+        } catch (error) {
+            this.showAlert(`❌ Error starting MobyGames task: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapMobygamesBtn');
+            button.innerHTML = '<i class="bi bi-database"></i> MobyGames';
             button.disabled = false;
         }
     }

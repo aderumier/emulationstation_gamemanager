@@ -135,5 +135,14 @@
             "fanart": "hero",
             "image": "screenshot"
         }
+    },
+    "mobygames": {
+        "mapping": {
+            "title": "name",
+            "moby_score": "rating",
+            "release_year": "releasedate",
+            "genres": "genre"
+        },
+        "description": "MobyGames local database scrapper. Maps game data from local JSON databases to gamelist.xml fields."
     }
 }

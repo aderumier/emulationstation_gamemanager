@@ -8,7 +8,8 @@
         ],
         "launchbox": "Arcade",
         "igdb": 52,
-        "screenscraper": 75
+        "screenscraper": 75,
+        "mobygames": "Arcade"
     },
     "nes": {
         "extensions": [
@@ -19,7 +20,8 @@
         ],
         "launchbox": "Nintendo Entertainment System",
         "igdb": 18,
-        "screenscraper": 3
+        "screenscraper": 3,
+        "mobygames": "NES"
     },
     "snes": {
         "extensions": [
@@ -40,12 +42,14 @@
         ],
         "launchbox": "Super Nintendo Entertainment System",
         "igdb": 19,
-        "screenscraper": 4
+        "screenscraper": 4,
+        "mobygames": "SNES"
     },
     "windows": {
         "launchbox": "Windows",
         "screenscraper": 138,
         "igdb": 6,
+        "mobygames": "Windows_16-bit",
         "extensions": [
             ".bat",
             ".cmd",
@@ -69,7 +73,8 @@
         ],
         "launchbox": "Nintendo Game Boy Advance",
         "igdb": 24,
-        "screenscraper": 12
+        "screenscraper": 12,
+        "mobygames": "Game_Boy_Advance"
     },
     "gbc": {
         "extensions": [
@@ -743,6 +748,9 @@
         "screenscraper": 15
     },
     "amiga": {
+        "launchbox": "Commodore Amiga",
+        "screenscraper": 64,
+        "igdb": 16,
         "extensions": [
             ".ADF",
             ".IPF",
@@ -754,10 +762,7 @@
             ".mds",
             ".uae",
             ".zip"
-        ],
-        "launchbox": "Commodore Amiga",
-        "igdb": 16,
-        "screenscraper": 64
+        ]
     },
     "atarist": {
         "extensions": [
@@ -960,7 +965,7 @@
     "c16": {
         "launchbox": "Commodore VIC-20",
         "screenscraper": 73,
-        "igdb": null,
+        "igdb": "",
         "extensions": [
             ".7",
             ".7z",
@@ -1332,8 +1337,8 @@
     },
     "abc80": {
         "launchbox": "",
-        "screenscraper": null,
-        "igdb": null,
+        "screenscraper": "",
+        "igdb": "",
         "extensions": [
             ".mfi",
             ".dfi",
@@ -1520,7 +1525,7 @@
     "amiga3000": {
         "launchbox": "Commodore Amiga",
         "screenscraper": 111,
-        "igdb": null,
+        "igdb": "",
         "extensions": [
             ".7z",
             ".adf",
@@ -2041,7 +2046,7 @@
     "android": {
         "launchbox": "Android",
         "screenscraper": 63,
-        "igdb": null,
+        "igdb": "",
         "extensions": [
             ".apk",
             ".exe",
@@ -2715,7 +2720,7 @@
     "amiga600": {
         "launchbox": "Commodore Amiga",
         "screenscraper": 64,
-        "igdb": null,
+        "igdb": "",
         "extensions": [
             ".adf",
             ".adz",
@@ -2750,7 +2755,7 @@
     "amiga4000": {
         "launchbox": "Commodore Amiga",
         "screenscraper": 111,
-        "igdb": null,
+        "igdb": "",
         "extensions": [
             ".7z",
             ".adf",
@@ -3107,6 +3112,20 @@
             ".td0",
             ".wav",
             ".zip"
+        ]
+    },
+    "c64": {
+        "launchbox": "Commodore 64",
+        "screenscraper": "66",
+        "igdb": "15",
+        "extensions": [
+            ".crt",
+            ".d64",
+            ".t64",
+            ".D64",
+            ".T64",
+            ".prg",
+            ".PRG"
         ]
     }
 }

@@ -53,6 +53,7 @@ from collections import Counter
 from steam_service import SteamService
 from screenscraper_service import ScreenScraperService
 from steamgrid_service import SteamGridService
+from mobygames_service import MobyGamesService
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -2871,16 +2872,31 @@ def run_image_download_task(system_name, data):
                     if not current_value or (isinstance(current_value, str) and current_value.strip() == ''):
                         fields_to_download.append(field_name)
                 
+                # Filter fields_to_download to only include selected media fields
+                if selected_fields is not None and len(selected_fields) > 0:
+                    fields_to_download = [field for field in fields_to_download if field in selected_fields]
+                elif selected_fields is not None and len(selected_fields) == 0:
+                    # If selected_fields is explicitly empty, don't download any media
+                    fields_to_download = []
+                
                 if not fields_to_download:
                     skipped_count += 1
                     current_step = i + 1
                     progress_percent = int((current_step / len(games_to_process)) * 100)
-                    task.update_progress(f"⏭️  Skipping {game_name} - all media fields already populated", progress_percentage=progress_percent, current_step=current_step)
-                    results.append({
-                        'game': game_name,
-                        'status': 'skipped',
-                        'reason': 'All media fields already populated'
-                    })
+                    if selected_fields is not None and len(selected_fields) == 0:
+                        task.update_progress(f"⏭️  Skipping {game_name} - no media fields selected", progress_percentage=progress_percent, current_step=current_step)
+                        results.append({
+                            'game': game_name,
+                            'status': 'skipped',
+                            'reason': 'No media fields selected'
+                        })
+                    else:
+                        task.update_progress(f"⏭️  Skipping {game_name} - all media fields already populated", progress_percentage=progress_percent, current_step=current_step)
+                        results.append({
+                            'game': game_name,
+                            'status': 'skipped',
+                            'reason': 'All media fields already populated'
+                        })
                     continue
             
             # Add game task to the list
@@ -3566,6 +3582,8 @@ def parse_gamelist_xml(file_path):
                     game_data['igdbid'] = int(text) if text.isdigit() else None
                 elif tag == 'screenscraperid':
                     game_data['screenscraperid'] = int(text) if text.isdigit() else None
+                elif tag == 'mobygamesid':
+                    game_data['mobygamesid'] = text
                 elif tag == 'steamid':
                     game_data['steamid'] = int(text) if text.isdigit() else None
                 elif tag == 'steamgridid':
@@ -4089,6 +4107,53 @@ def get_igdb_platforms():
     except Exception as e:
         return jsonify({'error': f'Failed to get IGDB platforms: {str(e)}'}), 500
 
+@app.route('/api/mobygames-systems', methods=['GET'])
+@login_required
+def get_mobygames_systems():
+    """Get MobyGames systems from cache for GUI"""
+    try:
+        import json
+        import os
+        import glob
+        
+        # Use cached MobyGames service if available
+        if not hasattr(get_mobygames_systems, '_cached_service'):
+            config = load_config()
+            systems_config = load_systems_config()
+            from mobygames_service import MobyGamesService
+            get_mobygames_systems._cached_service = MobyGamesService(config, scrappers_config, systems_config)
+        
+        # Get available systems from the cached service
+        available_systems = get_mobygames_systems._cached_service.get_available_systems()
+        
+        return jsonify({
+            'success': True,
+            'systems': available_systems,
+            'count': len(available_systems)
+        })
+        
+    except Exception as e:
+        print(f"Error getting MobyGames systems: {e}")
+        return jsonify({'error': f'Failed to get MobyGames systems: {str(e)}'}), 500
+
+@app.route('/api/mobygames-systems/clear-cache', methods=['POST'])
+@login_required
+def clear_mobygames_cache():
+    """Clear MobyGames systems cache"""
+    try:
+        # Clear the cached service
+        if hasattr(get_mobygames_systems, '_cached_service'):
+            delattr(get_mobygames_systems, '_cached_service')
+        
+        return jsonify({
+            'success': True,
+            'message': 'MobyGames cache cleared successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error clearing MobyGames cache: {e}")
+        return jsonify({'error': f'Failed to clear MobyGames cache: {str(e)}'}), 500
+
 @app.route('/api/igdb-credentials-values', methods=['GET'])
 @login_required
 def get_igdb_credentials_values():
@@ -4173,22 +4238,38 @@ def get_missing_systems():
         current_systems_config = load_systems_config()
         configured_systems = set(current_systems_config.keys())
         
+        # ROM file extensions (optimized as set for faster lookup)
+        ROM_EXTENSIONS = {'.zip', '.7z', '.rar', '.iso', '.bin', '.cue', '.chd', '.gcm', '.wbfs', '.ciso', '.wad', '.nsp', '.xci', '.3ds', '.cia', '.nds', '.gba', '.gb', '.gbc', '.nes', '.smc', '.sfc', '.md', '.gen', '.sms', '.gg', '.pce', '.sgx', '.ws', '.wsc', '.ngp', '.ngc', '.vb', '.lynx', '.jag', '.a26', '.a52', '.a78', '.col', '.int', '.cv', '.sg', '.fds', '.msx', '.c64', '.amiga', '.pc', '.dos', '.win', '.mac', '.linux', '.android', '.ios', '.psp', '.psvita', '.psx', '.ps2', '.ps3', '.ps4', '.xbox', '.xbox360', '.xboxone', '.wii', '.wiiu', '.switch', '.ds', '.3ds', '.gb', '.gbc', '.gba', '.nds', '.wsquashfs'}
+        
         # Get all systems from roms/ directory
         rom_systems = []
         if os.path.exists(ROMS_FOLDER):
             for system_name in os.listdir(ROMS_FOLDER):
                 system_path = os.path.join(ROMS_FOLDER, system_name)
-                if os.path.isdir(system_path) and system_name not in configured_systems:
-                    # Count ROM files in the directory
-                    rom_count = 0
-                    try:
-                        for root, dirs, files in os.walk(system_path):
-                            for file in files:
-                                if any(file.lower().endswith(ext.lower()) for ext in ['.zip', '.7z', '.rar', '.iso', '.bin', '.cue', '.chd', '.gcm', '.wbfs', '.ciso', '.wad', '.nsp', '.xci', '.3ds', '.cia', '.nds', '.gba', '.gb', '.gbc', '.nes', '.smc', '.sfc', '.md', '.gen', '.sms', '.gg', '.pce', '.sgx', '.ws', '.wsc', '.ngp', '.ngc', '.vb', '.lynx', '.jag', '.a26', '.a52', '.a78', '.col', '.int', '.cv', '.sg', '.fds', '.msx', '.c64', '.amiga', '.pc', '.dos', '.win', '.mac', '.linux', '.android', '.ios', '.psp', '.psvita', '.psx', '.ps2', '.ps3', '.ps4', '.xbox', '.xbox360', '.xboxone', '.wii', '.wiiu', '.switch', '.ds', '.3ds', '.gb', '.gbc', '.gba', '.nds', '.wsquashfs']):
-                                    rom_count += 1
-                    except Exception as e:
-                        print(f"Error counting ROMs in {system_path}: {e}")
-                    
+                # Skip if not a directory or already configured
+                if not os.path.isdir(system_path) or system_name in configured_systems:
+                    continue
+                
+                # Count ROM files in the directory (stop after 5 for performance)
+                rom_count = 0
+                try:
+                    for root, dirs, files in os.walk(system_path):
+                        for file in files:
+                            # Check if file has a ROM extension
+                            if any(file.lower().endswith(ext) for ext in ROM_EXTENSIONS):
+                                rom_count += 1
+                                # Stop counting after 5 ROMs for performance
+                                if rom_count >= 5:
+                                    break
+                        # Break outer loop if we've reached 5 ROMs
+                        if rom_count >= 5:
+                            break
+                except Exception as e:
+                    print(f"Error counting ROMs in {system_path}: {e}")
+                    continue
+                
+                # Only include systems that have at least 1 ROM
+                if rom_count > 0:
                     rom_systems.append({
                         'name': system_name,
                         'rom_count': rom_count,
@@ -5050,6 +5131,110 @@ def scrap_screenscraper_system(system_name):
     except Exception as e:
         print(f"Error starting ScreenScraper task: {e}")
         return jsonify({'error': f'Failed to start ScreenScraper task: {str(e)}'}), 500
+
+@app.route('/api/scrap-mobygames/<system_name>', methods=['POST'])
+@login_required
+def scrap_mobygames_system(system_name):
+    """Start MobyGames task for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        overwrite_text_fields = data.get('overwrite_text_fields', False)
+        overwrite_media_fields = data.get('overwrite_media_fields', False)
+        
+        print(f"🔧 DEBUG: MobyGames API - selected_games: {len(selected_games)} games")
+        print(f"🔧 DEBUG: MobyGames API - selected_fields: {selected_fields}")
+        print(f"🔧 DEBUG: MobyGames API - overwrite_text_fields: {overwrite_text_fields}")
+        print(f"🔧 DEBUG: MobyGames API - overwrite_media_fields: {overwrite_media_fields}")
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
+        }
+        username = current_user.username if current_user.is_authenticated else 'anonymous'
+        task = add_task_to_queue('mobygames', task_data, username)
+        
+        # Start the task in a separate thread
+        import threading
+        thread = threading.Thread(target=run_mobygames_task, args=(
+            system_name, 
+            task.id, 
+            selected_games, 
+            selected_fields, 
+            overwrite_text_fields, 
+            overwrite_media_fields
+        ))
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'MobyGames task started', 
+            'task_id': task.id,
+            'system': system_name
+        })
+        
+    except Exception as e:
+        print(f"Error starting MobyGames task: {e}")
+        return jsonify({'error': f'Failed to start MobyGames task: {str(e)}'}), 500
+
+@app.route('/api/mobygames/search', methods=['POST'])
+@login_required
+def search_mobygames_games():
+    """Search for games in MobyGames database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        system_name = data.get('system_name', '').strip()
+        limit = data.get('limit', 10)
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Load config
+        config = load_config()
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        mobygames_system = system_config.get('mobygames')
+        
+        if not mobygames_system:
+            return jsonify({'error': f'No MobyGames system configured for system "{system_name}"'}), 400
+        
+        # Import MobyGames service
+        from mobygames_service import MobyGamesService
+        
+        # Create MobyGames service
+        mobygames_service = MobyGamesService(config, scrappers_config, systems_config)
+        
+        # Search for games
+        games = mobygames_service.search_games(system_name, game_name, limit)
+        
+        return jsonify({
+            'success': True,
+            'games': games,
+            'count': len(games)
+        })
+        
+    except Exception as e:
+        print(f"Error searching MobyGames games: {e}")
+        return jsonify({'error': f'Failed to search MobyGames games: {str(e)}'}), 500
 
 @app.route('/api/scrap-steam/<system_name>', methods=['POST'])
 @login_required
@@ -7009,9 +7194,12 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         field_to_launchbox_types[gamelist_field] = launchbox_types
     
     # Filter fields_to_download to only include selected media fields
-    if selected_fields:
+    if selected_fields is not None and len(selected_fields) > 0:
         selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_types.keys()]
         fields_to_download = [field for field in fields_to_download if field in selected_media_fields]
+    elif selected_fields is not None and len(selected_fields) == 0:
+        # If selected_fields is explicitly empty, don't download any media
+        fields_to_download = []
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
@@ -17470,6 +17658,213 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
     
     thread = threading.Thread(target=run_async, daemon=True)
     thread.start()
+
+def run_mobygames_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
+    """Run MobyGames task for a specific system"""
+    print(f"🔧 DEBUG: run_mobygames_task called with - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+    
+    try:
+        print(f"Starting MobyGames task for system: {system_name}")
+        
+        # Load config
+        config = load_config()
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        mobygames_system = system_config.get('mobygames')
+        
+        if not mobygames_system:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"No MobyGames system configured for system: {system_name}")
+            return
+        
+        # Initialize MobyGames service
+        from mobygames_service import MobyGamesService
+        service = MobyGamesService(config, scrappers_config, systems_config)
+        
+        # Add field selection settings to config
+        mobygames_config = scrappers_config.get('mobygames', {})
+        mobygames_config['selected_fields'] = selected_fields or []
+        mobygames_config['overwrite_text_fields'] = overwrite_text_fields
+        mobygames_config['overwrite_media_fields'] = overwrite_media_fields
+        
+        print(f"🔧 DEBUG: MobyGames task - selected_fields: {selected_fields}")
+        print(f"🔧 DEBUG: MobyGames task - overwrite_text_fields: {overwrite_text_fields}")
+        print(f"🔧 DEBUG: MobyGames task - overwrite_media_fields: {overwrite_media_fields}")
+        
+        # Load games for the system
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"Gamelist not found for system: {system_name}")
+            return
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"No games found for system: {system_name}")
+            return
+        
+        # Filter games if selection is provided
+        if selected_games:
+            selected_paths = set(selected_games)
+            games_to_process = [game for game in all_games if game['path'] in selected_paths]
+        else:
+            games_to_process = all_games
+        
+        total_games = len(games_to_process)
+        print(f"🎮 Processing {total_games} games for MobyGames scraping")
+        
+        # Update task with total count
+        t = get_task(task_id)
+        if t:
+            t.update_progress(0, f"Processing {total_games} games", current_step=0, total_steps=total_games)
+        
+        processed_count = 0
+        updated_count = 0
+        
+        for i, game in enumerate(games_to_process):
+            try:
+                game_name = game.get('name', '')
+                if not game_name:
+                    print(f"⚠️  Skipping game with no name: {game.get('path', 'Unknown')}")
+                    continue
+                
+                print(f"🔍 Searching MobyGames for: {game_name}")
+                
+                # Check if game already has mobygamesid - if so, use it directly
+                mobygames_game = None
+                if game.get('mobygamesid'):
+                    print(f"🎯 Game already has mobygamesid: {game['mobygamesid']}, looking up by ID")
+                    mobygames_game = service.find_game_by_id(system_name, game['mobygamesid'])
+                    if mobygames_game:
+                        print(f"✅ Found MobyGames game by ID: {mobygames_game.get('title', 'Unknown')}")
+                    else:
+                        print(f"❌ No MobyGames game found with ID: {game['mobygamesid']}")
+                
+                # If no mobygamesid or lookup by ID failed, try name matching
+                if not mobygames_game:
+                    print(f"🔍 No existing mobygamesid, searching by name: {game_name}")
+                    mobygames_game = service.find_game_exact(system_name, game_name)
+                
+                if mobygames_game:
+                    print(f"✅ Found MobyGames match for '{game_name}': {mobygames_game.get('title', 'Unknown')}")
+                    
+                    # Update game data based on mapping configuration and selected fields
+                    mapping = mobygames_config.get('mapping', {})
+                    selected_fields = mobygames_config.get('selected_fields', [])
+                    game_updated = False
+                    
+                    # Process all MobyGames fields using reverse lookup
+                    for mobygames_field, gamelist_field in mapping.items():
+                        # Skip field if not in selected fields
+                        if mobygames_field not in selected_fields:
+                            continue
+                        
+                        # Get the value from MobyGames data
+                        mobygames_value = mobygames_game.get(mobygames_field)
+                        if mobygames_value is None:
+                            continue
+                        
+                        # Special handling for title field (preserve ROM parentheses)
+                        if mobygames_field == 'title' and gamelist_field == 'name':
+                            # Extract parentheses from ROM filename
+                            rom_path = game.get('path', '')
+                            rom_filename = os.path.basename(rom_path) if rom_path else ''
+                            rom_name_without_ext = os.path.splitext(rom_filename)[0] if rom_filename else ''
+                            
+                            # Extract text between parentheses from ROM filename
+                            import re
+                            paren_match = re.search(r'\(([^)]+)\)', rom_name_without_ext)
+                            parentheses_text = paren_match.group(1) if paren_match else ''
+                            
+                            # Combine MobyGames title with parentheses from ROM filename
+                            if parentheses_text:
+                                final_value = f"{mobygames_value} ({parentheses_text})"
+                            else:
+                                final_value = mobygames_value
+                        else:
+                            # Use the value as-is for other fields
+                            final_value = mobygames_value
+                        
+                        # Apply field-specific transformations
+                        if mobygames_field == 'moby_score' and gamelist_field == 'rating':
+                            # Convert moby_score to 0-5 scale (assuming moby_score is 0-10)
+                            final_value = f"{(mobygames_value / 10.0) * 5.0:.1f}"
+                        elif mobygames_field == 'release_year' and gamelist_field == 'releasedate':
+                            # Convert year to ISO format (YYYY-01-01)
+                            final_value = f"{mobygames_value}-01-01"
+                        elif mobygames_field == 'genres' and gamelist_field == 'genre':
+                            # Join genres with comma
+                            if isinstance(mobygames_value, list):
+                                final_value = ', '.join(mobygames_value)
+                            else:
+                                final_value = str(mobygames_value)
+                        
+                        # Update the gamelist field if overwrite is enabled or field is empty
+                        current_value = game.get(gamelist_field, '')
+                        if (overwrite_text_fields or not current_value) and current_value != final_value:
+                            game[gamelist_field] = final_value
+                            game_updated = True
+                    
+                    # Set mobygamesid only if it doesn't exist yet
+                    if 'id' in mobygames_game and not game.get('mobygamesid'):
+                        game['mobygamesid'] = str(mobygames_game['id'])
+                        game_updated = True
+                    
+                    if game_updated:
+                        updated_count += 1
+                        print(f"✅ Updated game data for '{game_name}'")
+                        
+                        # Log the update
+                        t = get_task(task_id)
+                        if t:
+                            t.log_message(f"Updated '{game_name}' with MobyGames data")
+                else:
+                    print(f"❌ No MobyGames match found for '{game_name}'")
+                
+                processed_count += 1
+                
+                # Update progress
+                progress = int((processed_count / total_games) * 100)
+                t = get_task(task_id)
+                if t:
+                    t.update_progress(progress, f"Processed {processed_count}/{total_games} games", 
+                                    current_step=processed_count, total_steps=total_games)
+                
+            except Exception as e:
+                print(f"❌ Error processing game '{game.get('name', 'Unknown')}': {e}")
+                continue
+        
+        # Save updated gamelist
+        print(f"💾 Saving updated gamelist for {system_name}")
+        write_gamelist_xml(all_games, gamelist_path)
+        
+        # Complete the task
+        t = get_task(task_id)
+        if t:
+            # Set grid refresh flag and system name for frontend monitoring
+            t.grid_refresh_needed = True
+            t.data = {
+                'system_name': system_name,
+                'updated_count': updated_count,
+                'processed_count': processed_count
+            }
+            t.complete(True, f"MobyGames scraping completed. Updated {updated_count} games out of {processed_count} processed.")
+        
+        print(f"✅ MobyGames task completed for {system_name}. Updated {updated_count} games.")
+        
+    except Exception as e:
+        print(f"❌ Error in MobyGames task: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        t = get_task(task_id)
+        if t:
+            t.complete(False, f"MobyGames task failed: {str(e)}")
+
 # =============================================================================
 # IGDB Scraper API Routes
 # =============================================================================
