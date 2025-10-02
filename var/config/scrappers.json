@@ -143,6 +143,17 @@
             "release_year": "releasedate",
             "genres": "genre"
         },
+        "image_type_mappings": {
+            "boxart": [
+                "Front Cover"
+            ],
+            "boxback": [
+                "Back Cover"
+            ],
+            "cartridge": [
+                "Media"
+            ]
+        },
         "description": "MobyGames local database scrapper. Maps game data from local JSON databases to gamelist.xml fields."
     }
 }

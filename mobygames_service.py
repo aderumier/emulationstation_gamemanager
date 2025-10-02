@@ -25,6 +25,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from difflib import SequenceMatcher
 from game_utils import normalize_game_name, calculate_similarity
+from mobygames_web_service import MobyGamesWebServiceSync
 
 class MobyGamesService:
     def __init__(self, config: Dict, scrappers_config: Dict = None, systems_config: Dict = None):
@@ -35,6 +36,9 @@ class MobyGamesService:
         
         # MobyGames database path
         self.db_path = 'var/db/mobygames'
+        
+        # Web scraper service
+        self.web_service = MobyGamesWebServiceSync()
         
         # In-memory databases: {system: {gameid: {attributes}}}
         self.databases = {}
@@ -252,3 +256,60 @@ class MobyGamesService:
         # Sort by similarity and return top results
         results.sort(key=lambda x: x['score'], reverse=True)
         return results[:limit]
+    
+    def get_platform_short_name(self, system_name: str) -> Optional[str]:
+        """Get short platform name for a system from MobyGames platform mapping"""
+        return self.web_service.get_platform_short_name(system_name)
+    
+    def load_platform_mapping(self) -> Dict[str, str]:
+        """Load platform mapping from MobyGames website"""
+        return self.web_service.load_platform_mapping()
+    
+    def get_game_media(self, game_id: str, system_name: str) -> List[Dict[str, str]]:
+        """Get media URLs for a game from MobyGames website"""
+        try:
+            # Get MobyGames system name
+            mobygames_system = self.get_mobygames_system(system_name)
+            if not mobygames_system:
+                return []
+            
+            # Find game in database
+            if mobygames_system not in self.databases:
+                return []
+            
+            game_data = self.databases[mobygames_system].get(game_id)
+            if not game_data or 'url' not in game_data:
+                return []
+            
+            game_url = game_data['url']
+            platform_short = self.get_platform_short_name(system_name)
+            
+            if not platform_short:
+                return []
+            
+            # Get covers from web scraper
+            covers = self.web_service.get_game_covers(game_url, platform_short)
+            return covers
+            
+        except Exception as e:
+            self.logger.error(f"Error getting game media for {game_id}: {e}")
+            return []
+    
+    def download_game_media(self, game_id: str, system_name: str, media_type: str, 
+                           target_path: str, target_extension: str = 'jpg') -> bool:
+        """Download specific media type for a game"""
+        try:
+            covers = self.get_game_media(game_id, system_name)
+            
+            # Find cover matching the requested media type
+            for cover in covers:
+                if cover['type'].lower() == media_type.lower():
+                    return self.web_service.download_image(
+                        cover['url'], target_path, target_extension
+                    )
+            
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error downloading media for {game_id}: {e}")
+            return False

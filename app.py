@@ -17809,6 +17809,66 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                             game[gamelist_field] = final_value
                             game_updated = True
                     
+                    # Process media fields if media scraping is enabled
+                    if overwrite_media_fields and 'id' in mobygames_game:
+                        print(f"🖼️  Processing media for '{game_name}' (ID: {mobygames_game['id']})")
+                        
+                        try:
+                            # Load platform mapping if not already loaded
+                            if not service.web_service.platform_mapping:
+                                service.load_platform_mapping()
+                            
+                            # Get image type mappings
+                            image_type_mappings = mobygames_config.get('image_type_mappings', {})
+                            
+                            # Get system path for media storage
+                            system_path = get_system_path(system_name)
+                            if system_path and image_type_mappings:
+                                # Process each media type
+                                for gamelist_field, mobygames_types in image_type_mappings.items():
+                                    # Skip if field is not empty and we're not overwriting
+                                    if game.get(gamelist_field) and not overwrite_media_fields:
+                                        continue
+                                    
+                                    # Try to find matching cover type
+                                    for mobygames_type in mobygames_types:
+                                        try:
+                                            # Download the media
+                                            media_filename = f"{game_name}_{gamelist_field}.jpg"
+                                            # Sanitize filename
+                                            media_filename = re.sub(r'[<>:"/\\|?*]', '_', media_filename)
+                                            
+                                            media_path = os.path.join(system_path, 'media', gamelist_field, media_filename)
+                                            
+                                            # Create directory if it doesn't exist
+                                            os.makedirs(os.path.dirname(media_path), exist_ok=True)
+                                            
+                                            # Download the media
+                                            success = service.download_game_media(
+                                                str(mobygames_game['id']), 
+                                                system_name, 
+                                                mobygames_type, 
+                                                media_path
+                                            )
+                                            
+                                            if success:
+                                                # Update gamelist with relative path
+                                                relative_path = f"./media/{gamelist_field}/{media_filename}"
+                                                game[gamelist_field] = relative_path
+                                                game_updated = True
+                                                print(f"✅ Downloaded {gamelist_field} for '{game_name}': {relative_path}")
+                                                break  # Found and downloaded, move to next field
+                                                
+                                        except Exception as e:
+                                            print(f"❌ Error downloading {gamelist_field} for '{game_name}': {e}")
+                                            continue
+                            else:
+                                print(f"⚠️  Skipping media download - system_path: {system_path}, image_type_mappings: {bool(image_type_mappings)}")
+                                
+                        except Exception as e:
+                            print(f"❌ Error processing media for '{game_name}': {e}")
+                            # Continue with text processing even if media fails
+                    
                     # Set mobygamesid only if it doesn't exist yet
                     if 'id' in mobygames_game and not game.get('mobygamesid'):
                         game['mobygamesid'] = str(mobygames_game['id'])
