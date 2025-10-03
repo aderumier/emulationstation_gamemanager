@@ -13673,6 +13673,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         task.update_progress(f"  📁 Temp file: {temp_file}")
         task.update_progress(f"  📁 Processed path: {os.path.basename(processed_path)}")
         task.update_progress(f"  📁 Processed exists: {os.path.exists(processed_path)}")
+        output_filename_only = os.path.basename(output_path)
         task.update_progress(f"  📁 Final source file: {os.path.basename(final_source_path)}")
         task.update_progress(f"  📁 Target output: {output_filename_only}")
         
