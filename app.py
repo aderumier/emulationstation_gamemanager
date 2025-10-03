@@ -3218,9 +3218,12 @@ global_mobygames_service_loaded = False
 
 def get_mobygames_game_data(game, system_name, service=None):
     """Get MobyGames game data by ID or name - common function for scrapper and manual scrap"""
+    print(f"🔧 DEBUG: get_mobygames_game_data - game: {game.get('name')}, system: {system_name}")
+    
     if not service:
         service = load_mobygames_service()
         if not service:
+            print("🔧 DEBUG: MobyGames service not available")
             return None
     
     # Get MobyGames system name
@@ -3228,25 +3231,39 @@ def get_mobygames_game_data(game, system_name, service=None):
     system_config = systems_config.get(system_name, {})
     mobygames_system = system_config.get('mobygames')
     if not mobygames_system:
+        print(f"🔧 DEBUG: No MobyGames system configured for {system_name}")
         return None
+    
+    print(f"🔧 DEBUG: MobyGames system: {mobygames_system}")
     
     # Try to find game by existing MobyGames ID first
     mobygames_id = game.get('mobygamesid')
     if mobygames_id:
+        print(f"🔧 DEBUG: Game has MobyGames ID: {mobygames_id}")
         try:
             mobygames_id_int = int(mobygames_id)
             if mobygames_system in service.databases and mobygames_id_int in service.databases[mobygames_system]:
+                print(f"🔧 DEBUG: Found game by ID: {mobygames_id_int}")
                 return service.databases[mobygames_system][mobygames_id_int]
+            else:
+                print(f"🔧 DEBUG: Game ID {mobygames_id_int} not found in {mobygames_system} database")
         except (ValueError, TypeError):
-            pass
+            print(f"🔧 DEBUG: Invalid MobyGames ID format: {mobygames_id}")
     
     # Fallback to name matching
     game_name = game.get('name', '')
     if not game_name:
+        print("🔧 DEBUG: No game name found")
         return None
     
+    print(f"🔧 DEBUG: Searching by name: {game_name}")
     # Use exact match for scrapper tasks
-    return service.find_game_exact(game_name, mobygames_system)
+    result = service.find_game_exact(game_name, mobygames_system)
+    if result:
+        print(f"🔧 DEBUG: Found game by name: {result.get('title', 'Unknown')}")
+    else:
+        print(f"🔧 DEBUG: No game found by name")
+    return result
 
 def extract_mobygames_text_fields(mobygames_game, mapping_config):
     """Extract text fields from MobyGames data using common logic"""
@@ -10319,25 +10336,35 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
 async def scrape_mobygames_manual(game, system_name, system_config):
     """Scrape MobyGames data for manual scrap (returns data without writing files)"""
     try:
+        print(f"🔧 DEBUG: MobyGames manual scrap - game: {game.get('name')}, system: {system_name}")
+        
         # Get MobyGames configuration
         mobygames_config = load_scrappers_config().get('mobygames', {})
         if not mobygames_config:
+            print("🔧 DEBUG: No MobyGames config found")
             return None
         
         # Get MobyGames service
         service = load_mobygames_service()
         if not service:
+            print("🔧 DEBUG: MobyGames service not available")
             return None
         
         # Get MobyGames system name
         mobygames_system = system_config.get('mobygames')
         if not mobygames_system:
+            print(f"🔧 DEBUG: No MobyGames system configured for {system_name}")
             return None
+        
+        print(f"🔧 DEBUG: MobyGames system: {mobygames_system}")
         
         # Get game data
         mobygames_game = get_mobygames_game_data(game, system_name, service)
         if not mobygames_game:
+            print(f"🔧 DEBUG: No MobyGames game data found for {game.get('name')}")
             return None
+        
+        print(f"🔧 DEBUG: Found MobyGames game: {mobygames_game.get('title', 'Unknown')}")
         
         # Add ROM path for parentheses extraction
         mobygames_game['rom_path'] = game.get('path', '')
@@ -10346,12 +10373,17 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         text_field_mapping = mobygames_config.get('mapping', {})
         image_type_mappings = mobygames_config.get('image_type_mappings', {})
         
+        print(f"🔧 DEBUG: Text field mapping: {text_field_mapping}")
+        print(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
+        
         # Extract text fields
         text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)
+        print(f"🔧 DEBUG: Extracted text fields: {text_fields}")
         
         # Extract media fields
         platform_mapping = load_mobygames_platform_mapping()
         media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
+        print(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
         
         return {
             'text_fields': text_fields,
@@ -10360,6 +10392,8 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         
     except Exception as e:
         print(f"Error in MobyGames manual scraping: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 async def scrape_launchbox_manual(game, system_name):

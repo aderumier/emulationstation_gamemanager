@@ -4662,8 +4662,8 @@ class GameCollectionManager {
                 this.setTextFieldSelection(row, 'current');
             });
 
-            // Source columns (IGDB, ScreenScraper, LaunchBox)
-            const sources = ['igdb', 'screenscraper', 'launchbox'];
+            // Source columns (IGDB, ScreenScraper, LaunchBox, MobyGames)
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'mobygames'];
             sources.forEach(source => {
                 const sourceCell = document.createElement('td');
                 const sourceValue = fieldData.sources[source] || '';
@@ -4790,7 +4790,7 @@ class GameCollectionManager {
             this.manualScrapSelectedMedia[mediaKey] = { source: 'current', index: -1, url: mediaData.current };
 
             // Add tiles for each source. Each source may be an array of URLs or metadata objects.
-            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb'];
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb', 'mobygames'];
             sources.forEach(source => {
                 const values = mediaData.sources[source];
                 if (!values) return;
