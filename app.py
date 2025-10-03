@@ -10422,6 +10422,7 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         
         try:
             logger.info(f"🔧 DEBUG: Calling extract_mobygames_media_fields...")
+            logger.info(f"🔧 DEBUG: Parameters: mobygames_game={mobygames_game}, system_name={system_name}, image_type_mappings={image_type_mappings}, platform_mapping={platform_mapping}, service={service}")
             media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
             logger.info(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
             logger.info(f"🔧 DEBUG: Full media_fields: {media_fields}")
