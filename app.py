@@ -3218,12 +3218,9 @@ global_mobygames_service_loaded = False
 
 def get_mobygames_game_data(game, system_name, service=None):
     """Get MobyGames game data by ID or name - common function for scrapper and manual scrap"""
-    print(f"🔧 DEBUG: get_mobygames_game_data - game: {game.get('name')}, system: {system_name}")
-    
     if not service:
         service = load_mobygames_service()
         if not service:
-            print("🔧 DEBUG: MobyGames service not available")
             return None
     
     # Get MobyGames system name
@@ -3231,39 +3228,25 @@ def get_mobygames_game_data(game, system_name, service=None):
     system_config = systems_config.get(system_name, {})
     mobygames_system = system_config.get('mobygames')
     if not mobygames_system:
-        print(f"🔧 DEBUG: No MobyGames system configured for {system_name}")
         return None
-    
-    print(f"🔧 DEBUG: MobyGames system: {mobygames_system}")
     
     # Try to find game by existing MobyGames ID first
     mobygames_id = game.get('mobygamesid')
     if mobygames_id:
-        print(f"🔧 DEBUG: Game has MobyGames ID: {mobygames_id}")
         try:
             mobygames_id_int = int(mobygames_id)
             if mobygames_system in service.databases and mobygames_id_int in service.databases[mobygames_system]:
-                print(f"🔧 DEBUG: Found game by ID: {mobygames_id_int}")
                 return service.databases[mobygames_system][mobygames_id_int]
-            else:
-                print(f"🔧 DEBUG: Game ID {mobygames_id_int} not found in {mobygames_system} database")
         except (ValueError, TypeError):
-            print(f"🔧 DEBUG: Invalid MobyGames ID format: {mobygames_id}")
+            pass
     
     # Fallback to name matching
     game_name = game.get('name', '')
     if not game_name:
-        print("🔧 DEBUG: No game name found")
         return None
     
-    print(f"🔧 DEBUG: Searching by name: {game_name}")
     # Use exact match for scrapper tasks
-    result = service.find_game_exact(game_name, mobygames_system)
-    if result:
-        print(f"🔧 DEBUG: Found game by name: {result.get('title', 'Unknown')}")
-    else:
-        print(f"🔧 DEBUG: No game found by name")
-    return result
+    return service.find_game_exact(game_name, mobygames_system)
 
 def extract_mobygames_text_fields(mobygames_game, mapping_config):
     """Extract text fields from MobyGames data using common logic"""
@@ -3301,14 +3284,9 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config):
 
 def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service=None):
     """Extract media fields from MobyGames data using common logic"""
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"🔧 DEBUG: extract_mobygames_media_fields called with game ID: {mobygames_game.get('id') if mobygames_game else 'None'}")
-    
     media_fields = {}
     
     if not mobygames_game or 'id' not in mobygames_game:
-        logger.info(f"🔧 DEBUG: No game data or ID found, returning empty media_fields")
         return media_fields
     
     # Get MobyGames system name
@@ -3336,55 +3314,39 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
     else:
         media_data = cache[game_id_str][platform_short]
     
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"🔧 DEBUG: Media data structure: covers={len(media_data.get('covers', []))}, screenshots={len(media_data.get('screenshots', []))}")
-    
     # Process each media type
     for gamelist_field, mobygames_types in image_type_mappings.items():
-        logger.info(f"🔧 DEBUG: Processing gamelist_field: {gamelist_field} with mobygames_types: {mobygames_types}")
         media_options = []
         
         # Check if this is a screenshot field (titleshot or image)
         if gamelist_field.lower() in ['titleshot', 'image']:
             # Handle screenshots
             screenshots = media_data.get('screenshots', [])
-            logger.info(f"🔧 DEBUG: Processing {gamelist_field} - found {len(screenshots)} screenshots")
             for screenshot in screenshots:
                 description = screenshot.get('description', '').lower()
-                logger.info(f"🔧 DEBUG: Screenshot description: '{description}' (original: '{screenshot.get('description', '')}')")
                 
-                # Debug titleshot matching
+                # Match titleshot
                 if gamelist_field.lower() == 'titleshot':
-                    logger.info(f"🔧 DEBUG: Checking titleshot - looking for 'title screen' in '{description}'")
                     if 'title screen' in description:
-                        logger.info(f"🔧 DEBUG: Found titleshot: {screenshot.get('description', '')}")
                         media_options.append({
                             'url': screenshot.get('thumbnail_url', ''),
                             'description': screenshot.get('description', ''),
                             'page_url': screenshot.get('page_url', ''),
                             'type': 'Title Screen'
                         })
-                    else:
-                        logger.info(f"🔧 DEBUG: No titleshot match for: '{description}'")
                 
-                # Debug image matching
+                # Match gameplay screenshots (exclude any with "screen" in description)
                 elif gamelist_field.lower() == 'image':
-                    logger.info(f"🔧 DEBUG: Checking image - looking for 'screen' NOT in '{description}'")
                     if 'screen' not in description:
-                        logger.info(f"🔧 DEBUG: Found gameplay screenshot: {screenshot.get('description', '')}")
                         media_options.append({
                             'url': screenshot.get('thumbnail_url', ''),
                             'description': screenshot.get('description', ''),
                             'page_url': screenshot.get('page_url', ''),
                             'type': 'Gameplay'
                         })
-                    else:
-                        logger.info(f"🔧 DEBUG: No image match for: '{description}' (contains 'screen')")
         else:
             # Handle covers
             for mobygames_type in mobygames_types:
-                logger.info(f"🔧 DEBUG: Processing covers for {mobygames_type}")
                 covers = media_data.get('covers', [])
                 for cover in covers:
                     description = cover.get('description', '').lower()
@@ -3398,11 +3360,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
         
         if media_options:
             media_fields[gamelist_field] = media_options
-            logger.info(f"🔧 DEBUG: Added {len(media_options)} options for {gamelist_field}")
-        else:
-            logger.info(f"🔧 DEBUG: No options found for {gamelist_field}")
     
-    logger.info(f"🔧 DEBUG: Final media_fields keys: {list(media_fields.keys())}")
     return media_fields
 
 def download_mobygames_media_from_url(page_url, target_path):
@@ -10368,35 +10326,25 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
 async def scrape_mobygames_manual(game, system_name, system_config):
     """Scrape MobyGames data for manual scrap (returns data without writing files)"""
     try:
-        print(f"🔧 DEBUG: MobyGames manual scrap - game: {game.get('name')}, system: {system_name}")
-        
         # Get MobyGames configuration
         mobygames_config = load_scrappers_config().get('mobygames', {})
         if not mobygames_config:
-            print("🔧 DEBUG: No MobyGames config found")
             return None
         
         # Get MobyGames service
         service = load_mobygames_service()
         if not service:
-            print("🔧 DEBUG: MobyGames service not available")
             return None
         
         # Get MobyGames system name
         mobygames_system = system_config.get('mobygames')
         if not mobygames_system:
-            print(f"🔧 DEBUG: No MobyGames system configured for {system_name}")
             return None
-        
-        print(f"🔧 DEBUG: MobyGames system: {mobygames_system}")
         
         # Get game data
         mobygames_game = get_mobygames_game_data(game, system_name, service)
         if not mobygames_game:
-            print(f"🔧 DEBUG: No MobyGames game data found for {game.get('name')}")
             return None
-        
-        print(f"🔧 DEBUG: Found MobyGames game: {mobygames_game.get('title', 'Unknown')}")
         
         # Add ROM path for parentheses extraction
         mobygames_game['rom_path'] = game.get('path', '')
@@ -10405,32 +10353,12 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         text_field_mapping = mobygames_config.get('mapping', {})
         image_type_mappings = mobygames_config.get('image_type_mappings', {})
         
-        print(f"🔧 DEBUG: Text field mapping: {text_field_mapping}")
-        print(f"🔧 DEBUG: Image type mappings: {image_type_mappings}")
-        
         # Extract text fields
         text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)
-        print(f"🔧 DEBUG: Extracted text fields: {text_fields}")
         
         # Extract media fields
         platform_mapping = load_mobygames_platform_mapping()
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"🔧 DEBUG: About to call extract_mobygames_media_fields with image_type_mappings: {image_type_mappings}")
-        logger.info(f"🔧 DEBUG: mobygames_game ID: {mobygames_game.get('id')}")
-        logger.info(f"🔧 DEBUG: system_name: {system_name}")
-        
-        try:
-            logger.info(f"🔧 DEBUG: Calling extract_mobygames_media_fields...")
-            logger.info(f"🔧 DEBUG: Parameters: mobygames_game={mobygames_game}, system_name={system_name}, image_type_mappings={image_type_mappings}, platform_mapping={platform_mapping}, service={service}")
-            media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
-            logger.info(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
-            logger.info(f"🔧 DEBUG: Full media_fields: {media_fields}")
-        except Exception as e:
-            logger.error(f"🔧 DEBUG: Error in extract_mobygames_media_fields: {e}")
-            import traceback
-            logger.error(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
-            media_fields = {}
+        media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
         
         return {
             'text_fields': text_fields,
@@ -10438,9 +10366,9 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         }
         
     except Exception as e:
-        print(f"Error in MobyGames manual scraping: {e}")
+        logger.error(f"Error in MobyGames manual scraping: {e}")
         import traceback
-        traceback.print_exc()
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 async def scrape_launchbox_manual(game, system_name):
@@ -18236,7 +18164,7 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
         # Get platform short name
         platform_short = platform_mapping.get(mobygames_system_name)
         if not platform_short:
-            logger.error(f"❌ DEBUG: No platform mapping found for {mobygames_system_name}")
+            logger.error(f"No platform mapping found for {mobygames_system_name}")
             return {}
         
         # Get game URL from database
@@ -18246,19 +18174,19 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
         
         # mobygames_system_name is already the MobyGames system name
         if mobygames_system_name not in service.databases:
-            logger.error(f"❌ DEBUG: No MobyGames system found for {mobygames_system_name}")
+            logger.error(f"No MobyGames system found for {mobygames_system_name}")
             return {}
         
         # Convert game_id to int if it's a string (database uses int keys)
         try:
             game_id_int = int(game_id)
         except (ValueError, TypeError):
-            logger.error(f"❌ DEBUG: Invalid game ID format: {game_id}")
+            logger.error(f"Invalid game ID format: {game_id}")
             return {}
         
         game_data = service.databases[mobygames_system_name].get(game_id_int)
         if not game_data or 'url' not in game_data:
-            logger.error(f"❌ DEBUG: No game data or URL found for game ID {game_id_int}")
+            logger.error(f"No game data or URL found for game ID {game_id_int}")
             return {}
         
         game_url = game_data['url']
@@ -18294,7 +18222,6 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
         with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
             # Scrape covers
             covers_url = f"{game_url}/covers/"
-            logger.info(f"🔧 DEBUG: Scraping covers from: {covers_url}")
             
             response = client.get(covers_url)
             if response.status_code == 200:
@@ -18345,7 +18272,6 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
             
             # Scrape screenshots
             screenshots_url = f"{game_url}/screenshots/"
-            logger.info(f"🔧 DEBUG: Scraping screenshots from: {screenshots_url}")
             
             response = client.get(screenshots_url)
             if response.status_code == 200:
@@ -18354,22 +18280,17 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
                 
                 # Find platform heading
                 platform_heading = None
-                print(f"🔧 DEBUG: Looking for platform heading with target: {target_platform}, system: {mobygames_system_name}")
                 for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
                     heading_text = heading.get_text(strip=True).lower()
-                    print(f"🔧 DEBUG: Found heading: '{heading_text}'")
                     if target_platform.lower() in heading_text or mobygames_system_name.lower() in heading_text:
                         platform_heading = heading
-                        print(f"🔧 DEBUG: Found platform heading: '{heading_text}'")
                         break
                 
                 if platform_heading:
-                    print(f"🔧 DEBUG: Processing screenshots under platform heading")
                     current_element = platform_heading
                     while current_element:
                         for link in current_element.find_all('a', href=True):
                             href = link['href']
-                            print(f"🔧 DEBUG: Found screenshot link: {href}")
                             if '/screenshots/' in href and href.count('/') >= 6:
                                 # Get link text for description
                                 link_text = link.get_text(strip=True)
@@ -18399,16 +18320,10 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
                         if current_element and current_element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
                             break
             
-            logger.info(f"🔧 DEBUG: Scraped {len(media_data['covers'])} covers and {len(media_data['screenshots'])} screenshots")
-            
-            # Debug: Print some screenshot details
-            for i, screenshot in enumerate(media_data['screenshots'][:3]):  # Show first 3 screenshots
-                logger.info(f"🔧 DEBUG: Screenshot {i+1}: {screenshot.get('description', 'No description')}")
-            
             return media_data
     
     except Exception as e:
-        logger.error(f"❌ DEBUG: Error in scrape_mobygames_media_data: {e}")
+        logger.error(f"Error in scrape_mobygames_media_data: {e}")
         return {}
 
 def download_mobygames_media(game_id, mobygames_system_name, media_type, target_path, platform_mapping, service=None):
