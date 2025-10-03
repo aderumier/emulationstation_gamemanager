@@ -3335,9 +3335,11 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
     
     # Process each media type
     for gamelist_field, mobygames_types in image_type_mappings.items():
+        print(f"🔧 DEBUG: Processing gamelist_field: {gamelist_field} with mobygames_types: {mobygames_types}")
         media_options = []
         
         for mobygames_type in mobygames_types:
+            print(f"🔧 DEBUG: Processing mobygames_type: {mobygames_type}")
             if mobygames_type.lower() in ['titleshot', 'image']:
                 # Handle screenshots
                 screenshots = media_data.get('screenshots', [])
@@ -3362,6 +3364,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                             'type': mobygames_type
                         })
             else:
+                print(f"🔧 DEBUG: Processing covers for {mobygames_type}")
                 # Handle covers
                 covers = media_data.get('covers', [])
                 for cover in covers:
@@ -3376,7 +3379,11 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
         
         if media_options:
             media_fields[gamelist_field] = media_options
+            print(f"🔧 DEBUG: Added {len(media_options)} options for {gamelist_field}")
+        else:
+            print(f"🔧 DEBUG: No options found for {gamelist_field}")
     
+    print(f"🔧 DEBUG: Final media_fields keys: {list(media_fields.keys())}")
     return media_fields
 
 def download_mobygames_media_from_url(page_url, target_path):
