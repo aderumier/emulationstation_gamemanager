@@ -10419,9 +10419,16 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         logger.info(f"🔧 DEBUG: About to call extract_mobygames_media_fields with image_type_mappings: {image_type_mappings}")
         logger.info(f"🔧 DEBUG: mobygames_game ID: {mobygames_game.get('id')}")
         logger.info(f"🔧 DEBUG: system_name: {system_name}")
-        media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
-        logger.info(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
-        logger.info(f"🔧 DEBUG: Full media_fields: {media_fields}")
+        
+        try:
+            media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
+            logger.info(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
+            logger.info(f"🔧 DEBUG: Full media_fields: {media_fields}")
+        except Exception as e:
+            logger.error(f"🔧 DEBUG: Error in extract_mobygames_media_fields: {e}")
+            import traceback
+            logger.error(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
+            media_fields = {}
         
         return {
             'text_fields': text_fields,
