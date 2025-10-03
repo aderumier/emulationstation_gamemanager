@@ -3301,9 +3301,14 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config):
 
 def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service=None):
     """Extract media fields from MobyGames data using common logic"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔧 DEBUG: extract_mobygames_media_fields called with game ID: {mobygames_game.get('id') if mobygames_game else 'None'}")
+    
     media_fields = {}
     
     if not mobygames_game or 'id' not in mobygames_game:
+        logger.info(f"🔧 DEBUG: No game data or ID found, returning empty media_fields")
         return media_fields
     
     # Get MobyGames system name
@@ -3348,23 +3353,35 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                 logger.info(f"🔧 DEBUG: Processing {mobygames_type} - found {len(screenshots)} screenshots")
                 for screenshot in screenshots:
                     description = screenshot.get('description', '').lower()
-                    logger.info(f"🔧 DEBUG: Screenshot description: '{description}'")
-                    if mobygames_type.lower() == 'titleshot' and 'title screen' in description:
-                        logger.info(f"🔧 DEBUG: Found titleshot: {screenshot.get('description', '')}")
-                        media_options.append({
-                            'url': screenshot.get('thumbnail_url', ''),
-                            'description': screenshot.get('description', ''),
-                            'page_url': screenshot.get('page_url', ''),
-                            'type': mobygames_type
-                        })
-                    elif mobygames_type.lower() == 'image' and 'screen' not in description:
-                        logger.info(f"🔧 DEBUG: Found gameplay screenshot: {screenshot.get('description', '')}")
-                        media_options.append({
-                            'url': screenshot.get('thumbnail_url', ''),
-                            'description': screenshot.get('description', ''),
-                            'page_url': screenshot.get('page_url', ''),
-                            'type': mobygames_type
-                        })
+                    logger.info(f"🔧 DEBUG: Screenshot description: '{description}' (original: '{screenshot.get('description', '')}')")
+                    
+                    # Debug titleshot matching
+                    if mobygames_type.lower() == 'titleshot':
+                        logger.info(f"🔧 DEBUG: Checking titleshot - looking for 'title screen' in '{description}'")
+                        if 'title screen' in description:
+                            logger.info(f"🔧 DEBUG: Found titleshot: {screenshot.get('description', '')}")
+                            media_options.append({
+                                'url': screenshot.get('thumbnail_url', ''),
+                                'description': screenshot.get('description', ''),
+                                'page_url': screenshot.get('page_url', ''),
+                                'type': mobygames_type
+                            })
+                        else:
+                            logger.info(f"🔧 DEBUG: No titleshot match for: '{description}'")
+                    
+                    # Debug image matching
+                    elif mobygames_type.lower() == 'image':
+                        logger.info(f"🔧 DEBUG: Checking image - looking for 'screen' NOT in '{description}'")
+                        if 'screen' not in description:
+                            logger.info(f"🔧 DEBUG: Found gameplay screenshot: {screenshot.get('description', '')}")
+                            media_options.append({
+                                'url': screenshot.get('thumbnail_url', ''),
+                                'description': screenshot.get('description', ''),
+                                'page_url': screenshot.get('page_url', ''),
+                                'type': mobygames_type
+                            })
+                        else:
+                            logger.info(f"🔧 DEBUG: No image match for: '{description}' (contains 'screen')")
             else:
                 logger.info(f"🔧 DEBUG: Processing covers for {mobygames_type}")
                 # Handle covers
@@ -10400,6 +10417,8 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"🔧 DEBUG: About to call extract_mobygames_media_fields with image_type_mappings: {image_type_mappings}")
+        logger.info(f"🔧 DEBUG: mobygames_game ID: {mobygames_game.get('id')}")
+        logger.info(f"🔧 DEBUG: system_name: {system_name}")
         media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
         logger.info(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
         logger.info(f"🔧 DEBUG: Full media_fields: {media_fields}")
