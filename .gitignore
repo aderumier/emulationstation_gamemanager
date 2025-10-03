@@ -136,6 +136,8 @@ roms/
 # Debian build directories (generated during build process)
 debian/opt/
 debian/usr/
+!debian/opt/gamemanager/var/db/mobygames/
+!debian/opt/gamemanager/var/db/mobygames/*.json
 
 # Configuration files with sensitive data (optional)
 # config.json
@@ -151,6 +153,8 @@ var/
 !var/config/scrappers.json
 !var/config/systems.json
 !var/db/screenscraper/platforms.json
+!var/db/mobygames/
+!var/db/mobygames/*.json
 # Exclude credentials files for security
 var/config/credentials.json
 var/config/credentials.enc
