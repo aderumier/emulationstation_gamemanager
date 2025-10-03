@@ -5146,7 +5146,6 @@ def scrap_mobygames_system(system_name):
         data = request.get_json() or {}
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
-        selected_media_fields = data.get('selected_media_fields', [])
         overwrite_text_fields = data.get('overwrite_text_fields', False)
         overwrite_media_fields = data.get('overwrite_media_fields', False)
         
@@ -5154,7 +5153,6 @@ def scrap_mobygames_system(system_name):
         logger = logging.getLogger(__name__)
         logger.info(f"🔧 DEBUG: MobyGames API - selected_games: {len(selected_games)} games")
         logger.info(f"🔧 DEBUG: MobyGames API - selected_fields: {selected_fields}")
-        logger.info(f"🔧 DEBUG: MobyGames API - selected_media_fields: {selected_media_fields}")
         logger.info(f"🔧 DEBUG: MobyGames API - overwrite_text_fields: {overwrite_text_fields}")
         logger.info(f"🔧 DEBUG: MobyGames API - overwrite_media_fields: {overwrite_media_fields}")
         
@@ -5163,7 +5161,6 @@ def scrap_mobygames_system(system_name):
             'system_name': system_name, 
             'selected_games': selected_games,
             'selected_fields': selected_fields,
-            'selected_media_fields': selected_media_fields,
             'overwrite_text_fields': overwrite_text_fields,
             'overwrite_media_fields': overwrite_media_fields
         }
@@ -5176,8 +5173,7 @@ def scrap_mobygames_system(system_name):
             system_name, 
             task.id, 
             selected_games, 
-            selected_fields, 
-            selected_media_fields,
+            selected_fields,
             overwrite_text_fields, 
             overwrite_media_fields
         ))
@@ -18292,7 +18288,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
     except Exception as e:
         logger.error(f"❌ DEBUG: Error in download_mobygames_screenshots: {e}")
         return False
-def run_mobygames_task(system_name, task_id, selected_games=None, selected_fields=None, selected_media_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
+def run_mobygames_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
     """Run MobyGames task for a specific system"""
     import logging
     logger = logging.getLogger(__name__)
@@ -18301,9 +18297,21 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
     logger.info(f"  - system_name: {system_name}")
     logger.info(f"  - selected_games: {selected_games}")
     logger.info(f"  - selected_fields: {selected_fields}")
-    logger.info(f"  - selected_media_fields: {selected_media_fields}")
     logger.info(f"  - overwrite_text_fields: {overwrite_text_fields}")
     logger.info(f"  - overwrite_media_fields: {overwrite_media_fields}")
+    
+    # Separate text fields from media fields based on config
+    mobygames_config = load_scrappers_config().get('mobygames', {})
+    text_field_mapping = mobygames_config.get('mapping', {})
+    media_field_mapping = mobygames_config.get('image_type_mappings', {})
+    
+    text_fields = list(text_field_mapping.keys())
+    media_fields = list(media_field_mapping.keys())
+    
+    selected_text_fields = [field for field in selected_fields if field in text_fields] if selected_fields else []
+    selected_media_fields = [field for field in selected_fields if field in media_fields] if selected_fields else []
+    
+    logger.info(f"🔧 DEBUG: Separated fields - text: {selected_text_fields}, media: {selected_media_fields}")
     
     try:
         logger.info(f"Starting MobyGames task for system: {system_name}")
@@ -18417,8 +18425,8 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                     
                     # Process all MobyGames fields using reverse lookup
                     for mobygames_field, gamelist_field in mapping.items():
-                        # Skip field if not in selected fields
-                        if mobygames_field not in selected_fields:
+                        # Skip field if not in selected text fields
+                        if mobygames_field not in selected_text_fields:
                             continue
                         
                         # Get the value from MobyGames data

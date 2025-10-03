@@ -13948,6 +13948,50 @@ class GameCollectionManager {
         }
     }
 
+    async getSelectedMobygamesFields() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get MobyGames field mappings from config
+            const textFields = Object.keys(config.mobygames?.mapping || {});
+            const mediaFields = Object.keys(config.mobygames?.image_type_mappings || {});
+            
+            const allFields = [...textFields, ...mediaFields];
+
+            // Read field selections directly from cookies
+            const selectedFields = [];
+            let hasUncheckedInCookies = false;
+            
+            allFields.forEach(field => {
+                const cookieName = `mobygamesField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedFields.push(field);
+                    } else {
+                        hasUncheckedInCookies = true;
+                    }
+                } else {
+                    selectedFields.push(field);
+                }
+            });
+
+            // If we have some unchecked fields, return only the selected ones
+            if (hasUncheckedInCookies) {
+                return selectedFields;
+            }
+            
+            // If all fields are selected (no unchecked fields), return all fields
+            return allFields;
+        } catch (error) {
+            console.error('Error getting selected MobyGames fields:', error);
+            return [];
+        }
+    }
+
     async scrapMobygames() {
         
         if (!this.currentSystem) {
@@ -13966,21 +14010,8 @@ class GameCollectionManager {
             // Get selected games
             const selectedGames = this.gridApi.getSelectedRows().map(row => row.path);
             
-            // Get selected fields from modal checkboxes
-            const selectedFields = [];
-            const fieldCheckboxes = document.querySelectorAll('.mobygames-field-checkbox:checked');
-            fieldCheckboxes.forEach(checkbox => {
-                selectedFields.push(checkbox.dataset.field);
-            });
-            
-            // Get selected media fields from modal checkboxes
-            const selectedMediaFields = [];
-            const mediaFieldCheckboxes = document.querySelectorAll('.mobygames-media-field-checkbox:checked');
-            mediaFieldCheckboxes.forEach(checkbox => {
-                selectedMediaFields.push(checkbox.dataset.gamelistField);
-            });
-            
-            // mobygamesid is always scraped automatically, no need to include in selected_fields
+            // Get selected fields from cookies (like other scrapers)
+            const selectedFields = await this.getSelectedMobygamesFields();
             
             // Get overwrite settings from cookies
             const overwriteTextFields = this.getCookie('overwriteTextFieldsMobygames') === 'true';
@@ -13994,7 +14025,6 @@ class GameCollectionManager {
                 body: JSON.stringify({
                     selected_games: selectedGames,
                     selected_fields: selectedFields,
-                    selected_media_fields: selectedMediaFields,
                     overwrite_text_fields: overwriteTextFields,
                     overwrite_media_fields: overwriteMediaFields
                 })
