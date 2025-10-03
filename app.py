@@ -13067,20 +13067,10 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         
         task.update_progress(f"  📁 Using temp directory: {temp_videos_dir}")
         
-        # Always define output_filename_only for later use
-        output_filename_only = os.path.basename(output_path)
-        
-        # Use ROM name for temp file naming if available, otherwise fall back to output filename
-        if rom_file:
-            # Extract ROM name without extension and path
-            rom_name = os.path.splitext(os.path.basename(rom_file))[0]
-            temp_filename = f"temp_{rom_name}"
-            task.update_progress(f"  🎮 Using ROM name for temp file: {temp_filename}")
-        else:
-            # Fallback to output filename
-            rom_name = os.path.splitext(output_filename_only)[0]  # Extract name without extension
-            temp_filename = f"temp_{output_filename_only}"
-            task.update_progress(f"  📁 Using output filename for temp file: {temp_filename}")
+        # Use ROM name for temp file naming (rom_file is always provided)
+        rom_name = os.path.splitext(os.path.basename(rom_file))[0]
+        temp_filename = f"temp_{rom_name}"
+        task.update_progress(f"  🎮 Using ROM name for temp file: {temp_filename}")
         
         output_template = os.path.join(temp_videos_dir, temp_filename.replace('.mp4', '.%(ext)s'))
         
