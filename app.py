@@ -3403,49 +3403,53 @@ def download_mobygames_media_from_url(page_url, target_path):
                 from bs4 import BeautifulSoup
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Find the image
-                img = soup.find('figure').find('img')
-                if img and img.get('src'):
-                    image_url = img['src']
-                    if not image_url.startswith('http'):
-                        image_url = f"https://www.mobygames.com{image_url}"
+                # Find the full-size image - look for the main image in the figure
+                figure = soup.find('figure')
+                if not figure:
+                    logger.error("No figure element found on page")
+                    return False
+                
+                # Look for the main image (usually the largest one)
+                img = figure.find('img')
+                if not img or not img.get('src'):
+                    logger.error("No image found in figure element")
+                    return False
+                
+                image_url = img['src']
+                if not image_url.startswith('http'):
+                    image_url = f"https://www.mobygames.com{image_url}"
+                
+                # Download the full-size image
+                img_response = client.get(image_url)
+                if img_response.status_code == 200:
+                    # Save raw image first
+                    temp_path = target_path + '.tmp'
+                    with open(temp_path, 'wb') as f:
+                        f.write(img_response.content)
                     
-                    logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                    # Convert to target format using game_utils
+                    from game_utils import convert_image_to_format
+                    success = convert_image_to_format(temp_path, target_path, 'jpg')
                     
-                    # Download image
-                    img_response = client.get(image_url)
-                    if img_response.status_code == 200:
-                        # Save raw image first
-                        temp_path = target_path + '.tmp'
-                        with open(temp_path, 'wb') as f:
-                            f.write(img_response.content)
-                        
-                        # Convert to target format using game_utils
-                        from game_utils import convert_image_to_format
-                        success = convert_image_to_format(temp_path, target_path, 'jpg')
-                        
-                        # Clean up temp file
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path)
-                        
-                        if success:
-                            logger.info(f"✅ DEBUG: Downloaded media to {target_path}")
-                            return True
-                        else:
-                            logger.error(f"❌ DEBUG: Failed to convert image to JPG")
-                            return False
+                    # Clean up temp file
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    
+                    if success:
+                        logger.info(f"Downloaded full-size media to {target_path}")
+                        return True
                     else:
-                        logger.error(f"❌ DEBUG: Failed to download image: {img_response.status_code}")
+                        logger.error("Failed to convert image to JPG")
                         return False
                 else:
-                    logger.error(f"❌ DEBUG: No image found on page")
+                    logger.error(f"Failed to download image: {img_response.status_code}")
                     return False
             else:
-                logger.error(f"❌ DEBUG: Failed to load page: {response.status_code}")
+                logger.error(f"Failed to load page: {response.status_code}")
                 return False
                 
     except Exception as e:
-        logger.error(f"❌ DEBUG: Error downloading MobyGames media from URL: {e}")
+        logger.error(f"Error downloading MobyGames media from URL: {e}")
         return False
 
 def load_mobygames_service():
