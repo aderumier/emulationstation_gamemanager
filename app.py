@@ -3331,24 +3331,26 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
     else:
         media_data = cache[game_id_str][platform_short]
     
-    print(f"🔧 DEBUG: Media data structure: covers={len(media_data.get('covers', []))}, screenshots={len(media_data.get('screenshots', []))}")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔧 DEBUG: Media data structure: covers={len(media_data.get('covers', []))}, screenshots={len(media_data.get('screenshots', []))}")
     
     # Process each media type
     for gamelist_field, mobygames_types in image_type_mappings.items():
-        print(f"🔧 DEBUG: Processing gamelist_field: {gamelist_field} with mobygames_types: {mobygames_types}")
+        logger.info(f"🔧 DEBUG: Processing gamelist_field: {gamelist_field} with mobygames_types: {mobygames_types}")
         media_options = []
         
         for mobygames_type in mobygames_types:
-            print(f"🔧 DEBUG: Processing mobygames_type: {mobygames_type}")
+            logger.info(f"🔧 DEBUG: Processing mobygames_type: {mobygames_type}")
             if mobygames_type.lower() in ['titleshot', 'image']:
                 # Handle screenshots
                 screenshots = media_data.get('screenshots', [])
-                print(f"🔧 DEBUG: Processing {mobygames_type} - found {len(screenshots)} screenshots")
+                logger.info(f"🔧 DEBUG: Processing {mobygames_type} - found {len(screenshots)} screenshots")
                 for screenshot in screenshots:
                     description = screenshot.get('description', '').lower()
-                    print(f"🔧 DEBUG: Screenshot description: '{description}'")
+                    logger.info(f"🔧 DEBUG: Screenshot description: '{description}'")
                     if mobygames_type.lower() == 'titleshot' and 'title screen' in description:
-                        print(f"🔧 DEBUG: Found titleshot: {screenshot.get('description', '')}")
+                        logger.info(f"🔧 DEBUG: Found titleshot: {screenshot.get('description', '')}")
                         media_options.append({
                             'url': screenshot.get('thumbnail_url', ''),
                             'description': screenshot.get('description', ''),
@@ -3356,7 +3358,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                             'type': mobygames_type
                         })
                     elif mobygames_type.lower() == 'image' and 'screen' not in description:
-                        print(f"🔧 DEBUG: Found gameplay screenshot: {screenshot.get('description', '')}")
+                        logger.info(f"🔧 DEBUG: Found gameplay screenshot: {screenshot.get('description', '')}")
                         media_options.append({
                             'url': screenshot.get('thumbnail_url', ''),
                             'description': screenshot.get('description', ''),
@@ -3364,7 +3366,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                             'type': mobygames_type
                         })
             else:
-                print(f"🔧 DEBUG: Processing covers for {mobygames_type}")
+                logger.info(f"🔧 DEBUG: Processing covers for {mobygames_type}")
                 # Handle covers
                 covers = media_data.get('covers', [])
                 for cover in covers:
@@ -3379,11 +3381,11 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
         
         if media_options:
             media_fields[gamelist_field] = media_options
-            print(f"🔧 DEBUG: Added {len(media_options)} options for {gamelist_field}")
+            logger.info(f"🔧 DEBUG: Added {len(media_options)} options for {gamelist_field}")
         else:
-            print(f"🔧 DEBUG: No options found for {gamelist_field}")
+            logger.info(f"🔧 DEBUG: No options found for {gamelist_field}")
     
-    print(f"🔧 DEBUG: Final media_fields keys: {list(media_fields.keys())}")
+    logger.info(f"🔧 DEBUG: Final media_fields keys: {list(media_fields.keys())}")
     return media_fields
 
 def download_mobygames_media_from_url(page_url, target_path):
@@ -10395,8 +10397,12 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         
         # Extract media fields
         platform_mapping = load_mobygames_platform_mapping()
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔧 DEBUG: About to call extract_mobygames_media_fields with image_type_mappings: {image_type_mappings}")
         media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
-        print(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
+        logger.info(f"🔧 DEBUG: Extracted media fields: {list(media_fields.keys())}")
+        logger.info(f"🔧 DEBUG: Full media_fields: {media_fields}")
         
         return {
             'text_fields': text_fields,
