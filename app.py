@@ -3216,6 +3216,231 @@ global_metadata_cache_loaded = False
 global_mobygames_service = None
 global_mobygames_service_loaded = False
 
+def get_mobygames_game_data(game, system_name, service=None):
+    """Get MobyGames game data by ID or name - common function for scrapper and manual scrap"""
+    if not service:
+        service = load_mobygames_service()
+        if not service:
+            return None
+    
+    # Get MobyGames system name
+    systems_config = load_systems_config()
+    system_config = systems_config.get(system_name, {})
+    mobygames_system = system_config.get('mobygames')
+    if not mobygames_system:
+        return None
+    
+    # Try to find game by existing MobyGames ID first
+    mobygames_id = game.get('mobygamesid')
+    if mobygames_id:
+        try:
+            mobygames_id_int = int(mobygames_id)
+            if mobygames_system in service.databases and mobygames_id_int in service.databases[mobygames_system]:
+                return service.databases[mobygames_system][mobygames_id_int]
+        except (ValueError, TypeError):
+            pass
+    
+    # Fallback to name matching
+    game_name = game.get('name', '')
+    if not game_name:
+        return None
+    
+    # Use exact match for scrapper tasks
+    return service.find_game_exact(game_name, mobygames_system)
+
+def extract_mobygames_text_fields(mobygames_game, mapping_config):
+    """Extract text fields from MobyGames data using common logic"""
+    text_fields = {}
+    
+    if not mobygames_game:
+        return text_fields
+    
+    for mobygames_field, gamelist_field in mapping_config.items():
+        if mobygames_field in mobygames_game:
+            value = mobygames_game[mobygames_field]
+            if value is not None:
+                # Special handling for title field (preserve ROM parentheses)
+                if mobygames_field == 'title':
+                    # Extract parentheses from ROM filename if available
+                    rom_path = mobygames_game.get('rom_path', '')
+                    if rom_path:
+                        import re
+                        rom_name = os.path.splitext(os.path.basename(rom_path))[0]
+                        parentheses_match = re.search(r'\(([^)]+)\)', rom_name)
+                        if parentheses_match:
+                            value = f"{value} ({parentheses_match.group(1)})"
+                
+                # Special handling for release_year -> releasedate conversion
+                if mobygames_field == 'release_year' and gamelist_field == 'releasedate':
+                    try:
+                        year = int(value)
+                        value = f"{year}-01-01T00:00:00Z"
+                    except (ValueError, TypeError):
+                        pass
+                
+                text_fields[gamelist_field] = value
+    
+    return text_fields
+
+def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service=None):
+    """Extract media fields from MobyGames data using common logic"""
+    media_fields = {}
+    
+    if not mobygames_game or 'id' not in mobygames_game:
+        return media_fields
+    
+    # Get MobyGames system name
+    systems_config = load_systems_config()
+    system_config = systems_config.get(system_name, {})
+    mobygames_system = system_config.get('mobygames')
+    if not mobygames_system:
+        return media_fields
+    
+    # Load media cache
+    cache = load_mobygames_media_cache()
+    game_id_str = str(mobygames_game['id'])
+    platform_short = platform_mapping.get(mobygames_system, '')
+    
+    # Check if we have cached media data
+    if game_id_str not in cache or platform_short not in cache[game_id_str]:
+        # Scrape and cache the data
+        media_data = scrape_mobygames_media_data(mobygames_game['id'], mobygames_system, platform_mapping, service)
+        if media_data:
+            # Update cache
+            if game_id_str not in cache:
+                cache[game_id_str] = {}
+            cache[game_id_str][platform_short] = media_data
+            save_mobygames_media_cache(cache)
+    else:
+        media_data = cache[game_id_str][platform_short]
+    
+    # Process each media type
+    for gamelist_field, mobygames_types in image_type_mappings.items():
+        media_options = []
+        
+        for mobygames_type in mobygames_types:
+            if mobygames_type.lower() in ['titleshot', 'image']:
+                # Handle screenshots
+                screenshots = media_data.get('screenshots', [])
+                for screenshot in screenshots:
+                    description = screenshot.get('description', '').lower()
+                    if mobygames_type.lower() == 'titleshot' and 'title screen' in description:
+                        media_options.append({
+                            'url': screenshot.get('thumbnail_url', ''),
+                            'description': screenshot.get('description', ''),
+                            'page_url': screenshot.get('page_url', ''),
+                            'type': mobygames_type
+                        })
+                    elif mobygames_type.lower() == 'image' and 'screen' not in description:
+                        media_options.append({
+                            'url': screenshot.get('thumbnail_url', ''),
+                            'description': screenshot.get('description', ''),
+                            'page_url': screenshot.get('page_url', ''),
+                            'type': mobygames_type
+                        })
+            else:
+                # Handle covers
+                covers = media_data.get('covers', [])
+                for cover in covers:
+                    description = cover.get('description', '').lower()
+                    if mobygames_type.lower() in description:
+                        media_options.append({
+                            'url': cover.get('thumbnail_url', ''),
+                            'description': cover.get('description', ''),
+                            'page_url': cover.get('page_url', ''),
+                            'type': mobygames_type
+                        })
+        
+        if media_options:
+            media_fields[gamelist_field] = media_options
+    
+    return media_fields
+
+def download_mobygames_media_from_url(page_url, target_path):
+    """Download MobyGames media from a specific page URL"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        import httpx
+        import random
+        import time
+        
+        if not page_url:
+            return False
+        
+        # Create HTTP client
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+        ]
+        
+        headers = {
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        }
+        
+        # Add random delay
+        time.sleep(random.uniform(0.5, 1.5))
+        
+        with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
+            # Get the media page
+            response = client.get(page_url)
+            if response.status_code == 200:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Find the image
+                img = soup.find('figure').find('img')
+                if img and img.get('src'):
+                    image_url = img['src']
+                    if not image_url.startswith('http'):
+                        image_url = f"https://www.mobygames.com{image_url}"
+                    
+                    logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                    
+                    # Download image
+                    img_response = client.get(image_url)
+                    if img_response.status_code == 200:
+                        # Save raw image first
+                        temp_path = target_path + '.tmp'
+                        with open(temp_path, 'wb') as f:
+                            f.write(img_response.content)
+                        
+                        # Convert to target format using game_utils
+                        from game_utils import convert_image_to_format
+                        success = convert_image_to_format(temp_path, target_path, 'jpg')
+                        
+                        # Clean up temp file
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                        
+                        if success:
+                            logger.info(f"✅ DEBUG: Downloaded media to {target_path}")
+                            return True
+                        else:
+                            logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                            return False
+                    else:
+                        logger.error(f"❌ DEBUG: Failed to download image: {img_response.status_code}")
+                        return False
+                else:
+                    logger.error(f"❌ DEBUG: No image found on page")
+                    return False
+            else:
+                logger.error(f"❌ DEBUG: Failed to load page: {response.status_code}")
+                return False
+                
+    except Exception as e:
+        logger.error(f"❌ DEBUG: Error downloading MobyGames media from URL: {e}")
+        return False
+
 def load_mobygames_service():
     """Load MobyGames service in background"""
     global global_mobygames_service, global_mobygames_service_loaded
@@ -8982,6 +9207,29 @@ def manual_scrap_game(system_name):
                     print(f"LaunchBox scraping error: {e}")
             else:
                 print(f"DEBUG: No LaunchBox ID found for game: {current_game.get('name')}")
+            
+            # MobyGames scraping
+            if sys_config.get('mobygames') and (current_game.get('mobygamesid') or current_game.get('name')):
+                print(f"DEBUG: Calling MobyGames scraper for game: {current_game.get('name')} with ID: {current_game.get('mobygamesid')}")
+                try:
+                    mobygames_data = await scrape_mobygames_manual(current_game, system_name, sys_config)
+                    print(f"DEBUG: MobyGames returned: {mobygames_data}")
+                    if mobygames_data:
+                        # Update text fields
+                        for field, value in mobygames_data.get('text_fields', {}).items():
+                            if value and field in scrap_results['text_fields']:
+                                scrap_results['text_fields'][field]['sources']['mobygames'] = value
+                        
+                        # Update media fields (collect multiple options per source)
+                        for field, value in mobygames_data.get('media_fields', {}).items():
+                            if value and field in scrap_results['media_fields']:
+                                const_val = value if isinstance(value, list) else [value]
+                                scrap_results['media_fields'][field]['sources'].setdefault('mobygames', [])
+                                scrap_results['media_fields'][field]['sources']['mobygames'].extend(const_val)
+                except Exception as e:
+                    print(f"MobyGames scraping error: {e}")
+            else:
+                print(f"DEBUG: MobyGames not enabled or no ID/name found. Config: {sys_config.get('mobygames')}, Game ID: {current_game.get('mobygamesid')}, Name: {current_game.get('name')}")
         
         # Run the async scraping
         print(f"DEBUG: About to call scrape_all_sources with system_config: {system_config}")
@@ -10067,6 +10315,52 @@ def extract_launchbox_text_fields(game_elem, mapping_config):
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
     
     return text_fields
+
+async def scrape_mobygames_manual(game, system_name, system_config):
+    """Scrape MobyGames data for manual scrap (returns data without writing files)"""
+    try:
+        # Get MobyGames configuration
+        mobygames_config = load_scrappers_config().get('mobygames', {})
+        if not mobygames_config:
+            return None
+        
+        # Get MobyGames service
+        service = load_mobygames_service()
+        if not service:
+            return None
+        
+        # Get MobyGames system name
+        mobygames_system = system_config.get('mobygames')
+        if not mobygames_system:
+            return None
+        
+        # Get game data
+        mobygames_game = get_mobygames_game_data(game, system_name, service)
+        if not mobygames_game:
+            return None
+        
+        # Add ROM path for parentheses extraction
+        mobygames_game['rom_path'] = game.get('path', '')
+        
+        # Get field mappings
+        text_field_mapping = mobygames_config.get('mapping', {})
+        image_type_mappings = mobygames_config.get('image_type_mappings', {})
+        
+        # Extract text fields
+        text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)
+        
+        # Extract media fields
+        platform_mapping = load_mobygames_platform_mapping()
+        media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
+        
+        return {
+            'text_fields': text_fields,
+            'media_fields': media_fields
+        }
+        
+    except Exception as e:
+        print(f"Error in MobyGames manual scraping: {e}")
+        return None
 
 async def scrape_launchbox_manual(game, system_name):
     """Scrape LaunchBox data for manual scrap (returns data without writing files)"""
@@ -18458,56 +18752,40 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                 if mobygames_game:
                     logger.info(f"✅ Found MobyGames match for '{game_name}': {mobygames_game.get('title', 'Unknown')}")
                     
-                    # Update game data based on mapping configuration and selected fields
-                    mapping = mobygames_config.get('mapping', {})
-                    selected_fields = mobygames_config.get('selected_fields', [])
+                    # Add ROM path for parentheses extraction
+                    mobygames_game['rom_path'] = game.get('path', '')
+                    
+                    # Extract text fields using common function
+                    text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)
                     game_updated = False
                     
-                    # Process all MobyGames fields using reverse lookup
-                    for mobygames_field, gamelist_field in mapping.items():
-                        # Skip field if not in selected text fields
+                    # Process extracted text fields
+                    for gamelist_field, value in text_fields.items():
+                        # Skip field if not in selected text fields (check reverse mapping)
+                        mobygames_field = None
+                        for mg_field, gl_field in text_field_mapping.items():
+                            if gl_field == gamelist_field:
+                                mobygames_field = mg_field
+                                break
+                        
                         if mobygames_field not in selected_text_fields:
                             continue
                         
-                        # Get the value from MobyGames data
-                        mobygames_value = mobygames_game.get(mobygames_field)
-                        if mobygames_value is None:
-                            continue
-                        
-                        # Special handling for title field (preserve ROM parentheses)
-                        if mobygames_field == 'title' and gamelist_field == 'name':
-                            # Extract parentheses from ROM filename
-                            rom_path = game.get('path', '')
-                            rom_filename = os.path.basename(rom_path) if rom_path else ''
-                            rom_name_without_ext = os.path.splitext(rom_filename)[0] if rom_filename else ''
-                            
-                            # Extract text between parentheses from ROM filename
-                            import re
-                            paren_match = re.search(r'\(([^)]+)\)', rom_name_without_ext)
-                            parentheses_text = paren_match.group(1) if paren_match else ''
-                            
-                            # Combine MobyGames title with parentheses from ROM filename
-                            if parentheses_text:
-                                final_value = f"{mobygames_value} ({parentheses_text})"
-                            else:
-                                final_value = mobygames_value
-                        else:
-                            # Use the value as-is for other fields
-                            final_value = mobygames_value
-                        
                         # Apply field-specific transformations
+                        final_value = value
                         if mobygames_field == 'moby_score' and gamelist_field == 'rating':
                             # Convert moby_score to 0-5 scale (assuming moby_score is 0-10)
-                            final_value = f"{(mobygames_value / 10.0) * 5.0:.1f}"
-                        elif mobygames_field == 'release_year' and gamelist_field == 'releasedate':
-                            # Convert year to ISO format (YYYY-01-01)
-                            final_value = f"{mobygames_value}-01-01"
+                            try:
+                                score = float(value)
+                                final_value = f"{(score / 10.0) * 5.0:.1f}"
+                            except (ValueError, TypeError):
+                                final_value = value
                         elif mobygames_field == 'genres' and gamelist_field == 'genre':
                             # Join genres with comma
-                            if isinstance(mobygames_value, list):
-                                final_value = ', '.join(mobygames_value)
+                            if isinstance(value, list):
+                                final_value = ', '.join(value)
                             else:
-                                final_value = str(mobygames_value)
+                                final_value = str(value)
                         
                         # Update the gamelist field if overwrite is enabled or field is empty
                         current_value = game.get(gamelist_field, '')
@@ -18525,18 +18803,19 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                             t.update_progress(f"🖼️  Processing media for '{game_name}' (ID: {mobygames_game['id']})")
                         
                         try:
-                            # Get image type mappings
+                            # Get image type mappings and filter by selected fields
                             image_type_mappings = mobygames_config.get('image_type_mappings', {})
-                            
-                            # Filter image_type_mappings by selected_media_fields
                             if selected_media_fields and len(selected_media_fields) > 0:
                                 image_type_mappings = {k: v for k, v in image_type_mappings.items() if k in selected_media_fields}
                             
+                            # Extract media fields using common function
+                            media_fields = extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappings, platform_mapping, service)
+                            
                             # Get system path for media storage
                             system_path = os.path.join(ROMS_FOLDER, system_name)
-                            if system_path and image_type_mappings:
-                                # Process each media type
-                                for gamelist_field, mobygames_types in image_type_mappings.items():
+                            if system_path and media_fields:
+                                # Process each media type using extracted media fields
+                                for gamelist_field, media_options in media_fields.items():
                                     # Check if field is empty or if we should overwrite
                                     current_media_value = game.get(gamelist_field, '')
                                     field_is_empty = not current_media_value or (isinstance(current_media_value, str) and current_media_value.strip() == '')
@@ -18555,11 +18834,11 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                     media_directory = media_config.get('directory', gamelist_field)
                                     target_extension = media_config.get('target_extension', '.jpg')
                                     
-                                    # Try to find matching cover type
-                                    for mobygames_type in mobygames_types:
+                                    # Process each media option
+                                    for media_option in media_options:
                                         try:
                                             # Generate filename: romname + target_extension
-                                            rom_name = os.path.splitext(os.path.basename(rom_path))[0]
+                                            rom_name = os.path.splitext(os.path.basename(game.get('path', '')))[0]
                                             media_filename = f"{rom_name}{target_extension}"
                                             # Sanitize filename
                                             media_filename = re.sub(r'[<>:"/\\|?*]', '_', media_filename)
@@ -18570,26 +18849,11 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                                             # Create directory if it doesn't exist
                                             os.makedirs(os.path.dirname(media_path), exist_ok=True)
                                             
-                                            # Download the media using direct approach
-                                            # For titleshot and image, use screenshots; for others, use covers
-                                            if gamelist_field in ['titleshot', 'image']:
-                                                success = download_mobygames_screenshots(
-                                                    str(mobygames_game['id']), 
-                                                    mobygames_system, 
-                                                    mobygames_type, 
-                                                    media_path,
-                                                    platform_mapping,
-                                                    service
-                                                )
-                                            else:
-                                                success = download_mobygames_media(
-                                                    str(mobygames_game['id']), 
-                                                    mobygames_system, 
-                                                    mobygames_type, 
-                                                    media_path,
-                                                    platform_mapping,
-                                                    service
-                                                )
+                                            # Download the media using the page URL from media option
+                                            success = download_mobygames_media_from_url(
+                                                media_option.get('page_url', ''),
+                                                media_path
+                                            )
                                             
                                             if success:
                                                 # Update gamelist with relative path
