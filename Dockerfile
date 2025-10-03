@@ -75,6 +75,7 @@ RUN mkdir -p \
     /opt/gamemanager/var/db/launchbox \
     /opt/gamemanager/var/db/igdb \
     /opt/gamemanager/var/db/screenscraper \
+    /opt/gamemanager/var/db/mobygames \
     /opt/gamemanager/var/sessions \
     /opt/gamemanager/var/gamelists \
     /opt/gamemanager/var/config
@@ -92,6 +93,12 @@ RUN (cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/sc
     (cp /opt/gamemanager/var/config/credentials.enc /opt/gamemanager/credentials.enc.default 2>/dev/null || touch /opt/gamemanager/credentials.enc.default) && \
     chmod 644 /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default && \
     chown appuser:appuser /opt/gamemanager/screenscraper_platforms.json.default /opt/gamemanager/igdb_platforms.json.default /opt/gamemanager/credentials.enc.default
+
+# Copy MobyGames database files to default location outside var (for volume mount scenarios)
+RUN mkdir -p /opt/gamemanager/mobygames_db.default && \
+    (cp -r /opt/gamemanager/var/db/mobygames/* /opt/gamemanager/mobygames_db.default/ 2>/dev/null || echo "No MobyGames database files found") && \
+    chmod -R 644 /opt/gamemanager/mobygames_db.default/ && \
+    chown -R appuser:appuser /opt/gamemanager/mobygames_db.default/
 
 # Copy mediatype files to default location outside var (for volume mount scenarios)
 RUN (cp /opt/gamemanager/var/db/igdb/mediatype.txt /opt/gamemanager/igdb_mediatype.txt.default 2>/dev/null || echo 'cover\nscreenshots\nartworks\nlogos' > /opt/gamemanager/igdb_mediatype.txt.default) && \
@@ -121,6 +128,7 @@ mkdir -p /opt/gamemanager/var/db
 mkdir -p /opt/gamemanager/var/db/launchbox
 mkdir -p /opt/gamemanager/var/db/igdb
 mkdir -p /opt/gamemanager/var/db/screenscraper
+mkdir -p /opt/gamemanager/var/db/mobygames
 mkdir -p /opt/gamemanager/var/db/steam
 mkdir -p /opt/gamemanager/var/db/steamgrid
 mkdir -p /opt/gamemanager/var/sessions
@@ -173,11 +181,21 @@ echo "Copying additional database files to var/db..."
 [ ! -f /opt/gamemanager/var/db/launchbox/Metadata.xml ] && touch /opt/gamemanager/var/db/launchbox/Metadata.xml
 [ ! -f /opt/gamemanager/var/db/steam/appindex.json ] && touch /opt/gamemanager/var/db/steam/appindex.json
 
+# Copy MobyGames database files to var/db (always copy to ensure they're in the volume)
+echo "Copying MobyGames database files to var/db/mobygames..."
+if [ -d /opt/gamemanager/mobygames_db.default ] && [ "$(ls -A /opt/gamemanager/mobygames_db.default 2>/dev/null)" ]; then
+    cp -r /opt/gamemanager/mobygames_db.default/* /opt/gamemanager/var/db/mobygames/
+    echo "✅ MobyGames database files copied to volume"
+else
+    echo "⚠️  No MobyGames database files found in default location"
+fi
+
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/screenscraper/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/igdb/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/launchbox/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/mobygames/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steam/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steamgrid/* 2>/dev/null || true
 
