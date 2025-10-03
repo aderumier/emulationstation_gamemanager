@@ -18313,17 +18313,22 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
                 
                 # Find platform heading
                 platform_heading = None
+                print(f"🔧 DEBUG: Looking for platform heading with target: {target_platform}, system: {mobygames_system_name}")
                 for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
                     heading_text = heading.get_text(strip=True).lower()
+                    print(f"🔧 DEBUG: Found heading: '{heading_text}'")
                     if target_platform.lower() in heading_text or mobygames_system_name.lower() in heading_text:
                         platform_heading = heading
+                        print(f"🔧 DEBUG: Found platform heading: '{heading_text}'")
                         break
                 
                 if platform_heading:
+                    print(f"🔧 DEBUG: Processing screenshots under platform heading")
                     current_element = platform_heading
                     while current_element:
                         for link in current_element.find_all('a', href=True):
                             href = link['href']
+                            print(f"🔧 DEBUG: Found screenshot link: {href}")
                             if '/screenshots/' in href and href.count('/') >= 6:
                                 # Get link text for description
                                 link_text = link.get_text(strip=True)
