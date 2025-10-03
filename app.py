@@ -17787,14 +17787,41 @@ def load_mobygames_platform_mapping():
             print(f"❌ DEBUG: Error loading static fallback: {fallback_error}")
         return {}
 
-def download_mobygames_media(game_id, mobygames_system_name, media_type, target_path, platform_mapping, service=None):
-    """Download specific media type for a game from MobyGames"""
+def load_mobygames_media_cache():
+    """Load MobyGames media cache from file"""
+    import json
+    import os
+    
+    cache_file = os.path.join('var', 'cache', 'mobygames.json')
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load MobyGames media cache: {e}")
+    return {}
+
+def save_mobygames_media_cache(cache_data):
+    """Save MobyGames media cache to file"""
+    import json
+    import os
+    
+    cache_file = os.path.join('var', 'cache', 'mobygames.json')
+    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    
+    try:
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"⚠️  Warning: Could not save MobyGames media cache: {e}")
+
+def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping, service=None):
+    """Scrape and cache media data for a game from MobyGames"""
     import logging
     logger = logging.getLogger(__name__)
     
     try:
         import httpx
-        import asyncio
         from bs4 import BeautifulSoup
         import random
         import time
@@ -17803,7 +17830,7 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
         platform_short = platform_mapping.get(mobygames_system_name)
         if not platform_short:
             logger.error(f"❌ DEBUG: No platform mapping found for {mobygames_system_name}")
-            return False
+            return {}
         
         # Get game URL from database
         if service is None:
@@ -17813,27 +17840,24 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
         # mobygames_system_name is already the MobyGames system name
         if mobygames_system_name not in service.databases:
             logger.error(f"❌ DEBUG: No MobyGames system found for {mobygames_system_name}")
-            return False
+            return {}
         
         # Convert game_id to int if it's a string (database uses int keys)
         try:
             game_id_int = int(game_id)
         except (ValueError, TypeError):
             logger.error(f"❌ DEBUG: Invalid game ID format: {game_id}")
-            return False
+            return {}
         
         game_data = service.databases[mobygames_system_name].get(game_id_int)
         if not game_data or 'url' not in game_data:
             logger.error(f"❌ DEBUG: No game data or URL found for game ID {game_id_int}")
-            return False
+            return {}
         
         game_url = game_data['url']
         # Remove trailing slash from game_url to avoid double slashes
         if game_url.endswith('/'):
             game_url = game_url[:-1]
-        covers_url = f"{game_url}/covers/"
-        
-        logger.info(f"🔧 DEBUG: Fetching covers from: {covers_url}")
         
         # Create HTTP client
         user_agents = [
@@ -17855,88 +17879,187 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
         # Add random delay
         time.sleep(random.uniform(1.0, 3.0))
         
+        media_data = {
+            'covers': [],
+            'screenshots': []
+        }
+        
         with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
-            # Get covers page
+            # Scrape covers
+            covers_url = f"{game_url}/covers/"
+            logger.info(f"🔧 DEBUG: Scraping covers from: {covers_url}")
+            
             response = client.get(covers_url)
-            if response.status_code != 200:
-                logger.error(f"❌ DEBUG: Failed to fetch covers page: HTTP {response.status_code}")
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                target_platform = platform_mapping.get(mobygames_system_name, '').replace('-', ' ').title()
+                
+                # Find platform heading
+                platform_heading = None
+                for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                    heading_text = heading.get_text(strip=True).lower()
+                    if target_platform.lower() in heading_text or mobygames_system_name.lower() in heading_text:
+                        platform_heading = heading
+                        break
+                
+                if platform_heading:
+                    current_element = platform_heading
+                    while current_element:
+                        for link in current_element.find_all('a', href=True):
+                            href = link['href']
+                            if '/cover/' in href and href.count('/') >= 6:
+                                # Get link text for description
+                                link_text = link.get_text(strip=True)
+                                parent_text = ""
+                                if link.parent:
+                                    parent_text = link.parent.get_text(strip=True)
+                                
+                                # Get thumbnail URL from the link or img tag
+                                thumbnail_url = ""
+                                img_tag = link.find('img')
+                                if img_tag and img_tag.get('src'):
+                                    thumbnail_url = img_tag['src']
+                                    if not thumbnail_url.startswith('http'):
+                                        thumbnail_url = f"https://www.mobygames.com{thumbnail_url}"
+                                
+                                # Construct full URL
+                                if not href.startswith('http'):
+                                    href = f"https://www.mobygames.com{href}"
+                                
+                                media_data['covers'].append({
+                                    'page_url': href,
+                                    'thumbnail_url': thumbnail_url,
+                                    'description': f"{link_text} {parent_text}".strip()
+                                })
+                        
+                        current_element = current_element.find_next_sibling()
+                        if current_element and current_element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                            break
+            
+            # Scrape screenshots
+            screenshots_url = f"{game_url}/screenshots/"
+            logger.info(f"🔧 DEBUG: Scraping screenshots from: {screenshots_url}")
+            
+            response = client.get(screenshots_url)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                target_platform = platform_mapping.get(mobygames_system_name, '').replace('-', ' ').title()
+                
+                # Find platform heading
+                platform_heading = None
+                for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                    heading_text = heading.get_text(strip=True).lower()
+                    if target_platform.lower() in heading_text or mobygames_system_name.lower() in heading_text:
+                        platform_heading = heading
+                        break
+                
+                if platform_heading:
+                    current_element = platform_heading
+                    while current_element:
+                        for link in current_element.find_all('a', href=True):
+                            href = link['href']
+                            if '/screenshots/' in href and href.count('/') >= 6:
+                                # Get link text for description
+                                link_text = link.get_text(strip=True)
+                                parent_text = ""
+                                if link.parent:
+                                    parent_text = link.parent.get_text(strip=True)
+                                
+                                # Get thumbnail URL from the link or img tag
+                                thumbnail_url = ""
+                                img_tag = link.find('img')
+                                if img_tag and img_tag.get('src'):
+                                    thumbnail_url = img_tag['src']
+                                    if not thumbnail_url.startswith('http'):
+                                        thumbnail_url = f"https://www.mobygames.com{thumbnail_url}"
+                                
+                                # Construct full URL
+                                if not href.startswith('http'):
+                                    href = f"https://www.mobygames.com{href}"
+                                
+                                media_data['screenshots'].append({
+                                    'page_url': href,
+                                    'thumbnail_url': thumbnail_url,
+                                    'description': f"{link_text} {parent_text}".strip()
+                                })
+                        
+                        current_element = current_element.find_next_sibling()
+                        if current_element and current_element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                            break
+            
+            logger.info(f"🔧 DEBUG: Scraped {len(media_data['covers'])} covers and {len(media_data['screenshots'])} screenshots")
+            return media_data
+    
+    except Exception as e:
+        logger.error(f"❌ DEBUG: Error in scrape_mobygames_media_data: {e}")
+        return {}
+
+def download_mobygames_media(game_id, mobygames_system_name, media_type, target_path, platform_mapping, service=None):
+    """Download specific media type for a game from MobyGames using cached data"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        import httpx
+        import random
+        import time
+        
+        # Load cache
+        cache = load_mobygames_media_cache()
+        game_id_str = str(game_id)
+        platform_short = platform_mapping.get(mobygames_system_name, '')
+        
+        # Check if we have cached data for this game and platform
+        if game_id_str not in cache or platform_short not in cache[game_id_str]:
+            logger.info(f"🔧 DEBUG: No cached media data for game {game_id_str} platform {platform_short}, scraping...")
+            # Scrape and cache the data
+            media_data = scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping, service)
+            if not media_data:
                 return False
             
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Find cover links for the specific platform
-            cover_links = []
-            
-            # First, find the platform heading that matches our target platform
-            target_platform = platform_mapping.get(mobygames_system_name, '').replace('-', ' ').title()
-            logger.info(f"🔧 DEBUG: Looking for platform: {target_platform}")
-            
-            # Look for platform headings
-            platform_heading = None
-            for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-                heading_text = heading.get_text(strip=True).lower()
-                if target_platform.lower() in heading_text or mobygames_system_name.lower() in heading_text:
-                    platform_heading = heading
-                    logger.info(f"🔧 DEBUG: Found platform heading: {heading.get_text(strip=True)}")
-                    break
-            
-            if platform_heading:
-                # Find cover links under this platform heading
-                current_element = platform_heading
-                while current_element:
-                    # Look for cover links in the current element and its siblings
-                    for link in current_element.find_all('a', href=True):
-                        href = link['href']
-                        if '/cover/group-' in href and '/cover-' in href:
-                            cover_links.append(href)
-                    
-                    # Move to next sibling until we hit another heading of same or higher level
-                    current_element = current_element.find_next_sibling()
-                    if current_element and current_element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-                        break
-            else:
-                # Fallback: get all cover links if platform not found
-                logger.warning(f"🔧 DEBUG: Platform {target_platform} not found, using all covers")
-                for link in soup.find_all('a', href=True):
-                    href = link['href']
-                    if '/cover/group-' in href and '/cover-' in href:
-                        cover_links.append(href)
-            
-            logger.info(f"🔧 DEBUG: Found {len(cover_links)} cover links for platform {target_platform}")
-            
-            # Look for matching cover type
-            for cover_link in cover_links:
-                try:
-                    # Add random delay
-                    time.sleep(random.uniform(0.5, 1.5))
-                    
-                    # Handle both relative and absolute URLs
-                    if cover_link.startswith('http'):
-                        cover_url = cover_link
-                    else:
-                        cover_url = f"https://www.mobygames.com{cover_link}"
-                    logger.info(f"🔧 DEBUG: Checking cover: {cover_url}")
-                    
-                    cover_response = client.get(cover_url)
-                    if cover_response.status_code != 200:
-                        continue
-                    
-                    cover_soup = BeautifulSoup(cover_response.text, 'html.parser')
-                    
-                    # Check if this cover matches our media type
-                    # Look for cover type in various places
-                    cover_title = cover_soup.find('h1')
-                    cover_alt = cover_soup.find('figure')
-                    if cover_alt:
-                        cover_alt = cover_alt.find('img')
-                        if cover_alt:
-                            cover_alt = cover_alt.get('alt', '')
-                    
-                    # Check if media type appears in title or alt text
-                    title_text = cover_title.get_text().lower() if cover_title else ''
-                    alt_text = cover_alt.lower() if cover_alt else ''
-                    
-                    if media_type.lower() in title_text or media_type.lower() in alt_text:
+            # Update cache
+            if game_id_str not in cache:
+                cache[game_id_str] = {}
+            cache[game_id_str][platform_short] = media_data
+            save_mobygames_media_cache(cache)
+        else:
+            logger.info(f"🔧 DEBUG: Using cached media data for game {game_id_str} platform {platform_short}")
+            media_data = cache[game_id_str][platform_short]
+        
+        # Find matching media type in covers
+        for cover in media_data.get('covers', []):
+            description = cover.get('description', '').lower()
+            if media_type.lower() in description:
+                # Download the image
+                page_url = cover['page_url']
+                logger.info(f"🔧 DEBUG: Found matching cover: {page_url}")
+                
+                # Create HTTP client
+                user_agents = [
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+                ]
+                
+                headers = {
+                    'User-Agent': random.choice(user_agents),
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+                
+                # Add random delay
+                time.sleep(random.uniform(0.5, 1.5))
+                
+                with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
+                    cover_response = client.get(page_url)
+                    if cover_response.status_code == 200:
+                        from bs4 import BeautifulSoup
+                        cover_soup = BeautifulSoup(cover_response.text, 'html.parser')
+                        
                         # Find the image
                         img = cover_soup.find('figure').find('img')
                         if img and img.get('src'):
@@ -17968,12 +18091,8 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
                                 else:
                                     logger.error(f"❌ DEBUG: Failed to convert image to JPG")
                                     return False
-                            
-                except Exception as e:
-                    logger.error(f"❌ DEBUG: Error processing cover {cover_link}: {e}")
-                    continue
         
-        logger.warning(f"❌ DEBUG: No matching cover found for {media_type}")
+        logger.warning(f"❌ DEBUG: No {media_type} cover found for game ID {game_id}")
         return False
         
     except Exception as e:
@@ -17981,85 +18100,198 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
         return False
 
 def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, target_path, platform_mapping, service=None):
-    """Download specific screenshot type for a game from MobyGames"""
+    """Download specific screenshot type for a game from MobyGames using cached data"""
     import logging
     logger = logging.getLogger(__name__)
     
     try:
         import httpx
-        import asyncio
-        from bs4 import BeautifulSoup
         import random
         import time
         
-        # Get platform short name
-        platform_short = platform_mapping.get(mobygames_system_name)
-        if not platform_short:
-            logger.error(f"❌ DEBUG: No platform mapping found for {mobygames_system_name}")
-            return False
+        # Load cache
+        cache = load_mobygames_media_cache()
+        game_id_str = str(game_id)
+        platform_short = platform_mapping.get(mobygames_system_name, '')
         
-        # Get game URL from database
-        if service is None:
-            from mobygames_service import MobyGamesService
-            service = MobyGamesService(load_config(), load_scrappers_config(), load_systems_config())
-        
-        # mobygames_system_name is already the MobyGames system name
-        if mobygames_system_name not in service.databases:
-            logger.error(f"❌ DEBUG: No MobyGames system found for {mobygames_system_name}")
-            return False
-        
-        # Convert game_id to int if it's a string (database uses int keys)
-        try:
-            game_id_int = int(game_id)
-        except (ValueError, TypeError):
-            logger.error(f"❌ DEBUG: Invalid game ID format: {game_id}")
-            return False
-        
-        game_data = service.databases[mobygames_system_name].get(game_id_int)
-        if not game_data or 'url' not in game_data:
-            logger.error(f"❌ DEBUG: No game data or URL found for game ID {game_id_int}")
-            return False
-        
-        game_url = game_data['url']
-        # Remove trailing slash from game_url to avoid double slashes
-        if game_url.endswith('/'):
-            game_url = game_url[:-1]
-        screenshots_url = f"{game_url}/screenshots/"
-        
-        logger.info(f"🔧 DEBUG: Fetching screenshots from: {screenshots_url}")
-        
-        # Create HTTP client
-        user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
-        ]
-        
-        headers = {
-            'User-Agent': random.choice(user_agents),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-        }
-        
-        # Add random delay
-        time.sleep(random.uniform(1.0, 3.0))
-        
-        with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
-            # Get screenshots page
-            response = client.get(screenshots_url)
-            if response.status_code != 200:
-                logger.error(f"❌ DEBUG: Failed to fetch screenshots page: HTTP {response.status_code}")
+        # Check if we have cached data for this game and platform
+        if game_id_str not in cache or platform_short not in cache[game_id_str]:
+            logger.info(f"🔧 DEBUG: No cached media data for game {game_id_str} platform {platform_short}, scraping...")
+            # Scrape and cache the data
+            media_data = scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping, service)
+            if not media_data:
                 return False
             
-            soup = BeautifulSoup(response.text, 'html.parser')
+            # Update cache
+            if game_id_str not in cache:
+                cache[game_id_str] = {}
+            cache[game_id_str][platform_short] = media_data
+            save_mobygames_media_cache(cache)
+        else:
+            logger.info(f"🔧 DEBUG: Using cached media data for game {game_id_str} platform {platform_short}")
+            media_data = cache[game_id_str][platform_short]
+        
+        # Find matching media type in screenshots
+        screenshots = media_data.get('screenshots', [])
+        
+        if media_type.lower() == 'titleshot':
+            # Look for "Title Screen" screenshots
+            for screenshot in screenshots:
+                description = screenshot.get('description', '').lower()
+                if 'title screen' in description:
+                    # Download the image
+                    page_url = screenshot['page_url']
+                    logger.info(f"🔧 DEBUG: Found matching titleshot: {page_url}")
+                    
+                    # Create HTTP client
+                    user_agents = [
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+                    ]
+                    
+                    headers = {
+                        'User-Agent': random.choice(user_agents),
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'DNT': '1',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1'
+                    }
+                    
+                    # Add random delay
+                    time.sleep(random.uniform(0.5, 1.5))
+                    
+                    with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
+                        screenshot_response = client.get(page_url)
+                        if screenshot_response.status_code == 200:
+                            from bs4 import BeautifulSoup
+                            screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
+                            
+                            # Find the image
+                            img = screenshot_soup.find('figure').find('img')
+                            if img and img.get('src'):
+                                image_url = img['src']
+                                if not image_url.startswith('http'):
+                                    image_url = f"https://www.mobygames.com{image_url}"
+                                
+                                logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                                
+                                # Download image
+                                img_response = client.get(image_url)
+                                if img_response.status_code == 200:
+                                    # Save raw image first
+                                    temp_path = target_path + '.tmp'
+                                    with open(temp_path, 'wb') as f:
+                                        f.write(img_response.content)
+                                    
+                                    # Convert to target format using game_utils
+                                    from game_utils import convert_image_to_format
+                                    success = convert_image_to_format(temp_path, target_path, 'jpg')
+                                    
+                                    # Clean up temp file
+                                    if os.path.exists(temp_path):
+                                        os.remove(temp_path)
+                                    
+                                    if success:
+                                        logger.info(f"✅ DEBUG: Downloaded {media_type} to {target_path}")
+                                        return True
+                                    else:
+                                        logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                                        return False
+                    break  # Only process the first matching titleshot
+        
+        elif media_type.lower() == 'gameplay':
+            # Filter out screenshots with "screen" in their descriptions
+            valid_screenshots = []
+            for screenshot in screenshots:
+                description = screenshot.get('description', '').lower()
+                if 'screen' not in description:
+                    valid_screenshots.append(screenshot)
             
-            # Find screenshot links for the specific platform
-            screenshot_links = []
-            screenshot_elements = []  # Store both link and element for filtering
+            logger.info(f"🔧 DEBUG: Found {len(valid_screenshots)} valid gameplay screenshots (excluding '* screen *' text)")
+            
+            if valid_screenshots:
+                # Select the middle screenshot from valid ones
+                total_count = len(valid_screenshots)
+                selected_index = total_count // 2
+                selected_index = min(selected_index, total_count - 1)
+                
+                selected_screenshot = valid_screenshots[selected_index]
+                logger.info(f"🔧 DEBUG: Selected screenshot {selected_index + 1}/{total_count}")
+                
+                # Download the selected screenshot
+                page_url = selected_screenshot['page_url']
+                logger.info(f"🔧 DEBUG: Found matching gameplay screenshot: {page_url}")
+                
+                # Create HTTP client
+                user_agents = [
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+                ]
+                
+                headers = {
+                    'User-Agent': random.choice(user_agents),
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+                
+                # Add random delay
+                time.sleep(random.uniform(0.5, 1.5))
+                
+                with httpx.Client(headers=headers, timeout=30.0, follow_redirects=True) as client:
+                    screenshot_response = client.get(page_url)
+                    if screenshot_response.status_code == 200:
+                        from bs4 import BeautifulSoup
+                        screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
+                        
+                        # Find the image
+                        img = screenshot_soup.find('figure').find('img')
+                        if img and img.get('src'):
+                            image_url = img['src']
+                            if not image_url.startswith('http'):
+                                image_url = f"https://www.mobygames.com{image_url}"
+                            
+                            logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                            
+                            # Download image
+                            img_response = client.get(image_url)
+                            if img_response.status_code == 200:
+                                # Save raw image first
+                                temp_path = target_path + '.tmp'
+                                with open(temp_path, 'wb') as f:
+                                    f.write(img_response.content)
+                                
+                                # Convert to target format using game_utils
+                                from game_utils import convert_image_to_format
+                                success = convert_image_to_format(temp_path, target_path, 'jpg')
+                                
+                                # Clean up temp file
+                                if os.path.exists(temp_path):
+                                    os.remove(temp_path)
+                                
+                                if success:
+                                    logger.info(f"✅ DEBUG: Downloaded {media_type} to {target_path}")
+                                    return True
+                                else:
+                                    logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                                    return False
+            else:
+                logger.warning(f"❌ DEBUG: No valid gameplay screenshots found (all contained '* screen *' text)")
+                return False
+        
+        logger.warning(f"❌ DEBUG: No {media_type} screenshot found for game ID {game_id}")
+        return False
+        
+    except Exception as e:
+        logger.error(f"❌ DEBUG: Error in download_mobygames_screenshots: {e}")
+        return False
             
             # First, find the platform heading that matches our target platform
             target_platform = platform_mapping.get(mobygames_system_name, '').replace('-', ' ').title()
