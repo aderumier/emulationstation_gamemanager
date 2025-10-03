@@ -5423,10 +5423,7 @@ def scrap_mobygames_system(system_name):
         
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"🔧 DEBUG: MobyGames API - selected_games: {len(selected_games)} games")
-        logger.info(f"🔧 DEBUG: MobyGames API - selected_fields: {selected_fields}")
-        logger.info(f"🔧 DEBUG: MobyGames API - overwrite_text_fields: {overwrite_text_fields}")
-        logger.info(f"🔧 DEBUG: MobyGames API - overwrite_media_fields: {overwrite_media_fields}")
+        logger.info(f"MobyGames API - selected_games: {len(selected_games)} games, selected_fields: {selected_fields}, overwrite_text: {overwrite_text_fields}, overwrite_media: {overwrite_media_fields}")
         
         # Create task object
         task_data = {
@@ -5438,6 +5435,10 @@ def scrap_mobygames_system(system_name):
         }
         username = current_user.username if current_user.is_authenticated else 'anonymous'
         task = add_task_to_queue('mobygames', task_data, username)
+        
+        # Set current task and start it
+        current_task_id = task.id
+        task.start()
         
         # Start the task in a separate thread
         import threading
