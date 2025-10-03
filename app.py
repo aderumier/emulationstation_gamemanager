@@ -4696,6 +4696,7 @@ def manage_systems():
             launchbox_platform = data.get('launchbox_platform', '')
             screenscraper_platform = data.get('screenscraper_platform', '')
             igdb_platform = data.get('igdb_platform', '')
+            mobygames_platform = data.get('mobygames_platform', '')
             extensions = data.get('extensions', [])
             
             # Check if system exists
@@ -4707,6 +4708,7 @@ def manage_systems():
                 'launchbox': launchbox_platform,
                 'screenscraper': screenscraper_platform,
                 'igdb': igdb_platform,
+                'mobygames': mobygames_platform,
                 'extensions': extensions
             }
             

@@ -10333,6 +10333,7 @@ class GameCollectionManager {
                 launchbox_platform: currentSystem.launchbox || '',
                 screenscraper_platform: currentSystem.screenscraper || '',
                 igdb_platform: currentSystem.igdb || '',
+                mobygames_platform: currentSystem.mobygames || '',
                 extensions: Array.isArray(currentSystem.extensions) ? currentSystem.extensions : []
             };
             
@@ -10343,6 +10344,8 @@ class GameCollectionManager {
                 updateData.screenscraper_platform = value.trim();
             } else if (field === 'igdb') {
                 updateData.igdb_platform = value.trim();
+            } else if (field === 'mobygames') {
+                updateData.mobygames_platform = value.trim();
             } else if (field === 'extensions') {
                 // Parse extensions from comma-separated string
                 updateData.extensions = value.trim() ? 
