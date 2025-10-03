@@ -18059,6 +18059,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
             
             # Find screenshot links for the specific platform
             screenshot_links = []
+            screenshot_elements = []  # Store both link and element for filtering
             
             # First, find the platform heading that matches our target platform
             target_platform = platform_mapping.get(mobygames_system_name, '').replace('-', ' ').title()
@@ -18082,6 +18083,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                         href = link['href']
                         if '/screenshots/' in href and href.count('/') >= 6:  # Pattern: /game/ID/title/screenshots/platform/ID/
                             screenshot_links.append(href)
+                            screenshot_elements.append(link)  # Store the element for filtering
                     
                     # Move to next sibling until we hit another heading of same or higher level
                     current_element = current_element.find_next_sibling()
@@ -18094,63 +18096,39 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                     href = link['href']
                     if '/screenshots/' in href and href.count('/') >= 6:  # Pattern: /game/ID/title/screenshots/platform/ID/
                         screenshot_links.append(href)
+                        screenshot_elements.append(link)  # Store the element for filtering
             
             logger.info(f"🔧 DEBUG: Found {len(screenshot_links)} screenshot links for platform {target_platform}")
             
             # Special handling for "image" media type (gameplay screenshots)
             if media_type.lower() == 'gameplay':
-                # Filter out screenshots with "screen*" text and collect valid ones
+                # Filter out screenshots with "screen" in their descriptions directly on the list page
                 valid_screenshots = []
                 
-                for screenshot_link in screenshot_links:
-                    try:
-                        # Add random delay
-                        time.sleep(random.uniform(0.5, 1.5))
-                        
-                        # Handle both relative and absolute URLs
-                        if screenshot_link.startswith('http'):
-                            screenshot_url = screenshot_link
-                        else:
-                            screenshot_url = f"https://www.mobygames.com{screenshot_link}"
-                        logger.info(f"🔧 DEBUG: Checking screenshot: {screenshot_url}")
-                        
-                        screenshot_response = client.get(screenshot_url)
-                        if screenshot_response.status_code != 200:
-                            continue
-                        
-                        screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
-                        
-                        # Check if this screenshot has "screen*" text (exclude these)
-                        screenshot_title = screenshot_soup.find('h1')
-                        screenshot_alt = screenshot_soup.find('figure')
-                        if screenshot_alt:
-                            screenshot_alt = screenshot_alt.find('img')
-                            if screenshot_alt:
-                                screenshot_alt = screenshot_alt.get('alt', '')
-                        
-                        # Check if screenshot contains "screen*" text (exclude these)
-                        title_text = screenshot_title.get_text().lower() if screenshot_title else ''
-                        alt_text = screenshot_alt.lower() if screenshot_alt else ''
-                        
-                        # Skip screenshots with "screen" in title or alt text
-                        if 'screen' in title_text or 'screen' in alt_text:
-                            logger.info(f"🔧 DEBUG: Skipping screenshot with 'screen' text: {title_text} / {alt_text}")
-                            continue
-                        
-                        # This is a valid gameplay screenshot
-                        valid_screenshots.append({
-                            'url': screenshot_url,
-                            'title': title_text,
-                            'alt': alt_text
-                        })
-                        
-                    except Exception as e:
-                        logger.error(f"❌ DEBUG: Error processing screenshot {screenshot_link}: {e}")
+                for i, screenshot_element in enumerate(screenshot_elements):
+                    # Get text from the screenshot element and its parent/container
+                    link_text = screenshot_element.get_text().lower()
+                    
+                    # Also check parent element text
+                    parent_element = screenshot_element.parent
+                    if parent_element:
+                        parent_text = parent_element.get_text().lower()
+                        link_text += " " + parent_text
+                    
+                    # Skip screenshots with "screen" in their description text
+                    if 'screen' in link_text:
+                        logger.info(f"🔧 DEBUG: Skipping screenshot with 'screen' text: {link_text[:100]}...")
+                        should_skip = True
+                    
+                    if should_skip:
                         continue
+                    
+                    # This is a valid gameplay screenshot
+                    valid_screenshots.append(screenshot_links[i])
                 
-                logger.info(f"🔧 DEBUG: Found {len(valid_screenshots)} valid gameplay screenshots (excluding 'screen*' text)")
+                logger.info(f"🔧 DEBUG: Found {len(valid_screenshots)} valid gameplay screenshots (excluding '* screen *' text)")
                 
-                # Select the middle screenshot
+                # Select the middle screenshot from valid ones
                 if valid_screenshots:
                     # Calculate middle index
                     total_count = len(valid_screenshots)
@@ -18159,11 +18137,16 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                     # Ensure index is within bounds
                     selected_index = min(selected_index, total_count - 1)
                     
-                    selected_screenshot = valid_screenshots[selected_index]
-                    logger.info(f"🔧 DEBUG: Selected screenshot {selected_index + 1}/{total_count}: {selected_screenshot['title']}")
+                    selected_screenshot_link = valid_screenshots[selected_index]
+                    logger.info(f"🔧 DEBUG: Selected screenshot {selected_index + 1}/{total_count}")
                     
                     # Download the selected screenshot
-                    screenshot_response = client.get(selected_screenshot['url'])
+                    if selected_screenshot_link.startswith('http'):
+                        screenshot_url = selected_screenshot_link
+                    else:
+                        screenshot_url = f"https://www.mobygames.com{selected_screenshot_link}"
+                    
+                    screenshot_response = client.get(screenshot_url)
                     if screenshot_response.status_code == 200:
                         screenshot_soup = BeautifulSoup(screenshot_response.text, 'html.parser')
                         
@@ -18199,7 +18182,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                     logger.error(f"❌ DEBUG: Failed to convert image to JPG")
                                     return False
                 else:
-                    logger.warning(f"❌ DEBUG: No valid gameplay screenshots found (all had 'screen*' text)")
+                    logger.warning(f"❌ DEBUG: No valid gameplay screenshots found (all contained '* screen *' text)")
                     return False
             else:
                 # Original logic for other media types (titleshot, etc.)
