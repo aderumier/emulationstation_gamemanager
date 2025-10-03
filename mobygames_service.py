@@ -331,36 +331,60 @@ class MobyGamesService:
                     publishers = []
                     developers = []
                     
-                    # Find all company links with platform data
-                    company_links = soup.find_all('a', href=lambda x: x and '/company/' in x)
-                    
-                    for link in company_links:
-                        # Check if this company is for the correct platform
-                        popover_data = link.get('data-popover')
-                        if popover_data:
-                            try:
-                                import json as json_lib
-                                popover_info = json_lib.loads(popover_data)
-                                platforms = popover_info.get('platforms', [])
-                                
-                                # Check if our platform is in the list
-                                if mobygames_system in platforms:
-                                    company_name = link.get_text(strip=True)
-                                    
-                                    # Determine if it's publisher or developer based on context
-                                    parent_text = link.parent.get_text(strip=True).lower() if link.parent else ''
-                                    
-                                    if 'publisher' in parent_text or 'published' in parent_text:
-                                        publishers.append(company_name)
-                                    elif 'developer' in parent_text or 'developed' in parent_text:
-                                        developers.append(company_name)
+                    # Find the metadata dl element
+                    metadata_dl = soup.find('dl', class_='metadata')
+                    if metadata_dl:
+                        # Find Publishers dt element
+                        publishers_dt = metadata_dl.find('dt', string=lambda text: text and text.strip().lower() == 'publishers')
+                        if publishers_dt:
+                            publishers_dd = publishers_dt.find_next_sibling('dd')
+                            if publishers_dd:
+                                publisher_links = publishers_dd.find_all('a', href=lambda x: x and '/company/' in x)
+                                for link in publisher_links:
+                                    popover_data = link.get('data-popover')
+                                    if popover_data:
+                                        try:
+                                            import json as json_lib
+                                            popover_info = json_lib.loads(popover_data)
+                                            platforms = popover_info.get('platforms', [])
+                                            
+                                            # Check if our platform is in the list
+                                            if mobygames_system in platforms:
+                                                company_name = link.get_text(strip=True)
+                                                publishers.append(company_name)
+                                        except Exception as e:
+                                            self.logger.debug(f"Error parsing publisher popover data: {e}")
+                                            continue
                                     else:
-                                        # Default to publisher if unclear
+                                        # If no popover data, add the company anyway
+                                        company_name = link.get_text(strip=True)
                                         publishers.append(company_name)
-                                        
-                            except Exception as e:
-                                self.logger.debug(f"Error parsing popover data: {e}")
-                                continue
+                        
+                        # Find Developers dt element
+                        developers_dt = metadata_dl.find('dt', string=lambda text: text and text.strip().lower() == 'developers')
+                        if developers_dt:
+                            developers_dd = developers_dt.find_next_sibling('dd')
+                            if developers_dd:
+                                developer_links = developers_dd.find_all('a', href=lambda x: x and '/company/' in x)
+                                for link in developer_links:
+                                    popover_data = link.get('data-popover')
+                                    if popover_data:
+                                        try:
+                                            import json as json_lib
+                                            popover_info = json_lib.loads(popover_data)
+                                            platforms = popover_info.get('platforms', [])
+                                            
+                                            # Check if our platform is in the list
+                                            if mobygames_system in platforms:
+                                                company_name = link.get_text(strip=True)
+                                                developers.append(company_name)
+                                        except Exception as e:
+                                            self.logger.debug(f"Error parsing developer popover data: {e}")
+                                            continue
+                                    else:
+                                        # If no popover data, add the company anyway
+                                        company_name = link.get_text(strip=True)
+                                        developers.append(company_name)
                     
                     # Join multiple publishers/developers
                     if publishers:
