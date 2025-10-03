@@ -4773,7 +4773,9 @@ class GameCollectionManager {
                     tile.classList.add('border', 'border-primary');
                     // store selection on instance
                     if (!this.manualScrapSelectedMedia) this.manualScrapSelectedMedia = {};
-                    this.manualScrapSelectedMedia[mediaKey] = { source, index, url };
+                    // For MobyGames, use page_url for full-size download, otherwise use url
+                    const downloadUrl = (source === 'mobygames' && metadata.page_url) ? metadata.page_url : url;
+                    this.manualScrapSelectedMedia[mediaKey] = { source, index, url: downloadUrl };
                 });
 
                 // Image resolution will be loaded automatically via onload event

@@ -3329,9 +3329,9 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                 if gamelist_field.lower() == 'titleshot':
                     if 'title screen' in description:
                         media_options.append({
-                            'url': screenshot.get('page_url', ''),  # Use page_url for full-size image
+                            'url': screenshot.get('thumbnail_url', ''),  # Use thumbnail for preview
                             'description': screenshot.get('description', ''),
-                            'page_url': screenshot.get('page_url', ''),
+                            'page_url': screenshot.get('page_url', ''),  # Use page_url for full-size download
                             'type': 'Title Screen'
                         })
                 
@@ -3339,9 +3339,9 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                 elif gamelist_field.lower() == 'image':
                     if 'screen' not in description:
                         media_options.append({
-                            'url': screenshot.get('page_url', ''),  # Use page_url for full-size image
+                            'url': screenshot.get('thumbnail_url', ''),  # Use thumbnail for preview
                             'description': screenshot.get('description', ''),
-                            'page_url': screenshot.get('page_url', ''),
+                            'page_url': screenshot.get('page_url', ''),  # Use page_url for full-size download
                             'type': 'Gameplay'
                         })
         else:
@@ -3352,9 +3352,9 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                     description = cover.get('description', '').lower()
                     if mobygames_type.lower() in description:
                         media_options.append({
-                            'url': cover.get('page_url', ''),  # Use page_url for full-size image
+                            'url': cover.get('thumbnail_url', ''),  # Use thumbnail for preview
                             'description': cover.get('description', ''),
-                            'page_url': cover.get('page_url', ''),
+                            'page_url': cover.get('page_url', ''),  # Use page_url for full-size download
                             'type': mobygames_type
                         })
         
@@ -9776,16 +9776,29 @@ def apply_manual_scrap(system_name):
             target_path = os.path.join(target_dir, target_filename)
 
             try:
-                resp = requests.get(selected_url, timeout=30)
-                if resp.status_code == 200:
-                    with open(target_path, 'wb') as f:
-                        f.write(resp.content)
-                    # Update game field with relative path
-                    rel_path = f'./media/{directory}/{target_filename}'
-                    game[media_field] = rel_path
-                    media_updates[media_field] = rel_path
+                # Check if this is a MobyGames page URL - if so, use the special download function
+                if 'mobygames.com' in selected_url and ('/cover/' in selected_url or '/screenshots/' in selected_url):
+                    # This is a MobyGames page URL, use the special download function for full-size images
+                    success = download_mobygames_media_from_url(selected_url, target_path)
+                    if success:
+                        # Update game field with relative path
+                        rel_path = f'./media/{directory}/{target_filename}'
+                        game[media_field] = rel_path
+                        media_updates[media_field] = rel_path
+                    else:
+                        print(f'Error downloading MobyGames media {media_field} from {selected_url}')
                 else:
-                    print(f'Error downloading media {media_field} from {selected_url}: HTTP {resp.status_code}')
+                    # Regular URL download
+                    resp = requests.get(selected_url, timeout=30)
+                    if resp.status_code == 200:
+                        with open(target_path, 'wb') as f:
+                            f.write(resp.content)
+                        # Update game field with relative path
+                        rel_path = f'./media/{directory}/{target_filename}'
+                        game[media_field] = rel_path
+                        media_updates[media_field] = rel_path
+                    else:
+                        print(f'Error downloading media {media_field} from {selected_url}: HTTP {resp.status_code}')
             except Exception as e:
                 print(f'Error downloading media {media_field} from {selected_url}: {e}')
 
