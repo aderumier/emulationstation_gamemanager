@@ -3306,7 +3306,7 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config):
             if mobygames_field == 'release_year' and gamelist_field == 'releasedate':
                 try:
                     year = int(value)
-                    value = f"{year}-01-01T00:00:00Z"
+                    value = format_releasedate_to_iso8601(str(year))
                 except (ValueError, TypeError):
                     pass
             
