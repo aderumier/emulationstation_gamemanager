@@ -18646,12 +18646,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"🔧 DEBUG: run_mobygames_task called with:")
-    logger.info(f"  - system_name: {system_name}")
-    logger.info(f"  - selected_games: {selected_games}")
-    logger.info(f"  - selected_fields: {selected_fields}")
-    logger.info(f"  - overwrite_text_fields: {overwrite_text_fields}")
-    logger.info(f"  - overwrite_media_fields: {overwrite_media_fields}")
+    logger.info(f"Starting MobyGames task for system: {system_name}")
     
     # Separate text fields from media fields based on config
     mobygames_config = load_scrappers_config().get('mobygames', {})
@@ -18664,10 +18659,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
     selected_text_fields = [field for field in selected_fields if field in text_fields] if selected_fields else []
     selected_media_fields = [field for field in selected_fields if field in media_fields] if selected_fields else []
     
-    logger.info(f"🔧 DEBUG: Separated fields - text: {selected_text_fields}, media: {selected_media_fields}")
-    
     try:
-        logger.info(f"Starting MobyGames task for system: {system_name}")
         
         # Load config
         config = load_config()
@@ -18698,9 +18690,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
         mobygames_config['overwrite_text_fields'] = overwrite_text_fields
         mobygames_config['overwrite_media_fields'] = overwrite_media_fields
         
-        logger.info(f"🔧 DEBUG: MobyGames task - selected_fields: {selected_fields}")
-        logger.info(f"🔧 DEBUG: MobyGames task - overwrite_text_fields: {overwrite_text_fields}")
-        logger.info(f"🔧 DEBUG: MobyGames task - overwrite_media_fields: {overwrite_media_fields}")
+        logger.info(f"MobyGames task - selected_fields: {selected_fields}, overwrite_text: {overwrite_text_fields}, overwrite_media: {overwrite_media_fields}")
         
         # Get task object for progress updates
         t = get_task(task_id)
@@ -18738,7 +18728,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
         # Update task with total count
         t = get_task(task_id)
         if t:
-            t.update_progress(0, f"Processing {total_games} games", current_step=0, total_steps=total_games)
+            t.update_progress(f"Processing {total_games} games", progress_percentage=0, current_step=0, total_steps=total_games)
         
         processed_count = 0
         updated_count = 0
@@ -18753,7 +18743,7 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                 # Update progress
                 if t:
                     progress_percent = int((i / total_games) * 100)
-                    t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {game_name}", progress_percent, i+1, total_games)
+                    t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {game_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
                 
                 logger.info(f"🔍 Searching MobyGames for: {game_name}")
                 
@@ -18817,9 +18807,6 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                             game_updated = True
                     
                     # Process media fields if we have a MobyGames ID and selected media fields
-                    logger.info(f"🔧 DEBUG: Media processing check - overwrite_media_fields: {overwrite_media_fields}, has_id: {'id' in mobygames_game}, selected_media_fields: {selected_media_fields}")
-                    if 'id' in mobygames_game:
-                        logger.info(f"🔧 DEBUG: Game has ID: {mobygames_game['id']}")
                     if 'id' in mobygames_game and selected_media_fields and len(selected_media_fields) > 0:
                         logger.info(f"🖼️  Processing media for '{game_name}' (ID: {mobygames_game['id']})")
                         if t:
@@ -18940,9 +18927,11 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
         print(f"💾 Saving updated gamelist for {system_name}")
         write_gamelist_xml(all_games, gamelist_path)
         
-        # Complete the task
+        # Final progress update
         t = get_task(task_id)
         if t:
+            t.update_progress(f"✅ MobyGames scraping completed. Updated {updated_count} games out of {processed_count} processed.", progress_percentage=100, current_step=total_games, total_steps=total_games)
+            
             # Set grid refresh flag and system name for frontend monitoring
             t.grid_refresh_needed = True
             t.data = {
