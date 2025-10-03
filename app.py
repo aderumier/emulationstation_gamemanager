@@ -3331,6 +3331,8 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
     else:
         media_data = cache[game_id_str][platform_short]
     
+    print(f"🔧 DEBUG: Media data structure: covers={len(media_data.get('covers', []))}, screenshots={len(media_data.get('screenshots', []))}")
+    
     # Process each media type
     for gamelist_field, mobygames_types in image_type_mappings.items():
         media_options = []
@@ -3339,9 +3341,12 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
             if mobygames_type.lower() in ['titleshot', 'image']:
                 # Handle screenshots
                 screenshots = media_data.get('screenshots', [])
+                print(f"🔧 DEBUG: Processing {mobygames_type} - found {len(screenshots)} screenshots")
                 for screenshot in screenshots:
                     description = screenshot.get('description', '').lower()
+                    print(f"🔧 DEBUG: Screenshot description: '{description}'")
                     if mobygames_type.lower() == 'titleshot' and 'title screen' in description:
+                        print(f"🔧 DEBUG: Found titleshot: {screenshot.get('description', '')}")
                         media_options.append({
                             'url': screenshot.get('thumbnail_url', ''),
                             'description': screenshot.get('description', ''),
@@ -3349,6 +3354,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                             'type': mobygames_type
                         })
                     elif mobygames_type.lower() == 'image' and 'screen' not in description:
+                        print(f"🔧 DEBUG: Found gameplay screenshot: {screenshot.get('description', '')}")
                         media_options.append({
                             'url': screenshot.get('thumbnail_url', ''),
                             'description': screenshot.get('description', ''),
@@ -18348,6 +18354,11 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
                             break
             
             logger.info(f"🔧 DEBUG: Scraped {len(media_data['covers'])} covers and {len(media_data['screenshots'])} screenshots")
+            
+            # Debug: Print some screenshot details
+            for i, screenshot in enumerate(media_data['screenshots'][:3]):  # Show first 3 screenshots
+                logger.info(f"🔧 DEBUG: Screenshot {i+1}: {screenshot.get('description', 'No description')}")
+            
             return media_data
     
     except Exception as e:
