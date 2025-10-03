@@ -3329,7 +3329,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                 if gamelist_field.lower() == 'titleshot':
                     if 'title screen' in description:
                         media_options.append({
-                            'url': screenshot.get('thumbnail_url', ''),
+                            'url': screenshot.get('page_url', ''),  # Use page_url for full-size image
                             'description': screenshot.get('description', ''),
                             'page_url': screenshot.get('page_url', ''),
                             'type': 'Title Screen'
@@ -3339,7 +3339,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                 elif gamelist_field.lower() == 'image':
                     if 'screen' not in description:
                         media_options.append({
-                            'url': screenshot.get('thumbnail_url', ''),
+                            'url': screenshot.get('page_url', ''),  # Use page_url for full-size image
                             'description': screenshot.get('description', ''),
                             'page_url': screenshot.get('page_url', ''),
                             'type': 'Gameplay'
@@ -3352,7 +3352,7 @@ def extract_mobygames_media_fields(mobygames_game, system_name, image_type_mappi
                     description = cover.get('description', '').lower()
                     if mobygames_type.lower() in description:
                         media_options.append({
-                            'url': cover.get('thumbnail_url', ''),
+                            'url': cover.get('page_url', ''),  # Use page_url for full-size image
                             'description': cover.get('description', ''),
                             'page_url': cover.get('page_url', ''),
                             'type': mobygames_type
