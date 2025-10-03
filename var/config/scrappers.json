@@ -141,7 +141,11 @@
             "title": "name",
             "moby_score": "rating",
             "release_year": "releasedate",
-            "genres": "genre"
+            "genres": "genre",
+            "description": "desc",
+            "publisher": "publisher",
+            "developer": "developer",
+            "nbvote": "nbvote"
         },
         "image_type_mappings": {
             "boxart": [

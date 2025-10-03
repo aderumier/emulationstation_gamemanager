@@ -3255,30 +3255,62 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config):
     if not mobygames_game:
         return text_fields
     
+    # Check if we need to scrape additional text fields from the website
+    additional_fields = ['description', 'publisher', 'developer', 'nbvote']
+    needs_scraping = any(field in mapping_config for field in additional_fields)
+    
+    additional_data = {}
+    if needs_scraping and 'id' in mobygames_game:
+        # Get MobyGames service to scrape additional fields
+        from mobygames_service import MobyGamesService
+        config = load_config()
+        scrappers_config = load_scrappers_config()
+        systems_config = load_systems_config()
+        
+        # Get system name from the game data or context
+        system_name = mobygames_game.get('system_name', '')
+        if not system_name:
+            # Try to find system name from systems config
+            for sys_name, sys_config in systems_config.items():
+                if sys_config.get('mobygames') == mobygames_game.get('system'):
+                    system_name = sys_name
+                    break
+        
+        if system_name:
+            service = MobyGamesService(config, scrappers_config, systems_config)
+            additional_data = service.scrape_additional_text_fields(mobygames_game['id'], mobygames_game.get('system', ''))
+    
     for mobygames_field, gamelist_field in mapping_config.items():
+        value = None
+        
+        # First check local database
         if mobygames_field in mobygames_game:
             value = mobygames_game[mobygames_field]
-            if value is not None:
-                # Special handling for title field (preserve ROM parentheses)
-                if mobygames_field == 'title':
-                    # Extract parentheses from ROM filename if available
-                    rom_path = mobygames_game.get('rom_path', '')
-                    if rom_path:
-                        import re
-                        rom_name = os.path.splitext(os.path.basename(rom_path))[0]
-                        parentheses_match = re.search(r'\(([^)]+)\)', rom_name)
-                        if parentheses_match:
-                            value = f"{value} ({parentheses_match.group(1)})"
-                
-                # Special handling for release_year -> releasedate conversion
-                if mobygames_field == 'release_year' and gamelist_field == 'releasedate':
-                    try:
-                        year = int(value)
-                        value = f"{year}-01-01T00:00:00Z"
-                    except (ValueError, TypeError):
-                        pass
-                
-                text_fields[gamelist_field] = value
+        # Then check scraped additional data
+        elif mobygames_field in additional_data:
+            value = additional_data[mobygames_field]
+        
+        if value is not None:
+            # Special handling for title field (preserve ROM parentheses)
+            if mobygames_field == 'title':
+                # Extract parentheses from ROM filename if available
+                rom_path = mobygames_game.get('rom_path', '')
+                if rom_path:
+                    import re
+                    rom_name = os.path.splitext(os.path.basename(rom_path))[0]
+                    parentheses_match = re.search(r'\(([^)]+)\)', rom_name)
+                    if parentheses_match:
+                        value = f"{value} ({parentheses_match.group(1)})"
+            
+            # Special handling for release_year -> releasedate conversion
+            if mobygames_field == 'release_year' and gamelist_field == 'releasedate':
+                try:
+                    year = int(value)
+                    value = f"{year}-01-01T00:00:00Z"
+                except (ValueError, TypeError):
+                    pass
+            
+            text_fields[gamelist_field] = value
     
     return text_fields
 
@@ -10366,6 +10398,9 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         
         # Add ROM path for parentheses extraction
         mobygames_game['rom_path'] = game.get('path', '')
+        # Add system information for text field scraping
+        mobygames_game['system_name'] = system_name
+        mobygames_game['system'] = mobygames_system
         
         # Get field mappings
         text_field_mapping = mobygames_config.get('mapping', {})
@@ -18768,6 +18803,9 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                     
                     # Add ROM path for parentheses extraction
                     mobygames_game['rom_path'] = game.get('path', '')
+                    # Add system information for text field scraping
+                    mobygames_game['system_name'] = system_name
+                    mobygames_game['system'] = mobygames_system
                     
                     # Extract text fields using common function
                     text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)

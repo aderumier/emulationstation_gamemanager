@@ -4632,7 +4632,9 @@ class GameCollectionManager {
             'developer': 'Developer',
             'publisher': 'Publisher',
             'genre': 'Genre',
-            'releasedate': 'Release Date'
+            'releasedate': 'Release Date',
+            'rating': 'Rating',
+            'nbvote': 'Number of Votes'
         };
 
         Object.entries(textFields).forEach(([fieldKey, fieldData]) => {

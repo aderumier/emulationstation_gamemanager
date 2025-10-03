@@ -256,4 +256,165 @@ class MobyGamesService:
         results.sort(key=lambda x: x['score'], reverse=True)
         return results[:limit]
     
-    # Web scraping methods removed - now handled directly in task
+    def scrape_additional_text_fields(self, game_id: int, mobygames_system: str) -> Dict[str, Any]:
+        """Scrape additional text fields from MobyGames game page"""
+        try:
+            import httpx
+            from bs4 import BeautifulSoup
+            import random
+            import time
+            
+            # Get game data
+            if mobygames_system not in self.databases:
+                return {}
+            
+            game_data = self.databases[mobygames_system].get(game_id)
+            if not game_data or 'url' not in game_data:
+                return {}
+            
+            game_url = game_data['url']
+            if game_url.endswith('/'):
+                game_url = game_url[:-1]
+            
+            # Check cache first
+            cache_file = 'var/cache/mobygames.json'
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        cache_data = json.load(f)
+                    
+                    if str(game_id) in cache_data and 'text_fields' in cache_data[str(game_id)]:
+                        self.logger.info(f"Using cached text fields for game {game_id}")
+                        return cache_data[str(game_id)]['text_fields']
+                except Exception as e:
+                    self.logger.debug(f"Error reading cache: {e}")
+            
+            # Create HTTP client
+            user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+            ]
+            
+            headers = {
+                'User-Agent': random.choice(user_agents),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            
+            # Add random delay
+            time.sleep(random.uniform(0.5, 1.5))
+            
+            with httpx.Client(headers=headers, timeout=15.0, follow_redirects=True) as client:
+                response = client.get(game_url)
+                
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    # Extract text fields
+                    text_fields = {}
+                    
+                    # Extract description
+                    desc_section = soup.find('section', id='gameDescription')
+                    if desc_section:
+                        desc_div = desc_section.find('div', id='description-text')
+                        if desc_div:
+                            # Get all text content, preserving structure
+                            description = desc_div.get_text(separator=' ', strip=True)
+                            text_fields['description'] = description
+                    
+                    # Extract publisher and developer (platform-specific)
+                    publishers = []
+                    developers = []
+                    
+                    # Find all company links with platform data
+                    company_links = soup.find_all('a', href=lambda x: x and '/company/' in x)
+                    
+                    for link in company_links:
+                        # Check if this company is for the correct platform
+                        popover_data = link.get('data-popover')
+                        if popover_data:
+                            try:
+                                import json as json_lib
+                                popover_info = json_lib.loads(popover_data)
+                                platforms = popover_info.get('platforms', [])
+                                
+                                # Check if our platform is in the list
+                                if mobygames_system in platforms:
+                                    company_name = link.get_text(strip=True)
+                                    
+                                    # Determine if it's publisher or developer based on context
+                                    parent_text = link.parent.get_text(strip=True).lower() if link.parent else ''
+                                    
+                                    if 'publisher' in parent_text or 'published' in parent_text:
+                                        publishers.append(company_name)
+                                    elif 'developer' in parent_text or 'developed' in parent_text:
+                                        developers.append(company_name)
+                                    else:
+                                        # Default to publisher if unclear
+                                        publishers.append(company_name)
+                                        
+                            except Exception as e:
+                                self.logger.debug(f"Error parsing popover data: {e}")
+                                continue
+                    
+                    # Join multiple publishers/developers
+                    if publishers:
+                        text_fields['publisher'] = ', '.join(publishers)
+                    if developers:
+                        text_fields['developer'] = ', '.join(developers)
+                    
+                    # Extract number of votes
+                    reviews_link = soup.find('a', href=lambda x: x and '/reviews/' in x)
+                    if reviews_link:
+                        votes_text = reviews_link.get_text(strip=True)
+                        try:
+                            votes = int(votes_text)
+                            text_fields['nbvote'] = votes
+                        except ValueError:
+                            pass
+                    
+                    # Cache the results
+                    self._cache_text_fields(game_id, text_fields)
+                    
+                    return text_fields
+                
+                else:
+                    self.logger.warning(f"Failed to load game page: {response.status_code}")
+                    return {}
+                    
+        except Exception as e:
+            self.logger.error(f"Error scraping additional text fields for game {game_id}: {e}")
+            return {}
+    
+    def _cache_text_fields(self, game_id: int, text_fields: Dict[str, Any]):
+        """Cache text fields in var/cache/mobygames.json"""
+        try:
+            cache_file = 'var/cache/mobygames.json'
+            
+            # Load existing cache
+            cache_data = {}
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        cache_data = json.load(f)
+                except Exception as e:
+                    self.logger.debug(f"Error loading cache: {e}")
+            
+            # Update cache
+            if str(game_id) not in cache_data:
+                cache_data[str(game_id)] = {}
+            
+            cache_data[str(game_id)]['text_fields'] = text_fields
+            
+            # Save cache
+            os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, indent=2, ensure_ascii=False)
+                
+        except Exception as e:
+            self.logger.error(f"Error caching text fields: {e}")
