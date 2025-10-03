@@ -18347,7 +18347,7 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
         
         # Check if we have cached data for this game and platform
         if game_id_str not in cache or platform_short not in cache[game_id_str]:
-            logger.info(f"🔧 DEBUG: No cached media data for game {game_id_str} platform {platform_short}, scraping...")
+            # No cached media data, scraping...
             # Scrape and cache the data
             media_data = scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping, service)
             if not media_data:
@@ -18359,7 +18359,7 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
             cache[game_id_str][platform_short] = media_data
             save_mobygames_media_cache(cache)
         else:
-            logger.info(f"🔧 DEBUG: Using cached media data for game {game_id_str} platform {platform_short}")
+            # Using cached media data
             media_data = cache[game_id_str][platform_short]
         
         # Find matching media type in covers
@@ -18368,7 +18368,7 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
             if media_type.lower() in description:
                 # Download the image
                 page_url = cover['page_url']
-                logger.info(f"🔧 DEBUG: Found matching cover: {page_url}")
+                # Found matching cover
                 
                 # Create HTTP client
                 user_agents = [
@@ -18403,7 +18403,7 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
                             if not image_url.startswith('http'):
                                 image_url = f"https://www.mobygames.com{image_url}"
                             
-                            logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                            # Found image URL
                             
                             # Download image
                             img_response = client.get(image_url)
@@ -18422,10 +18422,10 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
                                     os.remove(temp_path)
                                 
                                 if success:
-                                    logger.info(f"✅ DEBUG: Downloaded {media_type} to {target_path}")
+                                    logger.info(f"Downloaded {media_type} to {target_path}")
                                     return True
                                 else:
-                                    logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                                    logger.error("Failed to convert image to JPG")
                                     return False
         
         logger.warning(f"❌ DEBUG: No {media_type} cover found for game ID {game_id}")
@@ -18452,7 +18452,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
         
         # Check if we have cached data for this game and platform
         if game_id_str not in cache or platform_short not in cache[game_id_str]:
-            logger.info(f"🔧 DEBUG: No cached media data for game {game_id_str} platform {platform_short}, scraping...")
+            # No cached media data, scraping...
             # Scrape and cache the data
             media_data = scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping, service)
             if not media_data:
@@ -18464,7 +18464,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
             cache[game_id_str][platform_short] = media_data
             save_mobygames_media_cache(cache)
         else:
-            logger.info(f"🔧 DEBUG: Using cached media data for game {game_id_str} platform {platform_short}")
+            # Using cached media data
             media_data = cache[game_id_str][platform_short]
         
         # Find matching media type in screenshots
@@ -18512,7 +18512,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                 if not image_url.startswith('http'):
                                     image_url = f"https://www.mobygames.com{image_url}"
                                 
-                                logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                                # Found image URL
                                 
                                 # Download image
                                 img_response = client.get(image_url)
@@ -18531,10 +18531,10 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                         os.remove(temp_path)
                                     
                                     if success:
-                                        logger.info(f"✅ DEBUG: Downloaded {media_type} to {target_path}")
+                                        logger.info(f"Downloaded {media_type} to {target_path}")
                                         return True
                                     else:
-                                        logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                                        logger.error("Failed to convert image to JPG")
                                         return False
                     break  # Only process the first matching titleshot
         
@@ -18594,7 +18594,7 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                             if not image_url.startswith('http'):
                                 image_url = f"https://www.mobygames.com{image_url}"
                             
-                            logger.info(f"🔧 DEBUG: Found image URL: {image_url}")
+                            # Found image URL
                             
                             # Download image
                             img_response = client.get(image_url)
@@ -18613,10 +18613,10 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                     os.remove(temp_path)
                                 
                                 if success:
-                                    logger.info(f"✅ DEBUG: Downloaded {media_type} to {target_path}")
+                                    logger.info(f"Downloaded {media_type} to {target_path}")
                                     return True
                                 else:
-                                    logger.error(f"❌ DEBUG: Failed to convert image to JPG")
+                                    logger.error("Failed to convert image to JPG")
                                     return False
             else:
                 logger.warning(f"❌ DEBUG: No valid gameplay screenshots found (all contained '* screen *' text)")
