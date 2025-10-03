@@ -3212,6 +3212,41 @@ current_system_platform = None
 global_metadata_cache = {}
 global_metadata_cache_loaded = False
 
+# Global MobyGames service instance
+global_mobygames_service = None
+global_mobygames_service_loaded = False
+
+def load_mobygames_service():
+    """Load MobyGames service in background"""
+    global global_mobygames_service, global_mobygames_service_loaded
+    
+    if global_mobygames_service_loaded:
+        return global_mobygames_service
+    
+    try:
+        print("🔄 Loading MobyGames databases in background...")
+        start_time = time.time()
+        
+        # Load configs
+        config = load_config()
+        scrappers_config = load_scrappers_config()
+        systems_config = load_systems_config()
+        
+        # Initialize MobyGames service
+        from mobygames_service import MobyGamesService
+        global_mobygames_service = MobyGamesService(config, scrappers_config, systems_config)
+        
+        end_time = time.time()
+        print(f"✅ MobyGames service loaded successfully in {end_time - start_time:.2f} seconds!")
+        global_mobygames_service_loaded = True
+        
+        return global_mobygames_service
+        
+    except Exception as e:
+        print(f"❌ Failed to load MobyGames service: {e}")
+        global_mobygames_service_loaded = True  # Mark as loaded to prevent retries
+        return None
+
 def load_metadata_cache():
     """Load and cache all metadata from Metadata.xml for faster lookups"""
     global global_metadata_cache, global_metadata_cache_loaded
@@ -4116,15 +4151,16 @@ def get_mobygames_systems():
         import os
         import glob
         
-        # Use cached MobyGames service if available
-        if not hasattr(get_mobygames_systems, '_cached_service'):
-            config = load_config()
-            systems_config = load_systems_config()
-            from mobygames_service import MobyGamesService
-            get_mobygames_systems._cached_service = MobyGamesService(config, scrappers_config, systems_config)
+        # Use global cached MobyGames service
+        service = load_mobygames_service()
+        if not service:
+            return jsonify({
+                'success': False,
+                'error': 'MobyGames service not available'
+            })
         
         # Get available systems from the cached service
-        available_systems = get_mobygames_systems._cached_service.get_available_systems()
+        available_systems = service.get_available_systems()
         
         return jsonify({
             'success': True,
@@ -18328,9 +18364,13 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_field
                 t.complete(False, f"No MobyGames system configured for system: {system_name}")
             return
         
-        # Initialize MobyGames service
-        from mobygames_service import MobyGamesService
-        service = MobyGamesService(config, scrappers_config, systems_config)
+        # Get cached MobyGames service or load it if not available
+        service = load_mobygames_service()
+        if not service:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, "MobyGames service not available")
+            return
         
         # Load platform mapping for media scraping
         platform_mapping = load_mobygames_platform_mapping()
@@ -19868,6 +19908,13 @@ if __name__ == '__main__':
     
     cache_thread = threading.Thread(target=load_cache_background, daemon=True)
     cache_thread.start()
+    
+    # Start MobyGames service loading in a separate thread
+    def load_mobygames_background():
+        load_mobygames_service()
+    
+    mobygames_thread = threading.Thread(target=load_mobygames_background, daemon=True)
+    mobygames_thread.start()
     
     # Use a more robust approach with proper signal handling
     import sys
