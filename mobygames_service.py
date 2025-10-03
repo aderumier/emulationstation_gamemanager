@@ -369,14 +369,15 @@ class MobyGamesService:
                         text_fields['developer'] = ', '.join(developers)
                     
                     # Extract number of votes
-                    reviews_link = soup.find('a', href=lambda x: x and '/reviews/' in x)
-                    if reviews_link:
+                    reviews_links = soup.find_all('a', href=lambda x: x and '/reviews/' in x)
+                    for reviews_link in reviews_links:
                         votes_text = reviews_link.get_text(strip=True)
                         try:
                             votes = int(votes_text)
-                            text_fields['nbvote'] = votes
+                            text_fields['nbvotes'] = votes
+                            break  # Found a valid number, stop looking
                         except ValueError:
-                            pass
+                            continue
                     
                     # Cache the results
                     self._cache_text_fields(game_id, text_fields)

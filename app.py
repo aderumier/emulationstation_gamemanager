@@ -3256,7 +3256,7 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config):
         return text_fields
     
     # Check if we need to scrape additional text fields from the website
-    additional_fields = ['description', 'publisher', 'developer', 'nbvote']
+    additional_fields = ['description', 'publisher', 'developer', 'nbvotes']
     needs_scraping = any(field in mapping_config for field in additional_fields)
     
     additional_data = {}
@@ -3887,6 +3887,8 @@ def parse_gamelist_xml(file_path):
                     game_data['screenscraperid'] = int(text) if text.isdigit() else None
                 elif tag == 'mobygamesid':
                     game_data['mobygamesid'] = text
+                elif tag == 'nbvotes':
+                    game_data['nbvotes'] = int(text) if text.isdigit() else None
                 elif tag == 'steamid':
                     game_data['steamid'] = int(text) if text.isdigit() else None
                 elif tag == 'steamgridid':

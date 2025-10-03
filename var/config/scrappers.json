@@ -145,7 +145,7 @@
             "description": "desc",
             "publisher": "publisher",
             "developer": "developer",
-            "nbvote": "nbvote"
+            "nbvotes": "nbvotes"
         },
         "image_type_mappings": {
             "boxart": [
