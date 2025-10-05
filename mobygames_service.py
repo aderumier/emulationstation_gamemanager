@@ -118,10 +118,22 @@ class MobyGamesService:
         if not normalized_search:
             return None
         
-        # Try exact match only
-        if normalized_search in self.title_index[mobygames_system]:
+        # First, search in the configured system
+        if mobygames_system in self.title_index and normalized_search in self.title_index[mobygames_system]:
             game_id = self.title_index[mobygames_system][normalized_search]
-            return self.databases[mobygames_system][game_id]
+            game_data = self.databases[mobygames_system][game_id]
+            # Add system information to the game data
+            game_data['system'] = mobygames_system
+            return game_data
+        
+        # If not found in configured system, search across all systems as fallback
+        for system, title_index in self.title_index.items():
+            if normalized_search in title_index:
+                game_id = title_index[normalized_search]
+                game_data = self.databases[system][game_id]
+                # Add system information to the game data
+                game_data['system'] = system
+                return game_data
         
         return None
 
@@ -353,7 +365,6 @@ class MobyGamesService:
                                                 company_name = link.get_text(strip=True)
                                                 publishers.append(company_name)
                                         except Exception as e:
-                                            self.logger.debug(f"Error parsing publisher popover data: {e}")
                                             continue
                                     else:
                                         # If no popover data, add the company anyway

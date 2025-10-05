@@ -41,6 +41,7 @@ cp screenscraper_service.py debian/opt/gamemanager/screenscraper_service.py
 cp game_utils.py debian/opt/gamemanager/game_utils.py
 cp steam_service.py debian/opt/gamemanager/steam_service.py
 cp steamgrid_service.py debian/opt/gamemanager/steamgrid_service.py
+cp mobygames_service.py debian/opt/gamemanager/mobygames_service.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
@@ -124,6 +125,11 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/steamgrid_service.py" ]; then
     echo "❌ ERROR: steamgrid_service.py not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/mobygames_service.py" ]; then
+    echo "❌ ERROR: mobygames_service.py not found in package!"
     exit 1
 fi
 

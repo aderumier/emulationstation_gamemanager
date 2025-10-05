@@ -1677,7 +1677,15 @@ class GameCollectionManager {
         document.getElementById('showDuplicatesBtn').addEventListener('click', () => this.toggleDuplicatesFilter());
         
         // Confirm delete button
-        document.getElementById('confirmDeleteBtn').addEventListener('click', () => this.deleteSelectedGames());
+        document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+            if (this.gameToDelete) {
+                // Single game deletion
+                this.confirmSingleGameDelete();
+            } else {
+                // Bulk deletion
+                this.deleteSelectedGames();
+            }
+        });
 
         // Add global keyboard event listener for delete key and arrow navigation
         document.addEventListener('keydown', (event) => {
@@ -2870,7 +2878,7 @@ class GameCollectionManager {
                     <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
                 </a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item text-danger" href="#" onclick="gameManager.deleteGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                <a class="dropdown-item text-danger" href="#" data-action="delete-game" data-game='${JSON.stringify(game)}'>
                     <i class="bi bi-trash"></i> Delete
                 </a>
             `;
@@ -2890,13 +2898,39 @@ class GameCollectionManager {
                     <i class="bi bi-eye"></i> Unhide Selected
                 </a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="#" onclick="gameManager.deleteSelectedGames()">
+                <a class="dropdown-item" href="#" data-action="delete-selected-games">
                     <i class="bi bi-trash text-danger"></i> Delete Selected
                 </a>
             `;
         }
         
         contextMenu.innerHTML = menuItems;
+        
+        // Add event delegation for context menu items
+        contextMenu.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const action = e.target.closest('[data-action]')?.getAttribute('data-action');
+            if (action === 'delete-game') {
+                const gameData = e.target.closest('[data-game]')?.getAttribute('data-game');
+                if (gameData) {
+                    try {
+                        const game = JSON.parse(gameData);
+                        this.deleteGame(game);
+                    } catch (error) {
+                        console.error('Error parsing game data:', error);
+                    }
+                }
+            } else if (action === 'delete-selected-games') {
+                this.showDeleteConfirmation();
+            }
+            
+            // Remove the context menu
+            if (contextMenu.parentNode) {
+                contextMenu.remove();
+            }
+        });
         
         document.body.appendChild(contextMenu);
         
@@ -3012,23 +3046,6 @@ class GameCollectionManager {
         }
     }
 
-    async deleteSelectedGames() {
-        const selectedGames = this.gridApi.getSelectedRows();
-        if (selectedGames.length === 0) {
-            this.showAlert('No games selected', 'warning');
-            return;
-        }
-
-        const gameCount = selectedGames.length;
-        const confirmMessage = `Are you sure you want to delete ${gameCount} game${gameCount > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
-        
-        if (confirm(confirmMessage)) {
-            // Delete games one by one (reusing existing deleteGame logic)
-            for (const game of selectedGames) {
-                await this.deleteGame(game);
-            }
-        }
-    }
 
     async moveRom(game) {
         this.movingGame = game;
@@ -7087,8 +7104,57 @@ class GameCollectionManager {
     }
 
     async deleteGame(game) {
-        if (!confirm(`Are you sure you want to delete "${game.name}" (ROM: ${game.path})"?`)) return;
+        // Show confirmation modal for single game deletion
+        this.showSingleGameDeleteConfirmation(game);
+    }
 
+    showSingleGameDeleteConfirmation(game) {
+        // Update the modal with the single game info
+        document.getElementById('deleteGameCount').textContent = '1';
+        
+        // Store the game to delete
+        this.gameToDelete = game;
+        
+        // Show the confirmation modal
+        const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        modal.show();
+    }
+
+    async confirmSingleGameDelete() {
+        if (!this.gameToDelete) return;
+
+        try {
+            // Delete associated ROM and media files
+            const deletedFiles = await this.deleteGameFiles(this.gameToDelete);
+            
+            // Remove from local array using ROM file path as unique identifier
+            this.games = this.games.filter(g => g.path !== this.gameToDelete.path);
+            
+            // Update gamelist.xml to remove deleted game
+            await this.updateGamelistAfterDeletion([this.gameToDelete.path]);
+            
+            // Refresh grid
+            await this.refreshGridData();
+            this.updateGamesCount();
+            
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            modal.hide();
+
+            // Show success message
+            const fileCount = deletedFiles.length;
+            const message = `Successfully deleted game "${this.gameToDelete.name}" and ${fileCount} associated file(s)`;
+            this.showAlert(message, 'success');
+
+            // Clear the stored game
+            this.gameToDelete = null;
+
+        } catch (error) {
+            this.showAlert('Error deleting game', 'danger');
+        }
+    }
+
+    async deleteGameWithoutConfirmation(game) {
         try {
             // Delete associated ROM and media files
             const deletedFiles = await this.deleteGameFiles(game);
@@ -7103,13 +7169,11 @@ class GameCollectionManager {
             await this.refreshGridData();
             this.updateGamesCount();
             
-            // Show success message
-            const fileCount = deletedFiles.length;
-            const message = `Successfully deleted game "${game.name}" and ${fileCount} associated file(s)`;
-            this.showAlert(message, 'success');
+            return deletedFiles;
 
         } catch (error) {
             this.showAlert('Error deleting game', 'danger');
+            throw error;
         }
     }
 
@@ -9090,8 +9154,14 @@ class GameCollectionManager {
         fieldCheckboxes.forEach(checkbox => {
             const field = checkbox.dataset.field;
             const savedState = this.getCookie(`mobygamesField_${field}`);
+            
+            // If cookie exists, use its value; if not, default to checked for certain fields
             if (savedState !== null) {
                 checkbox.checked = savedState === 'true';
+            } else {
+                // Default to checked for title, description, publisher, developer, moby_score, release_year, genres, and nbvotes
+                const defaultCheckedFields = ['title', 'description', 'publisher', 'developer', 'moby_score', 'release_year', 'genres', 'nbvotes'];
+                checkbox.checked = defaultCheckedFields.includes(field);
             }
             
             // Add event listeners for field checkboxes
@@ -9125,12 +9195,18 @@ class GameCollectionManager {
             });
         }
         
-        // Load saved field selections
+        // Load saved field selections (duplicate code - keeping for compatibility)
         fieldCheckboxes.forEach(checkbox => {
             const field = checkbox.dataset.field;
             const saved = this.getCookie(`mobygamesField_${field}`);
+            
+            // If cookie exists, use its value; if not, default to checked for certain fields
             if (saved !== null) {
                 checkbox.checked = saved === 'true';
+            } else {
+                // Default to checked for title, description, publisher, developer, moby_score, release_year, genres, and nbvotes
+                const defaultCheckedFields = ['title', 'description', 'publisher', 'developer', 'moby_score', 'release_year', 'genres', 'nbvotes'];
+                checkbox.checked = defaultCheckedFields.includes(field);
             }
         });
     }
@@ -13964,38 +14040,73 @@ class GameCollectionManager {
             // Get MobyGames field mappings from config
             const textFields = Object.keys(config.mobygames?.mapping || {});
             const mediaFields = Object.keys(config.mobygames?.image_type_mappings || {});
-            
-            const allFields = [...textFields, ...mediaFields];
 
             // Read field selections directly from cookies
-            const selectedFields = [];
-            let hasUncheckedInCookies = false;
+            const selectedTextFields = [];
+            const selectedMediaFields = [];
+            let hasUncheckedTextFields = false;
+            let hasUncheckedMediaFields = false;
             
-            allFields.forEach(field => {
+            // Check text fields
+            textFields.forEach(field => {
                 const cookieName = `mobygamesField_${field}`;
                 const cookieValue = this.getCookie(cookieName);
                 
                 if (cookieValue !== null) {
                     if (cookieValue === 'true') {
-                        selectedFields.push(field);
+                        selectedTextFields.push(field);
                     } else {
-                        hasUncheckedInCookies = true;
+                        hasUncheckedTextFields = true;
                     }
                 } else {
-                    selectedFields.push(field);
+                    selectedTextFields.push(field);
+                }
+            });
+            
+            // Check media fields
+            mediaFields.forEach(field => {
+                const cookieName = `mobygamesMediaField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedMediaFields.push(field);
+                    } else {
+                        hasUncheckedMediaFields = true;
+                    }
+                } else {
+                    selectedMediaFields.push(field);
                 }
             });
 
             // If we have some unchecked fields, return only the selected ones
-            if (hasUncheckedInCookies) {
-                return selectedFields;
+            if (hasUncheckedTextFields) {
+                // Return only selected text fields, all media fields
+                return {
+                    selected_text_fields: selectedTextFields,
+                    selected_media_fields: hasUncheckedMediaFields ? selectedMediaFields : mediaFields
+                };
+            }
+            
+            if (hasUncheckedMediaFields) {
+                // Return all text fields, only selected media fields
+                return {
+                    selected_text_fields: textFields,
+                    selected_media_fields: selectedMediaFields
+                };
             }
             
             // If all fields are selected (no unchecked fields), return all fields
-            return allFields;
+            return {
+                selected_text_fields: textFields,
+                selected_media_fields: mediaFields
+            };
         } catch (error) {
             console.error('Error getting selected MobyGames fields:', error);
-            return [];
+            return {
+                selected_text_fields: [],
+                selected_media_fields: []
+            };
         }
     }
 
@@ -14018,7 +14129,7 @@ class GameCollectionManager {
             const selectedGames = this.gridApi.getSelectedRows().map(row => row.path);
             
             // Get selected fields from cookies (like other scrapers)
-            const selectedFields = await this.getSelectedMobygamesFields();
+            const fieldSelections = await this.getSelectedMobygamesFields();
             
             // Get overwrite settings from cookies
             const overwriteTextFields = this.getCookie('overwriteTextFieldsMobygames') === 'true';
@@ -14031,7 +14142,8 @@ class GameCollectionManager {
                 },
                 body: JSON.stringify({
                     selected_games: selectedGames,
-                    selected_fields: selectedFields,
+                    selected_text_fields: fieldSelections.selected_text_fields,
+                    selected_media_fields: fieldSelections.selected_media_fields,
                     overwrite_text_fields: overwriteTextFields,
                     overwrite_media_fields: overwriteMediaFields
                 })

@@ -304,6 +304,7 @@
         "launchbox": "Microsoft Xbox 360",
         "screenscraper": "",
         "igdb": 12,
+        "mobygames": "Xbox_360",
         "extensions": [
             ".x360"
         ]
@@ -648,6 +649,7 @@
         "launchbox": "3DO Interactive Multiplayer",
         "screenscraper": 29,
         "igdb": 50,
+        "mobygames": "3DO",
         "extensions": [
             ".CUE",
             ".ISO",
@@ -751,6 +753,7 @@
         "launchbox": "Commodore Amiga",
         "screenscraper": 64,
         "igdb": 16,
+        "mobygames": "Amiga",
         "extensions": [
             ".ADF",
             ".IPF",
@@ -1339,6 +1342,7 @@
         "launchbox": "",
         "screenscraper": "",
         "igdb": "",
+        "mobygames": "ABC_80",
         "extensions": [
             ".mfi",
             ".dfi",
@@ -3092,6 +3096,7 @@
         "launchbox": "Coleco ADAM",
         "screenscraper": "89",
         "igdb": "",
+        "mobygames": "",
         "extensions": [
             ".1dd",
             ".7z",
@@ -3126,6 +3131,16 @@
             ".T64",
             ".prg",
             ".PRG"
+        ]
+    },
+    "cdi": {
+        "launchbox": "Philips CD-i",
+        "screenscraper": "78",
+        "igdb": "51",
+        "mobygames": "CD-i",
+        "extensions": [
+            ".chd",
+            ".cdi"
         ]
     }
 }
