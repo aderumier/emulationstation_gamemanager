@@ -49,7 +49,7 @@
         "launchbox": "Windows",
         "screenscraper": 138,
         "igdb": 6,
-        "mobygames": "Windows_16-bit",
+        "mobygames": "Windows",
         "extensions": [
             ".bat",
             ".cmd",

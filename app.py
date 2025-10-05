@@ -9281,131 +9281,132 @@ def manual_scrap_game(system_name):
         # Scrape from each available source
         import asyncio
         
-        async def scrape_all_sources(sys_config):
+        def scrape_all_sources(sys_config):
+            import time
+            import threading
+            from datetime import datetime
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            # Create list of scraper tasks to run in parallel
+            scraper_tasks = []
+            
             # IGDB scraping - only if game has IGDB ID
             if sys_config.get('igdb') and current_game.get('igdbid'):
-                try:
-                    igdb_data = await scrape_igdb_manual(current_game, system_name, sys_config)
-                    if igdb_data:
-                        # Update text fields
-                        for field, value in igdb_data.get('text_fields', {}).items():
-                            if value and field in scrap_results['text_fields']:
-                                scrap_results['text_fields'][field]['sources']['igdb'] = value
-                        
-                        # Update media fields (collect multiple options per source)
-                        for field, value in igdb_data.get('media_fields', {}).items():
-                            if value and field in scrap_results['media_fields']:
-                                const_val = value if isinstance(value, list) else [value]
-                                scrap_results['media_fields'][field]['sources'].setdefault('igdb', [])
-                                scrap_results['media_fields'][field]['sources']['igdb'].extend(const_val)
-                except Exception as e:
-                    print(f"IGDB scraping error: {e}")
+                scraper_tasks.append(('igdb', lambda: asyncio.run(scrape_igdb_manual(current_game, system_name, sys_config))))
             
             # Steam scraping
             if current_game.get('steamid'):
-                try:
-                    steam_data = await scrape_steam_manual(current_game, system_name)
-                    if steam_data:
-                        # Update text fields
-                        for field, value in steam_data.get('text_fields', {}).items():
-                            if value and field in scrap_results['text_fields']:
-                                scrap_results['text_fields'][field]['sources']['steam'] = value
-                        
-                        # Update media fields (collect multiple options per source)
-                        for field, value in steam_data.get('media_fields', {}).items():
-                            if value and field in scrap_results['media_fields']:
-                                const_val = value if isinstance(value, list) else [value]
-                                scrap_results['media_fields'][field]['sources'].setdefault('steam', [])
-                                scrap_results['media_fields'][field]['sources']['steam'].extend(const_val)
-                except Exception as e:
-                    print(f"Steam scraping error: {e}")
+                scraper_tasks.append(('steam', lambda: asyncio.run(scrape_steam_manual(current_game, system_name))))
             
             # ScreenScraper scraping
             if sys_config.get('screenscraper') and current_game.get('screenscraperid'):
-                print(f"DEBUG: Calling ScreenScraper scraper for game: {current_game.get('name')} with ID: {current_game.get('screenscraperid')}")
-                try:
-                    screenscraper_data = await scrape_screenscraper_manual(current_game, system_name, sys_config)
-                    print(f"DEBUG: ScreenScraper returned: {screenscraper_data}")
-                    if screenscraper_data:
-                        # Update text fields
-                        for field, value in screenscraper_data.get('text_fields', {}).items():
-                            if value and field in scrap_results['text_fields']:
-                                scrap_results['text_fields'][field]['sources']['screenscraper'] = value
-                        
-                        # Update media fields (collect multiple options per source)
-                        for field, value in screenscraper_data.get('media_fields', {}).items():
-                            if value and field in scrap_results['media_fields']:
-                                const_val = value if isinstance(value, list) else [value]
-                                scrap_results['media_fields'][field]['sources'].setdefault('screenscraper', [])
-                                scrap_results['media_fields'][field]['sources']['screenscraper'].extend(const_val)
-                except Exception as e:
-                    print(f"ScreenScraper scraping error: {e}")
+                print(f"DEBUG: Adding ScreenScraper scraper for game: {current_game.get('name')} with ID: {current_game.get('screenscraperid')}")
+                scraper_tasks.append(('screenscraper', lambda: asyncio.run(scrape_screenscraper_manual(current_game, system_name, sys_config))))
             else:
                 print(f"DEBUG: ScreenScraper not enabled or no ID found. Config: {sys_config.get('screenscraper')}, Game ID: {current_game.get('screenscraperid')}")
             
             # SteamGridDB scraping (support steamgridid or steamid)
             if current_game.get('steamgridid') or current_game.get('steamid'):
-                try:
-                    steamgrid_data = await scrape_steamgriddb_manual(current_game, system_name)
-                    if steamgrid_data:
-                        # Update media fields (collect multiple options per source)
-                        for field, value in steamgrid_data.get('media_fields', {}).items():
-                            if value and field in scrap_results['media_fields']:
-                                const_val = value if isinstance(value, list) else [value]
-                                scrap_results['media_fields'][field]['sources'].setdefault('steamgriddb', [])
-                                scrap_results['media_fields'][field]['sources']['steamgriddb'].extend(const_val)
-                except Exception as e:
-                    print(f"SteamGridDB scraping error: {e}")
+                scraper_tasks.append(('steamgriddb', lambda: asyncio.run(scrape_steamgriddb_manual(current_game, system_name))))
             
             # LaunchBox scraping
             if current_game.get('launchboxid'):
-                print(f"DEBUG: Calling LaunchBox scraper for game: {current_game.get('name')} with ID: {current_game.get('launchboxid')}")
-                try:
-                    launchbox_data = await scrape_launchbox_manual(current_game, system_name)
-                    print(f"DEBUG: LaunchBox returned: {launchbox_data}")
-                    if launchbox_data:
-                        # Update text fields
-                        for field, value in launchbox_data.get('text_fields', {}).items():
-                            if value and field in scrap_results['text_fields']:
-                                scrap_results['text_fields'][field]['sources']['launchbox'] = value
-                        
-                        # Update media fields (collect multiple options per source)
-                        for field, value in launchbox_data.get('media_fields', {}).items():
-                            if value and field in scrap_results['media_fields']:
-                                const_val = value if isinstance(value, list) else [value]
-                                scrap_results['media_fields'][field]['sources'].setdefault('launchbox', [])
-                                scrap_results['media_fields'][field]['sources']['launchbox'].extend(const_val)
-                except Exception as e:
-                    print(f"LaunchBox scraping error: {e}")
+                print(f"DEBUG: Adding LaunchBox scraper for game: {current_game.get('name')} with ID: {current_game.get('launchboxid')}")
+                scraper_tasks.append(('launchbox', lambda: asyncio.run(scrape_launchbox_manual(current_game, system_name))))
             else:
                 print(f"DEBUG: No LaunchBox ID found for game: {current_game.get('name')}")
             
             # MobyGames scraping
             if sys_config.get('mobygames') and (current_game.get('mobygamesid') or current_game.get('name')):
-                print(f"DEBUG: Calling MobyGames scraper for game: {current_game.get('name')} with ID: {current_game.get('mobygamesid')}")
-                try:
-                    mobygames_data = await scrape_mobygames_manual(current_game, system_name, sys_config)
-                    print(f"DEBUG: MobyGames returned: {mobygames_data}")
-                    if mobygames_data:
-                        # Update text fields
-                        for field, value in mobygames_data.get('text_fields', {}).items():
-                            if value and field in scrap_results['text_fields']:
-                                scrap_results['text_fields'][field]['sources']['mobygames'] = value
-                        
-                        # Update media fields (collect multiple options per source)
-                        for field, value in mobygames_data.get('media_fields', {}).items():
-                            if value and field in scrap_results['media_fields']:
-                                const_val = value if isinstance(value, list) else [value]
-                                scrap_results['media_fields'][field]['sources'].setdefault('mobygames', [])
-                                scrap_results['media_fields'][field]['sources']['mobygames'].extend(const_val)
-                except Exception as e:
-                    print(f"MobyGames scraping error: {e}")
+                print(f"DEBUG: Adding MobyGames scraper for game: {current_game.get('name')} with ID: {current_game.get('mobygamesid')}")
+                scraper_tasks.append(('mobygames', lambda: asyncio.run(scrape_mobygames_manual(current_game, system_name, sys_config))))
             else:
                 print(f"DEBUG: MobyGames not enabled or no ID/name found. Config: {sys_config.get('mobygames')}, Game ID: {current_game.get('mobygamesid')}, Name: {current_game.get('name')}")
+            
+            # Run all scrapers in parallel using ThreadPoolExecutor
+            if scraper_tasks:
+                print(f"🚀 MANUAL SCRAP: Starting {len(scraper_tasks)} scrapers in parallel threads at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
+                
+                # Log each scraper start time
+                start_times = {}
+                for scraper_name, _ in scraper_tasks:
+                    start_times[scraper_name] = time.time()
+                    print(f"⏰ MANUAL SCRAP: {scraper_name.upper()} scraper STARTED at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
+                
+                # Execute all scrapers in parallel using ThreadPoolExecutor
+                parallel_start = time.time()
+                results = {}
+                
+                def run_scraper(scraper_name, scraper_func):
+                    try:
+                        result = scraper_func()
+                        completion_time = time.time()
+                        duration = completion_time - start_times[scraper_name]
+                        
+                        if isinstance(result, Exception):
+                            print(f"❌ MANUAL SCRAP: {scraper_name.upper()} scraper FAILED after {duration:.3f}s - Error: {result}")
+                            return scraper_name, result
+                        
+                        if not result:
+                            print(f"⚠️ MANUAL SCRAP: {scraper_name.upper()} scraper COMPLETED after {duration:.3f}s - No data returned")
+                            return scraper_name, result
+                        
+                        print(f"✅ MANUAL SCRAP: {scraper_name.upper()} scraper COMPLETED after {duration:.3f}s - Data returned")
+                        return scraper_name, result
+                    except Exception as e:
+                        completion_time = time.time()
+                        duration = completion_time - start_times[scraper_name]
+                        print(f"❌ MANUAL SCRAP: {scraper_name.upper()} scraper FAILED after {duration:.3f}s - Error: {e}")
+                        return scraper_name, e
+                
+                # Use ThreadPoolExecutor for true parallel execution
+                with ThreadPoolExecutor(max_workers=len(scraper_tasks)) as executor:
+                    # Submit all tasks
+                    future_to_scraper = {
+                        executor.submit(run_scraper, scraper_name, scraper_func): scraper_name 
+                        for scraper_name, scraper_func in scraper_tasks
+                    }
+                    
+                    # Collect results as they complete
+                    for future in as_completed(future_to_scraper):
+                        scraper_name, result = future.result()
+                        results[scraper_name] = result
+                
+                parallel_end = time.time()
+                parallel_duration = parallel_end - parallel_start
+                
+                print(f"🏁 MANUAL SCRAP: All scrapers completed in {parallel_duration:.3f}s (parallel threads)")
+                
+                # Process results
+                for scraper_name, result in results.items():
+                    if isinstance(result, Exception) or not result:
+                        continue
+                    
+                    # Update text fields
+                    for field, value in result.get('text_fields', {}).items():
+                        if value and field in scrap_results['text_fields']:
+                            scrap_results['text_fields'][field]['sources'][scraper_name] = value
+                    
+                    # Update media fields (collect multiple options per source)
+                    for field, value in result.get('media_fields', {}).items():
+                        if value and field in scrap_results['media_fields']:
+                            const_val = value if isinstance(value, list) else [value]
+                            scrap_results['media_fields'][field]['sources'].setdefault(scraper_name, [])
+                            scrap_results['media_fields'][field]['sources'][scraper_name].extend(const_val)
+                
+                # Summary
+                total_sequential_time = sum(time.time() - start_times[name] for name in results.keys())
+                print(f"📊 MANUAL SCRAP SUMMARY:")
+                print(f"   - Scrapers run: {len(scraper_tasks)}")
+                print(f"   - Parallel execution time: {parallel_duration:.3f}s")
+                print(f"   - Estimated sequential time: {total_sequential_time:.3f}s")
+                print(f"   - Time saved: {total_sequential_time - parallel_duration:.3f}s ({((total_sequential_time - parallel_duration) / total_sequential_time * 100):.1f}% faster)")
+            else:
+                print("DEBUG: No scrapers to run")
         
-        # Run the async scraping
+        # Run the parallel scraping
         print(f"DEBUG: About to call scrape_all_sources with system_config: {system_config}")
-        asyncio.run(scrape_all_sources(system_config))
+        scrape_all_sources(system_config)
         
         # Debug: Print the final results
         print(f"DEBUG: Final manual scrap results: {scrap_results}")
@@ -9984,7 +9985,7 @@ async def scrape_igdb_manual(game, system_name, system_config):
             return None
         
         # Get access token
-        access_token = get_igdb_access_token()
+        access_token = await get_igdb_access_token_async()
         if not access_token:
             return None
         
@@ -15522,6 +15523,56 @@ def get_igdb_access_token():
     except Exception as e:
         print(f"Error getting IGDB access token: {e}")
         return None
+
+async def get_igdb_access_token_async():
+    """Get IGDB access token asynchronously"""
+    try:
+        igdb_config = get_igdb_config()
+        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+            print("IGDB credentials not configured")
+            return None
+            
+        client_id = igdb_config.get('client_id')
+        client_secret = igdb_config.get('client_secret')
+        
+        if not client_id or not client_secret:
+            print("IGDB credentials not configured")
+            return None
+        
+        # Check if credentials are test values
+        if client_id == 'test_client_id' or client_secret == 'test_client_secret':
+            print("IGDB credentials are set to test values. Please configure real IGDB credentials.")
+            return None
+        
+        # Get access token from IGDB
+        import httpx
+        
+        token_url = "https://id.twitch.tv/oauth2/token"
+        token_data = {
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'grant_type': 'client_credentials'
+        }
+        
+        async with httpx.AsyncClient(http2=True) as client:
+            response = await client.post(token_url, data=token_data)
+            
+            if response.status_code == 200:
+                token_info = response.json()
+                return token_info.get('access_token')
+            else:
+                print(f"Failed to get IGDB access token: {response.status_code}")
+                if response.status_code == 400:
+                    print("Invalid IGDB credentials. Please check your Client ID and Client Secret.")
+                elif response.status_code == 401:
+                    print("Unauthorized. Please verify your IGDB credentials are correct.")
+                else:
+                    print(f"Response: {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"Error getting IGDB access token: {e}")
+        return None
 async def make_igdb_request_with_retry(async_client, url, headers, data, max_retries=3):
     """Make an IGDB API request with retry logic for rate limiting"""
     import asyncio
@@ -16893,7 +16944,7 @@ async def ensure_igdb_genre_cache():
         return {}
     
     # Get access token
-    access_token = get_igdb_access_token()
+    access_token = await get_igdb_access_token_async()
     if not access_token:
         print("❌ Could not get IGDB access token")
         return {}

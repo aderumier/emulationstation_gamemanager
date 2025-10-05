@@ -1509,6 +1509,18 @@ class GameCollectionManager {
                 // Reopen the game edit modal if it was closed
                 const editModalInstance = new bootstrap.Modal(editModal);
                 editModalInstance.show();
+                
+                // Repopulate the edit modal fields if they're empty
+                if (this.editingGamePath) {
+                    const game = this.games.find(g => g.path === this.editingGamePath);
+                    if (game) {
+                        // Check if fields are empty and repopulate if needed
+                        const nameField = document.getElementById('editName');
+                        if (!nameField.value) {
+                            this.populateEditModal(game);
+                        }
+                    }
+                }
             }
         });
 
@@ -4915,7 +4927,10 @@ class GameCollectionManager {
             const applyBtn = document.getElementById('applyManualScrapResults');
             const applyingBar = document.getElementById('manualScrapApplying');
             if (applyBtn) applyBtn.disabled = true;
-            if (applyingBar) applyingBar.style.display = '';
+            if (applyingBar) {
+                applyingBar.classList.remove('d-none');
+                applyingBar.classList.add('d-flex');
+            }
 
             // Collect selected values from the form
             const selectedValues = {};
@@ -4996,7 +5011,10 @@ class GameCollectionManager {
         finally {
             const applyBtn = document.getElementById('applyManualScrapResults');
             const applyingBar = document.getElementById('manualScrapApplying');
-            if (applyingBar) applyingBar.style.display = 'none';
+            if (applyingBar) {
+                applyingBar.classList.remove('d-flex');
+                applyingBar.classList.add('d-none');
+            }
             if (applyBtn) applyBtn.disabled = false;
         }
     }
