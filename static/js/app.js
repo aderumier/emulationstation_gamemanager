@@ -5108,6 +5108,8 @@ class GameCollectionManager {
             
             if (response.ok && result.success) {
                 this.displayIgdbSearchResults(result.games);
+                // Load cover images asynchronously after displaying results
+                this.loadIgdbCoverImagesAsync(result.games);
             } else {
                 this.showIgdbSearchError(result.error || 'Failed to search IGDB games');
             }
@@ -5136,9 +5138,13 @@ class GameCollectionManager {
                 ? game.platforms.map(p => p.name).join(', ') 
                 : 'Unknown Platform';
             
-            // Add cover image if available
-            const coverImage = game.cover_url ? 
-                `<img src="${game.cover_url}" class="card-img-top" alt="${game.name}" style="height: 200px; object-fit: cover;">` : 
+            // Add placeholder for cover image - will be loaded asynchronously
+            const coverImage = game.cover_id ? 
+                `<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;" id="cover-${game.id}">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>` : 
                 '<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;"><i class="bi bi-image text-muted" style="font-size: 2rem;"></i></div>';
             
             html += `
@@ -5168,6 +5174,55 @@ class GameCollectionManager {
         });
         
         resultsContainer.innerHTML = html;
+    }
+    
+    async loadIgdbCoverImagesAsync(games) {
+        // Load cover images for games that have cover_id
+        const gamesWithCovers = games.filter(game => game.cover_id);
+        
+        // Load images in parallel with a small delay to avoid overwhelming the server
+        const loadPromises = gamesWithCovers.map(async (game, index) => {
+            // Add a small delay between requests to be nice to the server
+            await new Promise(resolve => setTimeout(resolve, index * 100));
+            
+            try {
+                const response = await fetch(`/api/igdb/cover/${game.id}`);
+                const result = await response.json();
+                
+                if (response.ok && result.success && result.cover_url) {
+                    // Update the cover image
+                    const coverElement = document.getElementById(`cover-${game.id}`);
+                    if (coverElement) {
+                        const img = document.createElement('img');
+                        img.src = result.cover_url;
+                        img.className = 'card-img-top';
+                        img.alt = game.name;
+                        img.style.cssText = 'height: 200px; width: 100%; object-fit: contain; object-position: center; background-color: #f8f9fa;';
+                        img.onerror = function() {
+                            coverElement.innerHTML = '<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;"><i class="bi bi-image text-muted" style="font-size: 2rem;"></i></div>';
+                        };
+                        coverElement.innerHTML = '';
+                        coverElement.appendChild(img);
+                    }
+                } else {
+                    // Show no image icon if cover fetch failed
+                    const coverElement = document.getElementById(`cover-${game.id}`);
+                    if (coverElement) {
+                        coverElement.innerHTML = '<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;"><i class="bi bi-image text-muted" style="font-size: 2rem;"></i></div>';
+                    }
+                }
+            } catch (error) {
+                console.error(`Error loading cover for game ${game.id}:`, error);
+                // Show no image icon on error
+                const coverElement = document.getElementById(`cover-${game.id}`);
+                if (coverElement) {
+                    coverElement.innerHTML = '<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;"><i class="bi bi-image text-muted" style="font-size: 2rem;"></i></div>';
+                }
+            }
+        });
+        
+        // Wait for all images to load (or fail)
+        await Promise.allSettled(loadPromises);
     }
     
     showIgdbSearchError(message) {

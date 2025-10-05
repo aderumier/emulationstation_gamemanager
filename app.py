@@ -5783,46 +5783,19 @@ def search_igdb_games():
             else:
                 games = []
         
-        # Convert cover IDs to image URLs for display
-        # Use the same approach as the scraping task but handle the async context properly
+        # Don't fetch cover URLs here - let the frontend load them asynchronously
+        # Just pass the cover ID for later use
         for game in games:
             if game.get('cover'):
-                # Try to fetch cover data using the existing function
-                try:
-                    # Create a new event loop for this operation
-                    import asyncio
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        cover_data = loop.run_until_complete(fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], game['id'], game.get('name', '')))
-                        if cover_data and cover_data.get('url'):
-                            # Convert relative URL to absolute URL (same logic as scraping task)
-                            cover_url = cover_data['url']
-                            if cover_url.startswith('//'):
-                                cover_url = f"https:{cover_url}"
-                            elif not cover_url.startswith('http'):
-                                cover_url = f"https://images.igdb.com{cover_url}"
-                            
-                            # Replace thumb size with 720p for better quality
-                            if '/t_thumb/' in cover_url:
-                                cover_url = cover_url.replace('/t_thumb/', '/t_720p/')
-                            
-                            game['cover_url'] = cover_url
-                        else:
-                            game['cover_url'] = None
-                    finally:
-                        loop.close()
-                except Exception as e:
-                    print(f"Error fetching cover for game {game.get('name', 'Unknown')}: {e}")
-                    # Fallback to simple URL construction
-                    cover_id = game['cover']
-                    if isinstance(cover_id, dict) and 'image_id' in cover_id:
-                        image_id = cover_id['image_id']
-                    else:
-                        image_id = cover_id
-                    cover_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg"
-                    game['cover_url'] = cover_url
+                # Keep the cover ID for async loading
+                cover_id = game['cover']
+                if isinstance(cover_id, dict) and 'image_id' in cover_id:
+                    game['cover_id'] = cover_id['image_id']
+                else:
+                    game['cover_id'] = cover_id
+                game['cover_url'] = None  # Will be loaded asynchronously
             else:
+                game['cover_id'] = None
                 game['cover_url'] = None
         
         return jsonify({
@@ -5833,6 +5806,63 @@ def search_igdb_games():
     except Exception as e:
         print(f"Error searching IGDB games: {e}")
         return jsonify({'error': f'Failed to search IGDB games: {str(e)}'}), 500
+
+@app.route('/api/igdb/cover/<int:game_id>', methods=['GET'])
+@login_required
+def get_igdb_cover(game_id):
+    """Get cover image URL for a specific IGDB game ID"""
+    try:
+        # Get IGDB configuration
+        igdb_config = scrappers_config.get('igdb', {})
+        if not igdb_config.get('client_id') or not igdb_config.get('client_secret'):
+            return jsonify({'error': 'IGDB configuration not found'}), 500
+        
+        # Get access token
+        access_token = get_igdb_access_token()
+        if not access_token:
+            return jsonify({'error': 'Failed to get IGDB access token'}), 500
+        
+        # Create async client and run the async operation
+        import httpx
+        import asyncio
+        
+        async def fetch_cover_async():
+            async with httpx.AsyncClient(http2=True, timeout=30.0) as async_client:
+                cover_data = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], game_id, '')
+                return cover_data
+        
+        # Run the async function
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            cover_data = loop.run_until_complete(fetch_cover_async())
+            if cover_data and cover_data.get('url'):
+                # Convert relative URL to absolute URL
+                cover_url = cover_data['url']
+                if cover_url.startswith('//'):
+                    cover_url = f"https:{cover_url}"
+                elif not cover_url.startswith('http'):
+                    cover_url = f"https://images.igdb.com{cover_url}"
+                
+                # Replace thumb size with 720p for better quality
+                if '/t_thumb/' in cover_url:
+                    cover_url = cover_url.replace('/t_thumb/', '/t_720p/')
+                
+                return jsonify({
+                    'success': True,
+                    'cover_url': cover_url
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'cover_url': None
+                })
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        print(f"Error fetching IGDB cover for game {game_id}: {e}")
+        return jsonify({'error': f'Failed to fetch cover: {str(e)}'}), 500
 
 @app.route('/api/screenscraper/search', methods=['POST'])
 @login_required
