@@ -9887,15 +9887,18 @@ def apply_manual_scrap(system_name):
 
         # Update text fields
         text_fields = ['name','desc','developer','publisher','genre','releasedate']
+        updated_text_fields = {}
         for field in text_fields:
             selected_source = selections.get(field)
             selected_value = selections.get(f'{field}_value')
             # Apply any provided value (even empty string) when a non-current source was chosen
             if selected_value is not None and selected_source and selected_source != 'current':
                 game[field] = selected_value
+                updated_text_fields[field] = selected_value
 
         # Handle media downloads: selections may include e.g. image_url, marquee_url
         media_updates = {}
+        download_stats = {'success': 0, 'failed': 0, 'skipped': 0}
         media_fields = config.get('media_fields', {})
         # System directory for media files under ROMS_FOLDER
         system_dir = os.path.join(ROMS_FOLDER, system_name)
@@ -9927,6 +9930,7 @@ def apply_manual_scrap(system_name):
                     rel_path = selected_url
                 game[media_field] = rel_path
                 media_updates[media_field] = rel_path
+                download_stats['skipped'] += 1
                 continue
 
             # Remote URL: download
@@ -9947,8 +9951,11 @@ def apply_manual_scrap(system_name):
                         rel_path = f'./media/{directory}/{target_filename}'
                         game[media_field] = rel_path
                         media_updates[media_field] = rel_path
+                        download_stats['success'] += 1
+                        print(f'✅ Downloaded MobyGames {media_field} from {selected_url}')
                     else:
-                        print(f'Error downloading MobyGames media {media_field} from {selected_url}')
+                        download_stats['failed'] += 1
+                        print(f'❌ Error downloading MobyGames media {media_field} from {selected_url}')
                 else:
                     # Regular URL download
                     resp = requests.get(selected_url, timeout=30)
@@ -9959,15 +9966,24 @@ def apply_manual_scrap(system_name):
                         rel_path = f'./media/{directory}/{target_filename}'
                         game[media_field] = rel_path
                         media_updates[media_field] = rel_path
+                        download_stats['success'] += 1
+                        print(f'✅ Downloaded {media_field} from {selected_url}')
                     else:
-                        print(f'Error downloading media {media_field} from {selected_url}: HTTP {resp.status_code}')
+                        download_stats['failed'] += 1
+                        print(f'❌ Error downloading media {media_field} from {selected_url}: HTTP {resp.status_code}')
             except Exception as e:
-                print(f'Error downloading media {media_field} from {selected_url}: {e}')
+                download_stats['failed'] += 1
+                print(f'❌ Error downloading media {media_field} from {selected_url}: {e}')
 
         # Save gamelist back
         write_gamelist_xml(games, gamelist_path)
 
-        return jsonify({'success': True, 'updated_text_fields': {k: game.get(k) for k in text_fields}, 'updated_media': media_updates})
+        return jsonify({
+            'success': True, 
+            'updated_text_fields': updated_text_fields, 
+            'updated_media': media_updates,
+            'downloads': download_stats
+        })
     except Exception as e:
         app.logger.error(f'Error applying manual scrap: {e}')
         return jsonify({'error': str(e)}), 500

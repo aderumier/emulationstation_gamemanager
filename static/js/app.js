@@ -3359,6 +3359,7 @@ class GameCollectionManager {
         }, 100);
     }
     async populateEditModal(game) {
+        console.log('populateEditModal called with game:', game);
         // Clear all fields first to ensure no residual data
         document.getElementById('editName').value = '';
         document.getElementById('editPath').value = '';
@@ -4926,11 +4927,68 @@ class GameCollectionManager {
         try {
             const applyBtn = document.getElementById('applyManualScrapResults');
             const applyingBar = document.getElementById('manualScrapApplying');
+            const downloadLog = document.getElementById('manualScrapDownloadLog');
+            const modalBody = document.querySelector('#manualScrapModal .modal-body');
+            const modalContent = document.querySelector('#manualScrapModal .modal-content');
+            
+            // Disable apply button and show loading state
             if (applyBtn) applyBtn.disabled = true;
             if (applyingBar) {
                 applyingBar.classList.remove('d-none');
                 applyingBar.classList.add('d-flex');
             }
+            
+            // Show download progress log
+            if (downloadLog) {
+                downloadLog.classList.remove('d-none');
+                // Clear previous logs
+                const logContent = document.getElementById('downloadLogContent');
+                if (logContent) {
+                    logContent.innerHTML = '<div class="text-muted">Starting downloads...</div>';
+                }
+            } else {
+                console.error('Download log element not found');
+            }
+            
+            // Grey out the modal content
+            if (modalContent) {
+                modalContent.style.opacity = '0.6';
+                modalContent.style.pointerEvents = 'none';
+            }
+
+            // Function to update download log
+            const updateDownloadLog = (message, type = 'info') => {
+                console.log(`updateDownloadLog: ${message} (${type})`);
+                const logContent = document.getElementById('downloadLogContent');
+                if (logContent) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const logEntry = document.createElement('div');
+                    logEntry.className = `mb-1 small`;
+                    
+                    let icon = '📄';
+                    let textClass = 'text-muted';
+                    if (type === 'success') {
+                        icon = '✅';
+                        textClass = 'text-success';
+                    } else if (type === 'error') {
+                        icon = '❌';
+                        textClass = 'text-danger';
+                    } else if (type === 'warning') {
+                        icon = '⚠️';
+                        textClass = 'text-warning';
+                    } else if (type === 'download') {
+                        icon = '⬇️';
+                        textClass = 'text-primary';
+                    }
+                    
+                    logEntry.innerHTML = `<span class="text-muted">[${timestamp}]</span> <span class="${textClass}">${icon} ${message}</span>`;
+                    logContent.appendChild(logEntry);
+                    logContent.scrollTop = logContent.scrollHeight;
+                    console.log(`Added log entry: ${message}`);
+                } else {
+                    console.error('downloadLogContent element not found');
+                }
+            };
 
             // Collect selected values from the form
             const selectedValues = {};
@@ -4961,6 +5019,9 @@ class GameCollectionManager {
 
             // Include the current rom path for backend to identify the game
             const romPath = this.currentManualScrapRomPath || (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path);
+            
+            updateDownloadLog('Sending request to apply changes...', 'info');
+            
             // Send to backend to apply and download
             const resp = await fetch(`/api/rom-system/${this.currentSystem}/game/manual-scrap/apply`, {
                 method: 'POST',
@@ -4968,11 +5029,25 @@ class GameCollectionManager {
                 credentials: 'include',
                 body: JSON.stringify({ rom_path: romPath, selections: selectedValues })
             });
+            
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
+                updateDownloadLog(`Error: ${err.error || `HTTP ${resp.status}`}`, 'error');
                 throw new Error(err.error || `HTTP ${resp.status}`);
             }
+            
+            updateDownloadLog('Processing response...', 'info');
             const result = await resp.json();
+            
+            // Log download results if available
+            if (result.downloads) {
+                updateDownloadLog(`Downloaded ${result.downloads.success || 0} files successfully`, 'success');
+                if (result.downloads.failed && result.downloads.failed > 0) {
+                    updateDownloadLog(`${result.downloads.failed} downloads failed`, 'warning');
+                }
+            }
+            
+            updateDownloadLog('Changes applied successfully!', 'success');
             this.showAlert('Manual scrap results applied successfully!', 'success');
             // Refresh games from server to reflect updates
             await this.refreshGameGridWithData();
@@ -4985,25 +5060,33 @@ class GameCollectionManager {
                 }
             }
             
-            // If game edit modal is open, repopulate its fields from the refreshed data
-            if (this.editingGamePath) {
-                const edited = this.games.find(g => g.path === this.editingGamePath);
-                if (edited) {
-                    // Update basic text fields if present
-                    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
-                    setVal('editName', edited.name);
-                    setVal('editDesc', edited.desc);
-                    setVal('editDeveloper', edited.developer);
-                    setVal('editPublisher', edited.publisher);
-                    setVal('editGenre', edited.genre);
-                    setVal('editReleasedate', edited.releasedate);
-                    
-                    // Refresh media files in game edit modal
-                    await this.showEditGameMedia(edited);
-                }
-            }
+            // Note: Game edit modal will be repopulated in setTimeout below
+            // Close the manual scrap modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('manualScrapModal'));
             modal && modal.hide();
+            
+            // Ensure game edit modal is reopened with updated data
+            setTimeout(() => {
+                if (this.editingGamePath) {
+                    const updatedGame = this.games.find(g => g.path === this.editingGamePath);
+                    if (updatedGame) {
+                        console.log('Repopulating edit modal with game:', updatedGame);
+                        // Always repopulate the edit modal with fresh data
+                        this.populateEditModal(updatedGame);
+                        
+                        // Show the edit modal if it's not already visible
+                        const editModal = document.getElementById('editGameModal');
+                        if (editModal && !editModal.classList.contains('show')) {
+                            const editModalInstance = new bootstrap.Modal(editModal);
+                            editModalInstance.show();
+                        }
+                    } else {
+                        console.error('Could not find updated game for path:', this.editingGamePath);
+                    }
+                } else {
+                    console.error('No editingGamePath set');
+                }
+            }, 300); // Small delay to ensure modal transitions complete
 
         } catch (error) {
             this.showAlert('Error applying manual scrap results', 'error');
@@ -5011,10 +5094,27 @@ class GameCollectionManager {
         finally {
             const applyBtn = document.getElementById('applyManualScrapResults');
             const applyingBar = document.getElementById('manualScrapApplying');
+            const downloadLog = document.getElementById('manualScrapDownloadLog');
+            const modalContent = document.querySelector('#manualScrapModal .modal-content');
+            
+            // Hide applying state
             if (applyingBar) {
                 applyingBar.classList.remove('d-flex');
                 applyingBar.classList.add('d-none');
             }
+            
+            // Hide download log
+            if (downloadLog) {
+                downloadLog.classList.add('d-none');
+            }
+            
+            // Restore modal content
+            if (modalContent) {
+                modalContent.style.opacity = '1';
+                modalContent.style.pointerEvents = 'auto';
+            }
+            
+            // Re-enable apply button
             if (applyBtn) applyBtn.disabled = false;
         }
     }
