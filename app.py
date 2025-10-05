@@ -10115,51 +10115,77 @@ async def scrape_igdb_manual(game, system_name, system_config):
             normalized_url = normalize_igdb_url(url)
             media_fields.setdefault(mapped_field, []).append(normalized_url)
 
-        # Covers: use helper to select best cover and its url
-        try:
-            cover = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game_name))
-            if cover and cover.get('url'):
-                add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
-        except Exception as e:
-            print(f"Error getting IGDB cover: {e}")
-
-        # Screenshots: use helper (returns all)
-        try:
-            screenshots = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            if screenshots:
-                for screenshot in screenshots:
-                    if screenshot and screenshot.get('url'):
-                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
-        except Exception as e:
-            print(f"Error getting IGDB screenshots: {e}")
-
-        # Artworks: use helper (returns all landscape)
-        try:
-            artworks = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            if artworks:
-                for artwork in artworks:
-                    if artwork and artwork.get('url'):
-                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
-        except Exception as e:
-            print(f"Error getting IGDB artworks: {e}")
-
-        # Logos: use helper if available (returns all)
-        try:
-            logos = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            if logos:
-                for logo in logos:
-                    if logo and logo.get('url'):
-                        # Find the gamelist field that maps to logos
-                        logo_field = None
-                        for field, igdb_type in igdb_image_mapping.items():
-                            if igdb_type == 'logos':
-                                logo_field = field
-                                break
-                        if not logo_field:
-                            logo_field = 'marquee'
-                        add_media(logo_field, logo.get('url'))
-        except Exception as e:
-            print(f"Error getting IGDB logos: {e}")
+        # Parallelize IGDB media API calls for faster execution
+        print(f"🚀 IGDB MANUAL SCRAP: Starting parallel media API calls for game {igdb_game['id']}")
+        
+        async def fetch_cover():
+            try:
+                return await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game.get('name', '')))
+            except Exception as e:
+                print(f"Error getting IGDB cover: {e}")
+                return None
+        
+        async def fetch_screenshots():
+            try:
+                return await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            except Exception as e:
+                print(f"Error getting IGDB screenshots: {e}")
+                return None
+        
+        async def fetch_artworks():
+            try:
+                return await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            except Exception as e:
+                print(f"Error getting IGDB artworks: {e}")
+                return None
+        
+        async def fetch_logos():
+            try:
+                return await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+            except Exception as e:
+                print(f"Error getting IGDB logos: {e}")
+                return None
+        
+        # Execute all media API calls in parallel
+        cover, screenshots, artworks, logos = await asyncio.gather(
+            fetch_cover(),
+            fetch_screenshots(), 
+            fetch_artworks(),
+            fetch_logos(),
+            return_exceptions=True
+        )
+        
+        print(f"✅ IGDB MANUAL SCRAP: Parallel media API calls completed for game {igdb_game['id']}")
+        
+        # Process cover results
+        if cover and not isinstance(cover, Exception) and cover.get('url'):
+            add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
+        
+        # Process screenshots results
+        if screenshots and not isinstance(screenshots, Exception):
+            for screenshot in screenshots:
+                if screenshot and screenshot.get('url'):
+                    add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
+        
+        # Process artworks results
+        if artworks and not isinstance(artworks, Exception):
+            for artwork in artworks:
+                if artwork and artwork.get('url'):
+                    add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
+        
+        # Process logos results
+        if logos and not isinstance(logos, Exception):
+            for logo in logos:
+                if logo and logo.get('url'):
+                    # Find the gamelist field that maps to logos
+                    logo_field = None
+                    for field, igdb_type in igdb_image_mapping.items():
+                        if igdb_type == 'logos':
+                            logo_field = field
+                            break
+                    if not logo_field:
+                        logo_field = 'marquee'
+                    add_media(logo_field, logo.get('url'))
         
         return {
             'text_fields': text_fields,
