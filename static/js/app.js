@@ -1494,8 +1494,23 @@ class GameCollectionManager {
         }
 
         document.getElementById('saveGameChanges').addEventListener('click', async () => await this.saveGameChangesFromModal());
-        document.getElementById('manualScrapBtn').addEventListener('click', async () => await this.openManualScrapModal());
+        document.getElementById('manualScrapBtn').addEventListener('click', async () => {
+            // Save changes first before opening manual scrap modal
+            await this.saveGameChangesFromModal();
+            await this.openManualScrapModal();
+        });
         document.getElementById('applyManualScrapResults').addEventListener('click', async () => await this.applyManualScrapResults());
+        
+        // Handle manual scrap modal cancel button
+        document.getElementById('manualScrapModal').addEventListener('hidden.bs.modal', () => {
+            // When manual scrap modal is closed, ensure the game edit modal is still open
+            const editModal = document.getElementById('editGameModal');
+            if (editModal && !editModal.classList.contains('show')) {
+                // Reopen the game edit modal if it was closed
+                const editModalInstance = new bootstrap.Modal(editModal);
+                editModalInstance.show();
+            }
+        });
 
         document.getElementById('clearFiltersBtn').addEventListener('click', async () => await this.clearAllFilters());
         document.getElementById('thumbnailViewBtn').addEventListener('click', () => this.toggleThumbnailView());

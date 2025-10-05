@@ -10000,12 +10000,12 @@ async def scrape_igdb_manual(game, system_name, system_config):
             return None
         
         # Get IGDB game data by ID only
-            igdb_game = await fetch_igdb_game_by_id_async(
-                existing_igdb_id,
-                access_token, 
-                igdb_config['client_id'],
-                async_client
-            )
+        igdb_game = await fetch_igdb_game_by_id_async(
+            existing_igdb_id,
+            access_token, 
+            igdb_config['client_id'],
+            async_client
+        )
         
         if not igdb_game:
             return None
