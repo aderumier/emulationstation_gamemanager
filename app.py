@@ -3315,8 +3315,9 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config):
                     break
         
         if system_name:
-            service = MobyGamesService(config, scrappers_config, systems_config)
-            additional_data = service.scrape_additional_text_fields(mobygames_game['id'], mobygames_game.get('system', ''))
+            service = load_mobygames_service()
+            if service:
+                additional_data = service.scrape_additional_text_fields(mobygames_game['id'], mobygames_game.get('system', ''))
     
     for mobygames_field, gamelist_field in mapping_config.items():
         value = None
@@ -18453,8 +18454,7 @@ def scrape_mobygames_media_data(game_id, mobygames_system_name, platform_mapping
         
         # Get game URL from database
         if service is None:
-            from mobygames_service import MobyGamesService
-            service = MobyGamesService(load_config(), load_scrappers_config(), load_systems_config())
+            service = load_mobygames_service()
         
         # mobygames_system_name is already the MobyGames system name
         if mobygames_system_name not in service.databases:
