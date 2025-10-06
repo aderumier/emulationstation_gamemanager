@@ -41,10 +41,9 @@ class SteamService:
         # Ensure cache directory exists
         os.makedirs(cache_dir, exist_ok=True)
         
-        # Try to load partitioned index from cache, otherwise build it at startup
-        if not self._load_partitioned_index_from_cache():
-            # Build the index at startup if not loaded from cache
-            self._build_partitioned_index_at_startup()
+        # Try to load partitioned index from cache, but don't build it here
+        # The partitioned index will be built in a background thread
+        self._load_partitioned_index_from_cache()
     
     def close(self):
         """Close any open connections or resources"""

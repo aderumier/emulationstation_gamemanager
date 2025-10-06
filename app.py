@@ -3256,6 +3256,10 @@ global_metadata_cache_loaded = False
 global_mobygames_service = None
 global_mobygames_service_loaded = False
 
+# Global Steam service instance
+global_steam_service = None
+global_steam_service_loaded = False
+
 def get_mobygames_game_data(game, system_name, service=None):
     """Get MobyGames game data by ID or name - common function for scrapper and manual scrap"""
     if not service:
@@ -3569,13 +3573,47 @@ def load_mobygames_service():
         global_mobygames_service_loaded = True  # Mark as loaded to prevent retries
         return None
 
+def load_steam_service():
+    """Load Steam service in background"""
+    global global_steam_service, global_steam_service_loaded
+    
+    if global_steam_service_loaded:
+        return global_steam_service
+    
+    try:
+        print("🔄 Loading Steam service and building partitioned index...")
+        start_time = time.time()
+        
+        # Load configs
+        config = load_config()
+        scrappers_config = load_scrappers_config()
+        systems_config = load_systems_config()
+        
+        # Initialize Steam service (this will build partitioned indexes)
+        from steam_service import SteamService
+        global_steam_service = SteamService()
+        
+        # Build partitioned index at startup
+        global_steam_service._build_partitioned_index_at_startup()
+        
+        end_time = time.time()
+        print(f"✅ Steam service loaded with partitioned index in {end_time - start_time:.2f} seconds!")
+        global_steam_service_loaded = True
+        
+        return global_steam_service
+        
+    except Exception as e:
+        print(f"❌ Failed to load Steam service: {e}")
+        global_steam_service_loaded = True  # Mark as loaded to prevent retries
+        return None
+
 def _save_global_cache_to_file(cache_data):
     """Save global cache to file for worker processes to load quickly"""
     try:
         import pickle
         import os
         
-        cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        cache_file = os.path.join('var', 'cache', 'launchbox_global_metadata_cache.pkl')
         os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         
         with open(cache_file, 'wb') as f:
@@ -3591,7 +3629,7 @@ def _load_global_cache_from_file():
         import pickle
         import os
         
-        cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        cache_file = os.path.join('var', 'cache', 'launchbox_global_metadata_cache.pkl')
         if not os.path.exists(cache_file):
             return None
         
@@ -3610,7 +3648,7 @@ def _save_platform_cache_to_file(platform_name, platform_cache, metadata_games):
         import pickle
         import os
         
-        cache_file = os.path.join('var', 'cache', f'platform_{platform_name.replace(" ", "_")}_cache.pkl')
+        cache_file = os.path.join('var', 'cache', f'launchbox_platform_{platform_name.replace(" ", "_").replace("/", "_")}_cache.pkl')
         os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         
         cache_data = {
@@ -3626,13 +3664,49 @@ def _save_platform_cache_to_file(platform_name, platform_cache, metadata_games):
     except Exception as e:
         print(f"WARNING: Failed to save platform cache for {platform_name}: {e}")
 
+def _create_platform_specific_cache_files():
+    """Create platform-specific cache files for worker processes"""
+    global global_metadata_cache, _launchbox_platforms_cache
+    
+    if not global_metadata_cache or not _launchbox_platforms_cache:
+        return
+    
+    for platform in _launchbox_platforms_cache:
+        try:
+            # Filter games for this platform
+            platform_games = {}
+            platform_alternate_names = {}
+            
+            for db_id, game_data in global_metadata_cache.items():
+                if 'game' in game_data and game_data['game']:
+                    game = game_data['game']
+                    if game.get('Platform') == platform:
+                        platform_games[db_id] = game
+                        platform_alternate_names[db_id] = game_data.get('alternate_names', [])
+            
+            if platform_games:
+                # Create platform cache structure
+                platform_cache = {}
+                for db_id, game in platform_games.items():
+                    platform_cache[db_id] = {
+                        'game': game,
+                        'alternate_names': platform_alternate_names.get(db_id, [])
+                    }
+                
+                # Save platform-specific cache file
+                _save_platform_cache_to_file(platform, platform_cache, platform_games)
+                print(f"DEBUG: Created platform cache for {platform} with {len(platform_games)} games")
+        
+        except Exception as e:
+            print(f"WARNING: Failed to create platform cache for {platform}: {e}")
+
 def _load_platform_cache_from_file(platform_name):
     """Load platform-specific cache from file (for worker processes)"""
     try:
         import pickle
         import os
         
-        cache_file = os.path.join('var', 'cache', f'platform_{platform_name.replace(" ", "_")}_cache.pkl')
+        cache_file = os.path.join('var', 'cache', f'launchbox_platform_{platform_name.replace(" ", "_").replace("/", "_")}_cache.pkl')
         if not os.path.exists(cache_file):
             return None, None
         
@@ -3659,9 +3733,9 @@ def load_metadata_cache():
     
     try:
         # Check if cache file exists first
-        cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        cache_file = os.path.join('var', 'cache', 'launchbox_global_metadata_cache.pkl')
         if os.path.exists(cache_file):
-            print("DEBUG: Loading LaunchBox metadata cache from file...")
+            print("🔄 Loading LaunchBox metadata cache from file...")
             start_time = time.time()
             
             import pickle
@@ -3680,12 +3754,16 @@ def load_metadata_cache():
             
             _launchbox_platforms_cache = sorted(list(platforms))
             
+            # Create platform-specific cache files for worker processes
+            print("🔄 Creating LaunchBox platform-specific cache files for worker processes...")
+            _create_platform_specific_cache_files()
+            
             end_time = time.time()
-            print(f"DEBUG: Cached {len(_launchbox_platforms_cache)} unique LaunchBox platforms")
-            print(f"DEBUG: Comprehensive metadata cache loaded in {end_time - start_time:.2f} seconds")
-            print(f"DEBUG: Found {sum(len(v.get('images', [])) for v in global_metadata_cache.values())} total GameImage files across {len(global_metadata_cache)} games")
-            print(f"DEBUG: Cached {len(global_metadata_cache)} total games")
-            print(f"DEBUG: Cached {sum(len(v.get('alternate_names', [])) for v in global_metadata_cache.values())} games with alternate names")
+            print(f"✅ LaunchBox metadata cache loaded successfully in {end_time - start_time:.2f} seconds!")
+            print(f"📊 Processed {len(_launchbox_platforms_cache)} unique LaunchBox platforms")
+            print(f"📊 Found {sum(len(v.get('images', [])) for v in global_metadata_cache.values())} total GameImage files across {len(global_metadata_cache)} games")
+            print(f"📊 Cached {len(global_metadata_cache)} total games")
+            print(f"📊 Cached {sum(len(v.get('alternate_names', [])) for v in global_metadata_cache.values())} games with alternate names")
             
             return {
                 'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
@@ -3693,7 +3771,7 @@ def load_metadata_cache():
                 'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in global_metadata_cache.items()}
             }
         
-        print("DEBUG: Loading comprehensive metadata cache from Metadata.xml...")
+        print("🔄 Loading LaunchBox metadata cache from Metadata.xml...")
         start_time = time.time()
         
         # Ensure the directory exists before checking for the file
@@ -3777,6 +3855,7 @@ def load_metadata_cache():
         
         # Save cache to file for worker processes to use
         _save_global_cache_to_file(consolidated)
+        print(f"✅ Saved LaunchBox global metadata cache to var/cache/launchbox_global_metadata_cache.pkl")
         
         # Generate LaunchBox platforms cache from consolidated cache
         platforms = set()
@@ -3789,14 +3868,19 @@ def load_metadata_cache():
         _launchbox_platforms_cache = sorted(list(platforms))
         print(f"DEBUG: Cached {len(_launchbox_platforms_cache)} unique LaunchBox platforms")
         
+        # Create platform-specific cache files for worker processes
+        print("🔄 Creating LaunchBox platform-specific cache files for worker processes...")
+        _create_platform_specific_cache_files()
+        
         load_time = time.time() - start_time
         
         # Count total images across all games
         total_images = sum(len(entry.get('images', [])) for entry in consolidated.values())
         
-        print(f"DEBUG: Comprehensive metadata cache loaded in {load_time:.2f} seconds")
-        print(f"DEBUG: Found {total_images} total GameImage files across {len(consolidated)} games")
-        print(f"DEBUG: Cached {len(consolidated)} total games")
+        print(f"✅ LaunchBox metadata cache loaded successfully in {load_time:.2f} seconds!")
+        print(f"📊 Processed {len(_launchbox_platforms_cache)} unique LaunchBox platforms")
+        print(f"📊 Found {total_images} total GameImage files across {len(consolidated)} games")
+        print(f"📊 Cached {len(consolidated)} total games")
         print(f"DEBUG: Cached {sum(1 for e in consolidated.values() if e.get('alternate_names'))} games with alternate names")
         
         return {
@@ -6350,7 +6434,7 @@ def flush_launchbox_caches():
     
     # Clear LaunchBox global metadata cache
     try:
-        global_cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        global_cache_file = os.path.join('var', 'cache', 'launchbox_global_metadata_cache.pkl')
         if os.path.exists(global_cache_file):
             os.remove(global_cache_file)
             print("✅ Removed LaunchBox global metadata cache")
@@ -6362,7 +6446,7 @@ def flush_launchbox_caches():
         cache_dir = os.path.join('var', 'cache')
         if os.path.exists(cache_dir):
             for filename in os.listdir(cache_dir):
-                if filename.startswith('platform_') and filename.endswith('_cache.pkl'):
+                if filename.startswith('launchbox_platform_') and filename.endswith('_cache.pkl'):
                     file_path = os.path.join(cache_dir, filename)
                     os.remove(file_path)
                     print(f"✅ Removed platform cache: {filename}")
@@ -21093,11 +21177,12 @@ if __name__ == '__main__':
     # Start cache loading in a separate thread
     def load_cache_background():
         print("🔄 Loading comprehensive metadata cache in background...")
+        print("🔄 Starting LaunchBox metadata cache generation...")
         try:
             load_metadata_cache()
-            print("✅ Cache loading completed successfully!")
+            print("✅ LaunchBox cache loading completed successfully!")
         except Exception as e:
-            print(f"❌ Cache loading failed: {e}")
+            print(f"❌ LaunchBox cache loading failed: {e}")
     
     cache_thread = threading.Thread(target=load_cache_background, daemon=True)
     cache_thread.start()
@@ -21108,6 +21193,13 @@ if __name__ == '__main__':
     
     mobygames_thread = threading.Thread(target=load_mobygames_background, daemon=True)
     mobygames_thread.start()
+    
+    # Start Steam service loading in a separate thread
+    def load_steam_background():
+        load_steam_service()
+    
+    steam_thread = threading.Thread(target=load_steam_background, daemon=True)
+    steam_thread.start()
     
     # Use a more robust approach with proper signal handling
     import sys

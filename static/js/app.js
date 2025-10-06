@@ -311,6 +311,21 @@ class GameCollectionManager {
         return null;
     }
 
+    async getAllTasks() {
+        // Get all tasks from the API
+        try {
+            const response = await fetch('/api/tasks', {
+                credentials: 'same-origin'
+            });
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (error) {
+            console.error('Error getting all tasks:', error);
+        }
+        return {};
+    }
+
     async showTaskQueueStatus() {
         // Display the current task queue status
         const queueStatus = await this.checkTaskQueue();
@@ -331,7 +346,8 @@ class GameCollectionManager {
 
     async refreshTasks() {
         try {
-            const response = await fetch('/api/tasks', {
+            // Use the combined endpoint to get both tasks and queue status in one call
+            const response = await fetch('/api/task/status-and-queue', {
                 redirect: 'manual', // Don't follow redirects automatically
                 credentials: 'same-origin' // Include cookies for authentication
             });
@@ -344,12 +360,12 @@ class GameCollectionManager {
             }
             
             if (response.ok) {
-                let tasks = await response.json();
+                const data = await response.json();
+                let tasks = data.all_tasks || {}; // Get all tasks from the combined response
                 
-                // Get queued tasks and add them to the task grid
-                const queueStatus = await this.checkTaskQueue();
-                if (queueStatus && queueStatus.queued_tasks) {
-                    queueStatus.queued_tasks.forEach(queuedTask => {
+                // Get queued tasks from the combined response and add them to the task grid
+                if (data.queue && data.queue.queued_tasks) {
+                    data.queue.queued_tasks.forEach(queuedTask => {
                         // Create a task object for queued tasks
                         const queuedTaskObj = {
                             id: queuedTask.task_id,
@@ -2194,11 +2210,12 @@ class GameCollectionManager {
     async checkExistingTask() {
         // Check if there's an existing task running when the page loads
         try {
-            const response = await fetch('/api/task/status', {
+            const response = await fetch('/api/task/status-and-queue', {
                 credentials: 'same-origin'
             });
             if (response.ok) {
-                const task = await response.json();
+                const data = await response.json();
+                const task = data.current_task;
                 if (task.status === 'running') {
                     this.displayExistingTask(task);
                 } else if (task.status === 'completed' || task.status === 'error') {
@@ -7570,9 +7587,10 @@ class GameCollectionManager {
         
         while (attempts < maxAttempts) {
             try {
-                const response = await fetch('/api/task/status');
+                const response = await fetch('/api/task/status-and-queue');
                 if (response.ok) {
-                    const status = await response.json();
+                    const data = await response.json();
+                    const status = data.current_task;
                     if (status.status === 'completed' || status.status === 'error' || status.status === 'waiting_confirmation') {
                         return; // Task completed or waiting for confirmation
                     }
