@@ -11439,6 +11439,42 @@ def get_task_queue():
     """Get the current task queue status"""
     return jsonify(get_queue_status())
 
+@app.route('/api/task/status-and-queue')
+@login_required
+def get_task_status_and_queue():
+    """Get combined task status, queue status, and all tasks in one call"""
+    global current_task_id
+    
+    # Get current task status
+    current_task = None
+    if current_task_id and current_task_id in tasks:
+        current_task = tasks[current_task_id].to_dict()
+    else:
+        current_task = {
+            'status': 'idle',
+            'type': None,
+            'progress': [],
+            'stats': {},
+            'start_time': None,
+            'end_time': None,
+            'duration': None,
+            'system': None,
+            'user': None,
+            'id': None
+        }
+    
+    # Get queue status
+    queue_status = get_queue_status()
+    
+    # Get all tasks
+    all_tasks = get_all_tasks()
+    
+    return jsonify({
+        'current_task': current_task,
+        'queue': queue_status,
+        'all_tasks': all_tasks
+    })
+
 @app.route('/api/tasks')
 @login_required
 def get_tasks():
