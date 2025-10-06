@@ -9951,11 +9951,11 @@ def manual_scrap_game(system_name):
                 print(f"DEBUG: No LaunchBox ID found for game: {current_game.get('name')}")
             
             # MobyGames scraping
-            if sys_config.get('mobygames') and (current_game.get('mobygamesid') or current_game.get('name')):
+            if sys_config.get('mobygames') and current_game.get('mobygamesid'):
                 print(f"DEBUG: Adding MobyGames scraper for game: {current_game.get('name')} with ID: {current_game.get('mobygamesid')}")
                 scraper_tasks.append(('mobygames', lambda: asyncio.run(scrape_mobygames_manual(current_game, system_name, sys_config))))
             else:
-                print(f"DEBUG: MobyGames not enabled or no ID/name found. Config: {sys_config.get('mobygames')}, Game ID: {current_game.get('mobygamesid')}, Name: {current_game.get('name')}")
+                print(f"DEBUG: MobyGames not enabled or no ID found. Config: {sys_config.get('mobygames')}, Game ID: {current_game.get('mobygamesid')}")
             
             # Run all scrapers in parallel using ThreadPoolExecutor
             if scraper_tasks:
