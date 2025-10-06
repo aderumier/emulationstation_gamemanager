@@ -1,15 +1,10 @@
 {
     "mame": {
-        "extensions": [
-            ".7Z",
-            ".7z",
-            ".ZIP",
-            ".zip"
-        ],
         "launchbox": "Arcade",
-        "igdb": 52,
-        "screenscraper": 75,
-        "mobygames": "Arcade"
+        "screenscraper": "75",
+        "igdb": "52",
+        "mobygames": "Arcade",
+        "extensions": []
     },
     "nes": {
         "extensions": [

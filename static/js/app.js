@@ -7090,14 +7090,30 @@ class GameCollectionManager {
         if (!this.currentSystem) return false;
         
         try {
-            const response = await fetch('/api/systems');
+            // Add cache-busting parameter to ensure fresh data
+            const response = await fetch(`/api/systems?t=${Date.now()}`);
             const data = await response.json();
             
             if (data.success) {
                 const systemConfig = data.systems[this.currentSystem];
+                
                 if (systemConfig) {
-                    // Check if the specific scraper has a mapping
-                    return systemConfig[scraperType] && systemConfig[scraperType].trim() !== '';
+                    // Map frontend scraper types to backend field names
+                    const fieldMapping = {
+                        'launchbox': 'launchbox',
+                        'screenscraper': 'screenscraper', 
+                        'igdb': 'igdb',
+                        'mobygames': 'mobygames'
+                    };
+                    
+                    const fieldName = fieldMapping[scraperType];
+                    if (fieldName) {
+                        const value = systemConfig[fieldName];
+                        // Check if the value exists and is not empty
+                        // Handle both string and number values (IGDB and ScreenScraper use numeric IDs)
+                        return value !== null && value !== undefined && value !== '' && 
+                               (typeof value === 'number' || value.toString().trim() !== '');
+                    }
                 }
             }
             return false;

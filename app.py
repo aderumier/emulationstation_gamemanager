@@ -4891,6 +4891,12 @@ def manage_systems():
                 igdb_platform = data.get('igdb_platform', '')
                 extensions = data.get('extensions', [])
                 
+                # Convert numeric platforms to integers
+                if screenscraper_platform and screenscraper_platform.isdigit():
+                    screenscraper_platform = int(screenscraper_platform)
+                if igdb_platform and igdb_platform.isdigit():
+                    igdb_platform = int(igdb_platform)
+                
                 # Validate system name (lowercase, no spaces)
                 if not system_name.islower() or ' ' in system_name:
                     return jsonify({'error': 'System name must be lowercase with no spaces'}), 400
@@ -4929,6 +4935,12 @@ def manage_systems():
             igdb_platform = data.get('igdb_platform', '')
             mobygames_platform = data.get('mobygames_platform', '')
             extensions = data.get('extensions', [])
+            
+            # Convert numeric platforms to integers
+            if screenscraper_platform and screenscraper_platform.isdigit():
+                screenscraper_platform = int(screenscraper_platform)
+            if igdb_platform and igdb_platform.isdigit():
+                igdb_platform = int(igdb_platform)
             
             # Check if system exists
             if system_name not in current_systems_config:
