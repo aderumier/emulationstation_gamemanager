@@ -25,8 +25,12 @@ import time
 import logging
 from typing import Dict, List, Optional, Any
 from difflib import SequenceMatcher
+from collections import namedtuple
 from game_utils import normalize_game_name, calculate_similarity
 # Removed web service dependency - web scraping now handled directly in task
+
+# Lightweight namedtuple for search index entries
+GameItem = namedtuple('GameItem', ['name', 'normalized', 'game_id'])
 
 class MobyGamesService:
     def __init__(self, config: Dict, scrappers_config: Dict = None, systems_config: Dict = None):
@@ -46,7 +50,8 @@ class MobyGamesService:
         # Normalized title index: {system: {normalized_title: gameid}}
         self.title_index = {}
         
-        # Global partitioned similarity index: {system: {first_char: [items]}}
+        # Global partitioned similarity index: {system: {first_char: [GameItem]}}
+        # GameItem is lightweight namedtuple, full game_data stored separately
         self._global_similarity_index = {}
         
         # Load all MobyGames databases
@@ -123,12 +128,15 @@ class MobyGamesService:
                             first_char = normalized_title[0] if normalized_title else 'other'
                             if first_char not in self._global_similarity_index[system_name]:
                                 self._global_similarity_index[system_name][first_char] = []
-                            self._global_similarity_index[system_name][first_char].append({
-                                'name': game_data['title'],
-                                'normalized': normalized_title,
-                                'game_id': game_id,
-                                'game_data': game_data
-                            })
+                            # Use lightweight GameItem namedtuple instead of dict
+                            # Full game_data is already stored in self.databases[system_name][game_id]
+                            self._global_similarity_index[system_name][first_char].append(
+                                GameItem(
+                                    name=game_data['title'],
+                                    normalized=normalized_title,
+                                    game_id=game_id
+                                )
+                            )
                 
                 processed_systems += 1
                 partition_count = len(self._global_similarity_index[system_name])
@@ -293,12 +301,13 @@ class MobyGamesService:
             
             for item in partition_items:
                 # Calculate similarity using configured algorithm
-                similarity = calculate_similarity(normalized_query, item['normalized'])
+                # item is now a GameItem namedtuple, access with dot notation
+                similarity = calculate_similarity(normalized_query, item.normalized)
                 
                 if similarity > 0.3:  # Lower threshold for search display
                     results.append({
-                        'id': item['game_id'],
-                        'title': item['name'],
+                        'id': item.game_id,
+                        'title': item.name,
                         'system': mobygames_system,
                         'score': round(similarity, 3)
                     })
