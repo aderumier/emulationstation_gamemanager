@@ -3543,7 +3543,7 @@ def load_mobygames_service():
         return global_mobygames_service
     
     try:
-        print("🔄 Loading MobyGames databases in background...")
+        print("🔄 Loading MobyGames databases and building partitioned indexes...")
         start_time = time.time()
         
         # Load configs
@@ -3551,12 +3551,12 @@ def load_mobygames_service():
         scrappers_config = load_scrappers_config()
         systems_config = load_systems_config()
         
-        # Initialize MobyGames service
+        # Initialize MobyGames service (this will build partitioned indexes)
         from mobygames_service import MobyGamesService
         global_mobygames_service = MobyGamesService(config, scrappers_config, systems_config)
         
         end_time = time.time()
-        print(f"✅ MobyGames service loaded successfully in {end_time - start_time:.2f} seconds!")
+        print(f"✅ MobyGames service loaded with partitioned indexes in {end_time - start_time:.2f} seconds!")
         global_mobygames_service_loaded = True
         
         return global_mobygames_service

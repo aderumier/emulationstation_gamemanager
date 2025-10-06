@@ -21,6 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import json
 import os
 import re
+import time
 import logging
 from typing import Dict, List, Optional, Any
 from difflib import SequenceMatcher
@@ -50,6 +51,9 @@ class MobyGamesService:
         
         # Load all MobyGames databases
         self._load_databases()
+        
+        # Build partitioned similarity indexes for all systems during startup
+        self._build_all_partitioned_indexes()
     
     def _load_databases(self):
         """Load all MobyGames JSON databases into memory"""
@@ -94,6 +98,52 @@ class MobyGamesService:
             
         except Exception as e:
             self.logger.error(f"Error loading MobyGames databases: {e}")
+    
+    def _build_all_partitioned_indexes(self):
+        """Build partitioned similarity indexes for all loaded systems during startup"""
+        try:
+            print("🔧 Building partitioned similarity indexes for all MobyGames systems...")
+            self.logger.info("🔧 Building partitioned similarity indexes for all MobyGames systems...")
+            start_time = time.time()
+            
+            total_systems = len(self.databases)
+            processed_systems = 0
+            
+            for system_name, games_dict in self.databases.items():
+                print(f"🔧 Building partitioned index for {system_name} ({len(games_dict)} games)...")
+                self.logger.info(f"🔧 Building partitioned index for {system_name} ({len(games_dict)} games)...")
+                
+                # Initialize system index
+                self._global_similarity_index[system_name] = {}
+                
+                for game_id, game_data in games_dict.items():
+                    if 'title' in game_data:
+                        normalized_title = normalize_game_name(game_data['title'], remove_paranthesis=True, remove_articles=True)
+                        if normalized_title:
+                            first_char = normalized_title[0] if normalized_title else 'other'
+                            if first_char not in self._global_similarity_index[system_name]:
+                                self._global_similarity_index[system_name][first_char] = []
+                            self._global_similarity_index[system_name][first_char].append({
+                                'name': game_data['title'],
+                                'normalized': normalized_title,
+                                'game_id': game_id,
+                                'game_data': game_data
+                            })
+                
+                processed_systems += 1
+                partition_count = len(self._global_similarity_index[system_name])
+                print(f"✅ Partitioned index built for {system_name} ({partition_count} partitions)")
+                self.logger.info(f"✅ Partitioned index built for {system_name} ({partition_count} partitions)")
+            
+            end_time = time.time()
+            print(f"✅ All partitioned similarity indexes built successfully in {end_time - start_time:.2f} seconds!")
+            print(f"📊 Processed {processed_systems} systems with partitioned indexes")
+            self.logger.info(f"✅ All partitioned similarity indexes built successfully in {end_time - start_time:.2f} seconds!")
+            self.logger.info(f"📊 Processed {processed_systems} systems with partitioned indexes")
+            
+        except Exception as e:
+            print(f"❌ Error building partitioned indexes: {e}")
+            self.logger.error(f"Error building partitioned indexes: {e}")
     
     
     def get_mobygames_system(self, system_name: str) -> Optional[str]:
@@ -227,24 +277,10 @@ class MobyGamesService:
         if not normalized_query:
             return []
         
-        # Build global partitioned similarity index if not exists for this system
+        # Use pre-built global partitioned similarity index (built at startup)
         if mobygames_system not in self._global_similarity_index:
-            self.logger.info(f"Building global partitioned similarity index for MobyGames system: {mobygames_system}")
-            self._global_similarity_index[mobygames_system] = {}
-            
-            for game_id, game_data in self.databases[mobygames_system].items():
-                if 'title' in game_data:
-                    normalized_title = normalize_game_name(game_data['title'], remove_paranthesis=True, remove_articles=True)
-                    if normalized_title:
-                        first_char = normalized_title[0] if normalized_title else 'other'
-                        if first_char not in self._global_similarity_index[mobygames_system]:
-                            self._global_similarity_index[mobygames_system][first_char] = []
-                        self._global_similarity_index[mobygames_system][first_char].append({
-                            'name': game_data['title'],
-                            'normalized': normalized_title,
-                            'game_id': game_id,
-                            'game_data': game_data
-                        })
+            self.logger.warning(f"Partitioned index not found for system: {mobygames_system}")
+            return []
         
         # Get the first character to search in the right partition
         first_char = normalized_query[0]
