@@ -2261,11 +2261,13 @@ class GameCollectionManager {
             this.socket.emit('join_system', { system: systemName });
         }
         
-        // Clear selection when changing systems
-        if (this.gridApi) {
-            this.gridApi.deselectAll();
+        // Clear selection only when actually changing systems, not when refreshing the same system
+        if (previousSystem && previousSystem !== systemName) {
+            if (this.gridApi) {
+                this.gridApi.deselectAll();
+            }
+            this.selectedGames = [];
         }
-        this.selectedGames = [];
         
         // Reset filters when changing systems
         if (this.duplicatesFilterActive) {
