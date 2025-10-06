@@ -19926,10 +19926,10 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                                             # Process each media option
                                             for media_option in media_options:
                                                 try:
-                                                    # Generate filename: romname + target_extension
-                                                    rom_name = os.path.splitext(os.path.basename(game.get('path', '')))[0]
-                                                    media_filename = f"{rom_name}{target_extension}"
-                                                    # Sanitize filename
+                                                    # Generate filename using common function
+                                                    rom_path = game.get('path', '')
+                                                    media_filename = create_media_filename(rom_path, target_extension)
+                                                    # Sanitize filename for filesystem compatibility
                                                     media_filename = re.sub(r'[<>:"/\\|?*]', '_', media_filename)
                                                     
                                                     # Create media path using config directory

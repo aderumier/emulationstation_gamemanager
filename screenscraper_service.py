@@ -1293,7 +1293,8 @@ class ScreenScraperService:
             # Generate filename (without extension - will be determined from content-type)
             from app import create_media_filename
             rom_path = game_data.get('path', 'unknown')
-            filename_base = os.path.splitext(create_media_filename(rom_path, ''))[0]  # Remove extension since it will be added later
+            # Get the base filename without extension using the common function
+            filename_base = create_media_filename(rom_path, '')  # Empty extension, function handles this correctly
             file_path_base = os.path.join(media_dir, filename_base)
             
             print(f"🖼️ Downloading {media_type} -> {local_field}...")
