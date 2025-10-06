@@ -1241,17 +1241,28 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         'stats': stats,
     })
     try:
-        print(f"🔧 DEBUG: Loading global metadata cache first...")
-        # Load global cache first (this will be cached and reused)
-        load_metadata_cache()
-        
         print(f"🔧 DEBUG: Loading platform-specific metadata cache for '{current_system_platform}'...")
-        # Load platform-specific cache using the existing optimized system
-        platform_cache, metadata_games = load_platform_metadata_cache(
-            current_system_platform, 
-            use_global_cache=True,  # Use the global cache that's now loaded
-            mapping_config=mapping_config
-        )
+        
+        # Try to load from platform-specific cache file first (much faster)
+        platform_cache, metadata_games = _load_platform_cache_from_file(current_system_platform)
+        if platform_cache is not None and metadata_games is not None:
+            print(f"🔧 DEBUG: Using cached platform data for {current_system_platform}")
+        else:
+            print(f"🔧 DEBUG: No platform cache file found, loading platform-specific cache directly...")
+            # Fallback to direct loading if no cache file
+            cache_result = load_platform_metadata_cache(
+                current_system_platform, 
+                use_global_cache=False,
+                mapping_config=mapping_config
+            )
+            # Convert the result to the format expected by the worker
+            metadata_games = cache_result.get('games_cache', {})
+            platform_cache = {}
+            for db_id, game_data in metadata_games.items():
+                platform_cache[db_id] = {
+                    'game': game_data,
+                    'alternate_names': cache_result.get('alternate_names_cache', {}).get(db_id, [])
+                }
         
         print(f"🔧 DEBUG: Loaded {len(metadata_games)} games for platform '{current_system_platform}'")
         
@@ -1565,10 +1576,13 @@ def process_single_game_worker(args):
         existing_launchboxid = game_data.get('launchboxid', '')
         print(f"🔧 DEBUG: Game '{game_name}' - existing_launchboxid: '{existing_launchboxid}' (type: {type(existing_launchboxid)})")
         
+        # Convert metadata_games dictionary to list for find_best_match
+        metadata_games_list = list(metadata_games.values())
+        
         # Use the old find_best_match function
         best_match, score = find_best_match(
             game_name, 
-            metadata_games, 
+            metadata_games_list, 
             current_system_platform, 
             existing_launchboxid=existing_launchboxid,
             platform_cache=platform_cache,
@@ -3539,9 +3553,85 @@ def load_mobygames_service():
         global_mobygames_service_loaded = True  # Mark as loaded to prevent retries
         return None
 
+def _save_global_cache_to_file(cache_data):
+    """Save global cache to file for worker processes to load quickly"""
+    try:
+        import pickle
+        import os
+        
+        cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+        
+        with open(cache_file, 'wb') as f:
+            pickle.dump(cache_data, f)
+        
+        print(f"DEBUG: Saved global cache to {cache_file}")
+    except Exception as e:
+        print(f"WARNING: Failed to save global cache to file: {e}")
+
+def _load_global_cache_from_file():
+    """Load global cache from file (for worker processes)"""
+    try:
+        import pickle
+        import os
+        
+        cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        if not os.path.exists(cache_file):
+            return None
+        
+        with open(cache_file, 'rb') as f:
+            cache_data = pickle.load(f)
+        
+        print(f"DEBUG: Loaded global cache from {cache_file}")
+        return cache_data
+    except Exception as e:
+        print(f"WARNING: Failed to load global cache from file: {e}")
+        return None
+
+def _save_platform_cache_to_file(platform_name, platform_cache, metadata_games):
+    """Save platform-specific cache to file for worker processes"""
+    try:
+        import pickle
+        import os
+        
+        cache_file = os.path.join('var', 'cache', f'platform_{platform_name.replace(" ", "_")}_cache.pkl')
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+        
+        cache_data = {
+            'platform_cache': platform_cache,
+            'metadata_games': metadata_games,
+            'platform_name': platform_name
+        }
+        
+        with open(cache_file, 'wb') as f:
+            pickle.dump(cache_data, f)
+        
+        print(f"DEBUG: Saved platform cache for {platform_name} to {cache_file}")
+    except Exception as e:
+        print(f"WARNING: Failed to save platform cache for {platform_name}: {e}")
+
+def _load_platform_cache_from_file(platform_name):
+    """Load platform-specific cache from file (for worker processes)"""
+    try:
+        import pickle
+        import os
+        
+        cache_file = os.path.join('var', 'cache', f'platform_{platform_name.replace(" ", "_")}_cache.pkl')
+        if not os.path.exists(cache_file):
+            return None, None
+        
+        with open(cache_file, 'rb') as f:
+            cache_data = pickle.load(f)
+        
+        print(f"DEBUG: Loaded platform cache for {platform_name} from {cache_file}")
+        return cache_data.get('platform_cache', {}), cache_data.get('metadata_games', {})
+    except Exception as e:
+        print(f"WARNING: Failed to load platform cache for {platform_name}: {e}")
+        return None, None
+
 def load_metadata_cache():
     """Load and cache all metadata from Metadata.xml for faster lookups"""
-    global global_metadata_cache, global_metadata_cache_loaded
+    global global_metadata_cache, global_metadata_cache_loaded, _launchbox_platforms_cache
     
     if global_metadata_cache_loaded:
         # Return a derived view for any legacy callers
@@ -3552,6 +3642,40 @@ def load_metadata_cache():
         }
     
     try:
+        # Check if cache file exists first
+        cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        if os.path.exists(cache_file):
+            print("DEBUG: Loading LaunchBox metadata cache from file...")
+            start_time = time.time()
+            
+            import pickle
+            with open(cache_file, 'rb') as f:
+                global_metadata_cache = pickle.load(f)
+            
+            global_metadata_cache_loaded = True
+            
+            # Generate LaunchBox platforms cache from consolidated cache
+            _launchbox_platforms_cache = {}
+            for game_id, game_data in global_metadata_cache.items():
+                if 'game' in game_data and game_data['game']:
+                    platform = game_data['game'].get('Platform', 'Unknown')
+                    if platform not in _launchbox_platforms_cache:
+                        _launchbox_platforms_cache[platform] = 0
+                    _launchbox_platforms_cache[platform] += 1
+            
+            end_time = time.time()
+            print(f"DEBUG: Cached {len(_launchbox_platforms_cache)} unique LaunchBox platforms")
+            print(f"DEBUG: Comprehensive metadata cache loaded in {end_time - start_time:.2f} seconds")
+            print(f"DEBUG: Found {sum(len(v.get('images', [])) for v in global_metadata_cache.values())} total GameImage files across {len(global_metadata_cache)} games")
+            print(f"DEBUG: Cached {len(global_metadata_cache)} total games")
+            print(f"DEBUG: Cached {sum(len(v.get('alternate_names', [])) for v in global_metadata_cache.values())} games with alternate names")
+            
+            return {
+                'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
+                'games_cache': {k: v.get('game') for k, v in global_metadata_cache.items()},
+                'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in global_metadata_cache.items()}
+            }
+        
         print("DEBUG: Loading comprehensive metadata cache from Metadata.xml...")
         start_time = time.time()
         
@@ -3634,8 +3758,10 @@ def load_metadata_cache():
         global_metadata_cache = consolidated
         global_metadata_cache_loaded = True
         
+        # Save cache to file for worker processes to use
+        _save_global_cache_to_file(consolidated)
+        
         # Generate LaunchBox platforms cache from consolidated cache
-        global _launchbox_platforms_cache
         platforms = set()
         for entry in consolidated.values():
             game_data = entry.get('game', {})
@@ -3801,9 +3927,40 @@ def load_platform_metadata_cache(platform, use_global_cache=False, mapping_confi
         print(f"DEBUG: Found {platform_alt_names_count} alternate names for platform {platform}")
         print(f"DEBUG: Cached {sum(1 for e in platform_cache.values() if e.get('alternate_names'))} games with alternate names")
         
+        # Convert XML elements to dictionaries for pickling
+        metadata_games = {}
+        platform_cache_dict = {}
+        
+        for db_id, entry in platform_cache.items():
+            game_elem = entry.get('game')
+            if game_elem is not None:
+                # Convert XML element to dictionary
+                game_data = {}
+                for child in game_elem:
+                    if child.text:
+                        game_data[child.tag] = child.text.strip()
+                metadata_games[db_id] = game_data
+                
+                # Convert alternate names to dictionaries
+                alt_names_dict = []
+                for alt_elem in entry.get('alternate_names', []):
+                    alt_data = {}
+                    for child in alt_elem:
+                        if child.text:
+                            alt_data[child.tag] = child.text.strip()
+                    alt_names_dict.append(alt_data)
+                
+                platform_cache_dict[db_id] = {
+                    'game': game_data,
+                    'alternate_names': alt_names_dict
+                }
+        
+        # Save platform-specific cache to file for future worker processes
+        _save_platform_cache_to_file(platform, platform_cache_dict, metadata_games)
+        
         return {
-            'games_cache': {k: v.get('game') for k, v in platform_cache.items()},
-            'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in platform_cache.items()}
+            'games_cache': metadata_games,
+            'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in platform_cache_dict.items()}
         }
         
     except Exception as e:
@@ -6147,6 +6304,56 @@ def clear_launchbox_platforms_cache():
     global _launchbox_platforms_cache
     _launchbox_platforms_cache = None
 
+def flush_launchbox_caches():
+    """Flush all LaunchBox-related caches in memory and files"""
+    import os
+    import shutil
+    
+    print("🧹 Flushing all LaunchBox-related caches...")
+    
+    # Clear in-memory caches
+    global global_metadata_cache_loaded, global_metadata_cache, _launchbox_platforms_cache
+    global_metadata_cache_loaded = False
+    global_metadata_cache = {}
+    _launchbox_platforms_cache = None
+    
+    # Note: MobyGames partitioned index cache is not related to LaunchBox and should not be removed
+    
+    # Clear LaunchBox global metadata cache
+    try:
+        global_cache_file = os.path.join('var', 'cache', 'global_metadata_cache.pkl')
+        if os.path.exists(global_cache_file):
+            os.remove(global_cache_file)
+            print("✅ Removed LaunchBox global metadata cache")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not remove LaunchBox global cache: {e}")
+    
+    # Clear all platform-specific caches
+    try:
+        cache_dir = os.path.join('var', 'cache')
+        if os.path.exists(cache_dir):
+            for filename in os.listdir(cache_dir):
+                if filename.startswith('platform_') and filename.endswith('_cache.pkl'):
+                    file_path = os.path.join(cache_dir, filename)
+                    os.remove(file_path)
+                    print(f"✅ Removed platform cache: {filename}")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not remove platform caches: {e}")
+    
+    # Clear any other LaunchBox-related cache files
+    try:
+        cache_dir = os.path.join('var', 'cache')
+        if os.path.exists(cache_dir):
+            for filename in os.listdir(cache_dir):
+                if 'launchbox' in filename.lower() and filename.endswith('.pkl'):
+                    file_path = os.path.join(cache_dir, filename)
+                    os.remove(file_path)
+                    print(f"✅ Removed LaunchBox cache: {filename}")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not remove additional LaunchBox caches: {e}")
+    
+    print("✅ All LaunchBox-related caches flushed successfully")
+
 @app.route('/api/rom-system/<system_name>/gamelist', methods=['GET', 'PUT'])
 @login_required
 def rom_system_gamelist(system_name):
@@ -6381,21 +6588,20 @@ def parse_launchbox_metadata(metadata_path, target_platform, skip_global_cache=F
                 # Add all LaunchBox fields from the mapping configuration
                 fields_to_load.update(mapping_config.keys())
             
-            for child in game_elem:
-                tag = child.tag
-                text = child.text.strip() if child.text else ''
-                
-                if tag in fields_to_load:
-                    game_data[tag] = text
+            # Handle dictionary format
+            for tag, text in game_elem.items():
+                if isinstance(text, str) and tag in fields_to_load:
+                    game_data[tag] = text.strip()
             
             # Only include games for the current platform
             if game_data.get('Platform') == target_platform:
                 # Link alternate names to this game from cache
                 alt_names = []
                 for alt_elem in entry.get('alternate_names', []) or []:
-                    alt_name = alt_elem.find('AlternateName')
-                    if alt_name is not None and alt_name.text:
-                        alt_names.append(alt_name.text.strip())
+                    # Handle dictionary format
+                    alt_name_text = alt_elem.get('AlternateName')
+                    if alt_name_text:
+                        alt_names.append(alt_name_text.strip())
                 game_data['AlternateNames'] = alt_names
                 if alt_names:
                     print(f"DEBUG: Game '{game_data.get('Name')}' has alternate names: {alt_names}")
@@ -6452,17 +6658,18 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
                     # Add all LaunchBox fields from the mapping configuration
                     fields_to_load.update(mapping_config.keys())
                 
-                for child in game_elem:
-                    tag = child.tag
-                    text = child.text.strip() if child.text else ''
-                    if tag in fields_to_load:
-                        game_data[tag] = text
+                # Handle dictionary-based game data (new format)
+                for field_name, field_value in game_elem.items():
+                    if field_name in fields_to_load and field_value:
+                        game_data[field_name] = str(field_value).strip()
+                
                 # Attach alternate names from cache (platform check not required for unique DBIDs)
                 alt_names = []
                 for alt_elem in alt_names_elements:
-                    alt_name = alt_elem.find('AlternateName')
-                    if alt_name is not None and alt_name.text:
-                        alt_names.append(alt_name.text.strip())
+                    # Handle dictionary-based alternate name data (new format)
+                    alt_name = alt_elem.get('AlternateName', '')
+                    if alt_name:
+                        alt_names.append(str(alt_name).strip())
                 game_data['AlternateNames'] = alt_names
                 # Annotate match info for downstream logic
                 game_data['_match_type'] = 'launchboxid'
@@ -7019,18 +7226,18 @@ def find_best_matches_endpoint():
                     # Add all LaunchBox fields from the mapping configuration
                     fields_to_load.update(mapping_config.keys())
                 
-                for child in game_elem:
-                    tag = child.tag
-                    text = child.text.strip() if child.text else ''
-                    if tag in fields_to_load:
-                        game_data[tag] = text
+                # Handle dictionary format
+                for tag, text in game_elem.items():
+                    if isinstance(text, str) and tag in fields_to_load:
+                        game_data[tag] = text.strip()
                 
                 # Add alternate names
                 alt_names = []
                 for alt_elem in platform_alternate_names.get(db_id, []):
-                    alt_name = alt_elem.find('AlternateName')
-                    if alt_name is not None and alt_name.text:
-                        alt_names.append(alt_name.text.strip())
+                    # Handle dictionary format
+                    alt_name_text = alt_elem.get('AlternateName')
+                    if alt_name_text:
+                        alt_names.append(alt_name_text.strip())
                 game_data['AlternateNames'] = alt_names
                 
                 metadata_games.append(game_data)
@@ -7385,15 +7592,14 @@ def get_launchbox_box_image_url(launchbox_id):
         if 'images' in game_metadata:
             for boxart_type in boxart_types:
                 for image_element in game_metadata['images']:
-                    type_elem = image_element.find('Type')
-                    if type_elem is not None and type_elem.text:
-                        image_type = type_elem.text.strip()
-                        
-                        # Check if this matches our boxart type
-                        if image_type == boxart_type:
-                            filename_elem = image_element.find('FileName')
-                            if filename_elem is not None and filename_elem.text:
-                                return base_url + filename_elem.text
+                    # Handle dictionary format
+                    image_type = image_element.get('Type', '').strip()
+                    
+                    # Check if this matches our boxart type
+                    if image_type == boxart_type:
+                        filename = image_element.get('FileName', '')
+                        if filename:
+                            return base_url + filename
         
         return None
         
@@ -7681,22 +7887,23 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         filtered_count = 0
         
         for game_image in all_game_images:
-            image_type = game_image.find('Type')
-            if image_type is None or not image_type.text:
+            # Handle dictionary-based image data (new format)
+            image_type_text = game_image.get('Type', '')
+            if not image_type_text:
                 continue
                 
-            image_type_text = image_type.text.strip()
+            image_type_text = str(image_type_text).strip()
             
             # Only process image types that map to fields we need
             if image_type_text not in needed_image_types:
                 continue
                 
-            filename = game_image.find('FileName')
-            region = game_image.find('Region')
+            filename_text = game_image.get('FileName', '')
+            region_text = game_image.get('Region', 'Unknown')
             
-            if filename is not None and filename.text:
-                filename_text = filename.text.strip()
-                region_text = region.text.strip() if region is not None and region.text else 'Unknown'
+            if filename_text:
+                filename_text = str(filename_text).strip()
+                region_text = str(region_text).strip() if region_text else 'Unknown'
                 
                 if image_type_text not in images_by_type:
                     images_by_type[image_type_text] = []
@@ -8575,13 +8782,8 @@ def update_metadata_endpoint():
             # Copy the new metadata file
             shutil.copy2(extracted_metadata, metadata_path)
             
-            # Clear the cache to force reload
-            global global_metadata_cache_loaded, global_metadata_cache
-            global_metadata_cache_loaded = False
-            global_metadata_cache = {}
-            
-            # Clear the LaunchBox platforms cache since metadata was updated
-            clear_launchbox_platforms_cache()
+            # Clear all LaunchBox-related caches since metadata was updated
+            flush_launchbox_caches()
             
             return jsonify({
                 'success': True,
@@ -10502,40 +10704,39 @@ async def scrape_steamgriddb_manual(game, system_name):
     except Exception as e:
         print(f"Error in SteamGridDB manual scraping: {e}")
         return None
-def extract_launchbox_text_fields(game_elem, mapping_config):
-    """Extract text fields from LaunchBox XML element using common logic"""
+def extract_launchbox_text_fields(game_data, mapping_config):
+    """Extract text fields from LaunchBox game data using common logic"""
     text_fields = {}
     
     # Always extract these standard fields regardless of mapping config
     standard_fields = ['Name', 'Description', 'Overview', 'Developer', 'Publisher', 'Genre', 'Genres', 'ReleaseDate', 'Platform', 'DatabaseID']
     
-    # Extract text from XML element
-    for child in game_elem:
-        tag = child.tag
-        text = child.text.strip() if child.text else ''
-        
-        # Debug: Print all child elements found
-        print(f"DEBUG: Found LaunchBox XML child: tag='{tag}', text='{text[:100] if text else 'None'}'")
-        
-        if tag in standard_fields:
+    # Extract text from dictionary data
+    for field_name, field_value in game_data.items():
+        if field_name in standard_fields and field_value:
+            text = str(field_value).strip()
+            
+            # Debug: Print all fields found
+            print(f"DEBUG: Found LaunchBox field: {field_name}='{text[:100] if text else 'None'}'")
+            
             # Map LaunchBox fields to our internal field names
-            if tag == 'Name':
+            if field_name == 'Name':
                 text_fields['name'] = text
-            elif tag in ['Description', 'Overview']:
+            elif field_name in ['Description', 'Overview']:
                 # Handle both Description and Overview fields for description
                 if 'desc' not in text_fields or not text_fields['desc']:
                     text_fields['desc'] = text
-                    print(f"DEBUG: Set desc field from {tag}: '{text[:100] if text else 'None'}'")
-            elif tag == 'Developer':
+                    print(f"DEBUG: Set desc field from {field_name}: '{text[:100] if text else 'None'}'")
+            elif field_name == 'Developer':
                 text_fields['developer'] = text
-            elif tag == 'Publisher':
+            elif field_name == 'Publisher':
                 text_fields['publisher'] = text
-            elif tag in ['Genre', 'Genres']:
+            elif field_name in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
                     text_fields['genre'] = text
-                    print(f"DEBUG: Set genre field from {tag}: '{text[:100] if text else 'None'}'")
-            elif tag == 'ReleaseDate':
+                    print(f"DEBUG: Set genre field from {field_name}: '{text[:100] if text else 'None'}'")
+            elif field_name == 'ReleaseDate':
                 if text:
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
@@ -10634,44 +10835,20 @@ async def scrape_launchbox_manual(game, system_name):
             base_url = 'https://images.launchbox-app.com/'
             
             for image in images:
-                if hasattr(image, 'tag'):  # XML element
-                    # Extract data from XML element
-                    image_type_elem = image.find('Type')
-                    filename_elem = image.find('FileName')
-                    
-                    if image_type_elem is not None and filename_elem is not None:
-                        image_type = image_type_elem.text.strip() if image_type_elem.text else ''
-                        filename = filename_elem.text.strip() if filename_elem.text else ''
-                        
-                        if filename:
-                            # Construct full URL from base URL + filename
-                            image_url = base_url + filename
-                            
-                            # Extract region information
-                            region_elem = image.find('Region')
-                            region = region_elem.text.strip() if region_elem is not None and region_elem.text else 'Unknown'
-                            
-                            # Map LaunchBox image types to gamelist fields via config
-                            lb_map = image_config.get('image_type_mappings', {})
-                            
-                            # Check all fields to see if this image type maps to any of them
-                            for gamelist_field, launchbox_types in lb_map.items():
-                                if image_type in launchbox_types:
-                                    media_fields.setdefault(gamelist_field, []).append({
-                                        'url': image_url,
-                                        'region': region,
-                                        'type': image_type
-                                    })
-                elif isinstance(image, dict):
-                    image_type = image.get('type', '').lower()
-                    image_url = image.get('url')
-                    region = image.get('region', 'Unknown')
+                # Handle dictionary-based image data (new format)
+                image_type = image.get('Type', '')  # LaunchBox uses 'Type' (capital T)
+                filename = image.get('FileName', '')
+                region = image.get('Region', 'Unknown')
+                
+                if image_type and filename:
+                    # Construct full URL from base URL + filename
+                    image_url = base_url + filename
                     
                     lb_map = image_config.get('image_type_mappings', {})
                     
                     # Check all fields to see if this image type maps to any of them
                     for gamelist_field, launchbox_types in lb_map.items():
-                        if image_type in launchbox_types and image_url:
+                        if image_type in launchbox_types:
                             media_fields.setdefault(gamelist_field, []).append({
                                 'url': image_url,
                                 'region': region,
@@ -15182,30 +15359,28 @@ def get_launchbox_media(launchbox_id, media_type):
         available_media = []
         
         
-        # The metadata structure has 'images' array containing XML elements
+        # The metadata structure has 'images' array containing dictionaries
         if game_metadata and 'images' in game_metadata:
             for image_element in game_metadata['images']:
-                # Parse the XML element to get image details
-                type_elem = image_element.find('Type')
-                if type_elem is not None and type_elem.text:
-                    image_type = type_elem.text.strip()
+                # Handle dictionary format
+                image_type = image_element.get('Type', '').strip()
+                
+                # Check if this image type matches what we're looking for
+                if _matches_media_type(image_type, media_type, media_directory):
+                    filename = image_element.get('FileName', '')
+                    region = image_element.get('Region', 'Unknown')
                     
-                    # Check if this image type matches what we're looking for
-                    if _matches_media_type(image_type, media_type, media_directory):
-                        filename_elem = image_element.find('FileName')
-                        region_elem = image_element.find('Region')
+                    if filename:
+                        base_url = 'https://images.launchbox-app.com/'
+                        media_url = base_url + filename
                         
-                        if filename_elem is not None and filename_elem.text:
-                            base_url = 'https://images.launchbox-app.com/'
-                            media_url = base_url + filename_elem.text
-                            
-                            available_media.append({
-                                'url': media_url,
-                                'filename': filename_elem.text,
-                                'region': region_elem.text if region_elem is not None and region_elem.text else 'Unknown',
-                                'primary': False,  # We don't have primary info in this structure
-                                'type': image_type
-                            })
+                        available_media.append({
+                            'url': media_url,
+                            'filename': filename,
+                            'region': region,
+                            'primary': False,  # We don't have primary info in this structure
+                            'type': image_type
+                        })
         
         # Sort by primary first, then by region
         available_media.sort(key=lambda x: (not x.get('primary', False), x.get('region', '')))

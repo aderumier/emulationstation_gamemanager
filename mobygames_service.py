@@ -55,8 +55,12 @@ class MobyGamesService:
         # Load all MobyGames databases
         self._load_databases()
         
-        # Build partitioned similarity indexes for all systems during startup
-        self._build_all_partitioned_indexes()
+        # Try to load partitioned indexes from cache, otherwise build them
+        if not self._load_partitioned_indexes_from_cache():
+            # Build partitioned similarity indexes for all systems during startup
+            self._build_all_partitioned_indexes()
+            # Save the indexes to cache for future use
+            self._save_partitioned_indexes_to_cache()
     
     def _load_databases(self):
         """Load all MobyGames JSON databases into memory"""
@@ -143,6 +147,78 @@ class MobyGamesService:
         except Exception as e:
             print(f"❌ Error building partitioned indexes: {e}")
             self.logger.error(f"Error building partitioned indexes: {e}")
+    
+    def _save_partitioned_indexes_to_cache(self):
+        """Save partitioned indexes to cache file for faster startup"""
+        try:
+            import pickle
+            import os
+            
+            cache_dir = 'var/cache'
+            os.makedirs(cache_dir, exist_ok=True)
+            cache_file = os.path.join(cache_dir, 'mobygames_partitioned_index.pkl')
+            
+            # Convert GameItem namedtuples to dictionaries for pickling
+            cache_data = {}
+            for system_name, system_index in self._global_similarity_index.items():
+                cache_data[system_name] = {}
+                for first_char, game_items in system_index.items():
+                    cache_data[system_name][first_char] = [
+                        {
+                            'name': item.name,
+                            'normalized': item.normalized,
+                            'game_id': item.game_id
+                        }
+                        for item in game_items
+                    ]
+            
+            with open(cache_file, 'wb') as f:
+                pickle.dump(cache_data, f)
+            
+            print(f"✅ Saved MobyGames partitioned index to {cache_file}")
+            self.logger.info(f"✅ Saved MobyGames partitioned index to {cache_file}")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to save MobyGames partitioned index cache: {e}")
+            self.logger.warning(f"Failed to save MobyGames partitioned index cache: {e}")
+    
+    def _load_partitioned_indexes_from_cache(self):
+        """Load partitioned indexes from cache file"""
+        try:
+            import pickle
+            import os
+            
+            cache_file = os.path.join('var/cache', 'mobygames_partitioned_index.pkl')
+            if not os.path.exists(cache_file):
+                print("🔍 No MobyGames partitioned index cache found, will build from scratch")
+                return False
+            
+            with open(cache_file, 'rb') as f:
+                cache_data = pickle.load(f)
+            
+            # Convert dictionaries back to GameItem namedtuples
+            self._global_similarity_index = {}
+            for system_name, system_index in cache_data.items():
+                self._global_similarity_index[system_name] = {}
+                for first_char, game_items in system_index.items():
+                    self._global_similarity_index[system_name][first_char] = [
+                        GameItem(
+                            name=item['name'],
+                            normalized=item['normalized'],
+                            game_id=item['game_id']
+                        )
+                        for item in game_items
+                    ]
+            
+            total_partitions = sum(len(partitions) for partitions in self._global_similarity_index.values())
+            print(f"✅ Loaded MobyGames partitioned index from cache ({len(self._global_similarity_index)} systems, {total_partitions} partitions)")
+            self.logger.info(f"✅ Loaded MobyGames partitioned index from cache ({len(self._global_similarity_index)} systems, {total_partitions} partitions)")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to load MobyGames partitioned index cache: {e}")
+            self.logger.warning(f"Failed to load MobyGames partitioned index cache: {e}")
+            return False
     
     
     def get_mobygames_system(self, system_name: str) -> Optional[str]:
