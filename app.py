@@ -2358,16 +2358,21 @@ def create_media_filename(rom_path, media_extension):
     Uses the ROM filename as-is since it's already validated.
     
     Args:
-        rom_path: Path to the ROM file
+        rom_path: Path to the ROM file OR already-extracted ROM filename without extension
         media_extension: Extension for the media file (e.g., '.jpg', '.png', '.mp4')
         
     Returns:
         Media filename using ROM name + media extension
     """
-    # Extract ROM filename without extension
-    rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+    # Check if rom_path is already a filename (no directory separators and no extension)
+    # or if it's a full path
+    if '/' in rom_path or '\\' in rom_path or rom_path.endswith(('.zip', '.7z', '.rar', '.iso', '.cue', '.bin', '.rom', '.nes', '.snes', '.smc', '.sfc', '.wsquashfs', '.wsquash')):
+        # It's a full path or has a ROM extension, extract filename without extension
+        rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+    else:
+        # It's already a filename without extension, use as-is
+        rom_filename = rom_path
     
-    # Use ROM filename as-is since it's already validated
     # Add the media extension
     return f"{rom_filename}{media_extension}"
 
