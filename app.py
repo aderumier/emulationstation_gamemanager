@@ -762,6 +762,22 @@ def load_user(user_id):
     return get_user_by_id(user_id)
 
 CORS(app, supports_credentials=True)
+
+# Configure Flask-Compress for HTTP compression
+app.config['COMPRESS_MIMETYPES'] = [
+    'text/html',
+    'text/css',
+    'text/xml',
+    'text/plain',
+    'application/json',
+    'application/javascript',
+    'application/xml',
+    'application/xml+rss',
+    'application/atom+xml',
+    'image/svg+xml'
+]
+app.config['COMPRESS_LEVEL'] = 6
+app.config['COMPRESS_MIN_SIZE'] = 500
 Compress(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
