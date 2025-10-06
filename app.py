@@ -1241,71 +1241,30 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
         'stats': stats,
     })
     try:
-        print(f"🔧 DEBUG: Loading LaunchBox metadata...")
-        metadata_path = get_launchbox_metadata_path()
-        print(f"🔧 DEBUG: Metadata path: {metadata_path}")
-        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
-        if not os.path.exists(metadata_path):
-            error_msg = f'Metadata.xml not found at {metadata_path}'
-            print(f"❌ ERROR: {error_msg}")
-            return {'success': False, 'error': error_msg}
-    except Exception as e:
-        error_msg = f'Error loading metadata: {str(e)}'
-        print(f"❌ ERROR: {error_msg}")
-        return {'success': False, 'error': error_msg}
-    
-    try:
-        print(f"🔧 DEBUG: Loading platform metadata cache for {current_system_platform}...")
-        # Load only platform-specific metadata cache (games + alternate names, no images)
-        platform_cache = load_platform_metadata_cache(current_system_platform, mapping_config=mapping_config)
-        games_cache = platform_cache['games_cache']
-        alternate_names_cache = platform_cache['alternate_names_cache']
-        print(f"🔧 DEBUG: Loaded {len(games_cache)} games and {len(alternate_names_cache)} alternate names")
-    
-        if not games_cache:
+        print(f"🔧 DEBUG: Loading global metadata cache first...")
+        # Load global cache first (this will be cached and reused)
+        load_metadata_cache()
+        
+        print(f"🔧 DEBUG: Loading platform-specific metadata cache for '{current_system_platform}'...")
+        # Load platform-specific cache using the existing optimized system
+        platform_cache, metadata_games = load_platform_metadata_cache(
+            current_system_platform, 
+            use_global_cache=True,  # Use the global cache that's now loaded
+            mapping_config=mapping_config
+        )
+        
+        print(f"🔧 DEBUG: Loaded {len(metadata_games)} games for platform '{current_system_platform}'")
+        
+        if not metadata_games:
             error_msg = f'No metadata for platform {current_system_platform}'
             print(f"❌ ERROR: {error_msg}")
             return {'success': False, 'error': error_msg}
+            
     except Exception as e:
-        error_msg = f'Error loading platform cache: {str(e)}'
+        error_msg = f'Error loading platform metadata: {str(e)}'
         print(f"❌ ERROR: {error_msg}")
-        return {'success': False, 'error': error_msg}
-    
-    try:
-        print(f"🔧 DEBUG: Converting platform cache to metadata_games format...")
-        # Convert platform cache to metadata_games format for compatibility
-        metadata_games = []
-        
-        # Get the fields to load from mapping configuration
-        fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
-        if mapping_config:
-            # Add all LaunchBox fields from the mapping configuration
-            fields_to_load.update(mapping_config.keys())
-            print(f"🔧 DEBUG: Fields to load: {fields_to_load}")
-        
-        for db_id, game_elem in games_cache.items():
-            if game_elem is not None:
-                game_data = {}
-                for child in game_elem:
-                    tag = child.tag
-                    text = child.text.strip() if child.text else ''
-                    if tag in fields_to_load:
-                        game_data[tag] = text
-                
-                # Add alternate names
-                alt_names = []
-                for alt_elem in alternate_names_cache.get(db_id, []):
-                    alt_name = alt_elem.find('AlternateName')
-                    if alt_name is not None and alt_name.text:
-                        alt_names.append(alt_name.text.strip())
-                game_data['AlternateNames'] = alt_names
-                
-                metadata_games.append(game_data)
-        
-        print(f"🔧 DEBUG: Converted to {len(metadata_games)} metadata games")
-    except Exception as e:
-        error_msg = f'Error converting metadata: {str(e)}'
-        print(f"❌ ERROR: {error_msg}")
+        import traceback
+        traceback.print_exc()
         return {'success': False, 'error': error_msg}
 
     original_games = all_games.copy()
@@ -1328,7 +1287,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                 result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠️  Failed to save partial gamelist: {_e}"})
             result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"🛑 Task stopped by user after processing {stats['processed_games']} game(s)"})
             return {'success': False, 'error': 'Task stopped by user', 'stopped': True, 'stats': stats, 'gamelist_path': gamelist_path, 'rom_paths': matched_rom_paths, 'force_download': force_download, 'system_name': system_name}
-        result = process_single_game_worker((game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), platform_cache, selected_fields, overwrite_text_fields))
+        result = process_single_game_worker((game_data, metadata_games, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), selected_fields, overwrite_text_fields))
         stats['processed_games'] += 1
         # compute progress
         try:
@@ -1576,7 +1535,7 @@ def reset_task_stop_event():
 def process_single_game_worker(args):
     """Worker function to process a single game in multiprocessing context"""
     try:
-        game_data, metadata_games, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, platform_cache, selected_fields, overwrite_text_fields = args
+        game_data, metadata_games, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, selected_fields, overwrite_text_fields = args
         
         print(f"🔧 DEBUG: process_single_game_worker - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)})")
         
@@ -1602,11 +1561,24 @@ def process_single_game_worker(args):
         # This is needed to find the game in original_games later
         original_game_name = game_name
         
-        # Find best match in Launchbox metadata
+        # Find best match in Launchbox metadata using old functions
         existing_launchboxid = game_data.get('launchboxid', '')
         print(f"🔧 DEBUG: Game '{game_name}' - existing_launchboxid: '{existing_launchboxid}' (type: {type(existing_launchboxid)})")
-        print(f"🔧 DEBUG: platform_cache available: {platform_cache is not None}")
-        best_match, score = find_best_match(game_name, metadata_games, current_system_platform, existing_launchboxid, platform_cache, mapping_config)
+        
+        # Use the old find_best_match function
+        best_match, score = find_best_match(
+            game_name, 
+            metadata_games, 
+            current_system_platform, 
+            existing_launchboxid=existing_launchboxid,
+            platform_cache=platform_cache,
+            mapping_config=mapping_config
+        )
+        
+        if best_match:
+            print(f"🔧 DEBUG: Found game: {best_match.get('Name', 'Unknown')} (score: {score})")
+        else:
+            print(f"🔧 DEBUG: No match found for '{game_name}' in platform '{current_system_platform}'")
         
         # Generate detailed progress message
         game_name_clean = game_name
@@ -1777,7 +1749,7 @@ def process_single_game_worker(args):
                 # If partial match modal is enabled, add to queue for user review
                 partial_match_request = None
                 if enable_partial_match_modal:
-                    # Get top matches for the modal instead of just the best match
+                    # Get top matches for the modal using old function
                     top_matches = get_top_matches(game_name_clean, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
                     partial_match_request = {
                         'game_name': game_name_clean,
