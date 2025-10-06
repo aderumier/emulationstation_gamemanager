@@ -1200,6 +1200,10 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     force_download = task.get('force_download', False)
     selected_fields = task.get('selected_fields', None)
     overwrite_text_fields = task.get('overwrite_text_fields', False)
+    
+    print(f"🔧 DEBUG: Worker received task with selected_games: {selected_games}")
+    print(f"🔧 DEBUG: selected_games type: {type(selected_games)}")
+    print(f"🔧 DEBUG: selected_games length: {len(selected_games) if selected_games else 'None'}")
 
     mapping_config, system_platform_mapping = load_launchbox_config()
     current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
@@ -1218,7 +1222,16 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     # Select games to process without losing the full list used for saving
     games = all_games
     if selected_games and len(selected_games) > 0:
+        print(f"🔧 DEBUG: Filtering games - selected_games: {selected_games}")
+        print(f"🔧 DEBUG: Total games in gamelist: {len(all_games)}")
         games = [g for g in all_games if g.get('path') in selected_games]
+        print(f"🔧 DEBUG: Filtered to {len(games)} games from selection")
+        if len(games) == 0:
+            print(f"🔧 DEBUG: No games matched! Sample paths from gamelist:")
+            for i, game in enumerate(all_games[:5]):  # Show first 5 games
+                print(f"  {i}: '{game.get('path')}'")
+    else:
+        print(f"🔧 DEBUG: No selected_games provided, processing all {len(all_games)} games")
 
     stats = {'total_games': len(games), 'processed_games': 0, 'matched_games': 0, 'updated_games': 0}
     # Announce totals and initialize progress bar in main process
@@ -2552,11 +2565,11 @@ def process_next_queued_task():
                 'type': 'scraping',
                 'task_id': task.id,
                 'system_name': system_name,
-                'selected_games': (data.get('selected_games') if data else None),
-                'enable_partial_match_modal': (data.get('enable_partial_match_modal', False) if data else False),
-                'force_download': (data.get('force_download', False) if data else False),
-                'selected_fields': (data.get('selected_fields') if data else None),
-                'overwrite_text_fields': (data.get('overwrite_text_fields', False) if data else False),
+                'selected_games': task_data.get('selected_games'),
+                'enable_partial_match_modal': task_data.get('enable_partial_match_modal', False),
+                'force_download': task_data.get('force_download', False),
+                'selected_fields': task_data.get('selected_fields'),
+                'overwrite_text_fields': task_data.get('overwrite_text_fields', False),
             }
             _worker_task_queue.put(payload)
     elif task_type == 'rom_scan':
@@ -7165,19 +7178,7 @@ def scrap_launchbox_simple(system_name):
             'overwrite_text_fields': overwrite_text_fields
         })
         
-        # Enqueue scraping in single worker process (sequential)
-        _ensure_worker_started()
-        payload = {
-            'type': 'scraping',
-            'task_id': task.id,
-            'system_name': system_name,
-            'selected_games': selected_games,
-            'enable_partial_match_modal': enable_partial_match_modal,
-            'force_download': force_download,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields
-        }
-        _worker_task_queue.put(payload)
+        # The task will be processed by process_next_queued_task() automatically
         
         return jsonify({
             'success': True,
