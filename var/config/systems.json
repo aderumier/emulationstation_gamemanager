@@ -939,8 +939,8 @@
     },
     "lcdgames": {
         "launchbox": "3DO Interactive Multiplayer",
-        "screenscraper": "29",
-        "igdb": "50",
+        "screenscraper": 29,
+        "igdb": 50,
         "mobygames": "3DO",
         "extensions": []
     },

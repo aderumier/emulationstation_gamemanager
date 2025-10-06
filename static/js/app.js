@@ -7185,6 +7185,10 @@ class GameCollectionManager {
                 document.getElementById('igdbMapping').value = systemConfig.igdb || '';
                 document.getElementById('mobygamesMapping').value = systemConfig.mobygames || '';
                 document.getElementById('screenscraperMapping').value = systemConfig.screenscraper || '';
+                
+                // Set extensions value
+                const extensions = systemConfig.extensions || [];
+                document.getElementById('extensionsMapping').value = extensions.join(', ');
             }
         } catch (error) {
             console.error('Error loading system mappings:', error);
@@ -11120,6 +11124,11 @@ class GameCollectionManager {
                 screenscraper: document.getElementById('screenscraperMapping').value
             };
             
+            // Get extensions value and convert to array
+            const extensionsText = document.getElementById('extensionsMapping').value.trim();
+            const extensions = extensionsText ? 
+                extensionsText.split(',').map(ext => ext.trim()).filter(ext => ext) : [];
+            
             // Update the system configuration
             const response = await fetch('/api/systems', {
                 method: 'PUT',
@@ -11132,7 +11141,7 @@ class GameCollectionManager {
                     screenscraper_platform: mappings.screenscraper,
                     igdb_platform: mappings.igdb,
                     mobygames_platform: mappings.mobygames,
-                    extensions: [] // Keep existing extensions
+                    extensions: extensions
                 })
             });
             
