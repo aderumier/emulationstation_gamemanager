@@ -7329,14 +7329,6 @@ class GameCollectionManager {
                 } else {
                     this.showAlert(`Launchbox scraping started for ${gamesToScrape.length} selected game${gamesToScrape.length > 1 ? 's' : ''}`, 'success');
                 }
-            } else if (response.status === 409) {
-                // Task conflict - another task is running
-                const errorData = await response.json();
-                if (errorData.queued) {
-                    this.showAlert(`Task queued: ${errorData.queue_message}`, 'warning');
-                } else {
-                    this.showAlert(errorData.error || 'Task conflict - another task is running', 'danger');
-                }
             } else {
                 const errorData = await response.json();
                 this.showAlert(errorData.error || 'Unknown error', 'danger');

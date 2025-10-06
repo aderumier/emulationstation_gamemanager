@@ -7089,21 +7089,6 @@ def scrap_launchbox_simple(system_name):
     """Start Launchbox scraping process with system name in URL (for easier testing)"""
     global current_task_id, scraping_in_progress, scraping_progress, scraping_stats
     
-    # Check if another task is already running
-    can_start, message = can_start_task('scraping')
-    if not can_start:
-        # Queue the task if it can't start immediately
-        queued, queue_message = queue_task('scraping', {
-            'system_name': system_name,
-            'method': request.method,
-            'data': request.get_json() if request.method == 'POST' else None
-        })
-        return jsonify({
-            'error': message,
-            'queued': queued,
-            'queue_message': queue_message
-        }), 409  # Conflict status
-    
     try:
         if not system_name:
             return jsonify({'error': 'System name required'}), 400
@@ -7160,9 +7145,8 @@ def scrap_launchbox_simple(system_name):
                 scraping_progress.append(f"Error parsing POST data: {e}")
                 pass  # Ignore JSON parsing errors
         
-        # Create and start new task (after parsing POST data)
-        print(f"🔧 DEBUG: Creating task with overwrite_text_fields: {overwrite_text_fields}")
-        task = create_task('scraping', {
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('scraping', {
             'system_name': system_name,
             'selected_games': selected_games,
             'enable_partial_match_modal': enable_partial_match_modal,
@@ -7170,8 +7154,6 @@ def scrap_launchbox_simple(system_name):
             'selected_fields': selected_fields,
             'overwrite_text_fields': overwrite_text_fields
         })
-        current_task_id = task.id
-        task.start()
         
         # Enqueue scraping in single worker process (sequential)
         _ensure_worker_started()
