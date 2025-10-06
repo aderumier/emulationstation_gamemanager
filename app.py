@@ -1510,15 +1510,25 @@ def _scraping_result_listener(result_q):
                         print(f"🔧 DEBUG: No image download task created - gl: {gl}, rom_paths: {len(rom_paths) if rom_paths else 0}")
                 else:
                     # If worker reports a cooperative stop and provided a saved gamelist, still notify and mark as stopped
-                    if data.get('stopped') and data.get('gamelist_path'):
-                        stats = data.get('stats', {})
+                    # Check for stopped flag at both top level and in data (for different worker implementations)
+                    is_stopped = res.get('stopped') or data.get('stopped')
+                    gamelist_path = res.get('gamelist_path') or data.get('gamelist_path')
+                    
+                    if is_stopped and gamelist_path:
+                        stats = res.get('stats', {}) or data.get('stats', {})
                         tasks[task_id].update_stats(stats)
-                        gl = data.get('gamelist_path')
+                        gl = gamelist_path
                         system_name = os.path.basename(os.path.dirname(gl)) if gl else None
                         if system_name:
                             notify_gamelist_updated(system_name, stats.get('total_games', 0), 0, stats.get('updated_games', 0))
                         # mark as completed (stopped by user) so UI can refresh
                         tasks[task_id].complete(True, "Task stopped by user (partial save)")
+                    elif is_stopped:
+                        # Task was stopped but no gamelist was saved - still mark as completed
+                        stats = res.get('stats', {}) or data.get('stats', {})
+                        if stats:
+                            tasks[task_id].update_stats(stats)
+                        tasks[task_id].complete(True, "Task stopped by user")
                     else:
                         tasks[task_id].complete(False, res.get('error', 'Unknown error'))
 
