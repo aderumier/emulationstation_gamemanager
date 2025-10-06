@@ -3655,13 +3655,14 @@ def load_metadata_cache():
             global_metadata_cache_loaded = True
             
             # Generate LaunchBox platforms cache from consolidated cache
-            _launchbox_platforms_cache = {}
+            platforms = set()
             for game_id, game_data in global_metadata_cache.items():
                 if 'game' in game_data and game_data['game']:
                     platform = game_data['game'].get('Platform', 'Unknown')
-                    if platform not in _launchbox_platforms_cache:
-                        _launchbox_platforms_cache[platform] = 0
-                    _launchbox_platforms_cache[platform] += 1
+                    if platform and platform.strip():
+                        platforms.add(platform.strip())
+            
+            _launchbox_platforms_cache = sorted(list(platforms))
             
             end_time = time.time()
             print(f"DEBUG: Cached {len(_launchbox_platforms_cache)} unique LaunchBox platforms")

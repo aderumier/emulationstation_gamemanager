@@ -150,6 +150,9 @@ class GameCollectionManager {
         // Initialize Steam configuration modal
         this.initializeSteamConfigModal();
         
+        // Initialize system scraper configuration modal
+        this.initializeSystemScraperConfigModal();
+        
         // Initialize application configuration modal
         this.initializeAppConfigurationModal();
         
@@ -7083,8 +7086,173 @@ class GameCollectionManager {
         this.showNextBestMatchModal();
     }
     
+    async checkSystemMapping(scraperType) {
+        if (!this.currentSystem) return false;
+        
+        try {
+            const response = await fetch('/api/systems');
+            const data = await response.json();
+            
+            if (data.success) {
+                const systemConfig = data.systems[this.currentSystem];
+                if (systemConfig) {
+                    // Check if the specific scraper has a mapping
+                    return systemConfig[scraperType] && systemConfig[scraperType].trim() !== '';
+                }
+            }
+            return false;
+        } catch (error) {
+            console.error('Error checking system mapping:', error);
+            return false;
+        }
+    }
+
+    async openSystemsConfigForCurrentSystem(scraperType) {
+        // Open the dedicated scraper configuration modal
+        this.openScraperConfigModal(scraperType);
+    }
+
+    async openScraperConfigModal(scraperType) {
+        // Set the current system name
+        document.getElementById('currentSystemName').textContent = this.currentSystem;
+        
+        // Load current mappings
+        await this.loadCurrentSystemMappings();
+        
+        // Highlight the specific scraper field
+        this.highlightScraperField(scraperType);
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('systemScraperConfigModal'));
+        modal.show();
+    }
+
+    async loadCurrentSystemMappings() {
+        try {
+            // Load platform data for comboboxes
+            const [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems] = await Promise.all([
+                this.loadLaunchBoxPlatforms(),
+                this.loadScreenScraperSystems(),
+                this.loadIgdbPlatforms(),
+                this.loadMobygamesSystems()
+            ]);
+            
+            // Debug: Log what we got
+            console.log('Platform data loaded:', {
+                platforms: platforms,
+                platformsType: typeof platforms,
+                platformsIsArray: Array.isArray(platforms),
+                platformsLength: platforms ? platforms.length : 'undefined'
+            });
+            
+            // Populate LaunchBox combobox
+            this.populateCombobox('launchboxMapping', platforms, 'platform');
+            
+            // Populate ScreenScraper combobox
+            this.populateCombobox('screenscraperMapping', screenscraperSystems, 'system');
+            
+            // Populate IGDB combobox
+            this.populateCombobox('igdbMapping', igdbPlatforms, 'igdb_platform');
+            
+            // Populate MobyGames combobox
+            this.populateCombobox('mobygamesMapping', mobygamesSystems, 'system');
+            
+            // Load current system mappings
+            const response = await fetch('/api/systems');
+            const data = await response.json();
+            
+            if (data.success && data.systems[this.currentSystem]) {
+                const systemConfig = data.systems[this.currentSystem];
+                
+                // Set selected values
+                document.getElementById('launchboxMapping').value = systemConfig.launchbox || '';
+                document.getElementById('igdbMapping').value = systemConfig.igdb || '';
+                document.getElementById('mobygamesMapping').value = systemConfig.mobygames || '';
+                document.getElementById('screenscraperMapping').value = systemConfig.screenscraper || '';
+            }
+        } catch (error) {
+            console.error('Error loading system mappings:', error);
+            this.showAlert('Error loading current system mappings', 'danger');
+        }
+    }
+
+    populateCombobox(selectId, data, type) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        
+        // Clear existing options except the first one
+        select.innerHTML = select.querySelector('option').outerHTML;
+        
+        if (Array.isArray(data) && data.length > 0) {
+            data.forEach(item => {
+                const option = document.createElement('option');
+                if (type === 'platform') {
+                    // For LaunchBox platforms (simple strings)
+                    option.value = item;
+                    option.textContent = item;
+                } else if (type === 'system') {
+                    // For ScreenScraper and MobyGames systems (objects with id/name)
+                    option.value = item.id || item;
+                    option.textContent = item.name || item;
+                } else if (type === 'igdb_platform') {
+                    // For IGDB platforms (objects with id/name)
+                    option.value = item.id;
+                    option.textContent = item.name;
+                }
+                select.appendChild(option);
+            });
+        } else {
+            // Add a "No data available" option
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No data available';
+            option.disabled = true;
+            select.appendChild(option);
+        }
+    }
+
+    highlightScraperField(scraperType) {
+        // Remove existing highlights
+        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping'];
+        fields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.classList.remove('border-warning');
+                field.style.backgroundColor = '';
+                field.style.borderColor = '';
+            }
+        });
+        
+        // Highlight the specific scraper field
+        const fieldMap = {
+            'launchbox': 'launchboxMapping',
+            'igdb': 'igdbMapping',
+            'mobygames': 'mobygamesMapping',
+            'screenscraper': 'screenscraperMapping'
+        };
+        
+        const targetFieldId = fieldMap[scraperType];
+        if (targetFieldId) {
+            const targetField = document.getElementById(targetFieldId);
+            if (targetField) {
+                targetField.classList.add('border-warning');
+                targetField.style.borderColor = '#ffc107';
+                targetField.style.backgroundColor = '#fff3cd';
+                targetField.focus();
+            }
+        }
+    }
+
     async scrapLaunchbox() {
         if (!this.currentSystem) return;
+        
+        // Check if LaunchBox system mapping exists
+        const hasMapping = await this.checkSystemMapping('launchbox');
+        if (!hasMapping) {
+            this.showAlert(`No LaunchBox system mapping configured for ${this.currentSystem}. Opening configuration...`, 'warning');
+            await this.openSystemsConfigForCurrentSystem('launchbox');
+            return;
+        }
         
         try {
             // Check if scraping is already running
@@ -10911,6 +11079,72 @@ class GameCollectionManager {
         }
     }
 
+    initializeSystemScraperConfigModal() {
+        // Add event listener for save button
+        const saveBtn = document.getElementById('saveScraperMappingsBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => this.saveScraperMappings());
+        }
+    }
+
+    async saveScraperMappings() {
+        const saveBtn = document.getElementById('saveScraperMappingsBtn');
+        const originalText = saveBtn.innerHTML;
+        
+        try {
+            // Show loading state
+            saveBtn.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>Saving...';
+            saveBtn.disabled = true;
+            
+            // Get form values
+            const mappings = {
+                launchbox: document.getElementById('launchboxMapping').value,
+                igdb: document.getElementById('igdbMapping').value,
+                mobygames: document.getElementById('mobygamesMapping').value,
+                screenscraper: document.getElementById('screenscraperMapping').value
+            };
+            
+            // Update the system configuration
+            const response = await fetch('/api/systems', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    launchbox_platform: mappings.launchbox,
+                    screenscraper_platform: mappings.screenscraper,
+                    igdb_platform: mappings.igdb,
+                    mobygames_platform: mappings.mobygames,
+                    extensions: [] // Keep existing extensions
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    this.showAlert('Scraper mappings saved successfully!', 'success');
+                    
+                    // Close the modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('systemScraperConfigModal'));
+                    modal.hide();
+                } else {
+                    this.showAlert(result.error || 'Failed to save mappings', 'danger');
+                }
+            } else {
+                const errorData = await response.json();
+                this.showAlert(errorData.error || 'Failed to save mappings', 'danger');
+            }
+        } catch (error) {
+            console.error('Error saving scraper mappings:', error);
+            this.showAlert('Error saving scraper mappings: ' + error.message, 'danger');
+        } finally {
+            // Restore button state
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        }
+    }
+
     attachSystemsModalEventListeners() {
         // Add missing systems button
         const addMissingSystemsBtn = document.getElementById('addMissingSystemsBtn');
@@ -11120,29 +11354,47 @@ class GameCollectionManager {
         // Clear loading message and populate table
         tbody.innerHTML = '';
         
+        // Debug: Log the types of the parameters
+        console.log('populateSystemsTableWithData called with:', {
+            platforms: typeof platforms, 
+            platformsIsArray: Array.isArray(platforms),
+            screenscraperSystems: typeof screenscraperSystems,
+            screenscraperIsArray: Array.isArray(screenscraperSystems),
+            igdbPlatforms: typeof igdbPlatforms,
+            igdbIsArray: Array.isArray(igdbPlatforms),
+            mobygamesSystems: typeof mobygamesSystems,
+            mobygamesIsArray: Array.isArray(mobygamesSystems)
+        });
+        
+        // Ensure platforms is an array
+        const platformsArray = Array.isArray(platforms) ? platforms : [];
+        const screenscraperArray = Array.isArray(screenscraperSystems) ? screenscraperSystems : [];
+        const igdbArray = Array.isArray(igdbPlatforms) ? igdbPlatforms : [];
+        const mobygamesArray = Array.isArray(mobygamesSystems) ? mobygamesSystems : [];
+        
         // Use the systems data passed as parameter
         Object.entries(systems).forEach(([systemName, systemData]) => {
             const row = document.createElement('tr');
             
             // Create platform combobox options
-            const platformOptions = platforms.map(platform => 
+            const platformOptions = platformsArray.map(platform => 
                 `<option value="${platform}" ${platform === systemData.launchbox ? 'selected' : ''}>${platform}</option>`
             ).join('');
             
             // Create ScreenScraper systems combobox options
-            const screenscraperOptions = screenscraperSystems.map(system => 
+            const screenscraperOptions = screenscraperArray.map(system => 
                 `<option value="${system.id}" ${system.id == systemData.screenscraper ? 'selected' : ''}>${system.name}</option>`
             ).join('');
             
             // Create IGDB platforms combobox options
-            const igdbOptions = igdbPlatforms.length > 0 
-                ? igdbPlatforms.map(platform => 
+            const igdbOptions = igdbArray.length > 0 
+                ? igdbArray.map(platform => 
                     `<option value="${platform.id}" ${platform.id == systemData.igdb ? 'selected' : ''}>${platform.name}</option>`
                 ).join('')
                 : '<option value="" disabled>No IGDB platforms available (configure credentials to load)</option>';
             
             // Create MobyGames systems combobox options
-            const mobygamesOptions = mobygamesSystems.map(system => {
+            const mobygamesOptions = mobygamesArray.map(system => {
                 const isSelected = system === systemData.mobygames;
                 if (isSelected) {
                     console.log(`MobyGames: Selected ${system} for ${systemName} (${systemData.mobygames})`);
@@ -14894,6 +15146,14 @@ class GameCollectionManager {
             return;
         }
         
+        // Check if IGDB system mapping exists
+        const hasMapping = await this.checkSystemMapping('igdb');
+        if (!hasMapping) {
+            this.showAlert(`No IGDB system mapping configured for ${this.currentSystem}. Opening configuration...`, 'warning');
+            await this.openSystemsConfigForCurrentSystem('igdb');
+            return;
+        }
+        
         try {
             const button = document.getElementById('scrapIgdbBtn');
             const originalText = button.innerHTML;
@@ -15059,9 +15319,16 @@ class GameCollectionManager {
     }
 
     async scrapScreenscraper() {
-        
         if (!this.currentSystem) {
             this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        // Check if ScreenScraper system mapping exists
+        const hasMapping = await this.checkSystemMapping('screenscraper');
+        if (!hasMapping) {
+            this.showAlert(`No ScreenScraper system mapping configured for ${this.currentSystem}. Opening configuration...`, 'warning');
+            await this.openSystemsConfigForCurrentSystem('screenscraper');
             return;
         }
         
@@ -15196,9 +15463,16 @@ class GameCollectionManager {
     }
 
     async scrapMobygames() {
-        
         if (!this.currentSystem) {
             this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        // Check if MobyGames system mapping exists
+        const hasMapping = await this.checkSystemMapping('mobygames');
+        if (!hasMapping) {
+            this.showAlert(`No MobyGames system mapping configured for ${this.currentSystem}. Opening configuration...`, 'warning');
+            await this.openSystemsConfigForCurrentSystem('mobygames');
             return;
         }
         

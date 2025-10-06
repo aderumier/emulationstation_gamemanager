@@ -943,15 +943,11 @@
         "screenscraper": 52
     },
     "lcdgames": {
-        "extensions": [
-            ".7z",
-            ".ZIP",
-            ".mgw",
-            ".zip"
-        ],
-        "launchbox": "Nintendo Game &amp; Watch",
-        "igdb": 52,
-        "screenscraper": 52
+        "launchbox": "3DO Interactive Multiplayer",
+        "screenscraper": "29",
+        "igdb": "50",
+        "mobygames": "3DO",
+        "extensions": []
     },
     "fbneo": {
         "extensions": [
