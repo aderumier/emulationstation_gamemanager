@@ -38,12 +38,15 @@ class SteamService:
         # SteamItem is lightweight namedtuple, full app data stored separately
         self._global_similarity_index = {}
         
+        # Track whether partitioned index was loaded from cache
+        self._partitioned_index_loaded_from_cache = False
+        
         # Ensure cache directory exists
         os.makedirs(cache_dir, exist_ok=True)
         
         # Try to load partitioned index from cache, but don't build it here
         # The partitioned index will be built in a background thread
-        self._load_partitioned_index_from_cache()
+        self._partitioned_index_loaded_from_cache = self._load_partitioned_index_from_cache()
     
     def close(self):
         """Close any open connections or resources"""
@@ -261,7 +264,8 @@ class SteamService:
         try:
             import pickle
             
-            cache_file = os.path.join('var/cache', 'steam_partitioned_index.pkl')
+            cache_dir = 'var/cache'
+            cache_file = os.path.join(cache_dir, 'steam_partitioned_index.pkl')
             if not os.path.exists(cache_file):
                 print("🔍 No Steam partitioned index cache found, will build from scratch")
                 return False
@@ -294,6 +298,12 @@ class SteamService:
     def _build_partitioned_index_at_startup(self):
         """Build partitioned index at startup by loading Steam apps"""
         try:
+            # Check if partitioned index was already loaded from cache
+            if self._partitioned_index_loaded_from_cache:
+                print("✅ Steam partitioned index already loaded from cache, skipping build")
+                logger.info("✅ Steam partitioned index already loaded from cache, skipping build")
+                return
+            
             print("🔧 Building Steam partitioned index at startup...")
             logger.info("🔧 Building Steam partitioned index at startup...")
             

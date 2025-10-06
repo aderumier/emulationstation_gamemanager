@@ -3671,8 +3671,33 @@ def _create_platform_specific_cache_files():
     if not global_metadata_cache or not _launchbox_platforms_cache:
         return
     
+    # Check if platform cache files already exist
+    import os
+    cache_dir = 'var/cache'
+    existing_cache_files = 0
+    total_platforms = len(_launchbox_platforms_cache)
+    
+    for platform in _launchbox_platforms_cache:
+        safe_platform_name = platform.replace(" ", "_").replace("/", "_")
+        cache_file = os.path.join(cache_dir, f'launchbox_platform_{safe_platform_name}_cache.pkl')
+        if os.path.exists(cache_file):
+            existing_cache_files += 1
+    
+    # If all platform cache files exist, skip creation
+    if existing_cache_files == total_platforms:
+        print(f"✅ All {total_platforms} LaunchBox platform cache files already exist, skipping creation")
+        return
+    
+    print(f"🔄 Creating LaunchBox platform-specific cache files for worker processes... ({existing_cache_files}/{total_platforms} already exist)")
+    
     for platform in _launchbox_platforms_cache:
         try:
+            # Check if this specific platform cache file already exists
+            safe_platform_name = platform.replace(" ", "_").replace("/", "_")
+            cache_file = os.path.join(cache_dir, f'launchbox_platform_{safe_platform_name}_cache.pkl')
+            if os.path.exists(cache_file):
+                continue  # Skip this platform, cache file already exists
+            
             # Filter games for this platform
             platform_games = {}
             platform_alternate_names = {}
@@ -3765,6 +3790,7 @@ def load_metadata_cache():
             print(f"📊 Cached {len(global_metadata_cache)} total games")
             print(f"📊 Cached {sum(len(v.get('alternate_names', [])) for v in global_metadata_cache.values())} games with alternate names")
             
+            
             return {
                 'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
                 'games_cache': {k: v.get('game') for k, v in global_metadata_cache.items()},
@@ -3849,8 +3875,8 @@ def load_metadata_cache():
         print(f"DEBUG: Found {games_count} Game entries in Metadata.xml")
         print(f"DEBUG: Found {alternate_names_count} GameAlternateName entries in Metadata.xml")
         
-        # Update global consolidated cache
-        global_metadata_cache = consolidated
+        # Update global consolidated cache (make a copy to avoid clearing it later)
+        global_metadata_cache = consolidated.copy()
         global_metadata_cache_loaded = True
         
         # Save cache to file for worker processes to use
@@ -3874,7 +3900,7 @@ def load_metadata_cache():
         
         load_time = time.time() - start_time
         
-        # Count total images across all games
+        # Count total images across all games before clearing memory
         total_images = sum(len(entry.get('images', [])) for entry in consolidated.values())
         
         print(f"✅ LaunchBox metadata cache loaded successfully in {load_time:.2f} seconds!")
@@ -3882,6 +3908,12 @@ def load_metadata_cache():
         print(f"📊 Found {total_images} total GameImage files across {len(consolidated)} games")
         print(f"📊 Cached {len(consolidated)} total games")
         print(f"DEBUG: Cached {sum(1 for e in consolidated.values() if e.get('alternate_names'))} games with alternate names")
+        
+        # Clear large data structures from memory after cache generation
+        print("🧹 Clearing large data structures from memory...")
+        consolidated.clear()
+        del consolidated
+        
         
         return {
             'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
