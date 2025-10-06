@@ -120,6 +120,9 @@ class GameCollectionManager {
         // Add event listener for edit modal cleanup when closed
         this.initializeEditModalCleanup();
         
+        // Initialize search modal cleanup
+        this.initializeSearchModalCleanup();
+        
         // Initialize cache configuration modal
         this.initializeCacheConfigurationModal();
         
@@ -5226,8 +5229,17 @@ class GameCollectionManager {
         document.getElementById('igdbSearchResults').innerHTML = '';
         document.getElementById('igdbSearchError').style.display = 'none';
         
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
         // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('igdbSearchModal'));
+        const modal = new bootstrap.Modal(document.getElementById('igdbSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         modal.show();
         
         // Show spinner
@@ -5387,21 +5399,29 @@ class GameCollectionManager {
             modal.hide();
         }
         
+        // Force cleanup of modal state to prevent interface getting stuck
+        setTimeout(() => {
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                backdrop.remove();
+            });
+        }, 100);
+        
+        // Clear modal state
+        this.currentModalContext = null;
+        this.currentModalData = null;
+        
         // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
             game.igdbid = igdbId;
-            this.modifiedGames.add(game.id);
+            this.markGameAsModified(game);
             
-            // Auto-save the gamelist
-            try {
-                await this.saveGamelistDirect();
-                this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}" and gamelist saved`, 'success');
-            } catch (error) {
-                this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}" but failed to save gamelist`, 'warning');
-            }
+            this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}". Remember to save changes when ready.`, 'success');
         } else {
-        this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
+            this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
         }
     }
     
@@ -5437,8 +5457,17 @@ class GameCollectionManager {
         document.getElementById('screenscraperSearchResults').innerHTML = '';
         document.getElementById('screenscraperSearchError').style.display = 'none';
         
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
         // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('screenscraperSearchModal'));
+        const modal = new bootstrap.Modal(document.getElementById('screenscraperSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         modal.show();
         
         // Show spinner
@@ -5554,19 +5583,27 @@ class GameCollectionManager {
             modal.hide();
         }
         
+        // Force cleanup of modal state to prevent interface getting stuck
+        setTimeout(() => {
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                backdrop.remove();
+            });
+        }, 100);
+        
+        // Clear modal state
+        this.currentModalContext = null;
+        this.currentModalData = null;
+        
         // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
             game.screenscraperid = screenscraperId;
-            this.modifiedGames.add(game.id);
+            this.markGameAsModified(game);
             
-            // Auto-save the gamelist
-            try {
-                await this.saveGamelistDirect();
-                this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}" and gamelist saved`, 'success');
-            } catch (error) {
-                this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}" but failed to save gamelist`, 'warning');
-            }
+            this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}". Remember to save changes when ready.`, 'success');
         } else {
             this.showAlert(`ScreenScraper ID set to ${screenscraperId} for "${gameName}"`, 'success');
         }
@@ -5604,8 +5641,17 @@ class GameCollectionManager {
         document.getElementById('steamSearchResults').innerHTML = '';
         document.getElementById('steamSearchError').style.display = 'none';
         
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
         // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('steamSearchModal'));
+        const modal = new bootstrap.Modal(document.getElementById('steamSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         modal.show();
         
         // Show spinner
@@ -5716,19 +5762,17 @@ class GameCollectionManager {
             modal.hide();
         }
         
+        // Clear modal state
+        this.currentModalContext = null;
+        this.currentModalData = null;
+        
         // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
             game.steamid = steamId;
-            this.modifiedGames.add(game.id);
+            this.markGameAsModified(game);
             
-            // Auto-save the gamelist
-            try {
-                await this.saveGamelistDirect();
-                this.showAlert(`Steam ID set to ${steamId} for "${gameName}" and gamelist saved`, 'success');
-            } catch (error) {
-                this.showAlert(`Steam ID set to ${steamId} for "${gameName}" but failed to save gamelist`, 'warning');
-            }
+            this.showAlert(`Steam ID set to ${steamId} for "${gameName}". Remember to save changes when ready.`, 'success');
         } else {
             this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
         }
@@ -5787,8 +5831,17 @@ class GameCollectionManager {
         document.getElementById('mobygamesSearchResults').innerHTML = '';
         document.getElementById('mobygamesSearchError').style.display = 'none';
         
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
         // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('mobygamesSearchModal'));
+        const modal = new bootstrap.Modal(document.getElementById('mobygamesSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         modal.show();
         
         // Show spinner
@@ -5878,6 +5931,10 @@ class GameCollectionManager {
             modal.hide();
         }
         
+        // Clear modal state
+        this.currentModalContext = null;
+        this.currentModalData = null;
+        
         // Show success message
         this.showAlert(`MobyGames ID set to ${gameId} for "${gameTitle}"`, 'success');
     }
@@ -5893,8 +5950,17 @@ class GameCollectionManager {
         document.getElementById('steamgridSearchResults').innerHTML = '';
         document.getElementById('steamgridSearchError').style.display = 'none';
         
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
         // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('steamgridSearchModal'));
+        const modal = new bootstrap.Modal(document.getElementById('steamgridSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         modal.show();
         
         // Show spinner
@@ -6008,19 +6074,17 @@ class GameCollectionManager {
             modal.hide();
         }
         
+        // Clear modal state
+        this.currentModalContext = null;
+        this.currentModalData = null;
+        
         // Update the game data and mark as modified
         if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
             const game = this.games[this.editingGameIndex];
             game.steamgridid = steamgridId;
-            this.modifiedGames.add(game.id);
+            this.markGameAsModified(game);
             
-            // Auto-save the gamelist
-            try {
-                await this.saveGamelistDirect();
-                this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}" and gamelist saved`, 'success');
-            } catch (error) {
-                this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}" but failed to save gamelist`, 'warning');
-            }
+            this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}". Remember to save changes when ready.`, 'success');
         } else {
             this.showAlert(`SteamGridDB ID set to ${steamgridId} for "${gameName}"`, 'success');
         }
@@ -9195,8 +9259,8 @@ class GameCollectionManager {
                     });
                 } catch (e) {}
             };
-            editModal.addEventListener('hidden.bs.modal', () => {
-                pauseAllVideos();
+            
+            const cleanupModalState = () => {
                 // Clear any media selection
                 this.clearMediaSelection();
                 // Reset any modal-specific state
@@ -9204,7 +9268,38 @@ class GameCollectionManager {
                 // Clear any form data if needed
                 const form = document.getElementById('editGameForm');
                 if (form) { form.reset(); }
+                
+                // Force cleanup of modal state to prevent interface getting stuck
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // Remove any stuck modal backdrop
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                    backdrop.remove();
+                });
+                
+                // Clear modal context
+                this.currentModalContext = null;
+                this.currentModalData = null;
+            };
+            
+            editModal.addEventListener('hidden.bs.modal', () => {
+                pauseAllVideos();
+                cleanupModalState();
+                
+                // Additional cleanup to prevent interface getting stuck
+                setTimeout(() => {
+                    // Force cleanup of any remaining modal state
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                    document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                        backdrop.remove();
+                    });
+                }, 50);
             });
+            
             // Add focus management when modal is about to be hidden
             editModal.addEventListener('hide.bs.modal', () => {
                 pauseAllVideos();
@@ -9214,6 +9309,39 @@ class GameCollectionManager {
                 if (focusedElement) { focusedElement.blur(); }
             });
         }
+    }
+    
+    initializeSearchModalCleanup() {
+        // List of search modal IDs
+        const searchModalIds = [
+            'igdbSearchModal',
+            'screenscraperSearchModal', 
+            'steamSearchModal',
+            'mobygamesSearchModal',
+            'steamgridSearchModal'
+        ];
+        
+        // Add cleanup event listeners for each search modal
+        searchModalIds.forEach(modalId => {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.addEventListener('hidden.bs.modal', () => {
+                    // Clear modal state when any search modal is closed
+                    this.currentModalContext = null;
+                    this.currentModalData = null;
+                    
+                    // Force cleanup of modal state to prevent interface getting stuck
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                    
+                    // Remove any stuck modal backdrop
+                    document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                        backdrop.remove();
+                    });
+                });
+            }
+        });
     }
     
     initializeCacheConfigurationModal() {
@@ -16511,8 +16639,17 @@ class GameCollectionManager {
         const searchQuery = `${game.name} ${this.currentSystem}`;
         document.getElementById('youtubeSearchInput').value = searchQuery;
         
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
         // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('youtubeSearchModal'));
+        const modal = new bootstrap.Modal(document.getElementById('youtubeSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         modal.show();
         
         // Initialize search functionality
@@ -16941,8 +17078,17 @@ class GameCollectionManager {
     }
     
     returnToYouTubeSearchModal() {
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
         // Show the YouTube search modal again
-        const searchModal = new bootstrap.Modal(document.getElementById('youtubeSearchModal'));
+        const searchModal = new bootstrap.Modal(document.getElementById('youtubeSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
         searchModal.show();
     }
 
