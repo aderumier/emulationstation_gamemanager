@@ -300,7 +300,10 @@ class GameCollectionManager {
         // Check the current task queue status
         try {
             const response = await fetch('/api/task/queue', {
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for queue data
+                }
             });
             if (response.ok) {
                 const queueStatus = await response.json();
@@ -315,7 +318,10 @@ class GameCollectionManager {
         // Get all tasks from the API
         try {
             const response = await fetch('/api/tasks', {
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for task data
+                }
             });
             if (response.ok) {
                 return await response.json();
@@ -391,7 +397,10 @@ class GameCollectionManager {
                         const needsHistory = Object.values(tasks).some(t => !t?.data?.system_name || (!t.total_steps && !t.progress_percentage));
                         if (needsHistory) {
                             const histResp = await fetch('/api/tasks/history', {
-                                credentials: 'same-origin'
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Accept-Encoding': 'gzip, deflate' // Enable compression for history data
+                                }
                             });
                             if (histResp.ok) {
                                 const history = await histResp.json();
@@ -1328,7 +1337,11 @@ class GameCollectionManager {
                 this.refreshTasks();
                 
                 // If this was a ROM scan task, restore scan button state
-                const taskResponse = await fetch('/api/tasks');
+                const taskResponse = await fetch('/api/tasks', {
+                    headers: {
+                        'Accept-Encoding': 'gzip, deflate' // Enable compression for task data
+                    }
+                });
                 if (taskResponse.ok) {
                     const tasks = await taskResponse.json();
                     const task = tasks.find(t => t.id === taskId);
@@ -1428,7 +1441,10 @@ class GameCollectionManager {
             const response = await fetch('/api/tasks', {
                 method: 'HEAD', // Just check if we can access the endpoint
                 redirect: 'manual',
-                credentials: 'same-origin' // Include cookies for authentication
+                credentials: 'same-origin', // Include cookies for authentication
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression
+                }
             });
             
             // If we get a successful response or a 401 (which means we're authenticated but no tasks)
@@ -1973,7 +1989,11 @@ class GameCollectionManager {
         try {
             
             // Fetch the latest gamelist data
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`);
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for large gamelist data
+                }
+            });
             if (response.ok) {
                 const result = await response.json();
                 
@@ -2008,7 +2028,11 @@ class GameCollectionManager {
         try {
             
             // Fetch the latest gamelist data
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`);
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for large gamelist data
+                }
+            });
             if (response.ok) {
                 const result = await response.json();
                 
@@ -2286,7 +2310,11 @@ class GameCollectionManager {
         this.updateSelectionDisplay();
         
         try {
-            const response = await fetch(`/api/rom-system/${systemName}/gamelist`);
+            const response = await fetch(`/api/rom-system/${systemName}/gamelist`, {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for large gamelist data
+                }
+            });
             if (response.ok) {
                 const data = await response.json();
                 this.games = data.games || [];
@@ -3818,7 +3846,11 @@ class GameCollectionManager {
         
         // Fetch from API
         try {
-            const response = await fetch('/api/media-fields');
+            const response = await fetch('/api/media-fields', {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for media fields data
+                }
+            });
             
             if (!response.ok) {
                 throw new Error(`API call failed with status: ${response.status}`);
@@ -3848,7 +3880,11 @@ class GameCollectionManager {
         
         // If not cached, fetch from API
         try {
-            const response = await fetch('/api/media-mappings');
+            const response = await fetch('/api/media-mappings', {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for media mappings data
+                }
+            });
             const data = await response.json();
             
             if (data.success) {
@@ -3865,7 +3901,11 @@ class GameCollectionManager {
     async initializeMediaMappingsCache() {
         // Fetch media mappings once when the application starts
         try {
-            const response = await fetch('/api/media-mappings');
+            const response = await fetch('/api/media-mappings', {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for media mappings data
+                }
+            });
             const data = await response.json();
             
             if (data.success) {
@@ -5242,7 +5282,11 @@ class GameCollectionManager {
         }
         
         // Get system configuration to find IGDB platform
-        const response = await fetch('/api/config');
+        const response = await fetch('/api/config', {
+            headers: {
+                'Accept-Encoding': 'gzip, deflate' // Enable compression for config data
+            }
+        });
         if (!response.ok) {
             this.showAlert('Failed to load system configuration', 'error');
             return;
@@ -9559,7 +9603,11 @@ class GameCollectionManager {
     
     async refreshTaskGrid() {
         try {
-            const response = await fetch('/api/tasks');
+            const response = await fetch('/api/tasks', {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for task data
+                }
+            });
             if (response.ok) {
                 const tasks = await response.json();
                 this.displayTasksInGrid(tasks);
@@ -17755,7 +17803,11 @@ class GameCollectionManager {
     async checkForCompletedYouTubeTasks() {
         if (!this.currentSystem) return;
         try {
-            const resp = await fetch('/api/tasks');
+            const resp = await fetch('/api/tasks', {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for task data
+                }
+            });
             const tasksMap = await resp.json();
             const tasksArray = tasksMap && typeof tasksMap === 'object' ? Object.values(tasksMap) : [];
             const hasCompleted = tasksArray.some(task => task.type === 'youtube_download' && task.status === 'completed');
