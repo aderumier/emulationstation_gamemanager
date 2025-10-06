@@ -349,7 +349,10 @@ class GameCollectionManager {
             // Use the combined endpoint to get both tasks and queue status in one call
             const response = await fetch('/api/task/status-and-queue', {
                 redirect: 'manual', // Don't follow redirects automatically
-                credentials: 'same-origin' // Include cookies for authentication
+                credentials: 'same-origin', // Include cookies for authentication
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression for polling requests
+                }
             });
             
             // Check if we're being redirected to login (authentication required)
@@ -2211,7 +2214,10 @@ class GameCollectionManager {
         // Check if there's an existing task running when the page loads
         try {
             const response = await fetch('/api/task/status-and-queue', {
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate' // Enable compression
+                }
             });
             if (response.ok) {
                 const data = await response.json();
@@ -7589,7 +7595,11 @@ class GameCollectionManager {
         
         while (attempts < maxAttempts) {
             try {
-                const response = await fetch('/api/task/status-and-queue');
+                const response = await fetch('/api/task/status-and-queue', {
+                    headers: {
+                        'Accept-Encoding': 'gzip, deflate' // Enable compression
+                    }
+                });
                 if (response.ok) {
                     const data = await response.json();
                     const status = data.current_task;
