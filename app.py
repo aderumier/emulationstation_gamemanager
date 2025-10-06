@@ -21,6 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from sys import dont_write_bytecode
 from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, Response, redirect, url_for, session, flash, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_compress import Compress
 from functools import wraps
 # from flask_session import Session
 # from flask_session.sessions import FileSystemSessionInterface
@@ -761,6 +762,7 @@ def load_user(user_id):
     return get_user_by_id(user_id)
 
 CORS(app, supports_credentials=True)
+Compress(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 @app.before_request
