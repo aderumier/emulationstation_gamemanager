@@ -8815,6 +8815,22 @@ class GameCollectionManager {
             });
         } else {
         }
+        
+        // Add event listener for refresh MobyGames cache button
+        const refreshMobygamesCacheBtn = document.getElementById('refreshMobygamesCacheBtn');
+        if (refreshMobygamesCacheBtn) {
+            refreshMobygamesCacheBtn.addEventListener('click', () => {
+                this.refreshMobygamesCache();
+            });
+        }
+        
+        // Add event listener for refresh Steam cache button
+        const refreshSteamCacheBtn = document.getElementById('refreshSteamCacheBtn');
+        if (refreshSteamCacheBtn) {
+            refreshSteamCacheBtn.addEventListener('click', () => {
+                this.refreshSteamCache();
+            });
+        }
 
     }
 
@@ -13088,7 +13104,15 @@ class GameCollectionManager {
                 document.getElementById('cacheAltNamesCount').textContent = '-';
                 document.getElementById('cacheGameImagesCount').textContent = '-';
             }
+            
+            // Load MobyGames cache information
+            await this.loadMobygamesCacheInformation();
+            
+            // Load Steam cache information
+            await this.loadSteamCacheInformation();
+            
         } catch (error) {
+            console.error('Error loading cache information:', error);
             document.getElementById('metadataXmlDate').textContent = 'Error';
             document.getElementById('metadataXmlDate').className = 'badge bg-danger';
             document.getElementById('cacheStatus').textContent = 'Error';
@@ -13099,6 +13123,122 @@ class GameCollectionManager {
             document.getElementById('cacheAltNamesCount').textContent = '-';
             document.getElementById('cacheGameImagesCount').textContent = '-';
         }
+    }
+    
+    async loadMobygamesCacheInformation() {
+        try {
+            const response = await fetch('/api/cache/mobygames-info');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    // Update MobyGames cache information
+                    document.getElementById('mobygamesCacheDate').textContent = data.cache_date || 'Unknown';
+                    document.getElementById('mobygamesCacheDate').className = 'badge bg-success';
+                    document.getElementById('mobygamesCacheStatus').textContent = 'Available';
+                    document.getElementById('mobygamesCacheStatus').className = 'badge bg-success';
+                    
+                    // Update cache statistics
+                    if (data.cache_stats) {
+                        document.getElementById('mobygamesEntriesCount').textContent = data.cache_stats.total_entries.toLocaleString();
+                        document.getElementById('mobygamesPartitionsCount').textContent = data.cache_stats.partition_count.toLocaleString();
+                        document.getElementById('mobygamesFileSize').textContent = this.formatFileSize(data.cache_stats.file_size);
+                    }
+                } else {
+                    document.getElementById('mobygamesCacheDate').textContent = 'Not Found';
+                    document.getElementById('mobygamesCacheDate').className = 'badge bg-warning';
+                    document.getElementById('mobygamesCacheStatus').textContent = 'Not Available';
+                    document.getElementById('mobygamesCacheStatus').className = 'badge bg-warning';
+                    
+                    // Reset cache statistics
+                    document.getElementById('mobygamesEntriesCount').textContent = '-';
+                    document.getElementById('mobygamesPartitionsCount').textContent = '-';
+                    document.getElementById('mobygamesFileSize').textContent = '-';
+                }
+            } else {
+                document.getElementById('mobygamesCacheDate').textContent = 'Error';
+                document.getElementById('mobygamesCacheDate').className = 'badge bg-danger';
+                document.getElementById('mobygamesCacheStatus').textContent = 'Error';
+                document.getElementById('mobygamesCacheStatus').className = 'badge bg-danger';
+                
+                // Reset cache statistics
+                document.getElementById('mobygamesEntriesCount').textContent = '-';
+                document.getElementById('mobygamesPartitionsCount').textContent = '-';
+                document.getElementById('mobygamesFileSize').textContent = '-';
+            }
+        } catch (error) {
+            console.error('Error loading MobyGames cache information:', error);
+            document.getElementById('mobygamesCacheDate').textContent = 'Error';
+            document.getElementById('mobygamesCacheDate').className = 'badge bg-danger';
+            document.getElementById('mobygamesCacheStatus').textContent = 'Error';
+            document.getElementById('mobygamesCacheStatus').className = 'badge bg-danger';
+            
+            // Reset cache statistics
+            document.getElementById('mobygamesEntriesCount').textContent = '-';
+            document.getElementById('mobygamesPartitionsCount').textContent = '-';
+            document.getElementById('mobygamesFileSize').textContent = '-';
+        }
+    }
+    
+    async loadSteamCacheInformation() {
+        try {
+            const response = await fetch('/api/cache/steam-info');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    // Update Steam cache information
+                    document.getElementById('steamCacheDate').textContent = data.cache_date || 'Unknown';
+                    document.getElementById('steamCacheDate').className = 'badge bg-success';
+                    document.getElementById('steamCacheStatus').textContent = 'Available';
+                    document.getElementById('steamCacheStatus').className = 'badge bg-success';
+                    
+                    // Update cache statistics
+                    if (data.cache_stats) {
+                        document.getElementById('steamEntriesCount').textContent = data.cache_stats.total_entries.toLocaleString();
+                        document.getElementById('steamPartitionsCount').textContent = data.cache_stats.partition_count.toLocaleString();
+                        document.getElementById('steamFileSize').textContent = this.formatFileSize(data.cache_stats.file_size);
+                    }
+                } else {
+                    document.getElementById('steamCacheDate').textContent = 'Not Found';
+                    document.getElementById('steamCacheDate').className = 'badge bg-warning';
+                    document.getElementById('steamCacheStatus').textContent = 'Not Available';
+                    document.getElementById('steamCacheStatus').className = 'badge bg-warning';
+                    
+                    // Reset cache statistics
+                    document.getElementById('steamEntriesCount').textContent = '-';
+                    document.getElementById('steamPartitionsCount').textContent = '-';
+                    document.getElementById('steamFileSize').textContent = '-';
+                }
+            } else {
+                document.getElementById('steamCacheDate').textContent = 'Error';
+                document.getElementById('steamCacheDate').className = 'badge bg-danger';
+                document.getElementById('steamCacheStatus').textContent = 'Error';
+                document.getElementById('steamCacheStatus').className = 'badge bg-danger';
+                
+                // Reset cache statistics
+                document.getElementById('steamEntriesCount').textContent = '-';
+                document.getElementById('steamPartitionsCount').textContent = '-';
+                document.getElementById('steamFileSize').textContent = '-';
+            }
+        } catch (error) {
+            console.error('Error loading Steam cache information:', error);
+            document.getElementById('steamCacheDate').textContent = 'Error';
+            document.getElementById('steamCacheDate').className = 'badge bg-danger';
+            document.getElementById('steamCacheStatus').textContent = 'Error';
+            document.getElementById('steamCacheStatus').className = 'badge bg-danger';
+            
+            // Reset cache statistics
+            document.getElementById('steamEntriesCount').textContent = '-';
+            document.getElementById('steamPartitionsCount').textContent = '-';
+            document.getElementById('steamFileSize').textContent = '-';
+        }
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
     
     async updateMetadataXml() {
@@ -13133,6 +13273,74 @@ class GameCollectionManager {
             // Restore button state
             updateBtn.disabled = false;
             updateBtn.innerHTML = originalText;
+        }
+    }
+    
+    async refreshMobygamesCache() {
+        const refreshBtn = document.getElementById('refreshMobygamesCacheBtn');
+        const originalText = refreshBtn.innerHTML;
+        
+        try {
+            // Show loading state
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '<i class="spinner-border spinner-border-sm me-2"></i>Refreshing...';
+            
+            // Start the refresh process
+            const response = await fetch('/api/cache/refresh-mobygames', { method: 'POST' });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    this.showAlert('MobyGames cache refreshed successfully!', 'success');
+                    // Refresh cache information display
+                    await this.loadMobygamesCacheInformation();
+                } else {
+                    this.showAlert(`Failed to refresh MobyGames cache: ${result.error}`, 'danger');
+                }
+            } else {
+                const error = await response.json();
+                this.showAlert(`Failed to refresh MobyGames cache: ${error.error}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error refreshing MobyGames cache: ' + error.message, 'danger');
+        } finally {
+            // Restore button state
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = originalText;
+        }
+    }
+    
+    async refreshSteamCache() {
+        const refreshBtn = document.getElementById('refreshSteamCacheBtn');
+        const originalText = refreshBtn.innerHTML;
+        
+        try {
+            // Show loading state with more detailed message
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '<i class="spinner-border spinner-border-sm me-2"></i>Downloading & Refreshing...';
+            
+            // Start the refresh process
+            const response = await fetch('/api/cache/refresh-steam', { method: 'POST' });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    this.showAlert(`Steam cache refreshed successfully! ${result.message}`, 'success');
+                    // Refresh cache information display
+                    await this.loadSteamCacheInformation();
+                } else {
+                    this.showAlert(`Failed to refresh Steam cache: ${result.error}`, 'danger');
+                }
+            } else {
+                const error = await response.json();
+                this.showAlert(`Failed to refresh Steam cache: ${error.error}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error refreshing Steam cache: ' + error.message, 'danger');
+        } finally {
+            // Restore button state
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = originalText;
         }
     }
     

@@ -8724,6 +8724,172 @@ def metadata_info_endpoint():
     except Exception as e:
         return jsonify({'error': f'Failed to get metadata info: {str(e)}'}), 500
 
+@app.route('/api/cache/mobygames-info')
+@login_required
+def mobygames_cache_info_endpoint():
+    """Get MobyGames cache information"""
+    try:
+        # Check if MobyGames partitioned index cache exists
+        cache_file = os.path.join('var', 'cache', 'mobygames_partitioned_index.pkl')
+        
+        if not os.path.exists(cache_file):
+            return jsonify({
+                'success': False,
+                'error': 'MobyGames cache not found',
+                'cache_date': None,
+                'cache_stats': None
+            })
+        
+        # Get file modification time and size
+        file_stat = os.stat(cache_file)
+        modification_time = time.ctime(file_stat.st_mtime)
+        file_size = file_stat.st_size
+        
+        # Load the partitioned index to get statistics
+        try:
+            import pickle
+            with open(cache_file, 'rb') as f:
+                partitioned_index = pickle.load(f)
+            
+            # Calculate statistics
+            total_entries = sum(len(partition) for partition in partitioned_index.values())
+            partition_count = len(partitioned_index)
+            
+            cache_stats = {
+                'total_entries': total_entries,
+                'partition_count': partition_count,
+                'file_size': file_size
+            }
+            
+        except Exception as e:
+            cache_stats = {
+                'total_entries': 'Unknown',
+                'partition_count': 'Unknown',
+                'file_size': file_size
+            }
+        
+        return jsonify({
+            'success': True,
+            'cache_date': modification_time,
+            'cache_stats': cache_stats
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get MobyGames cache info: {str(e)}'}), 500
+
+@app.route('/api/cache/steam-info')
+@login_required
+def steam_cache_info_endpoint():
+    """Get Steam cache information"""
+    try:
+        # Check if Steam partitioned index cache exists
+        cache_file = os.path.join('var', 'cache', 'steam_partitioned_index.pkl')
+        
+        if not os.path.exists(cache_file):
+            return jsonify({
+                'success': False,
+                'error': 'Steam cache not found',
+                'cache_date': None,
+                'cache_stats': None
+            })
+        
+        # Get file modification time and size
+        file_stat = os.stat(cache_file)
+        modification_time = time.ctime(file_stat.st_mtime)
+        file_size = file_stat.st_size
+        
+        # Load the partitioned index to get statistics
+        try:
+            import pickle
+            with open(cache_file, 'rb') as f:
+                partitioned_index = pickle.load(f)
+            
+            # Calculate statistics
+            total_entries = sum(len(partition) for partition in partitioned_index.values())
+            partition_count = len(partitioned_index)
+            
+            cache_stats = {
+                'total_entries': total_entries,
+                'partition_count': partition_count,
+                'file_size': file_size
+            }
+            
+        except Exception as e:
+            cache_stats = {
+                'total_entries': 'Unknown',
+                'partition_count': 'Unknown',
+                'file_size': file_size
+            }
+        
+        return jsonify({
+            'success': True,
+            'cache_date': modification_time,
+            'cache_stats': cache_stats
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get Steam cache info: {str(e)}'}), 500
+
+@app.route('/api/cache/refresh-mobygames', methods=['POST'])
+@login_required
+def refresh_mobygames_cache_endpoint():
+    """Refresh MobyGames partitioned index cache"""
+    try:
+        # Get the global MobyGames service instance
+        mobygames_service = load_mobygames_service()
+        
+        if not mobygames_service:
+            return jsonify({'error': 'MobyGames service not available'}), 500
+        
+        # Force rebuild the partitioned index
+        print("🔄 Refreshing MobyGames partitioned index cache...")
+        mobygames_service._build_all_partitioned_indexes()
+        mobygames_service._save_partitioned_indexes_to_cache()
+        
+        return jsonify({
+            'success': True,
+            'message': 'MobyGames cache refreshed successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to refresh MobyGames cache: {str(e)}'}), 500
+
+@app.route('/api/cache/refresh-steam', methods=['POST'])
+@login_required
+def refresh_steam_cache_endpoint():
+    """Refresh Steam cache by downloading latest data and rebuilding partitioned index"""
+    try:
+        from steam_service import SteamService
+        import asyncio
+        
+        # Create a new Steam service instance
+        steam_service = SteamService()
+        
+        print("🔄 Refreshing Steam cache - downloading latest data...")
+        
+        # Force download the latest Steam app index from API
+        apps = asyncio.run(steam_service.fetch_app_index())
+        
+        if not apps:
+            return jsonify({'error': 'Failed to download Steam app data from API'}), 500
+        
+        # Save the fresh data to cache
+        steam_service.save_app_index(apps)
+        print(f"✅ Downloaded {len(apps)} Steam apps from API")
+        
+        # Build partitioned index from the fresh data
+        print("🔧 Building partitioned index from fresh Steam data...")
+        steam_service._build_partitioned_index(apps)
+        steam_service._save_partitioned_index_to_cache()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Steam cache refreshed successfully - downloaded {len(apps)} apps and rebuilt partitioned index'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to refresh Steam cache: {str(e)}'}), 500
+
 @app.route('/api/cache/update-metadata', methods=['POST'])
 @login_required
 def update_metadata_endpoint():

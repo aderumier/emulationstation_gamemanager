@@ -12,10 +12,14 @@ import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import logging
+from collections import namedtuple
 from game_utils import normalize_game_name, convert_image_replace, should_convert_field, needs_conversion
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
+
+# Lightweight namedtuple for search index entries
+SteamItem = namedtuple('SteamItem', ['name', 'normalized', 'appid'])
 
 class SteamService:
     """Service for interacting with Steam API and managing app index cache"""
@@ -30,8 +34,17 @@ class SteamService:
         self._unified_index = None
         self._cached_steam_apps = None
         
+        # Global partitioned similarity index: {first_char: [SteamItem]}
+        # SteamItem is lightweight namedtuple, full app data stored separately
+        self._global_similarity_index = {}
+        
         # Ensure cache directory exists
         os.makedirs(cache_dir, exist_ok=True)
+        
+        # Try to load partitioned index from cache, otherwise build it at startup
+        if not self._load_partitioned_index_from_cache():
+            # Build the index at startup if not loaded from cache
+            self._build_partitioned_index_at_startup()
     
     def close(self):
         """Close any open connections or resources"""
@@ -168,6 +181,175 @@ class SteamService:
         self._unified_index = unified_index
         logger.info(f"Built unified index with {len(unified_index)} search terms")
         return unified_index
+    
+    def _build_partitioned_index(self, apps: List[Dict]):
+        """Build partitioned similarity index for Steam apps"""
+        try:
+            print("🔧 Building partitioned similarity index for Steam apps...")
+            logger.info("🔧 Building partitioned similarity index for Steam apps...")
+            start_time = time.time()
+            
+            self._global_similarity_index = {}
+            
+            for app in apps:
+                appid = app.get('appid', 0)
+                name = app.get('name', '').strip()
+                
+                if not name or appid <= 0:
+                    continue
+                
+                # Normalize the name for partitioning
+                normalized_name = normalize_game_name(name, remove_paranthesis=True, remove_articles=True)
+                if normalized_name:
+                    first_char = normalized_name[0] if normalized_name else 'other'
+                    if first_char not in self._global_similarity_index:
+                        self._global_similarity_index[first_char] = []
+                    
+                    # Use lightweight SteamItem namedtuple instead of full app data
+                    self._global_similarity_index[first_char].append(
+                        SteamItem(
+                            name=name,
+                            normalized=normalized_name,
+                            appid=appid
+                        )
+                    )
+            
+            end_time = time.time()
+            partition_count = len(self._global_similarity_index)
+            print(f"✅ Partitioned index built for Steam ({partition_count} partitions) in {end_time - start_time:.2f} seconds")
+            logger.info(f"✅ Partitioned index built for Steam ({partition_count} partitions) in {end_time - start_time:.2f} seconds")
+            
+            # Save the index to cache
+            self._save_partitioned_index_to_cache()
+            
+        except Exception as e:
+            print(f"❌ Error building partitioned index: {e}")
+            logger.error(f"Error building partitioned index: {e}")
+    
+    def _save_partitioned_index_to_cache(self):
+        """Save partitioned index to cache file for faster startup"""
+        try:
+            import pickle
+            
+            cache_dir = 'var/cache'
+            os.makedirs(cache_dir, exist_ok=True)
+            cache_file = os.path.join(cache_dir, 'steam_partitioned_index.pkl')
+            
+            # Convert SteamItem namedtuples to dictionaries for pickling
+            cache_data = {}
+            for first_char, steam_items in self._global_similarity_index.items():
+                cache_data[first_char] = [
+                    {
+                        'name': item.name,
+                        'normalized': item.normalized,
+                        'appid': item.appid
+                    }
+                    for item in steam_items
+                ]
+            
+            with open(cache_file, 'wb') as f:
+                pickle.dump(cache_data, f)
+            
+            print(f"✅ Saved Steam partitioned index to {cache_file}")
+            logger.info(f"✅ Saved Steam partitioned index to {cache_file}")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to save Steam partitioned index cache: {e}")
+            logger.warning(f"Failed to save Steam partitioned index cache: {e}")
+    
+    def _load_partitioned_index_from_cache(self):
+        """Load partitioned index from cache file"""
+        try:
+            import pickle
+            
+            cache_file = os.path.join('var/cache', 'steam_partitioned_index.pkl')
+            if not os.path.exists(cache_file):
+                print("🔍 No Steam partitioned index cache found, will build from scratch")
+                return False
+            
+            with open(cache_file, 'rb') as f:
+                cache_data = pickle.load(f)
+            
+            # Convert dictionaries back to SteamItem namedtuples
+            self._global_similarity_index = {}
+            for first_char, steam_items in cache_data.items():
+                self._global_similarity_index[first_char] = [
+                    SteamItem(
+                        name=item['name'],
+                        normalized=item['normalized'],
+                        appid=item['appid']
+                    )
+                    for item in steam_items
+                ]
+            
+            total_partitions = len(self._global_similarity_index)
+            print(f"✅ Loaded Steam partitioned index from cache ({total_partitions} partitions)")
+            logger.info(f"✅ Loaded Steam partitioned index from cache ({total_partitions} partitions)")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to load Steam partitioned index cache: {e}")
+            logger.warning(f"Failed to load Steam partitioned index cache: {e}")
+            return False
+    
+    def _build_partitioned_index_at_startup(self):
+        """Build partitioned index at startup by loading Steam apps"""
+        try:
+            print("🔧 Building Steam partitioned index at startup...")
+            logger.info("🔧 Building Steam partitioned index at startup...")
+            
+            # Load Steam apps from cache or API
+            import asyncio
+            apps = asyncio.run(self.get_app_index())
+            
+            if apps:
+                self._build_partitioned_index(apps)
+                print("✅ Steam partitioned index built successfully at startup")
+                logger.info("✅ Steam partitioned index built successfully at startup")
+            else:
+                print("⚠️ No Steam apps available to build partitioned index")
+                logger.warning("No Steam apps available to build partitioned index")
+                
+        except Exception as e:
+            print(f"❌ Error building Steam partitioned index at startup: {e}")
+            logger.error(f"Error building Steam partitioned index at startup: {e}")
+    
+    def search_steam_apps(self, game_name: str, limit: int = 20) -> List[Dict]:
+        """Search Steam apps using partitioned index for better performance"""
+        if not game_name or not self._global_similarity_index:
+            return []
+        
+        try:
+            # Normalize the search name - remove parentheses for Steam matching
+            steam_normalized = re.sub(r'\([^)]*\)', '', game_name)  # Remove parentheses for Steam
+            normalized_search = normalize_game_name(steam_normalized)
+            
+            if not normalized_search:
+                return []
+            
+            # Get the partition for the first character
+            first_char = normalized_search[0] if normalized_search else 'other'
+            partition = self._global_similarity_index.get(first_char, [])
+            
+            if not partition:
+                return []
+            
+            # Find exact matches in the partition
+            exact_matches = []
+            for item in partition:
+                if item.normalized == normalized_search:
+                    exact_matches.append({
+                        'appid': item.appid,
+                        'name': item.name
+                    })
+            
+            # Return exact matches (Steam typically has unique names)
+            return exact_matches[:limit]
+            
+        except Exception as e:
+            print(f"❌ Error searching Steam apps: {e}")
+            logger.error(f"Error searching Steam apps: {e}")
+            return []
     
     def find_best_match(self, game_name: str, apps: List[Dict]) -> Optional[Dict]:
         """Find the best Steam app match for a game name"""
@@ -560,8 +742,8 @@ class SteamService:
             return None
 
     def find_similarity_matches(self, game_name: str, steam_apps: List[Dict], limit: int = 10) -> List[Dict]:
-        """Find Steam games using similarity algorithm with partitioned index like LaunchBox search"""
-        if not steam_apps or not game_name:
+        """Find Steam games using similarity algorithm with global partitioned index"""
+        if not game_name or not self._global_similarity_index:
             return []
         
         from game_utils import normalize_game_name, calculate_similarity
@@ -573,74 +755,35 @@ class SteamService:
         
         print(f"🔍 DEBUG: Steam similarity search for '{game_name}' -> normalized: '{normalized_name}'")
         
-        # Build partitioned similarity index if not exists or if steam_apps changed
-        if not hasattr(self, '_similarity_index') or self._cached_steam_apps is not steam_apps:
-            print(f"🔍 DEBUG: Building partitioned Steam similarity index for {len(steam_apps)} apps...")
-            self._similarity_index = {}
-            self._cached_steam_apps = steam_apps
-            
-            indexed_count = 0
-            for app in steam_apps:
-                app_name = app.get('name', '')
-                if not app_name:
-                    continue
-                    
-                # Normalize the app name
-                normalized_app = normalize_game_name(app_name, remove_paranthesis=True, remove_articles=True)
-                if not normalized_app:
-                    continue
-                
-                # Get first character for partitioning
-                first_char = normalized_app[0] if normalized_app else 'other'
-                if first_char not in self._similarity_index:
-                    self._similarity_index[first_char] = []
-                
-                self._similarity_index[first_char].append({
-                    'name': app_name,
-                    'normalized': normalized_app,
-                    'app': app
-                })
-                indexed_count += 1
-            
-            print(f"🔍 DEBUG: Indexed {indexed_count} Steam apps")
-            
-            # Log partition distribution
-            total_entries = sum(len(items) for items in self._similarity_index.values())
-            print(f"🔍 DEBUG: Built partitioned Steam similarity index with {total_entries} entries")
-            print(f"🔍 DEBUG: Steam partition distribution:")
-            for char, items in sorted(self._similarity_index.items()):
-                print(f"🔍 DEBUG:   '{char}': {len(items)} items")
-        
         # Get the first character to search in the right partition
-        first_char = normalized_name[0]
+        first_char = normalized_name[0] if normalized_name else 'other'
         print(f"🔍 DEBUG: Searching Steam partition '{first_char}'")
         
         matches = []
         
-        # Search only in the matching partition
-        if first_char in self._similarity_index:
-            partition_items = self._similarity_index[first_char]
+        # Search only in the matching partition using global index
+        if first_char in self._global_similarity_index:
+            partition_items = self._global_similarity_index[first_char]
             print(f"🔍 DEBUG: Found {len(partition_items)} Steam items in partition '{first_char}'")
             
             for i, item in enumerate(partition_items):
                 # Calculate similarity using configured algorithm
-                similarity = calculate_similarity(normalized_name, item['normalized'])
-                print(f"🔍 DEBUG: Steam Item {i+1}: '{item['name']}' -> similarity: {similarity:.4f}")
+                similarity = calculate_similarity(normalized_name, item.normalized)
+                print(f"🔍 DEBUG: Steam Item {i+1}: '{item.name}' -> similarity: {similarity:.4f}")
             
                 # Only include matches with reasonable similarity (threshold of 0.3)
                 if similarity >= 0.3:
-                    app = item['app']
-                    steam_id = app.get('appid')
+                    steam_id = item.appid
                     matches.append({
                         'appid': steam_id,
-                        'name': item['name'],
+                        'name': item.name,
                         'description': 'Steam game',  # Steam API doesn't provide descriptions in the basic app list
                         'price': 'Unknown',  # Would need additional API call
                         'release_date': 'Unknown',  # Would need additional API call
                         'capsule_image': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg" if steam_id else None,
                         'capsule_image_fallback': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900.jpg" if steam_id else None,
                         'similarity_score': similarity,
-                        'matched_name': item['name']
+                        'matched_name': item.name
                     })
         else:
             print(f"🔍 DEBUG: No Steam partition found for character '{first_char}'")
