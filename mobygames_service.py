@@ -47,11 +47,9 @@ class MobyGamesService:
         # In-memory databases: {system: {gameid: {attributes}}}
         self.databases = {}
         
-        # Normalized title index: {system: {normalized_title: gameid}}
-        self.title_index = {}
-        
         # Global partitioned similarity index: {system: {first_char: [GameItem]}}
         # GameItem is lightweight namedtuple, full game_data stored separately
+        # This single index handles both exact matches and similarity searches
         self._global_similarity_index = {}
         
         # Load all MobyGames databases
@@ -85,13 +83,6 @@ class MobyGamesService:
                             games_dict[game['id']] = game
                     
                     self.databases[system_name] = games_dict
-                    
-                    # Build normalized title index
-                    self.title_index[system_name] = {}
-                    for game_id, game_data in games_dict.items():
-                        if 'title' in game_data:
-                            normalized_title = normalize_game_name(game_data['title'], remove_paranthesis=True, remove_articles=True)
-                            self.title_index[system_name][normalized_title] = game_id
                     
                     self.logger.info(f"Loaded {len(games_dict)} games for system: {system_name}")
                     
@@ -179,22 +170,29 @@ class MobyGamesService:
         if not normalized_search:
             return None
         
-        # First, search in the configured system
-        if mobygames_system in self.title_index and normalized_search in self.title_index[mobygames_system]:
-            game_id = self.title_index[mobygames_system][normalized_search]
-            game_data = self.databases[mobygames_system][game_id]
-            # Add system information to the game data
-            game_data['system'] = mobygames_system
-            return game_data
+        # First, search in the configured system using partitioned index
+        if mobygames_system in self._global_similarity_index:
+            first_char = normalized_search[0] if normalized_search else 'other'
+            if first_char in self._global_similarity_index[mobygames_system]:
+                partition_items = self._global_similarity_index[mobygames_system][first_char]
+                for item in partition_items:
+                    if item.normalized == normalized_search:
+                        game_data = self.databases[mobygames_system][item.game_id]
+                        # Add system information to the game data
+                        game_data['system'] = mobygames_system
+                        return game_data
         
         # If not found in configured system, search across all systems as fallback
-        for system, title_index in self.title_index.items():
-            if normalized_search in title_index:
-                game_id = title_index[normalized_search]
-                game_data = self.databases[system][game_id]
-                # Add system information to the game data
-                game_data['system'] = system
-                return game_data
+        for system, partitions in self._global_similarity_index.items():
+            first_char = normalized_search[0] if normalized_search else 'other'
+            if first_char in partitions:
+                partition_items = partitions[first_char]
+                for item in partition_items:
+                    if item.normalized == normalized_search:
+                        game_data = self.databases[system][item.game_id]
+                        # Add system information to the game data
+                        game_data['system'] = system
+                        return game_data
         
         return None
 
@@ -235,22 +233,30 @@ class MobyGamesService:
         if not normalized_search:
             return None
         
-        # First try exact match
-        if normalized_search in self.title_index[mobygames_system]:
-            game_id = self.title_index[mobygames_system][normalized_search]
-            return self.databases[mobygames_system][game_id]
+        # First try exact match using partitioned index
+        if mobygames_system in self._global_similarity_index:
+            first_char = normalized_search[0] if normalized_search else 'other'
+            if first_char in self._global_similarity_index[mobygames_system]:
+                partition_items = self._global_similarity_index[mobygames_system][first_char]
+                for item in partition_items:
+                    if item.normalized == normalized_search:
+                        return self.databases[mobygames_system][item.game_id]
         
-        # If no exact match, try similarity matching
+        # If no exact match, try similarity matching using partitioned index
         best_match = None
         best_similarity = 0.0
         
-        for normalized_title, game_id in self.title_index[mobygames_system].items():
-            # Calculate similarity using configured algorithm
-            similarity = calculate_similarity(normalized_search, normalized_title)
-            
-            if similarity > best_similarity and similarity >= similarity_threshold:
-                best_similarity = similarity
-                best_match = self.databases[mobygames_system][game_id]
+        if mobygames_system in self._global_similarity_index:
+            first_char = normalized_search[0] if normalized_search else 'other'
+            if first_char in self._global_similarity_index[mobygames_system]:
+                partition_items = self._global_similarity_index[mobygames_system][first_char]
+                for item in partition_items:
+                    # Calculate similarity using configured algorithm
+                    similarity = calculate_similarity(normalized_search, item.normalized)
+                    
+                    if similarity > best_similarity and similarity >= similarity_threshold:
+                        best_similarity = similarity
+                        best_match = self.databases[mobygames_system][item.game_id]
         
         return best_match
     
