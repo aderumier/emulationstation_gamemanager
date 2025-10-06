@@ -434,16 +434,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <i class="bi bi-dup"></i> Show Duplicates
                 </button>
                 <button id="scrapLaunchboxBtn" class="btn btn-primary btn-sm ms-2" disabled>
-                    <i class="bi bi-database-fill"></i> Launchbox Scrap
+                    <i class="bi bi-database-fill"></i> Launchbox
                 </button>
                 <button id="scrapIgdbBtn" class="btn btn-info btn-sm ms-2" disabled>
-                    <i class="bi bi-globe"></i> IGDB Scrap
+                    <i class="bi bi-globe"></i> IGDB
                 </button>
                 <button id="scrapSteamBtn" class="btn btn-success btn-sm ms-2" disabled>
-                    <i class="bi bi-steam"></i> Steam Scrap
+                    <i class="bi bi-steam"></i> Steam
                 </button>
                 <button id="scrapSteamgriddbBtn" class="btn btn-warning btn-sm ms-2" disabled>
-                    <i class="bi bi-grid-3x3-gap"></i> SteamGridDB Scrap
+                    <i class="bi bi-grid-3x3-gap"></i> SteamGridDB
                 </button>
                 <button id="scrapScreenscraperBtn" class="btn btn-warning btn-sm ms-2" disabled>
                     <i class="bi bi-search"></i> ScreenScraper
@@ -451,9 +451,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <button id="scrapMobygamesBtn" class="btn btn-secondary btn-sm ms-2" disabled>
                     <i class="bi bi-database"></i> MobyGames
                 </button>
-                <button id="globalFindBestMatchBtn" class="btn btn-outline-info btn-sm ms-2" disabled>
-                    <i class="bi bi-search"></i> Find Best Match
-                </button>
+                <div class="btn-group ms-2" role="group">
+                    <button type="button" class="btn btn-outline-info btn-sm dropdown-toggle" id="globalFindBestMatchBtn" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-offset="0,2" aria-expanded="false" disabled>
+                        <i class="bi bi-search"></i> Find Best Match
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="globalFindBestMatchBtn">
+                        <li><a class="dropdown-item" href="#" id="findBestMatchLaunchboxBtn">
+                            <i class="bi bi-database-fill me-2"></i>LaunchBox
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="findBestMatchMobygamesBtn">
+                            <i class="bi bi-database me-2"></i>MobyGames
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="findBestMatchSteamBtn">
+                            <i class="bi bi-steam me-2"></i>Steam
+                        </a></li>
+                    </ul>
+                </div>
                 <button id="global2DBoxGeneratorBtn" class="btn btn-outline-success btn-sm ms-2" disabled>
                     <i class="bi bi-image"></i> 2D Box Generator
                 </button>

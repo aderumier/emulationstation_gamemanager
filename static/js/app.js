@@ -1470,7 +1470,20 @@ class GameCollectionManager {
         
         document.getElementById('scrapMobygamesBtn').addEventListener('click', () => this.scrapMobygames());
         
-        document.getElementById('globalFindBestMatchBtn').addEventListener('click', () => this.findBestMatchForSelected());
+        // Add event listeners for find best match dropdown options
+        document.getElementById('findBestMatchLaunchboxBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.findBestMatchForSelectedOriginal(); // Use original LaunchBox functionality
+        });
+        document.getElementById('findBestMatchMobygamesBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.findBestMatchForSelectedMobygames(); // Use MobyGames-specific functionality
+        });
+        document.getElementById('findBestMatchSteamBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.findBestMatchForSelectedSteam(); // Use Steam-specific functionality
+        });
+        
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
         document.getElementById('startYoutubeDownloadBtn').addEventListener('click', () => this.startYoutubeDownload());
@@ -5067,7 +5080,7 @@ class GameCollectionManager {
             
             // Ensure game edit modal is reopened with updated data
             setTimeout(() => {
-                if (this.editingGamePath) {
+            if (this.editingGamePath) {
                     const updatedGame = this.games.find(g => g.path === this.editingGamePath);
                     if (updatedGame) {
                         console.log('Repopulating edit modal with game:', updatedGame);
@@ -6013,7 +6026,8 @@ class GameCollectionManager {
         }
     }
 
-    async findBestMatchForSelected() {
+    async findBestMatchForSelectedOriginal() {
+        // Original LaunchBox find best match functionality
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
                 this.showAlert('Please select at least one game first', 'warning');
@@ -6032,6 +6046,7 @@ class GameCollectionManager {
             // Get the paths of selected games
             const selectedGamePaths = this.selectedGames.map(game => game.path);
             
+            // Use the original LaunchBox API endpoint
             const response = await fetch('/api/find-best-matches', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6049,9 +6064,192 @@ class GameCollectionManager {
             
             if (data.success && data.results && data.results.length > 0) {
                 
-                // Store the results and populate the table
+                // Store the results and populate the table with original functionality
                 this.globalMatchResults = data.results;
-                this.populateGlobalMatchTable();
+                this.populateGlobalMatchTable('launchbox');
+            } else {
+                this.showGlobalMatchEmpty();
+                this.showAlert('No matches found for the selected games', 'info');
+            }
+            
+        } catch (error) {
+            this.showAlert('Error finding best matches: ' + error.message, 'danger');
+            this.hideGlobalMatchModal();
+        } finally {
+            // Reset button state
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
+            }
+        }
+    }
+
+    async findBestMatchForSelectedMobygames() {
+        // MobyGames find best match functionality with auto-selection
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
+            }
+
+            // Show the modal with loading state
+            this.showGlobalMatchModal();
+            
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            // Use the MobyGames API endpoint
+            const response = await fetch('/api/find-best-matches-mobygames', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                
+                // Store the results and populate the table with MobyGames functionality
+                this.globalMatchResults = data.results;
+                this.populateGlobalMatchTable('mobygames');
+            } else {
+                this.showGlobalMatchEmpty();
+                this.showAlert('No matches found for the selected games', 'info');
+            }
+            
+        } catch (error) {
+            this.showAlert('Error finding best matches: ' + error.message, 'danger');
+            this.hideGlobalMatchModal();
+        } finally {
+            // Reset button state
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
+            }
+        }
+    }
+
+    async findBestMatchForSelectedSteam() {
+        // Steam find best match functionality with auto-selection
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
+            }
+
+            // Show the modal with loading state
+            this.showGlobalMatchModal();
+            
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            // Use the Steam API endpoint
+            const response = await fetch('/api/find-best-matches-steam', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                
+                // Store the results and populate the table with Steam functionality
+                this.globalMatchResults = data.results;
+                this.populateGlobalMatchTable('steam');
+            } else {
+                this.showGlobalMatchEmpty();
+                this.showAlert('No matches found for the selected games', 'info');
+            }
+            
+        } catch (error) {
+            this.showAlert('Error finding best matches: ' + error.message, 'danger');
+            this.hideGlobalMatchModal();
+        } finally {
+            // Reset button state
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
+            }
+        }
+    }
+
+    async findBestMatchForSelected(databaseType = 'launchbox') {
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
+            }
+
+            // Show the modal with loading state
+            this.showGlobalMatchModal();
+            
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            // Determine API endpoint based on database type
+            let apiEndpoint = '/api/find-best-matches';
+            if (databaseType === 'mobygames') {
+                apiEndpoint = '/api/find-best-matches-mobygames';
+            } else if (databaseType === 'steam') {
+                apiEndpoint = '/api/find-best-matches-steam';
+            }
+            
+            const response = await fetch(apiEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                
+                // Store the results and show them in a modal
+                this.globalMatchResults = data.results;
+                this.showGlobalMatchResultsModal(data.results, databaseType);
             } else {
                 this.showGlobalMatchEmpty();
                 this.showAlert('No matches found for the selected games', 'info');
@@ -6104,7 +6302,260 @@ class GameCollectionManager {
         if (emptyDiv) emptyDiv.style.display = 'block';
     }
 
-    populateGlobalMatchTable() {
+    showGlobalMatchResultsModal(results, databaseType = 'launchbox') {
+        // Hide the progress div and show the table
+        const progressDiv = document.getElementById('globalMatchProgress');
+        const tableDiv = document.getElementById('globalMatchTable');
+        const emptyDiv = document.getElementById('globalMatchEmpty');
+        
+        if (progressDiv) progressDiv.style.display = 'none';
+        if (tableDiv) tableDiv.style.display = 'block';
+        if (emptyDiv) emptyDiv.style.display = 'none';
+        
+        // Clear existing content
+        const tbody = document.getElementById('globalMatchTableBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+        }
+        
+        // Create rows for each result
+        results.forEach((result, index) => {
+            const row = this.createTextOnlyMatchRow(result, index, databaseType);
+            if (tbody) {
+                tbody.appendChild(row);
+            }
+        });
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('globalMatchModal'));
+        modal.show();
+    }
+    
+    createTextOnlyMatchRow(result, index, databaseType = 'launchbox') {
+        const row = document.createElement('tr');
+        row.style.height = '40px';
+        
+        const gameName = result.game_name || 'Unknown';
+        const gamePath = result.game_path || '';
+        
+        // Get current ID and best match based on database type
+        let currentId = 'None';
+        let bestMatch = null;
+        let allMatches = [];
+        
+        if (databaseType === 'launchbox') {
+            currentId = result.existing_launchboxid || 'None';
+            allMatches = result.top_matches || [];
+            bestMatch = allMatches.length > 0 ? allMatches[0] : null;
+        } else if (databaseType === 'mobygames') {
+            currentId = result.existing_mobygamesid || 'None';
+            bestMatch = result.best_match;
+            allMatches = result.all_matches || [];
+        } else if (databaseType === 'steam') {
+            currentId = result.existing_steamid || 'None';
+            bestMatch = result.best_match;
+            allMatches = result.all_matches || [];
+        }
+        
+        // Game name cell
+        const nameCell = document.createElement('td');
+        nameCell.style.padding = '6px 8px';
+        nameCell.style.verticalAlign = 'middle';
+        nameCell.style.fontSize = '0.75rem';
+        nameCell.textContent = gameName;
+        row.appendChild(nameCell);
+        
+        // Current ID cell
+        const idCell = document.createElement('td');
+        idCell.style.padding = '6px 8px';
+        idCell.style.verticalAlign = 'middle';
+        idCell.style.fontSize = '0.8rem';
+        idCell.textContent = currentId;
+        row.appendChild(idCell);
+        
+        // Best match dropdown cell
+        const matchCell = document.createElement('td');
+        matchCell.style.padding = '6px 8px';
+        matchCell.style.verticalAlign = 'middle';
+        
+        const select = document.createElement('select');
+        select.className = 'form-select form-select-sm';
+        select.style.fontSize = '0.8rem';
+        select.style.padding = '4px 6px';
+        select.id = `globalMatchSelect_${index}`;
+        
+        // Add "No Match" option
+        const noMatchOption = document.createElement('option');
+        noMatchOption.value = '';
+        noMatchOption.textContent = 'No Match';
+        select.appendChild(noMatchOption);
+        
+        // Add match options
+        if (allMatches && allMatches.length > 0) {
+            allMatches.forEach((match, matchIndex) => {
+                const option = document.createElement('option');
+                
+                if (databaseType === 'launchbox') {
+                    option.value = match.database_id;
+                    option.textContent = `${match.name} (${(match.score * 100).toFixed(1)}%)`;
+                } else if (databaseType === 'mobygames') {
+                    option.value = match.game_id;
+                    option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
+                } else if (databaseType === 'steam') {
+                    option.value = match.appid;
+                    option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
+                }
+                
+                select.appendChild(option);
+            });
+        }
+        
+        matchCell.appendChild(select);
+        row.appendChild(matchCell);
+        
+        // Action buttons cell
+        const actionCell = document.createElement('td');
+        actionCell.style.padding = '6px 8px';
+        actionCell.style.verticalAlign = 'middle';
+        actionCell.style.textAlign = 'center';
+        
+        const validateBtn = document.createElement('button');
+        validateBtn.className = 'btn btn-primary btn-sm';
+        validateBtn.style.fontSize = '0.7rem';
+        validateBtn.style.padding = '2px 6px';
+        validateBtn.innerHTML = '<i class="bi bi-check"></i>';
+        validateBtn.title = 'Apply Match';
+        validateBtn.onclick = () => {
+            console.log('Button clicked - originalIndex:', originalIndex, 'databaseType:', databaseType);
+            try {
+                this.validateGlobalMatch(originalIndex, databaseType);
+            } catch (error) {
+                console.error('Error in button click handler:', error);
+                alert('Error in button click: ' + error.message);
+            }
+        };
+        
+        actionCell.appendChild(validateBtn);
+        row.appendChild(actionCell);
+        
+        return row;
+    }
+    
+    validateGlobalMatch(index, databaseType = 'launchbox') {
+        const select = document.getElementById(`globalMatchSelect_${index}`);
+        if (!select || !select.value) {
+            this.showAlert('Please select a match first', 'warning');
+            return;
+        }
+        
+        // Use the original index stored on the row to access the correct result entry
+        const row = select.closest('tr');
+        const originalIndex = row && row.dataset && row.dataset.originalIndex !== undefined
+            ? parseInt(row.dataset.originalIndex)
+            : index;
+        const result = this.globalMatchResults[originalIndex];
+        if (!result) {
+            this.showAlert('Game data not found', 'error');
+            return;
+        }
+        
+        const gameName = result.game_name;
+        const selectedIndex = parseInt(select.value);
+        
+        // Get the actual ID from the selected match
+        let matchId = '';
+        if (databaseType === 'launchbox') {
+            const topMatches = result.top_matches || [];
+            if (selectedIndex >= 0 && selectedIndex < topMatches.length) {
+                matchId = topMatches[selectedIndex].database_id;
+            }
+        } else if (databaseType === 'mobygames') {
+            const allMatches = result.all_matches || [];
+            if (allMatches.length === 0) {
+                this.showAlert('No MobyGames matches available', 'error');
+                return;
+            }
+            if (selectedIndex >= 0 && selectedIndex < allMatches.length && allMatches[selectedIndex]) {
+                matchId = allMatches[selectedIndex].game_id;
+            } else {
+                this.showAlert(`Invalid MobyGames match selected. Index: ${selectedIndex}, Array length: ${allMatches.length}`, 'error');
+                return;
+            }
+        } else if (databaseType === 'steam') {
+            const allMatches = result.all_matches || [];
+            if (allMatches.length === 0) {
+                this.showAlert('No Steam matches available', 'error');
+                return;
+            }
+            if (selectedIndex >= 0 && selectedIndex < allMatches.length && allMatches[selectedIndex]) {
+                matchId = allMatches[selectedIndex].appid;
+            } else {
+                this.showAlert(`Invalid Steam match selected. Index: ${selectedIndex}, Array length: ${allMatches.length}`, 'error');
+                return;
+            }
+        }
+        
+        if (!matchId) {
+            this.showAlert('Invalid match selected', 'error');
+            return;
+        }
+        
+        // Apply the match based on database type
+        if (databaseType === 'launchbox') {
+            this.applyLaunchboxMatch(gameName, matchId);
+        } else if (databaseType === 'mobygames') {
+            this.applyMobygamesMatch(gameName, matchId);
+        } else if (databaseType === 'steam') {
+            this.applySteamMatch(gameName, matchId);
+        }
+        
+        // Remove the row from the table
+        const tableRow = select.closest('tr');
+        if (tableRow) {
+            tableRow.remove();
+        }
+        
+        // Remove from results array (use original index)
+        this.globalMatchResults.splice(originalIndex, 1);
+        
+        // Check if all games are processed
+        if (this.globalMatchResults.length === 0) {
+            this.hideGlobalMatchModal();
+            this.showAlert('All matches have been processed!', 'success');
+        }
+    }
+    
+    applyLaunchboxMatch(gameName, launchboxId) {
+        // Find the game in the grid and update it
+        const game = this.games.find(g => g.name === gameName);
+        if (game) {
+            game.launchboxid = launchboxId;
+            this.gridApi.redrawRows();
+            this.showAlert(`LaunchBox ID set to ${launchboxId} for "${gameName}"`, 'success');
+        }
+    }
+    
+    applyMobygamesMatch(gameName, mobygamesId) {
+        // Find the game in the grid and update it
+        const game = this.games.find(g => g.name === gameName);
+        if (game) {
+            game.mobygamesid = mobygamesId;
+            this.gridApi.redrawRows();
+            this.showAlert(`MobyGames ID set to ${mobygamesId} for "${gameName}"`, 'success');
+        }
+    }
+    
+    applySteamMatch(gameName, steamId) {
+        // Find the game in the grid and update it
+        const game = this.games.find(g => g.name === gameName);
+        if (game) {
+            game.steamid = steamId;
+            this.gridApi.redrawRows();
+            this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
+        }
+    }
+
+    populateGlobalMatchTable(databaseType = 'launchbox') {
         const progressDiv = document.getElementById('globalMatchProgress');
         const tableDiv = document.getElementById('globalMatchTable');
         const emptyDiv = document.getElementById('globalMatchEmpty');
@@ -6125,26 +6576,35 @@ class GameCollectionManager {
             tbody.innerHTML = '';
         }
         
-        // Sort results by highest matching score (first match in top_matches array)
+        // Sort results by highest matching score
         const sortedResults = [...this.globalMatchResults].map((result, originalIndex) => ({
             ...result,
             originalIndex
         })).sort((a, b) => {
-            const scoreA = a.top_matches && a.top_matches.length > 0 ? a.top_matches[0].score : 0;
-            const scoreB = b.top_matches && b.top_matches.length > 0 ? b.top_matches[0].score : 0;
+            let scoreA = 0, scoreB = 0;
+            
+            if (databaseType === 'launchbox') {
+                scoreA = a.top_matches && a.top_matches.length > 0 ? a.top_matches[0].score : 0;
+                scoreB = b.top_matches && b.top_matches.length > 0 ? b.top_matches[0].score : 0;
+            } else if (databaseType === 'mobygames' || databaseType === 'steam') {
+                // Use best_match for consistency
+                scoreA = (a.best_match && a.best_match.similarity_score) ? a.best_match.similarity_score : 0;
+                scoreB = (b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0;
+            }
+            
             return scoreB - scoreA; // Sort descending (highest first)
         });
         
         // Create rows for each game (now sorted by score)
         sortedResults.forEach((result, index) => {
-            const row = this.createGlobalMatchRow(result, index, result.originalIndex);
+            const row = this.createGlobalMatchRow(result, index, result.originalIndex, databaseType);
             if (tbody) {
                 tbody.appendChild(row);
             }
         });
     }
 
-    createGlobalMatchRow(result, index, originalIndex) {
+    createGlobalMatchRow(result, index, originalIndex, databaseType = 'launchbox') {
         const row = document.createElement('tr');
         row.id = `globalMatchRow_${index}`;
         row.dataset.gamePath = result.game_data.path; // Store game path as data attribute
@@ -6152,8 +6612,21 @@ class GameCollectionManager {
         row.style.height = '40px'; // Compact row height
         
         const gameName = result.game_name || 'Unknown';
-        const currentId = result.existing_launchboxid || 'None';
-        const topMatches = result.top_matches || [];
+        
+        // Get current ID and matches based on database type
+        let currentId = 'None';
+        let topMatches = [];
+        
+        if (databaseType === 'launchbox') {
+            currentId = result.existing_launchboxid || 'None';
+            topMatches = result.top_matches || [];
+        } else if (databaseType === 'mobygames') {
+            currentId = result.existing_mobygamesid || 'None';
+            topMatches = result.all_matches || [];
+        } else if (databaseType === 'steam') {
+            currentId = result.existing_steamid || 'None';
+            topMatches = result.all_matches || [];
+        }
         
         // Get publisher or developer from game data if available
         const gameData = result.game_data || {};
@@ -6198,9 +6671,27 @@ class GameCollectionManager {
         topMatches.forEach((match, matchIndex) => {
             const option = document.createElement('option');
             option.value = matchIndex;
-            const score = (match.score * 100).toFixed(1);
-            const publisher = match.publisher || 'Unknown Publisher';
-            let optionText = `${score}%: ${match.matched_name} (${publisher})`;
+            
+            let score, name, publisher, id;
+            
+            if (databaseType === 'launchbox') {
+                score = (match.score * 100).toFixed(1);
+                name = match.matched_name;
+                publisher = match.publisher || 'Unknown Publisher';
+                id = match.database_id;
+            } else if (databaseType === 'steam') {
+                score = (match.similarity_score * 100).toFixed(1);
+                name = match.name;
+                publisher = match.publisher || 'Unknown Publisher';
+                id = match.appid;
+            } else if (databaseType === 'mobygames') {
+                score = (match.similarity_score * 100).toFixed(1);
+                name = match.name;
+                publisher = match.publisher || 'Unknown Publisher';
+                id = match.game_id;
+            }
+            
+            let optionText = `${score}%: ${name} (${publisher})`;
             
             // Limit text to 70 characters and add ... if truncated
             if (optionText.length > 70) {
@@ -6208,8 +6699,17 @@ class GameCollectionManager {
             }
             
             option.textContent = optionText;
-            option.dataset.score = match.score;
-            option.dataset.launchboxId = match.database_id;
+            option.dataset.score = databaseType === 'launchbox' ? match.score : match.similarity_score;
+            
+            // Set the correct data attribute based on database type
+            if (databaseType === 'launchbox') {
+                option.dataset.launchboxId = id;
+            } else if (databaseType === 'mobygames') {
+                option.dataset.gameId = id;
+            } else if (databaseType === 'steam') {
+                option.dataset.appId = id;
+            }
+            
             select.appendChild(option);
         });
         
@@ -6231,7 +6731,7 @@ class GameCollectionManager {
         validateBtn.style.padding = '4px 8px';
         validateBtn.innerHTML = '<i class="bi bi-check-lg"></i> Validate';
         validateBtn.disabled = false; // Always enabled since we auto-select
-        validateBtn.onclick = () => this.validateGlobalMatch(index);
+        validateBtn.onclick = () => this.validateGlobalMatch(index, databaseType);
         
         actionsCell.appendChild(validateBtn);
         row.appendChild(actionsCell);
@@ -6241,7 +6741,7 @@ class GameCollectionManager {
         return row;
     }
 
-    async validateGlobalMatch(index) {
+    async validateGlobalMatchLegacy(index) {
         try {
             const select = document.getElementById(`globalMatchSelect_${index}`);
             if (!select || !select.value) {
@@ -7328,7 +7828,7 @@ class GameCollectionManager {
             // Close the modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
             modal.hide();
-
+            
             // Show success message
             const fileCount = deletedFiles.length;
             const message = `Successfully deleted game "${this.gameToDelete.name}" and ${fileCount} associated file(s)`;

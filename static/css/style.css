@@ -81,6 +81,41 @@ body {
     min-width: 200px !important;
 }
 
+/* Fix dropdown visibility - same approach as configuration dropdown */
+.btn-group {
+    overflow: visible !important;
+}
+
+.btn-group .dropdown-menu {
+    z-index: 1055 !important;
+    position: absolute !important;
+    background-color: white !important;
+    border: 1px solid #ccc !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Even more specific targeting */
+div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
+    z-index: 1055 !important;
+    position: absolute !important;
+    background-color: white !important;
+    border: 1px solid #ccc !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Ensure main content doesn't clip dropdowns */
+.main-content {
+    overflow: visible !important;
+}
+
+.container-fluid {
+    overflow: visible !important;
+}
+
+.row {
+    overflow: visible !important;
+}
+
 /* Main content area */
 .main-content {
     padding: 5px;

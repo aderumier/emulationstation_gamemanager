@@ -7292,6 +7292,223 @@ def find_best_matches_endpoint():
         print(f"Error in find_best_matches endpoint: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/api/find-best-matches-mobygames', methods=['POST'])
+@login_required
+def find_best_matches_mobygames_endpoint():
+    """Find best matches for selected games using MobyGames database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        selected_games = data.get('selected_games', [])
+        
+        if not system_name:
+            return jsonify({'error': 'System name required'}), 400
+        
+        if not selected_games:
+            return jsonify({'error': 'No games selected'}), 400
+        
+        # Get the global MobyGames service instance
+        mobygames_service = load_mobygames_service()
+        
+        if not mobygames_service:
+            return jsonify({'error': 'MobyGames service not available'}), 500
+        
+        # Load gamelist to get game details
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Find selected games in gamelist
+        games_to_process = [g for g in all_games if g.get('path') in selected_games]
+        
+        if not games_to_process:
+            return jsonify({'error': 'No selected games found in gamelist'}), 404
+        
+        results = []
+        for game_data in games_to_process:
+            game_name = game_data.get('name', '')
+            if not game_name:
+                continue
+            
+            # Search MobyGames for best matches
+            matches = mobygames_service.search_games(system_name, game_name, limit=5)
+            
+            if matches:
+                # Map MobyGames data structure to expected format
+                mapped_matches = []
+                for match in matches:
+                    mapped_match = {
+                        'name': match.get('title', ''),
+                        'game_id': match.get('id', ''),
+                        'similarity_score': match.get('score', 0),
+                        'publisher': 'Unknown Publisher'
+                    }
+                    mapped_matches.append(mapped_match)
+                
+                # Sort matches to prioritize exact string matches for 100% similarity
+                def sort_key(match):
+                    score = match.get('similarity_score', 0)
+                    name = match.get('name', '')
+                    
+                    # For 100% matches, prioritize exact string matches
+                    if score >= 0.99:  # 99%+ similarity (essentially 100%)
+                        if name.lower() == game_name.lower():
+                            return (0, -score)  # Exact match first, then by score
+                        else:
+                            return (1, -score)  # Non-exact match second, then by score
+                    else:
+                        return (2, -score)  # Non-100% matches last, by score
+                
+                mapped_matches.sort(key=sort_key)
+                
+                # Get the best match (first result after sorting)
+                best_match = mapped_matches[0]
+                
+                results.append({
+                    'game_path': game_data.get('path', ''),
+                    'game_name': game_name,
+                    'game_data': game_data,  # Include full game data for publisher info
+                    'match_found': True,
+                    'best_match': best_match,
+                    'all_matches': mapped_matches
+                })
+            else:
+                results.append({
+                    'game_path': game_data.get('path', ''),
+                    'game_name': game_name,
+                    'match_found': False,
+                    'best_match': None,
+                    'all_matches': []
+                })
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'total_games': len(games_to_process),
+            'matched_games': len([r for r in results if r['match_found']])
+        })
+        
+    except Exception as e:
+        print(f"Error in find_best_matches_mobygames endpoint: {e}")
+        return jsonify({'error': f'Failed to find MobyGames matches: {str(e)}'}), 500
+
+@app.route('/api/find-best-matches-steam', methods=['POST'])
+@login_required
+def find_best_matches_steam_endpoint():
+    """Find best matches for selected games using Steam database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        selected_games = data.get('selected_games', [])
+        
+        if not system_name:
+            return jsonify({'error': 'System name required'}), 400
+        
+        if not selected_games:
+            return jsonify({'error': 'No games selected'}), 400
+        
+        # Create Steam service instance
+        from steam_service import SteamService
+        steam_service = SteamService()
+        
+        # Load Steam apps
+        import asyncio
+        apps = asyncio.run(steam_service.get_app_index())
+        
+        if not apps:
+            return jsonify({'error': 'Failed to load Steam apps list'}), 500
+        
+        # Load gamelist to get game details
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Find selected games in gamelist
+        games_to_process = [g for g in all_games if g.get('path') in selected_games]
+        
+        if not games_to_process:
+            return jsonify({'error': 'No selected games found in gamelist'}), 404
+        
+        results = []
+        for game_data in games_to_process:
+            game_name = game_data.get('name', '')
+            if not game_name:
+                continue
+            
+            # Search Steam for best matches
+            matches = steam_service.find_similarity_matches(game_name, apps, limit=5)
+            
+            if matches:
+                # Sort matches to prioritize exact string matches for 100% similarity
+                def sort_key(match):
+                    score = match.get('similarity_score', 0)
+                    name = match.get('name', '')
+                    
+                    # For 100% matches, prioritize exact string matches
+                    if score >= 0.99:  # 99%+ similarity (essentially 100%)
+                        if name.lower() == game_name.lower():
+                            return (0, -score)  # Exact match first, then by score
+                        else:
+                            return (1, -score)  # Non-exact match second, then by score
+                    else:
+                        return (2, -score)  # Non-100% matches last, by score
+                
+                matches.sort(key=sort_key)
+                
+                # Get the best match (first result after sorting)
+                best_match = matches[0]
+                
+                # Add publisher to all matches (use Unknown Publisher for simplicity)
+                for match in matches:
+                    match['publisher'] = 'Unknown Publisher'
+                
+                results.append({
+                    'game_path': game_data.get('path', ''),
+                    'game_name': game_name,
+                    'game_data': game_data,  # Include full game data for publisher info
+                    'match_found': True,
+                    'best_match': {
+                        'name': best_match.get('name', ''),
+                        'appid': best_match.get('appid', ''),
+                        'similarity_score': best_match.get('similarity_score', 0),
+                        'publisher': 'Unknown Publisher'
+                    },
+                    'all_matches': matches
+                })
+            else:
+                results.append({
+                    'game_path': game_data.get('path', ''),
+                    'game_name': game_name,
+                    'match_found': False,
+                    'best_match': None,
+                    'all_matches': []
+                })
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'total_games': len(games_to_process),
+            'matched_games': len([r for r in results if r['match_found']])
+        })
+        
+    except Exception as e:
+        print(f"Error in find_best_matches_steam endpoint: {e}")
+        return jsonify({'error': f'Failed to find Steam matches: {str(e)}'}), 500
+
 @app.route('/api/check-partial-match-requests', methods=['GET'])
 @login_required
 def check_partial_match_requests():
