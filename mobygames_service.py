@@ -45,6 +45,9 @@ class MobyGamesService:
         # Normalized title index: {system: {normalized_title: gameid}}
         self.title_index = {}
         
+        # Global partitioned similarity index: {system: {first_char: [items]}}
+        self._global_similarity_index = {}
+        
         # Load all MobyGames databases
         self._load_databases()
     
@@ -214,7 +217,7 @@ class MobyGamesService:
         return len(self.databases[mobygames_system])
     
     def search_games(self, system_name: str, query: str, limit: int = 10) -> List[Dict]:
-        """Search for games by query string using partitioned similarity search (for manual search)"""
+        """Search for games by query string using global partitioned similarity search (for manual search)"""
         mobygames_system = self.get_mobygames_system(system_name)
         if not mobygames_system:
             self.logger.warning(f"No MobyGames system configured for: {system_name}")
@@ -224,19 +227,19 @@ class MobyGamesService:
         if not normalized_query:
             return []
         
-        # Build partitioned similarity index if not exists for this system
-        if not hasattr(self, '_similarity_index') or self._similarity_index.get('system') != mobygames_system:
-            self.logger.info(f"Building partitioned similarity index for MobyGames system: {mobygames_system}")
-            self._similarity_index = {'system': mobygames_system, 'index': {}}
+        # Build global partitioned similarity index if not exists for this system
+        if mobygames_system not in self._global_similarity_index:
+            self.logger.info(f"Building global partitioned similarity index for MobyGames system: {mobygames_system}")
+            self._global_similarity_index[mobygames_system] = {}
             
             for game_id, game_data in self.databases[mobygames_system].items():
                 if 'title' in game_data:
                     normalized_title = normalize_game_name(game_data['title'], remove_paranthesis=True, remove_articles=True)
                     if normalized_title:
                         first_char = normalized_title[0] if normalized_title else 'other'
-                        if first_char not in self._similarity_index['index']:
-                            self._similarity_index['index'][first_char] = []
-                        self._similarity_index['index'][first_char].append({
+                        if first_char not in self._global_similarity_index[mobygames_system]:
+                            self._global_similarity_index[mobygames_system][first_char] = []
+                        self._global_similarity_index[mobygames_system][first_char].append({
                             'name': game_data['title'],
                             'normalized': normalized_title,
                             'game_id': game_id,
@@ -249,8 +252,8 @@ class MobyGamesService:
         results = []
         
         # Search only in the matching partition
-        if first_char in self._similarity_index['index']:
-            partition_items = self._similarity_index['index'][first_char]
+        if first_char in self._global_similarity_index[mobygames_system]:
+            partition_items = self._global_similarity_index[mobygames_system][first_char]
             
             for item in partition_items:
                 # Calculate similarity using configured algorithm

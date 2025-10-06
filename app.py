@@ -5599,11 +5599,10 @@ def search_mobygames_games():
         if not mobygames_system:
             return jsonify({'error': f'No MobyGames system configured for system "{system_name}"'}), 400
         
-        # Import MobyGames service
-        from mobygames_service import MobyGamesService
-        
-        # Create MobyGames service
-        mobygames_service = MobyGamesService(config, scrappers_config, systems_config)
+        # Use global cached MobyGames service
+        mobygames_service = load_mobygames_service()
+        if not mobygames_service:
+            return jsonify({'error': 'MobyGames service not available'}), 500
         
         # Search for games
         games = mobygames_service.search_games(system_name, game_name, limit)
