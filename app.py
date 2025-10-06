@@ -3569,53 +3569,79 @@ def load_metadata_cache():
                 'alternate_names_cache': {}
             }
         
-        # Parse the Metadata.xml
-        tree = ET.parse(metadata_path)
-        root = tree.getroot()
-        
-        # Initialize temporary consolidated cache
+        # Parse the Metadata.xml using streaming parser for memory efficiency
+        import xml.etree.ElementTree as ET
         consolidated = {}
-        all_game_images = root.findall('.//GameImage')
-        print(f"DEBUG: Found {len(all_game_images)} GameImage entries in Metadata.xml")
         
-        for game_image in all_game_images:
-            db_id = game_image.find('DatabaseID')
-            if db_id is not None and db_id.text:
-                db_id_text = db_id.text
-                entry = consolidated.setdefault(db_id_text, {'game': None, 'images': [], 'alternate_names': []})
-                entry['images'].append(game_image)
+        # Use iterparse for memory-efficient XML processing
+        context = ET.iterparse(metadata_path, events=('start', 'end'))
+        context = iter(context)
+        event, root = next(context)
         
-        all_games = root.findall('.//Game')
-        print(f"DEBUG: Found {len(all_games)} Game entries in Metadata.xml")
+        game_images_count = 0
+        games_count = 0
+        alternate_names_count = 0
         
-        for game in all_games:
-            db_id = game.find('DatabaseID')
-            if db_id is not None and db_id.text:
-                db_id_text = db_id.text
-                entry = consolidated.setdefault(db_id_text, {'game': None, 'images': [], 'alternate_names': []})
-                entry['game'] = game
+        for event, elem in context:
+            if event == 'end':
+                if elem.tag == 'GameImage':
+                    game_images_count += 1
+                    db_id = elem.find('DatabaseID')
+                    if db_id is not None and db_id.text:
+                        db_id_text = db_id.text
+                        entry = consolidated.setdefault(db_id_text, {'game': {}, 'images': [], 'alternate_names': []})
+                        # Extract only the text content we need, not the entire element
+                        image_data = {}
+                        for child in elem:
+                            if child.text:
+                                image_data[child.tag] = child.text.strip()
+                        entry['images'].append(image_data)
+                    elem.clear()
+                    
+                elif elem.tag == 'Game':
+                    games_count += 1
+                    db_id = elem.find('DatabaseID')
+                    if db_id is not None and db_id.text:
+                        db_id_text = db_id.text
+                        entry = consolidated.setdefault(db_id_text, {'game': {}, 'images': [], 'alternate_names': []})
+                        # Extract only the text content we need, not the entire element
+                        game_data = {}
+                        for child in elem:
+                            if child.text:
+                                game_data[child.tag] = child.text.strip()
+                        entry['game'] = game_data
+                    elem.clear()
+                    
+                elif elem.tag == 'GameAlternateName':
+                    alternate_names_count += 1
+                    db_id = elem.find('DatabaseID')
+                    if db_id is not None and db_id.text:
+                        db_id_text = db_id.text
+                        entry = consolidated.setdefault(db_id_text, {'game': {}, 'images': [], 'alternate_names': []})
+                        # Extract only the text content we need, not the entire element
+                        alt_name_data = {}
+                        for child in elem:
+                            if child.text:
+                                alt_name_data[child.tag] = child.text.strip()
+                        entry['alternate_names'].append(alt_name_data)
+                    elem.clear()
         
-        all_alternate_names = root.findall('.//GameAlternateName')
-        print(f"DEBUG: Found {len(all_alternate_names)} GameAlternateName entries in Metadata.xml")
-        
-        for alt_name in all_alternate_names:
-            db_id = alt_name.find('DatabaseID')
-            if db_id is not None and db_id.text:
-                db_id_text = db_id.text
-                entry = consolidated.setdefault(db_id_text, {'game': None, 'images': [], 'alternate_names': []})
-                entry['alternate_names'].append(alt_name)
+        print(f"DEBUG: Found {game_images_count} GameImage entries in Metadata.xml")
+        print(f"DEBUG: Found {games_count} Game entries in Metadata.xml")
+        print(f"DEBUG: Found {alternate_names_count} GameAlternateName entries in Metadata.xml")
         
         # Update global consolidated cache
         global_metadata_cache = consolidated
         global_metadata_cache_loaded = True
         
-        # Generate LaunchBox platforms cache from Game elements
+        # Generate LaunchBox platforms cache from consolidated cache
         global _launchbox_platforms_cache
         platforms = set()
-        for game in all_games:
-            platform_elem = game.find('Platform')
-            if platform_elem is not None and platform_elem.text:
-                platforms.add(platform_elem.text.strip())
+        for entry in consolidated.values():
+            game_data = entry.get('game', {})
+            platform = game_data.get('Platform')
+            if platform:
+                platforms.add(platform.strip())
         
         _launchbox_platforms_cache = sorted(list(platforms))
         print(f"DEBUG: Cached {len(_launchbox_platforms_cache)} unique LaunchBox platforms")
@@ -3696,8 +3722,8 @@ def load_platform_metadata_cache(platform, use_global_cache=False, mapping_confi
                     continue
                 
                 # Check if this game is for the target platform
-                game_platform = game_elem.find('Platform')
-                if game_platform is not None and game_platform.text == platform:
+                game_platform = game_elem.get('Platform')
+                if game_platform == platform:
                     platform_cache[db_id] = {
                         'game': game_elem,
                         'alternate_names': entry.get('alternate_names', [])
@@ -6974,10 +7000,8 @@ def find_best_matches_endpoint():
         for db_id, game_elem in all_games_cache.items():
             if game_elem is not None:
                 # Check if this game belongs to the target platform
-                platform_elem = game_elem.find('Platform')
-                if platform_elem is not None and platform_elem.text:
-                    game_platform = platform_elem.text.strip()
-                    if game_platform == current_system_platform:
+                game_platform = game_elem.get('Platform')
+                if game_platform and game_platform.strip() == current_system_platform:
                         platform_games[db_id] = game_elem
                         platform_alternate_names[db_id] = all_alternate_names_cache.get(db_id, [])
         
