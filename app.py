@@ -9024,8 +9024,13 @@ def mobygames_cache_info_endpoint():
                 partitioned_index = pickle.load(f)
             
             # Calculate statistics
-            total_entries = sum(len(partition) for partition in partitioned_index.values())
-            partition_count = len(partitioned_index)
+            # Calculate statistics - partitioned_index is {system_name: {first_char: [GameItem]}}
+            total_entries = 0
+            partition_count = 0
+            for system_name, system_index in partitioned_index.items():
+                for first_char, game_items in system_index.items():
+                    total_entries += len(game_items)
+                    partition_count += 1
             
             cache_stats = {
                 'total_entries': total_entries,
@@ -9077,8 +9082,13 @@ def steam_cache_info_endpoint():
                 partitioned_index = pickle.load(f)
             
             # Calculate statistics
-            total_entries = sum(len(partition) for partition in partitioned_index.values())
-            partition_count = len(partitioned_index)
+            # Calculate statistics - partitioned_index is {system_name: {first_char: [GameItem]}}
+            total_entries = 0
+            partition_count = 0
+            for system_name, system_index in partitioned_index.items():
+                for first_char, game_items in system_index.items():
+                    total_entries += len(game_items)
+                    partition_count += 1
             
             cache_stats = {
                 'total_entries': total_entries,
