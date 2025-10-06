@@ -96,8 +96,11 @@ RUN (cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/sc
 
 # Copy MobyGames database files to default location outside var (for volume mount scenarios)
 RUN mkdir -p /opt/gamemanager/mobygames_db.default && \
+    chmod -R 755 /opt/gamemanager/var/db/mobygames/ 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/db/mobygames/*.json 2>/dev/null || true && \
     (cp -r /opt/gamemanager/var/db/mobygames/* /opt/gamemanager/mobygames_db.default/ 2>/dev/null || echo "No MobyGames database files found") && \
-    chmod -R 644 /opt/gamemanager/mobygames_db.default/ && \
+    chmod -R 755 /opt/gamemanager/mobygames_db.default/ && \
+    chmod -R 644 /opt/gamemanager/mobygames_db.default/*.json 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/mobygames_db.default/
 
 # Copy mediatype files to default location outside var (for volume mount scenarios)
