@@ -3286,7 +3286,7 @@ def get_mobygames_game_data(game, system_name, service=None):
         return None
     
     # Use exact match for scrapper tasks
-    return service.find_game_exact(game_name, mobygames_system)
+    return service.find_game_exact(system_name, game_name)
 
 def extract_mobygames_text_fields(mobygames_game, mapping_config):
     """Extract text fields from MobyGames data using common logic"""

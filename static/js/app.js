@@ -43,6 +43,14 @@ class GameCollectionManager {
         this.lastProcessedGame = null;
         this.lastClickedColumn = null; // Track which column was last clicked for double-click behavior
         
+        // Initialize clear image cache button visibility (Media Preview is default active tab)
+        setTimeout(() => {
+            const clearCacheContainer = document.getElementById('clearImageCacheContainer');
+            if (clearCacheContainer) {
+                clearCacheContainer.classList.remove('d-none');
+            }
+        }, 100);
+        
         // YouTube operations
         this.currentYouTubeGame = null; // Store current game for YouTube operations
         this.suppressYouTubeSearchReopen = false; // Prevent reopening search modal during downloads
@@ -244,6 +252,12 @@ class GameCollectionManager {
             document.getElementById('media-preview-tab').classList.add('active');
             document.getElementById('media-preview-content').classList.add('show', 'active');
             
+            // Show clear image cache button for media preview tab
+            const clearCacheContainer = document.getElementById('clearImageCacheContainer');
+            if (clearCacheContainer) {
+                clearCacheContainer.classList.remove('d-none');
+            }
+            
             // Always refresh media preview for currently selected game
             if (this.gridApi) {
                 const selectedRows = this.gridApi.getSelectedRows();
@@ -256,6 +270,12 @@ class GameCollectionManager {
         } else if (tabName === 'task-management') {
             document.getElementById('task-management-tab').classList.add('active');
             document.getElementById('task-management-content').classList.add('show', 'active');
+            
+            // Hide clear image cache button for task management tab
+            const clearCacheContainer = document.getElementById('clearImageCacheContainer');
+            if (clearCacheContainer) {
+                clearCacheContainer.classList.add('d-none');
+            }
             
             // Clear media preview content when switching to task management to free memory
             const mediaPreviewContent = document.getElementById('mediaPreviewContent');
@@ -1462,6 +1482,7 @@ class GameCollectionManager {
         document.getElementById('confirmGamelistSave').addEventListener('click', () => this.confirmGamelistSave());
         document.getElementById('forceImportGamelistBtn').addEventListener('click', () => this.showForceImportModal());
         document.getElementById('confirmForceImportBtn').addEventListener('click', () => this.confirmForceImport());
+        document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
         document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
@@ -8092,6 +8113,46 @@ class GameCollectionManager {
             // Restore button state
             button.innerHTML = originalText;
             button.disabled = false;
+        }
+    }
+
+    clearImageCache() {
+        // Add cache-busting parameter to all images on the page
+        const images = document.querySelectorAll('img');
+        let updatedCount = 0;
+        
+        images.forEach(img => {
+            const src = img.src;
+            if (src && !src.includes('?cache_bust=')) {
+                // Add cache-busting parameter
+                const separator = src.includes('?') ? '&' : '?';
+                img.src = src + separator + 'cache_bust=' + Date.now();
+                updatedCount++;
+            }
+        });
+        
+        // Also update any background images in CSS
+        const elementsWithBgImages = document.querySelectorAll('[style*="background-image"]');
+        elementsWithBgImages.forEach(element => {
+            const style = element.getAttribute('style');
+            if (style && style.includes('background-image') && !style.includes('cache_bust=')) {
+                const urlMatch = style.match(/url\(['"]?([^'"]+)['"]?\)/);
+                if (urlMatch) {
+                    const url = urlMatch[1];
+                    const separator = url.includes('?') ? '&' : '?';
+                    const newUrl = url + separator + 'cache_bust=' + Date.now();
+                    element.style.backgroundImage = style.replace(url, newUrl);
+                    updatedCount++;
+                }
+            }
+        });
+        
+        // Show success message
+        this.showAlert(`Image cache cleared! Updated ${updatedCount} images.`, 'success');
+        
+        // If we have a grid, refresh it to reload all images
+        if (this.gridApi) {
+            this.gridApi.refreshCells({ force: true });
         }
     }
 
