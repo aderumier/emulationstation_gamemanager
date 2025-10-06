@@ -1457,6 +1457,8 @@ class GameCollectionManager {
         document.getElementById('unifiedScanBtn').addEventListener('click', () => this.unifiedScan());
         document.getElementById('saveGamelistBtn').addEventListener('click', () => this.saveGamelist());
         document.getElementById('confirmGamelistSave').addEventListener('click', () => this.confirmGamelistSave());
+        document.getElementById('forceImportGamelistBtn').addEventListener('click', () => this.showForceImportModal());
+        document.getElementById('confirmForceImportBtn').addEventListener('click', () => this.confirmForceImport());
 
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
         document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
@@ -7848,6 +7850,64 @@ class GameCollectionManager {
             }
         } catch (error) {
             this.showAlert('Error saving gamelist: ' + error.message, 'danger');
+        } finally {
+            // Restore button state
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    }
+
+    async showForceImportModal() {
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+
+        // Set system name in modal
+        document.getElementById('forceImportSystemName').textContent = this.currentSystem;
+        document.getElementById('forceImportSystemName2').textContent = this.currentSystem;
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('forceImportGamelistModal'));
+        modal.show();
+    }
+
+    async confirmForceImport() {
+        const button = document.getElementById('confirmForceImportBtn');
+        const originalText = button.innerHTML;
+
+        try {
+            // Show loading state
+            button.innerHTML = '<i class="spinner-border spinner-border-sm"></i>';
+            button.disabled = true;
+
+            // Call the force import API
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/force-import-gamelist`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    this.showAlert(result.message, 'success');
+                    // Close the modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('forceImportGamelistModal'));
+                    modal.hide();
+                    
+                    // Reload the current system to reflect the imported data
+                    await this.loadRomSystem(this.currentSystem);
+                } else {
+                    this.showAlert(result.error || 'Failed to force import gamelist', 'danger');
+                }
+            } else {
+                const errorData = await response.json();
+                this.showAlert(errorData.error || 'Failed to force import gamelist', 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error force importing gamelist: ' + error.message, 'danger');
         } finally {
             // Restore button state
             button.innerHTML = originalText;
@@ -14778,6 +14838,7 @@ class GameCollectionManager {
     enableButtons() {
         document.getElementById('unifiedScanBtn').disabled = false;
         document.getElementById('saveGamelistBtn').disabled = false;
+        document.getElementById('forceImportGamelistBtn').disabled = false;
 
         document.getElementById('scrapLaunchboxBtn').disabled = false; // Allow full collection scraping
         document.getElementById('scrapIgdbBtn').disabled = false; // Allow IGDB scraping

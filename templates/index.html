@@ -381,6 +381,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <i class="bi bi-search"></i>
                     </button>
                 </div>
+                <div class="nav-item me-3">
+                    <button id="forceImportGamelistBtn" class="btn btn-outline-warning btn-sm" title="Force Import Gamelist.xml" disabled>
+                        <i class="bi bi-arrow-down-circle"></i>
+                    </button>
+                </div>
         <div class="nav-item">
             <select id="systemSelect" class="form-select form-select-sm" style="min-width: 300px;" autocomplete="off">
                 <option value="">Select System...</option>
@@ -632,6 +637,31 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
                         <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Force Import Gamelist Confirmation Modal -->
+    <div class="modal fade" id="forceImportGamelistModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Force Import Gamelist.xml
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Warning:</strong> The current working database will be overwritten!</p>
+                    <p>This will copy <code>roms/<span id="forceImportSystemName">system</span>/gamelist.xml</code> to <code>var/gamelists/<span id="forceImportSystemName2">system</span>/gamelist.xml</code></p>
+                    <p class="text-muted small">This action will replace your current working database with the ROMs directory version.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="confirmForceImportBtn">
+                        <i class="bi bi-arrow-down-circle"></i> Force Import
                     </button>
                 </div>
             </div>

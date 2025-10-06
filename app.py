@@ -6543,6 +6543,48 @@ def save_gamelist_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'Failed to save gamelist: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/force-import-gamelist', methods=['POST'])
+@login_required
+def force_import_gamelist_endpoint(system_name):
+    """Force import gamelist.xml from roms directory to var/gamelists directory"""
+    try:
+        import shutil
+        import os
+        
+        # Define source and destination paths
+        source_path = f"roms/{system_name}/gamelist.xml"
+        dest_path = f"var/gamelists/{system_name}/gamelist.xml"
+        
+        # Check if source file exists
+        if not os.path.exists(source_path):
+            return jsonify({
+                'success': False,
+                'error': f'Source gamelist.xml not found at {source_path}'
+            }), 404
+        
+        # Create destination directory if it doesn't exist
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        
+        # Copy the file
+        shutil.copy2(source_path, dest_path)
+        
+        # Verify the copy was successful
+        if os.path.exists(dest_path):
+            return jsonify({
+                'success': True,
+                'message': f'Successfully imported gamelist.xml from {source_path} to {dest_path}',
+                'source': source_path,
+                'destination': dest_path
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to copy gamelist.xml file'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Failed to force import gamelist: {str(e)}'}), 500
+
 def load_launchbox_config():
     """Load Launchbox configuration from consolidated config.json"""
     global platform_metadata_cache, current_system_platform
