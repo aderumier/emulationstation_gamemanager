@@ -1201,9 +1201,8 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     selected_fields = task.get('selected_fields', None)
     overwrite_text_fields = task.get('overwrite_text_fields', False)
     
-    print(f"🔧 DEBUG: Worker received task with selected_games: {selected_games}")
-    print(f"🔧 DEBUG: selected_games type: {type(selected_games)}")
-    print(f"🔧 DEBUG: selected_games length: {len(selected_games) if selected_games else 'None'}")
+    # Debug logging for parameter verification
+    print(f"🔧 DEBUG: Worker received task - selected_games: {len(selected_games) if selected_games else 0}, force_download: {force_download}, overwrite_text_fields: {overwrite_text_fields}")
 
     mapping_config, system_platform_mapping = load_launchbox_config()
     current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
@@ -1222,16 +1221,10 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     # Select games to process without losing the full list used for saving
     games = all_games
     if selected_games and len(selected_games) > 0:
-        print(f"🔧 DEBUG: Filtering games - selected_games: {selected_games}")
-        print(f"🔧 DEBUG: Total games in gamelist: {len(all_games)}")
         games = [g for g in all_games if g.get('path') in selected_games]
-        print(f"🔧 DEBUG: Filtered to {len(games)} games from selection")
-        if len(games) == 0:
-            print(f"🔧 DEBUG: No games matched! Sample paths from gamelist:")
-            for i, game in enumerate(all_games[:5]):  # Show first 5 games
-                print(f"  {i}: '{game.get('path')}'")
+        print(f"🔧 DEBUG: Filtered to {len(games)} games from {len(selected_games)} selected games")
     else:
-        print(f"🔧 DEBUG: No selected_games provided, processing all {len(all_games)} games")
+        print(f"🔧 DEBUG: Processing all {len(all_games)} games (no selection)")
 
     stats = {'total_games': len(games), 'processed_games': 0, 'matched_games': 0, 'updated_games': 0}
     # Announce totals and initialize progress bar in main process
@@ -6714,14 +6707,19 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
         try:
             # Use platform-specific cache if provided
             if platform_cache:
-                games_cache = platform_cache.get('games_cache', {})
-                alternate_names_cache = platform_cache.get('alternate_names_cache', {})
                 # Convert existing_launchboxid to string for cache lookup
                 launchboxid_str = str(existing_launchboxid)
-                game_elem = games_cache.get(launchboxid_str)
-                alt_names_elements = alternate_names_cache.get(launchboxid_str, [])
+                # Look up the game directly in platform_cache
+                cache_entry = platform_cache.get(launchboxid_str)
+                if cache_entry:
+                    game_elem = cache_entry.get('game')
+                    alt_names_elements = cache_entry.get('alternate_names', [])
+                else:
+                    game_elem = None
+                    alt_names_elements = []
             else:
                 # No platform cache available, cannot lookup by launchboxid
+                print(f"🔧 DEBUG: No platform cache available for launchboxid lookup")
                 game_elem = None
                 alt_names_elements = []
             
