@@ -4044,9 +4044,26 @@ class GameCollectionManager {
                 fieldLabel.style.cssText = 'font-size: 0.7rem; color: #6c757d;';
                 mediaItem.appendChild(fieldLabel);
                 
+                // Add button container
+                const buttonContainer = document.createElement('div');
+                buttonContainer.className = 'd-flex gap-1 mt-1';
+                buttonContainer.style.cssText = 'justify-content: center;';
+                
+                // Add multiscraper download button
+                const multiscraperBtn = document.createElement('button');
+                multiscraperBtn.className = 'btn btn-outline-success btn-sm';
+                multiscraperBtn.style.cssText = 'font-size: 0.6rem; padding: 2px 6px;';
+                multiscraperBtn.innerHTML = '<i class="bi bi-search"></i>';
+                multiscraperBtn.title = 'Multiscraper Download';
+                multiscraperBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    this.openMultiscraperMediaModal(game, field);
+                };
+                buttonContainer.appendChild(multiscraperBtn);
+                
                 // Add LaunchBox download button
                 const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'btn btn-outline-primary btn-sm mt-1';
+                downloadBtn.className = 'btn btn-outline-primary btn-sm';
                 downloadBtn.style.cssText = 'font-size: 0.6rem; padding: 2px 6px;';
                 downloadBtn.innerHTML = '<i class="bi bi-download"></i>';
                 downloadBtn.title = 'Download from LaunchBox';
@@ -4054,7 +4071,9 @@ class GameCollectionManager {
                     e.stopPropagation();
                     this.openLaunchBoxMediaModal(game, field);
                 };
-                mediaItem.appendChild(downloadBtn);
+                buttonContainer.appendChild(downloadBtn);
+                
+                mediaItem.appendChild(buttonContainer);
             } else {
                 // Display placeholder for missing media
                 mediaItem.innerHTML = `
@@ -4065,9 +4084,14 @@ class GameCollectionManager {
                         </div>
                     </div>
                     <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
-                    <button class="btn btn-outline-primary btn-sm mt-1" style="font-size: 0.6rem; padding: 2px 6px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                        <i class="bi bi-download"></i>
-                    </button>
+                    <div class="d-flex gap-1 mt-1" style="justify-content: center;">
+                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 2px 6px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 2px 6px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <i class="bi bi-download"></i>
+                        </button>
+                    </div>
                 `;
             }
             
@@ -4148,6 +4172,165 @@ class GameCollectionManager {
             }
             contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-danger">' + errorMessage + '</div></div>';
             progressDiv.style.display = 'none';
+        }
+    }
+    
+    async openMultiscraperMediaModal(game, mediaType) {
+        // Set modal title and game info
+        document.getElementById('multiscraperMediaGameName').textContent = game.name;
+        document.getElementById('multiscraperMediaType').textContent = mediaType;
+        
+        // Show progress
+        const progressDiv = document.getElementById('multiscraperMediaProgress');
+        progressDiv.style.display = 'block';
+        progressDiv.textContent = 'Searching for media from multiple sources...';
+        
+        // Clear content
+        const contentDiv = document.getElementById('multiscraperMediaContent');
+        contentDiv.innerHTML = '';
+        
+        // Show modal
+        const modalElement = document.getElementById('multiscraperMediaModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // Add event listener for modal close to refresh media preview
+        const handleModalClose = () => {
+            if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
+                // Update the currentMediaPreviewGame with the fresh data from the grid
+                const freshGame = this.games.find(g => g.path === game.path);
+                if (freshGame) {
+                    this.currentMediaPreviewGame = freshGame;
+                    this.showMediaPreview(this.currentMediaPreviewGame);
+                }
+            }
+            // Remove the event listener to prevent duplicates
+            modalElement.removeEventListener('hidden.bs.modal', handleModalClose);
+        };
+        
+        modalElement.addEventListener('hidden.bs.modal', handleModalClose);
+        modal.show();
+        
+        try {
+            // Perform multiscraper search for the specific media type
+            const response = await fetch('/api/multiscraper-search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    game_name: game.name,
+                    media_type: mediaType,
+                    system_name: this.currentSystem
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                // Display available media options from multiple sources
+                this.displayMultiscraperMediaOptions(data.results, game, mediaType);
+                progressDiv.style.display = 'none';
+            } else {
+                contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-info">No media found for this game and type from any source.</div></div>';
+                progressDiv.style.display = 'none';
+            }
+        } catch (error) {
+            contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-danger">Error searching for media: ' + error.message + '</div></div>';
+            progressDiv.style.display = 'none';
+        }
+    }
+    
+    displayMultiscraperMediaOptions(mediaResults, game, mediaType) {
+        const contentDiv = document.getElementById('multiscraperMediaContent');
+        contentDiv.innerHTML = '';
+        
+        mediaResults.forEach((result, index) => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4 mb-3';
+            
+            const card = document.createElement('div');
+            card.className = 'card h-100';
+            card.style.cursor = 'pointer';
+            
+            const img = document.createElement('img');
+            img.className = 'card-img-top';
+            img.style.height = '300px';
+            img.style.objectFit = 'contain';
+            img.style.backgroundColor = '#f8f9fa';
+            img.src = result.url;
+            img.alt = `${mediaType} from ${result.source}`;
+            img.onerror = () => {
+                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+            };
+            
+            const cardBody = document.createElement('div');
+            cardBody.className = 'card-body d-flex flex-column';
+            
+            const title = document.createElement('h6');
+            title.className = 'card-title';
+            title.textContent = `${result.source} - ${mediaType}`;
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn btn-primary btn-sm mt-auto';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.downloadMultiscraperMedia(result.url, game, mediaType);
+            };
+            
+            cardBody.appendChild(title);
+            cardBody.appendChild(downloadBtn);
+            
+            card.appendChild(img);
+            card.appendChild(cardBody);
+            col.appendChild(card);
+            contentDiv.appendChild(col);
+        });
+    }
+    
+    async downloadMultiscraperMedia(mediaUrl, game, mediaType) {
+        try {
+            const response = await fetch('/api/download-multiscraper-media', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    media_url: mediaUrl,
+                    game_name: game.name,
+                    media_type: mediaType,
+                    system_name: this.currentSystem
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Media downloaded successfully for ${game.name}`, 'success');
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('multiscraperMediaModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                // Refresh media preview
+                if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
+                    this.showMediaPreview(this.currentMediaPreviewGame);
+                }
+            } else {
+                this.showAlert(data.error || 'Failed to download media', 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error downloading media: ' + error.message, 'danger');
         }
     }
     
@@ -8436,9 +8619,14 @@ class GameCollectionManager {
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
-                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-download"></i>
-                            </button>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </div>
                         </div>
                     `;
                     
@@ -8459,9 +8647,14 @@ class GameCollectionManager {
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
-                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-download"></i>
-                            </button>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </div>
                         </div>
                     `;
                 } else {
@@ -8476,9 +8669,14 @@ class GameCollectionManager {
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
-                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-download"></i>
-                            </button>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </div>
                         </div>
                     `;
                     
@@ -8551,9 +8749,14 @@ class GameCollectionManager {
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                         <small class="text-center flex-grow-1">${field}</small>
-                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                            <i class="bi bi-download"></i>
-                        </button>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-search"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </div>
                     </div>
                 `;
                 

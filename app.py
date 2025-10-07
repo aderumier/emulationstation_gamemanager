@@ -7970,6 +7970,295 @@ def validate_move_medias():
         print(f"Error validating move medias: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/api/multiscraper-search', methods=['POST'])
+@login_required
+def multiscraper_search_endpoint():
+    """Search for media from multiple sources for a specific game and media type"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name')
+        media_type = data.get('media_type')
+        system_name = data.get('system_name')
+        
+        if not all([game_name, media_type, system_name]):
+            return jsonify({'error': 'Game name, media type, and system name are required'}), 400
+        
+        print(f"🔧 DEBUG: Multiscraper search - Game: {game_name}, Media Type: {media_type}, System: {system_name}")
+        
+        # Find the game in the current system
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        game = next((g for g in games if g.get('name') == game_name), None)
+        
+        if not game:
+            return jsonify({'error': 'Game not found in gamelist'}), 404
+        
+        # Get system configuration
+        systems_config = load_systems_config()
+        sys_config = systems_config.get(system_name, {})
+        
+        # Use manual scrap functionality for all scrapers
+        import asyncio
+        from datetime import datetime
+        
+        # Create a copy of the game for manual scrap
+        current_game = game.copy()
+        
+        # Run manual scrap for all available scrapers
+        scraper_tasks = []
+        
+        # Add IGDB scraper if game has igdbid
+        if current_game.get('igdbid'):
+            scraper_tasks.append(('igdb', lambda: run_async_safely(scrape_igdb_manual(current_game, system_name, sys_config, target_media_type=media_type))))
+        
+        # Add Steam scraper if game has steamid
+        if current_game.get('steamid'):
+            scraper_tasks.append(('steam', lambda: run_async_safely(scrape_steam_manual(current_game, system_name, target_media_type=media_type))))
+        
+        # Add ScreenScraper if game has screenscraperid
+        if current_game.get('screenscraperid'):
+            scraper_tasks.append(('screenscraper', lambda: run_async_safely(scrape_screenscraper_manual(current_game, system_name, sys_config, target_media_type=media_type))))
+        
+        # Add SteamGridDB scraper if game has steamgridid
+        if current_game.get('steamgridid'):
+            scraper_tasks.append(('steamgriddb', lambda: run_async_safely(scrape_steamgriddb_manual(current_game, system_name, target_media_type=media_type))))
+        
+        # Add LaunchBox scraper if game has launchboxid
+        if current_game.get('launchboxid'):
+            scraper_tasks.append(('launchbox', lambda: run_async_safely(scrape_launchbox_manual(current_game, system_name, target_media_type=media_type))))
+        
+        # Add MobyGames scraper if game has mobygamesid
+        if current_game.get('mobygamesid'):
+            scraper_tasks.append(('mobygames', lambda: run_async_safely(scrape_mobygames_manual(current_game, system_name, sys_config, target_media_type=media_type))))
+        
+        print(f"🔧 DEBUG: Running {len(scraper_tasks)} scrapers for multiscraper search")
+        
+        # Execute all scrapers in parallel
+        scrap_results = {}
+        for scraper_name, scraper_func in scraper_tasks:
+            try:
+                print(f"🔧 DEBUG: Running {scraper_name} scraper...")
+                result = scraper_func()
+                if result:
+                    print(f"🔧 DEBUG: {scraper_name} scraper returned data with keys: {list(result.keys())}")
+                    scrap_results[scraper_name] = result
+                else:
+                    print(f"🔧 DEBUG: {scraper_name} scraper returned None")
+            except Exception as e:
+                print(f"🔧 DEBUG: {scraper_name} scraper failed: {e}")
+                import traceback
+                print(f"🔧 DEBUG: {scraper_name} traceback: {traceback.format_exc()}")
+        
+        # Filter results to only include the requested media type
+        results = []
+        for scraper_name, scrap_data in scrap_results.items():
+            print(f"🔧 DEBUG: Processing {scraper_name} scraper data")
+            if scrap_data and 'media_fields' in scrap_data:
+                media_fields = scrap_data['media_fields']
+                print(f"🔧 DEBUG: {scraper_name} media_fields keys: {list(media_fields.keys())}")
+                if media_type in media_fields and media_fields[media_type]:
+                    print(f"🔧 DEBUG: {scraper_name} has {media_type} with {len(media_fields[media_type])} items")
+                    # Handle both single URL strings and arrays of media objects
+                    media_items = media_fields[media_type]
+                    if isinstance(media_items, list):
+                        # Multiple media items - add each one
+                        for i, item in enumerate(media_items):
+                            if isinstance(item, dict):
+                                # Media object with url, region, type, etc.
+                                url = item.get('url')
+                                if url:
+                                    results.append({
+                                        'url': url,
+                                        'source': scraper_name.title(),
+                                        'type': media_type,
+                                        'region': item.get('region', 'Unknown')
+                                    })
+                                    print(f"🔧 DEBUG: Added {scraper_name} result {i+1}: {url}")
+                            elif isinstance(item, str):
+                                # Simple URL string
+                                if item:
+                                    results.append({
+                                        'url': item,
+                                        'source': scraper_name.title(),
+                                        'type': media_type
+                                    })
+                                    print(f"🔧 DEBUG: Added {scraper_name} result {i+1}: {item}")
+                    elif isinstance(media_items, str):
+                        # Single URL string
+                        if media_items:
+                            results.append({
+                                'url': media_items,
+                                'source': scraper_name.title(),
+                                'type': media_type
+                            })
+                            print(f"🔧 DEBUG: Added {scraper_name} single result: {media_items}")
+                else:
+                    print(f"🔧 DEBUG: {scraper_name} has no {media_type} or empty {media_type}")
+            else:
+                print(f"🔧 DEBUG: {scraper_name} has no media_fields or scrap_data is None")
+        
+        print(f"🔧 DEBUG: Found {len(results)} results for media type '{media_type}' from {len(scrap_results)} scrapers")
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        print(f"Error in multiscraper search: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/download-multiscraper-media', methods=['POST'])
+@login_required
+def download_multiscraper_media_endpoint():
+    """Download media from multiscraper search results"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        media_url = data.get('media_url')
+        game_name = data.get('game_name')
+        media_type = data.get('media_type')
+        system_name = data.get('system_name')
+        
+        if not all([media_url, game_name, media_type, system_name]):
+            return jsonify({'error': 'Media URL, game name, media type, and system name are required'}), 400
+        
+        print(f"🔧 DEBUG: Downloading multiscraper media - URL: {media_url}, Game: {game_name}, Type: {media_type}, System: {system_name}")
+        
+        # Find the game in the current system
+        gamelist_path = get_gamelist_path(system_name)
+        print(f"🔧 DEBUG: Gamelist path: {gamelist_path}")
+        if not os.path.exists(gamelist_path):
+            print(f"🔧 DEBUG: Gamelist not found at {gamelist_path}")
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        print(f"🔧 DEBUG: Parsed {len(games)} games from gamelist")
+        game = next((g for g in games if g.get('name') == game_name), None)
+        
+        if not game:
+            print(f"🔧 DEBUG: Game '{game_name}' not found in gamelist")
+            return jsonify({'error': 'Game not found in gamelist'}), 404
+        
+        print(f"🔧 DEBUG: Found game: {game.get('name')} with path: {game.get('path')}")
+        
+        # Download the media
+        success = download_and_save_media(media_url, game, media_type, system_name)
+        
+        if success:
+            # Update the gamelist
+            write_gamelist_xml(games, gamelist_path)
+            return jsonify({'success': True, 'message': 'Media downloaded successfully'})
+        else:
+            return jsonify({'error': 'Failed to download media'}), 500
+        
+    except Exception as e:
+        print(f"Error downloading multiscraper media: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+def run_async_safely(coro):
+    """Safely run an async coroutine, handling event loop conflicts"""
+    try:
+        # Try to get the current event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're already in an async context, we need to run in a new thread
+            import concurrent.futures
+            import threading
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(coro)
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()
+        else:
+            # No event loop running, we can use asyncio.run
+            return asyncio.run(coro)
+    except RuntimeError:
+        # Fallback to asyncio.run if there are any issues
+        return asyncio.run(coro)
+
+def download_and_save_media(media_url, game, media_type, system_name):
+    """Download and save media to the appropriate directory"""
+    try:
+        print(f"🔧 DEBUG: download_and_save_media called with URL: {media_url}, type: {media_type}, system: {system_name}")
+        
+        # Get media field configuration
+        config_path = os.path.join('var', 'config', 'config.json')
+        if not os.path.exists(config_path):
+            print(f"🔧 DEBUG: Config file not found at {config_path}")
+            return False
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        if 'media_fields' not in config:
+            print(f"🔧 DEBUG: No media_fields in config")
+            return False
+            
+        if media_type not in config['media_fields']:
+            print(f"🔧 DEBUG: Media type '{media_type}' not found in config. Available types: {list(config['media_fields'].keys())}")
+            return False
+        
+        media_config = config['media_fields'][media_type]
+        target_dir = media_config.get('directory', f'media/{media_type}')
+        target_extension = media_config.get('target_extension', '.png')
+        
+        print(f"🔧 DEBUG: Media config - target_dir: {target_dir}, target_extension: {target_extension}")
+        
+        if not target_dir.startswith('media/'):
+            target_dir = f'media/{target_dir}'
+        
+        # Create target directory
+        full_target_dir = os.path.join('roms', system_name, target_dir)
+        print(f"🔧 DEBUG: Creating target directory: {full_target_dir}")
+        os.makedirs(full_target_dir, exist_ok=True)
+        
+        # Generate filename
+        media_filename = create_media_filename(game.get('path', ''), target_extension)
+        target_path = os.path.join(full_target_dir, media_filename)
+        print(f"🔧 DEBUG: Target file path: {target_path}")
+        
+        # Download the media
+        print(f"🔧 DEBUG: Downloading from URL: {media_url}")
+        import requests
+        response = requests.get(media_url, timeout=30)
+        response.raise_for_status()
+        print(f"🔧 DEBUG: Download successful, content length: {len(response.content)}")
+        
+        # Save the file
+        with open(target_path, 'wb') as f:
+            f.write(response.content)
+        print(f"🔧 DEBUG: File saved to {target_path}")
+        
+        # Update game data
+        relative_path = os.path.join(target_dir, media_filename)
+        game[media_type] = relative_path
+        print(f"🔧 DEBUG: Updated game[{media_type}] = {relative_path}")
+        
+        print(f"🔧 DEBUG: Downloaded media to {target_path}")
+        return True
+        
+    except Exception as e:
+        print(f"🔧 DEBUG: Error downloading media: {e}")
+        import traceback
+        print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
+        return False
+
 @app.route('/api/find-best-matches-mobygames', methods=['POST'])
 @login_required
 def find_best_matches_mobygames_endpoint():
@@ -11268,7 +11557,7 @@ def apply_manual_scrap(system_name):
         app.logger.error(f'Error in manual scrap: {str(e)}')
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
 
-async def scrape_igdb_manual(game, system_name, system_config):
+async def scrape_igdb_manual(game, system_name, system_config, target_media_type=None):
     """Scrape IGDB data for manual scrap (returns data without writing files)"""
     try:
         # Get IGDB configuration
@@ -11315,60 +11604,66 @@ async def scrape_igdb_manual(game, system_name, system_config):
                     return gamelist_field
             return default_field
         
-        # Extract text fields
+        # Extract text fields (skip if target_media_type is specified for speed)
         text_fields = {}
-        if igdb_game.get('name'):
-            text_fields['name'] = igdb_game['name']
-        if igdb_game.get('summary'):
-            text_fields['desc'] = igdb_game['summary']
-        if igdb_game.get('first_release_date'):
-            # Convert timestamp to ISO 8601 format
-            text_fields['releasedate'] = format_releasedate_to_iso8601(igdb_game['first_release_date'])
-        
-        # Get genres
-        if igdb_game.get('genres'):
+        if not target_media_type:
+            import time
+            text_start_time = time.time()
+            if igdb_game.get('name'):
+                text_fields['name'] = igdb_game['name']
+            if igdb_game.get('summary'):
+                text_fields['desc'] = igdb_game['summary']
+            if igdb_game.get('first_release_date'):
+                # Convert timestamp to ISO 8601 format
+                text_fields['releasedate'] = format_releasedate_to_iso8601(igdb_game['first_release_date'])
+            
+            # Get genres
+            if igdb_game.get('genres'):
+                try:
+                    genre_ids = igdb_game['genres']
+                    # Map genre IDs to names using cache
+                    genre_names = map_igdb_genre_ids_to_names(genre_ids)
+                    if genre_names:
+                        text_fields['genre'] = ', '.join(genre_names)
+                except Exception as e:
+                    print(f"Error getting genres: {e}")
+            
+            # Get involved companies
             try:
-                genre_ids = igdb_game['genres']
-                # Map genre IDs to names using cache
-                genre_names = map_igdb_genre_ids_to_names(genre_ids)
-                if genre_names:
-                    text_fields['genre'] = ', '.join(genre_names)
+                involved_companies = await fetch_igdb_involved_companies(
+                    async_client, access_token, igdb_config['client_id'], igdb_game['id']
+                )
+                if involved_companies:
+                    # Extract company IDs first
+                    company_ids = [company.get('company') for company in involved_companies if company.get('company')]
+                    
+                    # Ensure company cache is loaded with required companies
+                    if company_ids:
+                        company_cache = await ensure_igdb_company_cache(company_ids)
+                    else:
+                        company_cache = load_igdb_company_cache()
+                    
+                    developers = []
+                    publishers = []
+                    for company in involved_companies:
+                        company_id = company.get('company')
+                        if company_id:
+                            company_name = get_igdb_company_name(company_id, company_cache)
+                            if company_name and not company_name.startswith('Company '):
+                                if company.get('developer'):
+                                    developers.append(company_name)
+                                if company.get('publisher'):
+                                    publishers.append(company_name)
+                    
+                    if developers:
+                        text_fields['developer'] = ', '.join(developers)
+                    if publishers:
+                        text_fields['publisher'] = ', '.join(publishers)
             except Exception as e:
-                print(f"Error getting genres: {e}")
-        
-        # Get involved companies
-        try:
-            involved_companies = await fetch_igdb_involved_companies(
-                async_client, access_token, igdb_config['client_id'], igdb_game['id']
-            )
-            if involved_companies:
-                # Extract company IDs first
-                company_ids = [company.get('company') for company in involved_companies if company.get('company')]
-                
-                # Ensure company cache is loaded with required companies
-                if company_ids:
-                    company_cache = await ensure_igdb_company_cache(company_ids)
-                else:
-                    company_cache = load_igdb_company_cache()
-                
-                developers = []
-                publishers = []
-                for company in involved_companies:
-                    company_id = company.get('company')
-                    if company_id:
-                        company_name = get_igdb_company_name(company_id, company_cache)
-                        if company_name and not company_name.startswith('Company '):
-                            if company.get('developer'):
-                                developers.append(company_name)
-                            if company.get('publisher'):
-                                publishers.append(company_name)
-                
-                if developers:
-                    text_fields['developer'] = ', '.join(developers)
-                if publishers:
-                    text_fields['publisher'] = ', '.join(publishers)
-        except Exception as e:
-            print(f"Error getting involved companies: {e}")
+                print(f"Error getting involved companies: {e}")
+            
+            text_end_time = time.time()
+            print(f"⏱️ IGDB text field extraction took {text_end_time - text_start_time:.2f} seconds")
         
         # Extract media fields using IGDB task helpers, normalize URLs like in downloads
         media_fields: Dict[str, List[str]] = {}
@@ -11391,77 +11686,168 @@ async def scrape_igdb_manual(game, system_name, system_config):
             normalized_url = normalize_igdb_url(url)
             media_fields.setdefault(mapped_field, []).append(normalized_url)
 
-        # Parallelize IGDB media API calls for faster execution
-        print(f"🚀 IGDB MANUAL SCRAP: Starting parallel media API calls for game {igdb_game['id']}")
-        
-        async def fetch_cover():
-            try:
-                return await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game.get('name', '')))
-            except Exception as e:
-                print(f"Error getting IGDB cover: {e}")
-                return None
-        
-        async def fetch_screenshots():
-            try:
-                return await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            except Exception as e:
-                print(f"Error getting IGDB screenshots: {e}")
-                return None
-        
-        async def fetch_artworks():
-            try:
-                return await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            except Exception as e:
-                print(f"Error getting IGDB artworks: {e}")
-                return None
-        
-        async def fetch_logos():
-            try:
-                return await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-            except Exception as e:
-                print(f"Error getting IGDB logos: {e}")
-                return None
-        
-        # Execute all media API calls in parallel
-        cover, screenshots, artworks, logos = await asyncio.gather(
-            fetch_cover(),
-            fetch_screenshots(), 
-            fetch_artworks(),
-            fetch_logos(),
-            return_exceptions=True
-        )
-        
-        print(f"✅ IGDB MANUAL SCRAP: Parallel media API calls completed for game {igdb_game['id']}")
-        
-        # Process cover results
-        if cover and not isinstance(cover, Exception) and cover.get('url'):
-            add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
-        
-        # Process screenshots results
-        if screenshots and not isinstance(screenshots, Exception):
-            for screenshot in screenshots:
-                if screenshot and screenshot.get('url'):
-                    add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
-        
-        # Process artworks results
-        if artworks and not isinstance(artworks, Exception):
-            for artwork in artworks:
-                if artwork and artwork.get('url'):
-                    add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
-        
-        # Process logos results
-        if logos and not isinstance(logos, Exception):
-            for logo in logos:
-                if logo and logo.get('url'):
-                    # Find the gamelist field that maps to logos
-                    logo_field = None
-                    for field, igdb_type in igdb_image_mapping.items():
-                        if igdb_type == 'logos':
-                            logo_field = field
-                            break
-                    if not logo_field:
-                        logo_field = 'marquee'
-                    add_media(logo_field, logo.get('url'))
+        # Optimize media API calls based on target_media_type
+        if target_media_type:
+            # Only fetch the specific media type needed
+            print(f"🚀 IGDB MANUAL SCRAP: Fetching only {target_media_type} for game {igdb_game['id']}")
+            
+            # Determine which IGDB API to call based on target media type
+            target_igdb_type = None
+            for field, igdb_type in igdb_image_mapping.items():
+                if field == target_media_type:
+                    target_igdb_type = igdb_type
+                    break
+            
+            # If no mapping found, use heuristics
+            if not target_igdb_type:
+                if target_media_type in ['image', 'boxart']:
+                    target_igdb_type = 'cover'
+                elif target_media_type in ['fanart']:
+                    target_igdb_type = 'artworks'
+                elif target_media_type in ['marquee']:
+                    target_igdb_type = 'logos'
+                elif target_media_type in ['screenshot']:
+                    target_igdb_type = 'screenshots'
+            
+            # Fetch only the needed media type
+            if target_igdb_type == 'cover':
+                try:
+                    import time
+                    start_time = time.time()
+                    cover = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game.get('name', '')))
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'covers' took {end_time - start_time:.2f} seconds")
+                    if cover and cover.get('url'):
+                        add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
+                except Exception as e:
+                    print(f"Error getting IGDB cover: {e}")
+            elif target_igdb_type == 'screenshots':
+                try:
+                    import time
+                    start_time = time.time()
+                    screenshots = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'screenshots' took {end_time - start_time:.2f} seconds")
+                    if screenshots:
+                        for screenshot in screenshots:
+                            if screenshot and screenshot.get('url'):
+                                add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
+                except Exception as e:
+                    print(f"Error getting IGDB screenshots: {e}")
+            elif target_igdb_type == 'artworks':
+                try:
+                    import time
+                    start_time = time.time()
+                    artworks = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'artworks' took {end_time - start_time:.2f} seconds")
+                    if artworks:
+                        for artwork in artworks:
+                            if artwork and artwork.get('url'):
+                                add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
+                except Exception as e:
+                    print(f"Error getting IGDB artworks: {e}")
+            elif target_igdb_type == 'logos':
+                try:
+                    import time
+                    start_time = time.time()
+                    logos = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'logos' took {end_time - start_time:.2f} seconds")
+                    if logos:
+                        for logo in logos:
+                            if logo and logo.get('url'):
+                                logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
+                                add_media(logo_field, logo.get('url'))
+                except Exception as e:
+                    print(f"Error getting IGDB logos: {e}")
+        else:
+            # Fetch all media types (original behavior)
+            print(f"🚀 IGDB MANUAL SCRAP: Starting parallel media API calls for game {igdb_game['id']}")
+            
+            async def fetch_cover():
+                try:
+                    import time
+                    start_time = time.time()
+                    result = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game.get('name', '')))
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'covers' took {end_time - start_time:.2f} seconds")
+                    return result
+                except Exception as e:
+                    print(f"Error getting IGDB cover: {e}")
+                    return None
+            
+            async def fetch_screenshots():
+                try:
+                    import time
+                    start_time = time.time()
+                    result = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'screenshots' took {end_time - start_time:.2f} seconds")
+                    return result
+                except Exception as e:
+                    print(f"Error getting IGDB screenshots: {e}")
+                    return None
+            
+            async def fetch_artworks():
+                try:
+                    import time
+                    start_time = time.time()
+                    result = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'artworks' took {end_time - start_time:.2f} seconds")
+                    return result
+                except Exception as e:
+                    print(f"Error getting IGDB artworks: {e}")
+                    return None
+            
+            async def fetch_logos():
+                try:
+                    import time
+                    start_time = time.time()
+                    result = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    end_time = time.time()
+                    print(f"⏱️ IGDB API call 'logos' took {end_time - start_time:.2f} seconds")
+                    return result
+                except Exception as e:
+                    print(f"Error getting IGDB logos: {e}")
+                    return None
+            
+            # Execute all media API calls in parallel
+            import time
+            parallel_start_time = time.time()
+            cover, screenshots, artworks, logos = await asyncio.gather(
+                fetch_cover(),
+                fetch_screenshots(), 
+                fetch_artworks(),
+                fetch_logos(),
+                return_exceptions=True
+            )
+            parallel_end_time = time.time()
+            print(f"✅ IGDB MANUAL SCRAP: Parallel media API calls completed for game {igdb_game['id']} in {parallel_end_time - parallel_start_time:.2f} seconds")
+            
+            # Process cover results
+            if cover and not isinstance(cover, Exception) and cover.get('url'):
+                add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
+            
+            # Process screenshots results
+            if screenshots and not isinstance(screenshots, Exception):
+                for screenshot in screenshots:
+                    if screenshot and screenshot.get('url'):
+                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
+            
+            # Process artworks results
+            if artworks and not isinstance(artworks, Exception):
+                for artwork in artworks:
+                    if artwork and artwork.get('url'):
+                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
+            
+            # Process logos results
+            if logos and not isinstance(logos, Exception):
+                for logo in logos:
+                    if logo and logo.get('url'):
+                        logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
+                        add_media(logo_field, logo.get('url'))
         
         return {
             'text_fields': text_fields,
@@ -11472,7 +11858,7 @@ async def scrape_igdb_manual(game, system_name, system_config):
         print(f"Error in IGDB manual scraping: {e}")
         return None
 
-async def scrape_steam_manual(game, system_name):
+async def scrape_steam_manual(game, system_name, target_media_type=None):
     """Scrape Steam data for manual scrap (returns data without writing files)"""
     try:
         steam_id = game.get('steamid')
@@ -11489,69 +11875,109 @@ async def scrape_steam_manual(game, system_name):
         if not steam_data:
             return None
         
-        # Extract text fields
+        # Extract text fields (skip if target_media_type is specified for speed)
         text_fields = {}
-        if steam_data.get('name'):
-            text_fields['name'] = steam_data['name']
-        if steam_data.get('short_description'):
-            text_fields['desc'] = steam_data['short_description']
-        if steam_data.get('release_date', {}).get('date'):
-            # Convert Steam date format to ISO 8601 format
-            release_date = steam_data['release_date']['date']
-            if release_date:
-                text_fields['releasedate'] = format_releasedate_to_iso8601(release_date)
-        
-        # Get developers and publishers
-        if steam_data.get('developers'):
-            text_fields['developer'] = ', '.join(steam_data['developers'])
-        if steam_data.get('publishers'):
-            text_fields['publisher'] = ', '.join(steam_data['publishers'])
-        
-        # Get genres
-        if steam_data.get('genres'):
-            genre_names = [genre.get('description', '') for genre in steam_data['genres'] if genre.get('description')]
-            if genre_names:
-                text_fields['genre'] = ', '.join(genre_names)
+        if not target_media_type:
+            if steam_data.get('name'):
+                text_fields['name'] = steam_data['name']
+            if steam_data.get('short_description'):
+                text_fields['desc'] = steam_data['short_description']
+            if steam_data.get('release_date', {}).get('date'):
+                # Convert Steam date format to ISO 8601 format
+                release_date = steam_data['release_date']['date']
+                if release_date:
+                    text_fields['releasedate'] = format_releasedate_to_iso8601(release_date)
+            
+            # Get developers and publishers
+            if steam_data.get('developers'):
+                text_fields['developer'] = ', '.join(steam_data['developers'])
+            if steam_data.get('publishers'):
+                text_fields['publisher'] = ', '.join(steam_data['publishers'])
+            
+            # Get genres
+            if steam_data.get('genres'):
+                genre_names = [genre.get('description', '') for genre in steam_data['genres'] if genre.get('description')]
+                if genre_names:
+                    text_fields['genre'] = ', '.join(genre_names)
         
         # Extract media fields (arrays), using config mapping if present
         media_fields: Dict[str, List[str]] = {}
         steam_image_mapping = scrappers_config.get('steam', {}).get('image_type_mappings', {})
 
-        # Build known Steam CDN URLs by steam_id
-        capsule_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg"
-        logo_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png"
-        hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
+        # Build known Steam CDN URLs by steam_id (optimize based on target_media_type)
+        if target_media_type:
+            # Only build URLs for the target media type
+            print(f"🚀 Steam MANUAL SCRAP: Building URLs only for {target_media_type}")
+            
+            # Find the Steam type that maps to the target media type
+            target_steam_type = None
+            for field, steam_type in steam_image_mapping.items():
+                if field == target_media_type:
+                    target_steam_type = steam_type
+                    break
+            
+            # If no mapping found, use heuristics
+            if not target_steam_type:
+                if target_media_type in ['image', 'boxart']:
+                    target_steam_type = 'capsule'
+                elif target_media_type in ['marquee']:
+                    target_steam_type = 'logo'
+                elif target_media_type in ['fanart']:
+                    target_steam_type = 'hero'
+            
+            # Build only the needed URL
+            if target_steam_type == 'capsule':
+                capsule_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg"
+                capsule_field = target_media_type
+                media_fields.setdefault(capsule_field, []).append(capsule_url)
+                # Also include header_image from API if present
+                if steam_data.get('header_image'):
+                    media_fields.setdefault(capsule_field, []).append(steam_data['header_image'])
+            elif target_steam_type == 'logo':
+                logo_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png"
+                logo_field = target_media_type
+                media_fields.setdefault(logo_field, []).append(logo_url)
+            elif target_steam_type == 'hero':
+                hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
+                hero_field = target_media_type
+                media_fields.setdefault(hero_field, []).append(hero_url)
+        else:
+            # Build all URLs (original behavior)
+            print(f"🚀 Steam MANUAL SCRAP: Building all URLs")
+            capsule_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg"
+            logo_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png"
+            hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
 
-        # Map and append as arrays
-        capsule_field = None
-        logo_field = None
-        hero_field = None
-        
-        # Find the gamelist fields that map to these Steam types
-        for field, steam_type in steam_image_mapping.items():
-            if steam_type == 'capsule':
-                capsule_field = field
-            elif steam_type == 'logo':
-                logo_field = field
-            elif steam_type == 'hero':
-                hero_field = field
-        
-        # Use defaults if not found
-        if not capsule_field:
-            capsule_field = 'boxart'
-        if not logo_field:
-            logo_field = 'marquee'
-        if not hero_field:
-            hero_field = 'fanart'
+            # Map and append as arrays
+            capsule_field = None
+            logo_field = None
+            hero_field = None
+            
+            # Find the gamelist fields that map to these Steam types
+            for field, steam_type in steam_image_mapping.items():
+                if steam_type == 'capsule':
+                    capsule_field = field
+                elif steam_type == 'logo':
+                    logo_field = field
+                elif steam_type == 'hero':
+                    hero_field = field
+            
+            # Use defaults if not found
+            if not capsule_field:
+                capsule_field = 'boxart'
+            if not logo_field:
+                logo_field = 'marquee'
+            if not hero_field:
+                hero_field = 'fanart'
 
-        media_fields.setdefault(capsule_field, []).append(capsule_url)
-        media_fields.setdefault(logo_field, []).append(logo_url)
-        media_fields.setdefault(hero_field, []).append(hero_url)
+            media_fields.setdefault(capsule_field, []).append(capsule_url)
+            media_fields.setdefault(logo_field, []).append(logo_url)
+            media_fields.setdefault(hero_field, []).append(hero_url)
 
-        # Also include header_image from API if present
-        if steam_data.get('header_image'):
-            # Use capsule field for header image as fallback
-            media_fields.setdefault(capsule_field, []).append(steam_data['header_image'])
+            # Also include header_image from API if present
+            if steam_data.get('header_image'):
+                # Use capsule field for header image as fallback
+                media_fields.setdefault(capsule_field, []).append(steam_data['header_image'])
         
         return {
             'text_fields': text_fields,
@@ -11562,7 +11988,7 @@ async def scrape_steam_manual(game, system_name):
         print(f"Error in Steam manual scraping: {e}")
         return None
 
-async def scrape_screenscraper_manual(game, system_name, system_config):
+async def scrape_screenscraper_manual(game, system_name, system_config, target_media_type=None):
     """Scrape ScreenScraper data for manual scrap (returns data without writing files)"""
     try:
         # Get existing ScreenScraper ID from game data
@@ -11612,62 +12038,63 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
         # Use the game data directly
         detailed_data = game_data
         
-        # Extract text fields
+        # Extract text fields (skip if target_media_type is specified for speed)
         text_fields = {}
-        if detailed_data.get('noms'):
-            # Get first name
-            names = detailed_data['noms']
-            if names and len(names) > 0:
-                if isinstance(names[0], dict):
-                    text_fields['name'] = names[0].get('text', '')
+        if not target_media_type:
+            if detailed_data.get('noms'):
+                # Get first name
+                names = detailed_data['noms']
+                if names and len(names) > 0:
+                    if isinstance(names[0], dict):
+                        text_fields['name'] = names[0].get('text', '')
+                    else:
+                        # If names[0] is not a dict, it might be a string or int
+                        text_fields['name'] = str(names[0])
+            
+            if detailed_data.get('synopsis'):
+                synopsis = detailed_data['synopsis']
+                if isinstance(synopsis, list) and len(synopsis) > 0:
+                    # Get the first synopsis entry (usually English)
+                    if isinstance(synopsis[0], dict) and 'text' in synopsis[0]:
+                        text_fields['desc'] = synopsis[0]['text']
+                    else:
+                        text_fields['desc'] = str(synopsis[0])
                 else:
-                    # If names[0] is not a dict, it might be a string or int
-                    text_fields['name'] = str(names[0])
-        
-        if detailed_data.get('synopsis'):
-            synopsis = detailed_data['synopsis']
-            if isinstance(synopsis, list) and len(synopsis) > 0:
-                # Get the first synopsis entry (usually English)
-                if isinstance(synopsis[0], dict) and 'text' in synopsis[0]:
-                    text_fields['desc'] = synopsis[0]['text']
-                else:
-                    text_fields['desc'] = str(synopsis[0])
-            else:
-                text_fields['desc'] = str(synopsis)
-        
-        if detailed_data.get('dates'):
-            # Get first date
-            dates = detailed_data['dates']
-            if dates and len(dates) > 0:
-                if isinstance(dates[0], dict):
-                    date_text = dates[0].get('text', '')
-                else:
-                    date_text = str(dates[0])
-                if date_text:
-                    # Convert various date formats to ISO 8601 format
-                    text_fields['releasedate'] = format_releasedate_to_iso8601(date_text)
-        
-        # Extract publisher from editeur.text
-        if detailed_data.get('editeur') and isinstance(detailed_data['editeur'], dict):
-            if 'text' in detailed_data['editeur']:
-                text_fields['publisher'] = detailed_data['editeur']['text']
-        
-        # Extract developer from developpeur.text
-        if detailed_data.get('developpeur') and isinstance(detailed_data['developpeur'], dict):
-            if 'text' in detailed_data['developpeur']:
-                text_fields['developer'] = detailed_data['developpeur']['text']
-        
-        # Extract genres from genres[noms[text]] with langue='en', concatenate with '/'
-        if detailed_data.get('genres') and isinstance(detailed_data['genres'], list):
-            genre_names = []
-            for genre in detailed_data['genres']:
-                if isinstance(genre, dict) and 'noms' in genre and isinstance(genre['noms'], list):
-                    for nom in genre['noms']:
-                        if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
-                            genre_names.append(nom['text'])
-                            break
-            if genre_names:
-                text_fields['genre'] = '/'.join(genre_names)
+                    text_fields['desc'] = str(synopsis)
+            
+            if detailed_data.get('dates'):
+                # Get first date
+                dates = detailed_data['dates']
+                if dates and len(dates) > 0:
+                    if isinstance(dates[0], dict):
+                        date_text = dates[0].get('text', '')
+                    else:
+                        date_text = str(dates[0])
+                    if date_text:
+                        # Convert various date formats to ISO 8601 format
+                        text_fields['releasedate'] = format_releasedate_to_iso8601(date_text)
+            
+            # Extract publisher from editeur.text
+            if detailed_data.get('editeur') and isinstance(detailed_data['editeur'], dict):
+                if 'text' in detailed_data['editeur']:
+                    text_fields['publisher'] = detailed_data['editeur']['text']
+            
+            # Extract developer from developpeur.text
+            if detailed_data.get('developpeur') and isinstance(detailed_data['developpeur'], dict):
+                if 'text' in detailed_data['developpeur']:
+                    text_fields['developer'] = detailed_data['developpeur']['text']
+            
+            # Extract genres from genres[noms[text]] with langue='en', concatenate with '/'
+            if detailed_data.get('genres') and isinstance(detailed_data['genres'], list):
+                genre_names = []
+                for genre in detailed_data['genres']:
+                    if isinstance(genre, dict) and 'noms' in genre and isinstance(genre['noms'], list):
+                        for nom in genre['noms']:
+                            if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
+                                genre_names.append(nom['text'])
+                                break
+                if genre_names:
+                    text_fields['genre'] = '/'.join(genre_names)
         
         # Extract media fields grouped by configured gamelist media fields
         media_fields: Dict[str, List[Dict]] = {}
@@ -11695,6 +12122,10 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
                     elif media_type in ['video', 'video-normalized']:
                         mapped_field = 'video'
                 
+                # Skip if target_media_type is specified and this doesn't match
+                if target_media_type and mapped_field != target_media_type:
+                    continue
+                
                 if mapped_field:
                     # Extract region information from ScreenScraper media
                     region_code = media.get('region', '')
@@ -11719,7 +12150,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config):
         print(f"Error in ScreenScraper manual scraping: {e}")
         return None
 
-async def scrape_steamgriddb_manual(game, system_name):
+async def scrape_steamgriddb_manual(game, system_name, target_media_type=None):
     """Scrape SteamGridDB data for manual scrap (returns data without writing files)"""
     try:
         steam_id = game.get('steamid')
@@ -11741,8 +12172,39 @@ async def scrape_steamgriddb_manual(game, system_name):
             if not steamgrid_id:
                 return None
         
-        # Get media data
-        media_types = ['grids', 'heroes', 'logos']
+        # Get media data (optimize based on target_media_type)
+        if target_media_type:
+            # Determine which SteamGridDB media type to fetch
+            sgd_image_mapping = scrappers_config.get('steamgriddb', {}).get('image_type_mappings', {})
+            target_sgd_type = None
+            
+            # Find the SteamGridDB type that maps to the target media type
+            for field, sgd_mapped_type in sgd_image_mapping.items():
+                if field == target_media_type:
+                    target_sgd_type = sgd_mapped_type
+                    break
+            
+            # If no mapping found, use heuristics
+            if not target_sgd_type:
+                if target_media_type in ['image', 'boxart']:
+                    target_sgd_type = 'grids'
+                elif target_media_type in ['fanart']:
+                    target_sgd_type = 'heroes'
+                elif target_media_type in ['marquee']:
+                    target_sgd_type = 'logos'
+            
+            # Only fetch the specific media type needed
+            if target_sgd_type:
+                print(f"🚀 SteamGridDB MANUAL SCRAP: Fetching only {target_sgd_type} for game {steamgrid_id}")
+                media_types = [target_sgd_type]
+            else:
+                print(f"🚀 SteamGridDB MANUAL SCRAP: Unknown target media type {target_media_type}, fetching all")
+                media_types = ['grids', 'heroes', 'logos']
+        else:
+            # Fetch all media types (original behavior)
+            print(f"🚀 SteamGridDB MANUAL SCRAP: Fetching all media types for game {steamgrid_id}")
+            media_types = ['grids', 'heroes', 'logos']
+        
         media_data = await steamgrid_service.get_steamgrid_media(steamgrid_id, media_types, api_key)
         
         # Extract media fields as arrays, using mapping
@@ -11819,7 +12281,7 @@ def extract_launchbox_text_fields(game_data, mapping_config):
     
     return text_fields
 
-async def scrape_mobygames_manual(game, system_name, system_config):
+async def scrape_mobygames_manual(game, system_name, system_config, target_media_type=None):
     """Scrape MobyGames data for manual scrap (returns data without writing files)"""
     try:
         # Get MobyGames configuration
@@ -11852,8 +12314,13 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         text_field_mapping = mobygames_config.get('mapping', {})
         image_type_mappings = mobygames_config.get('image_type_mappings', {})
         
-        # Extract text fields
-        text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)
+        # Extract text fields (skip if target_media_type is specified for speed)
+        text_fields = {}
+        if not target_media_type:
+            text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)
+            print(f"🚀 MobyGames MANUAL SCRAP: Extracted text fields")
+        else:
+            print(f"🚀 MobyGames MANUAL SCRAP: Skipping text field extraction for {target_media_type}")
         
         # Extract media fields
         platform_mapping = load_mobygames_platform_mapping()
@@ -11870,7 +12337,7 @@ async def scrape_mobygames_manual(game, system_name, system_config):
         logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
-async def scrape_launchbox_manual(game, system_name):
+async def scrape_launchbox_manual(game, system_name, target_media_type=None):
     """Scrape LaunchBox data for manual scrap (returns data without writing files)"""
     try:
         launchbox_id = game.get('launchboxid')
@@ -11893,11 +12360,14 @@ async def scrape_launchbox_manual(game, system_name):
         config = load_config()
         mapping_config = scrappers_config.get('launchbox', {}).get('mapping', {})
         
-        # Extract text fields using common logic
-        text_fields = extract_launchbox_text_fields(game_elem, mapping_config)
-        
-        # Debug: Print what fields were extracted
-        print(f"DEBUG: LaunchBox manual scrap extracted text_fields: {text_fields}")
+        # Extract text fields using common logic (skip if target_media_type is specified for speed)
+        text_fields = {}
+        if not target_media_type:
+            text_fields = extract_launchbox_text_fields(game_elem, mapping_config)
+            # Debug: Print what fields were extracted
+            print(f"DEBUG: LaunchBox manual scrap extracted text_fields: {text_fields}")
+        else:
+            print(f"🚀 LaunchBox MANUAL SCRAP: Skipping text field extraction for {target_media_type}")
         
         # Extract media fields from the images in the metadata (arrays per field)
         media_fields: Dict[str, List[Dict]] = {}
@@ -11925,6 +12395,10 @@ async def scrape_launchbox_manual(game, system_name):
                     # Check all fields to see if this image type maps to any of them
                     for gamelist_field, launchbox_types in lb_map.items():
                         if image_type in launchbox_types:
+                            # Skip if target_media_type is specified and this doesn't match
+                            if target_media_type and gamelist_field != target_media_type:
+                                continue
+                            
                             media_fields.setdefault(gamelist_field, []).append({
                                 'url': image_url,
                                 'region': region,

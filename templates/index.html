@@ -994,6 +994,32 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- Multiscraper Media Download Modal -->
+    <div class="modal fade" id="multiscraperMediaModal" tabindex="-1" aria-labelledby="multiscraperMediaModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="multiscraperMediaModalLabel">Multiscraper Media Download</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Game:</strong> <span id="multiscraperMediaGameName"></span><br>
+                        <strong>Media Type:</strong> <span id="multiscraperMediaType"></span>
+                        <div id="multiscraperMediaProgress" class="text-muted mt-1" style="display: none;"></div>
+                    </div>
+                    
+                    <div id="multiscraperMediaContent" class="row">
+                        <!-- Media options will be displayed here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- LaunchBox Media Download Modal -->
     <div class="modal fade" id="launchboxMediaModal" tabindex="-1" aria-labelledby="launchboxMediaModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
