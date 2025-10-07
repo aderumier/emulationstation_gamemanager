@@ -6238,8 +6238,11 @@ class GameCollectionManager {
             
             if (data.success && data.results && data.results.length > 0) {
                 
-                // Store the results and populate the table with original functionality
-                this.globalMatchResults = data.results;
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    this.globalMatchResults.set(result.game_data.path, result);
+                });
                 this.populateGlobalMatchTable('launchbox');
             } else {
                 this.showGlobalMatchEmpty();
@@ -6297,8 +6300,11 @@ class GameCollectionManager {
             
             if (data.success && data.results && data.results.length > 0) {
                 
-                // Store the results and populate the table with MobyGames functionality
-                this.globalMatchResults = data.results;
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    this.globalMatchResults.set(result.game_data.path, result);
+                });
                 this.populateGlobalMatchTable('mobygames');
             } else {
                 this.showGlobalMatchEmpty();
@@ -6356,8 +6362,11 @@ class GameCollectionManager {
             
             if (data.success && data.results && data.results.length > 0) {
                 
-                // Store the results and populate the table with Steam functionality
-                this.globalMatchResults = data.results;
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    this.globalMatchResults.set(result.game_data.path, result);
+                });
                 this.populateGlobalMatchTable('steam');
             } else {
                 this.showGlobalMatchEmpty();
@@ -6421,8 +6430,11 @@ class GameCollectionManager {
             
             if (data.success && data.results && data.results.length > 0) {
                 
-                // Store the results and show them in a modal
-                this.globalMatchResults = data.results;
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    this.globalMatchResults.set(result.game_data.path, result);
+                });
                 this.showGlobalMatchResultsModal(data.results, databaseType);
             } else {
                 this.showGlobalMatchEmpty();
@@ -6622,16 +6634,16 @@ class GameCollectionManager {
             return;
         }
 
-        // Get the original index from the row data attribute
+        // Get the game path from the row data attribute
         const row = select.closest('tr');
-        const originalIndex = row && row.dataset && row.dataset.originalIndex;
-        if (originalIndex === undefined || originalIndex === null) {
-            this.showAlert('Original index not found', 'error');
+        const gamePath = row && row.dataset && row.dataset.gamePath;
+        if (!gamePath) {
+            this.showAlert('Game path not found', 'error');
             return;
         }
 
-        // Use the original index to get the correct result
-        const result = this.globalMatchResults[parseInt(originalIndex)];
+        // Get the result directly from the Map using game path as key
+        const result = this.globalMatchResults.get(gamePath);
         if (!result) {
             this.showAlert('Game data not found', 'error');
             return;
@@ -6693,13 +6705,11 @@ class GameCollectionManager {
             tableRow.remove();
         }
 
-        // Remove from results array using original index
-        if (parseInt(originalIndex) < this.globalMatchResults.length) {
-            this.globalMatchResults.splice(parseInt(originalIndex), 1);
-        }
+        // Remove from results Map using game path as key
+        this.globalMatchResults.delete(gamePath);
         
         // Check if all games are processed
-        if (this.globalMatchResults.length === 0) {
+        if (this.globalMatchResults.size === 0) {
             this.hideGlobalMatchModal();
             this.showAlert('All matches have been processed!', 'success');
         }
@@ -6774,7 +6784,7 @@ class GameCollectionManager {
         const emptyDiv = document.getElementById('globalMatchEmpty');
         const tbody = document.getElementById('globalMatchTableBody');
         
-        if (!this.globalMatchResults || this.globalMatchResults.length === 0) {
+        if (!this.globalMatchResults || this.globalMatchResults.size === 0) {
             this.showGlobalMatchEmpty();
             return;
         }
@@ -6789,11 +6799,8 @@ class GameCollectionManager {
             tbody.innerHTML = '';
         }
         
-        // Sort results by highest matching score
-        const sortedResults = [...this.globalMatchResults].map((result, originalIndex) => ({
-            ...result,
-            originalIndex
-        })).sort((a, b) => {
+        // Convert Map to array and sort by highest matching score
+        const sortedResults = Array.from(this.globalMatchResults.values()).sort((a, b) => {
             let scoreA = 0, scoreB = 0;
             
             if (databaseType === 'launchbox') {
@@ -6810,18 +6817,17 @@ class GameCollectionManager {
         
         // Create rows for each game (now sorted by score)
         sortedResults.forEach((result, index) => {
-            const row = this.createGlobalMatchRow(result, index, result.originalIndex, databaseType);
+            const row = this.createGlobalMatchRow(result, index, result.game_data.path, databaseType);
             if (tbody) {
                 tbody.appendChild(row);
             }
         });
     }
 
-    createGlobalMatchRow(result, index, originalIndex, databaseType = 'launchbox') {
+    createGlobalMatchRow(result, index, gamePath, databaseType = 'launchbox') {
         const row = document.createElement('tr');
         row.id = `globalMatchRow_${index}`;
-        row.dataset.gamePath = result.game_data.path; // Store game path as data attribute
-        row.dataset.originalIndex = originalIndex; // Store original index
+        row.dataset.gamePath = gamePath; // Store game path as data attribute
         row.style.height = '40px'; // Compact row height
         
         const gameName = result.game_name || 'Unknown';
@@ -6960,84 +6966,6 @@ class GameCollectionManager {
         
         return row;
     }
-
-    async validateGlobalMatchLegacy(index) {
-        try {
-            const select = document.getElementById(`globalMatchSelect_${index}`);
-            if (!select || !select.value) {
-                this.showAlert('Please select a match first', 'warning');
-                return;
-            }
-            
-            // Get the original index from the row data attribute
-            const row = select.closest('tr');
-            const originalIndex = row && row.dataset && row.dataset.originalIndex;
-            
-            if (originalIndex === undefined || originalIndex === null) {
-                this.showAlert('Original index not found', 'error');
-                return;
-            }
-            
-            // Use the original index to get the correct result
-            const result = this.globalMatchResults[parseInt(originalIndex)];
-            
-            if (!result) {
-                this.showAlert('Game not found in results', 'error');
-                return;
-            }
-            
-            const matchIndex = parseInt(select.value);
-            const match = result.top_matches[matchIndex];
-            
-            if (!match) {
-                this.showAlert('Invalid match selected', 'error');
-                return;
-            }
-            
-            // Update the game in the gamelist
-            const gameData = result.game_data;
-            const gameFilePath = gameData.path;
-            
-            // Find the game in our local games array
-            const gameIndex = this.games.findIndex(g => g.path === gameFilePath);
-            if (gameIndex === -1) {
-                this.showAlert('Game not found in current collection', 'error');
-                return;
-            }
-            
-            // Update the game
-            this.games[gameIndex].launchboxid = match.database_id;
-            this.modifiedGames.add(this.games[gameIndex].id);
-            
-            // Save the gamelist directly to var directory without confirmation
-            await this.saveGameChanges();
-            
-            // Remove the row from the table
-            const tableRow = document.getElementById(`globalMatchRow_${index}`);
-            if (tableRow) {
-                tableRow.remove();
-            }
-            
-            // Remove from results array using original index
-            if (parseInt(originalIndex) < this.globalMatchResults.length) {
-                this.globalMatchResults.splice(parseInt(originalIndex), 1);
-            }
-            
-            // Re-populate the table with updated results
-            this.populateGlobalMatchTable();
-            
-            // Check if all games are processed
-            if (this.globalMatchResults.length === 0) {
-                this.showGlobalMatchEmpty();
-            }
-            
-            this.showAlert(`Successfully updated ${gameData.name} with LaunchBox ID: ${match.database_id}`, 'success');
-            
-        } catch (error) {
-            this.showAlert('Error validating match: ' + error.message, 'danger');
-        }
-    }
-
 
     async generate2DBoxForSelected() {
         try {
