@@ -52,11 +52,11 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-COPY gamemanager_2.4.2-1_all.deb .
+COPY gamemanager_2.4.4-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_2.4.2-1_all.deb / && \
-    rm gamemanager_2.4.2-1_all.deb
+RUN dpkg-deb -x gamemanager_2.4.4-1_all.deb / && \
+    rm gamemanager_2.4.4-1_all.deb
 
 # Install the package dependencies manually
 # Note: python3-jellyfish installation may fail due to network issues
