@@ -1269,7 +1269,8 @@
     "actionmax": {
         "launchbox": "WoW Action Max",
         "screenscraper": 81,
-        "igdb": "",
+        "igdb": 50,
+        "mobygames": "",
         "extensions": [
             ".7z",
             ".daphne",
@@ -1375,9 +1376,10 @@
         ]
     },
     "3dsen": {
-        "launchbox": "Nintendo Entertainment System",
-        "screenscraper": "3",
-        "igdb": "139",
+        "launchbox": "APF Imagination Machine",
+        "screenscraper": 3,
+        "igdb": "",
+        "mobygames": "",
         "extensions": [
             ".zip",
             "zip3"
@@ -2865,9 +2867,10 @@
         ]
     },
     "adrenaline": {
-        "launchbox": "Arcade",
-        "screenscraper": "269",
+        "launchbox": "3DO Interactive Multiplayer",
+        "screenscraper": 269,
         "igdb": "",
+        "mobygames": "",
         "extensions": [
             ".pc",
             ".wine",

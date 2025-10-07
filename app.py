@@ -5027,10 +5027,25 @@ def manage_systems():
                 extensions = data.get('extensions', [])
                 
                 # Convert numeric platforms to integers
-                if screenscraper_platform and screenscraper_platform.isdigit():
-                    screenscraper_platform = int(screenscraper_platform)
-                if igdb_platform and igdb_platform.isdigit():
-                    igdb_platform = int(igdb_platform)
+                if screenscraper_platform:
+                    if isinstance(screenscraper_platform, str) and screenscraper_platform.isdigit():
+                        screenscraper_platform = int(screenscraper_platform)
+                    elif isinstance(screenscraper_platform, int):
+                        # Already an integer, keep as is
+                        pass
+                    else:
+                        # Convert to string if it's not already
+                        screenscraper_platform = str(screenscraper_platform)
+                
+                if igdb_platform:
+                    if isinstance(igdb_platform, str) and igdb_platform.isdigit():
+                        igdb_platform = int(igdb_platform)
+                    elif isinstance(igdb_platform, int):
+                        # Already an integer, keep as is
+                        pass
+                    else:
+                        # Convert to string if it's not already
+                        igdb_platform = str(igdb_platform)
                 
                 # Validate system name (lowercase, no spaces)
                 if not system_name.islower() or ' ' in system_name:
@@ -5071,11 +5086,33 @@ def manage_systems():
             mobygames_platform = data.get('mobygames_platform', '')
             extensions = data.get('extensions', [])
             
+            # Debug logging
+            print(f"🔧 DEBUG: PUT systems - system_name: {system_name}")
+            print(f"🔧 DEBUG: PUT systems - launchbox_platform: {launchbox_platform} (type: {type(launchbox_platform)})")
+            print(f"🔧 DEBUG: PUT systems - screenscraper_platform: {screenscraper_platform} (type: {type(screenscraper_platform)})")
+            print(f"🔧 DEBUG: PUT systems - igdb_platform: {igdb_platform} (type: {type(igdb_platform)})")
+            print(f"🔧 DEBUG: PUT systems - mobygames_platform: {mobygames_platform} (type: {type(mobygames_platform)})")
+            
             # Convert numeric platforms to integers
-            if screenscraper_platform and screenscraper_platform.isdigit():
-                screenscraper_platform = int(screenscraper_platform)
-            if igdb_platform and igdb_platform.isdigit():
-                igdb_platform = int(igdb_platform)
+            if screenscraper_platform:
+                if isinstance(screenscraper_platform, str) and screenscraper_platform.isdigit():
+                    screenscraper_platform = int(screenscraper_platform)
+                elif isinstance(screenscraper_platform, int):
+                    # Already an integer, keep as is
+                    pass
+                else:
+                    # Convert to string if it's not already
+                    screenscraper_platform = str(screenscraper_platform)
+            
+            if igdb_platform:
+                if isinstance(igdb_platform, str) and igdb_platform.isdigit():
+                    igdb_platform = int(igdb_platform)
+                elif isinstance(igdb_platform, int):
+                    # Already an integer, keep as is
+                    pass
+                else:
+                    # Convert to string if it's not already
+                    igdb_platform = str(igdb_platform)
             
             # Check if system exists
             if system_name not in current_systems_config:

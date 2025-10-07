@@ -2300,10 +2300,10 @@ class GameCollectionManager {
         
         // Clear selection only when actually changing systems, not when refreshing the same system
         if (previousSystem && previousSystem !== systemName) {
-            if (this.gridApi) {
-                this.gridApi.deselectAll();
-            }
-            this.selectedGames = [];
+        if (this.gridApi) {
+            this.gridApi.deselectAll();
+        }
+        this.selectedGames = [];
         }
         
         // Reset filters when changing systems
@@ -5531,7 +5531,7 @@ class GameCollectionManager {
             
             this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}". Remember to save changes when ready.`, 'success');
         } else {
-            this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
+        this.showAlert(`IGDB ID set to ${igdbId} for "${gameName}"`, 'success');
         }
     }
     
@@ -6249,7 +6249,7 @@ class GameCollectionManager {
                 this.showAlert('No matches found for the selected games', 'info');
             }
             
-        } catch (error) {
+            } catch (error) {
             this.showAlert('Error finding best matches: ' + error.message, 'danger');
             this.hideGlobalMatchModal();
         } finally {
@@ -6306,7 +6306,7 @@ class GameCollectionManager {
                     this.globalMatchResults.set(result.game_data.path, result);
                 });
                 this.populateGlobalMatchTable('mobygames');
-            } else {
+        } else {
                 this.showGlobalMatchEmpty();
                 this.showAlert('No matches found for the selected games', 'info');
             }
@@ -7327,7 +7327,7 @@ class GameCollectionManager {
             }
         }
     }
-
+    
     async scrapLaunchbox() {
         if (!this.currentSystem) return;
         
@@ -11304,24 +11304,17 @@ class GameCollectionManager {
         // Event delegation for dynamically created elements
         const systemsTable = document.getElementById('systemsTable');
         if (systemsTable) {
-            // Handle platform, ScreenScraper, IGDB, and MobyGames select changes
-            systemsTable.addEventListener('change', (e) => {
-                if (e.target.classList.contains('platform-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'launchbox', value);
-                } else if (e.target.classList.contains('screenscraper-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'screenscraper', value);
-                } else if (e.target.classList.contains('igdb-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'igdb', value);
-                } else if (e.target.classList.contains('mobygames-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'mobygames', value);
+            // Handle platform field clicks
+            systemsTable.addEventListener('click', (e) => {
+                if (e.target.closest('.platform-field')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const field = e.target.closest('.platform-field');
+                    const systemName = field.dataset.system;
+                    const fieldType = field.dataset.field;
+                    const platformType = field.dataset.type;
+                    this.showPlatformSelector(systemName, fieldType, platformType, field);
                 }
             });
             
@@ -11507,31 +11500,25 @@ class GameCollectionManager {
         Object.entries(systems).forEach(([systemName, systemData]) => {
             const row = document.createElement('tr');
             
-            // Create platform combobox options
-            const platformOptions = platformsArray.map(platform => 
-                `<option value="${platform}" ${platform === systemData.launchbox ? 'selected' : ''}>${platform}</option>`
-            ).join('');
-            
-            // Create ScreenScraper systems combobox options
-            const screenscraperOptions = screenscraperArray.map(system => 
-                `<option value="${system.id}" ${system.id == systemData.screenscraper ? 'selected' : ''}>${system.name}</option>`
-            ).join('');
-            
-            // Create IGDB platforms combobox options
-            const igdbOptions = igdbArray.length > 0 
-                ? igdbArray.map(platform => 
-                    `<option value="${platform.id}" ${platform.id == systemData.igdb ? 'selected' : ''}>${platform.name}</option>`
-                ).join('')
-                : '<option value="" disabled>No IGDB platforms available (configure credentials to load)</option>';
-            
-            // Create MobyGames systems combobox options
-            const mobygamesOptions = mobygamesArray.map(system => {
-                const isSelected = system === systemData.mobygames;
-                if (isSelected) {
-                    console.log(`MobyGames: Selected ${system} for ${systemName} (${systemData.mobygames})`);
+            // Helper function to get display name for platform values
+            const getDisplayName = (value, type) => {
+                if (!value) return 'Not set';
+                
+                switch (type) {
+                    case 'launchbox':
+                        return value;
+                    case 'screenscraper':
+                        const screenscraperSystem = screenscraperArray.find(s => s.id == value);
+                        return screenscraperSystem ? screenscraperSystem.name : value;
+                    case 'igdb':
+                        const igdbPlatform = igdbArray.find(p => p.id == value);
+                        return igdbPlatform ? igdbPlatform.name : value;
+                    case 'mobygames':
+                        return value;
+                    default:
+                        return value;
                 }
-                return `<option value="${system}" ${isSelected ? 'selected' : ''}>${system}</option>`;
-            }).join('');
+            };
             
             row.innerHTML = `
                 <td>
@@ -11543,36 +11530,48 @@ class GameCollectionManager {
                     </div>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm platform-select" 
+                    <div class="platform-field" 
                             data-system="${systemName}"
-                            data-field="launchbox">
-                        <option value="">Select Platform...</option>
-                        ${platformOptions}
-                    </select>
+                         data-field="launchbox" 
+                         data-type="launchbox"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change LaunchBox platform">
+                        <span class="platform-display">${getDisplayName(systemData.launchbox, 'launchbox')}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm screenscraper-select" 
+                    <div class="platform-field" 
                             data-system="${systemName}"
-                            data-field="screenscraper">
-                        <option value="">Select Platform...</option>
-                        ${screenscraperOptions}
-                    </select>
+                         data-field="screenscraper" 
+                         data-type="screenscraper"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change ScreenScraper platform">
+                        <span class="platform-display">${getDisplayName(systemData.screenscraper, 'screenscraper')}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm igdb-select" 
+                    <div class="platform-field" 
                             data-system="${systemName}"
-                            data-field="igdb">
-                        <option value="">Select Platform...</option>
-                        ${igdbOptions}
-                    </select>
+                         data-field="igdb" 
+                         data-type="igdb"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change IGDB platform">
+                        <span class="platform-display">${getDisplayName(systemData.igdb, 'igdb')}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
                 </td>
                 <td>
-                    <select class="form-select form-select-sm mobygames-select" 
-                            data-system="${systemName}"
-                            data-field="mobygames">
-                        <option value="">Select Platform...</option>
-                        ${mobygamesOptions}
-                    </select>
+                    <div class="platform-field" 
+                         data-system="${systemName}" 
+                         data-field="mobygames" 
+                         data-type="mobygames"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change MobyGames platform">
+                        <span class="platform-display">${getDisplayName(systemData.mobygames, 'mobygames')}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
                 </td>
                 <td>
                     <input type="text" 
@@ -11665,6 +11664,152 @@ class GameCollectionManager {
         }
     }
     
+    async showPlatformSelector(systemName, fieldType, platformType, fieldElement) {
+        try {
+            let options = [];
+            let currentValue = '';
+            
+            // Get current value from the field
+            const currentDisplay = fieldElement.querySelector('.platform-display').textContent;
+            if (currentDisplay !== 'Not set') {
+                currentValue = currentDisplay;
+            }
+            
+            // Load options based on platform type
+            switch (platformType) {
+                case 'launchbox':
+                    options = await this.loadLaunchBoxPlatforms();
+                    break;
+                case 'screenscraper':
+                    options = await this.loadScreenScraperSystems();
+                    break;
+                case 'igdb':
+                    options = await this.loadIgdbPlatforms();
+                    break;
+                case 'mobygames':
+                    options = await this.loadMobygamesSystems();
+                    break;
+            }
+            
+            // Create and show dropdown
+            this.showPlatformDropdown(fieldElement, options, currentValue, systemName, fieldType, platformType);
+            
+        } catch (error) {
+            console.error('Error loading platform options:', error);
+            this.showAlert('Error loading platform options', 'danger');
+        }
+    }
+    
+    showPlatformDropdown(fieldElement, options, currentValue, systemName, fieldType, platformType) {
+        // Remove any existing dropdown
+        const existingDropdown = document.querySelector('.platform-dropdown');
+        if (existingDropdown) {
+            existingDropdown.remove();
+        }
+        
+        // Create dropdown container
+        const dropdown = document.createElement('div');
+        dropdown.className = 'platform-dropdown';
+        dropdown.style.cssText = `
+            position: absolute;
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            max-height: 300px;
+            overflow-y: auto;
+            min-width: 250px;
+        `;
+        
+        // Create options
+        const optionsHtml = options.map(option => {
+            let value, text, isSelected = false;
+            
+            switch (platformType) {
+                case 'launchbox':
+                    value = text = option;
+                    isSelected = option === currentValue;
+                    break;
+                case 'screenscraper':
+                    value = option.id;
+                    text = option.name;
+                    isSelected = option.name === currentValue;
+                    break;
+                case 'igdb':
+                    value = option.id;
+                    text = option.name;
+                    isSelected = option.name === currentValue;
+                    break;
+                case 'mobygames':
+                    value = text = option;
+                    isSelected = option === currentValue;
+                    break;
+            }
+            
+            return `
+                <div class="dropdown-option ${isSelected ? 'selected' : ''}" 
+                     data-value="${value}" 
+                     style="padding: 0.5rem 1rem; cursor: pointer; border-bottom: 1px solid #f8f9fa; ${isSelected ? 'background-color: #e3f2fd;' : ''}"
+                     onmouseover="this.style.backgroundColor='#f8f9fa'" 
+                     onmouseout="this.style.backgroundColor='${isSelected ? '#e3f2fd' : 'white'}'">
+                    ${text}
+                </div>
+            `;
+        }).join('');
+        
+        // Add "Clear" option
+        const clearOption = `
+            <div class="dropdown-option" 
+                 data-value="" 
+                 style="padding: 0.5rem 1rem; cursor: pointer; border-bottom: 1px solid #f8f9fa; color: #6c757d;"
+                 onmouseover="this.style.backgroundColor='#f8f9fa'" 
+                 onmouseout="this.style.backgroundColor='white'">
+                <i class="bi bi-x-circle me-2"></i>Clear selection
+            </div>
+        `;
+        
+        dropdown.innerHTML = clearOption + optionsHtml;
+        
+        // Position dropdown
+        const rect = fieldElement.getBoundingClientRect();
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.top = (rect.bottom + 2) + 'px';
+        
+        // Add to document
+        document.body.appendChild(dropdown);
+        
+        // Handle option clicks
+        dropdown.addEventListener('click', (e) => {
+            const option = e.target.closest('.dropdown-option');
+            if (option) {
+                const value = option.dataset.value;
+                const text = option.textContent.trim();
+                
+                // Update the field display
+                const displaySpan = fieldElement.querySelector('.platform-display');
+                displaySpan.textContent = value ? text : 'Not set';
+                
+                // Save the change
+                this.saveInlineField(systemName, fieldType, value);
+                
+                // Remove dropdown
+                dropdown.remove();
+            }
+        });
+        
+        // Close dropdown when clicking outside
+        const closeDropdown = (e) => {
+            if (!dropdown.contains(e.target) && !fieldElement.contains(e.target)) {
+                dropdown.remove();
+                document.removeEventListener('click', closeDropdown);
+            }
+        };
+        
+        // Add click listener immediately since we're preventing event bubbling
+        document.addEventListener('click', closeDropdown);
+    }
+    
     async saveInlineField(systemName, field, value) {
         try {
             // Get current system data
@@ -11702,6 +11847,10 @@ class GameCollectionManager {
                 updateData.extensions = value.trim() ? 
                     value.split(',').map(ext => ext.trim()).filter(ext => ext) : [];
             }
+            
+            // Debug logging
+            console.log('🔧 DEBUG: Frontend sending updateData:', updateData);
+            console.log('🔧 DEBUG: Field being updated:', field, 'Value:', value);
             
             // Save the update
             const saveResponse = await fetch('/api/systems', {
@@ -11970,24 +12119,17 @@ class GameCollectionManager {
         // Event delegation for dynamically created elements
         const systemsTable = document.getElementById('systemsTable');
         if (systemsTable) {
-            // Handle platform, ScreenScraper, IGDB, and MobyGames select changes
-            systemsTable.addEventListener('change', (e) => {
-                if (e.target.classList.contains('platform-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'launchbox', value);
-                } else if (e.target.classList.contains('screenscraper-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'screenscraper', value);
-                } else if (e.target.classList.contains('igdb-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'igdb', value);
-                } else if (e.target.classList.contains('mobygames-select')) {
-                    const systemName = e.target.dataset.system;
-                    const value = e.target.value;
-                    this.saveInlineField(systemName, 'mobygames', value);
+            // Handle platform field clicks
+            systemsTable.addEventListener('click', (e) => {
+                if (e.target.closest('.platform-field')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const field = e.target.closest('.platform-field');
+                    const systemName = field.dataset.system;
+                    const fieldType = field.dataset.field;
+                    const platformType = field.dataset.type;
+                    this.showPlatformSelector(systemName, fieldType, platformType, field);
                 }
             });
             
