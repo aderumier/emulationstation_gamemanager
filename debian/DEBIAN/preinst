@@ -2,28 +2,9 @@
 set -e
 
 # Pre-installation script for GameManager
+# Configuration files are now managed by dpkg conffiles mechanism
 
-# Check if this is an upgrade (not a fresh installation)
-if [ "$1" = "upgrade" ] || [ "$1" = "install" ]; then
-    echo "Checking for existing configuration files..."
-    
-    # Check if config.json exists and was modified by user
-    if [ -f /opt/gamemanager/var/config/config.json ]; then
-        echo "Found existing config.json - backing up user modifications"
-        cp /opt/gamemanager/var/config/config.json /opt/gamemanager/var/config/config.json.user_backup
-    fi
-    
-    # Check if scrappers.json exists and was modified by user
-    if [ -f /opt/gamemanager/var/config/scrappers.json ]; then
-        echo "Found existing scrappers.json - backing up user modifications"
-        cp /opt/gamemanager/var/config/scrappers.json /opt/gamemanager/var/config/scrappers.json.user_backup
-    fi
-    
-    # Check if systems.json exists and was modified by user
-    if [ -f /opt/gamemanager/var/config/systems.json ]; then
-        echo "Found existing systems.json - backing up user modifications"
-        cp /opt/gamemanager/var/config/systems.json /opt/gamemanager/var/config/systems.json.user_backup
-    fi
-fi
+echo "GameManager pre-installation script completed."
+echo "Configuration files will be handled by dpkg conffiles mechanism."
 
 exit 0
