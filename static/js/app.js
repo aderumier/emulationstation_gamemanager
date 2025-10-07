@@ -6622,12 +6622,16 @@ class GameCollectionManager {
             return;
         }
         
-        // Use the original index stored on the row to access the correct result entry
+        // Use the game path to find the result instead of relying on array indices
         const row = select.closest('tr');
-        const originalIndex = row && row.dataset && row.dataset.originalIndex !== undefined
-            ? parseInt(row.dataset.originalIndex)
-            : index;
-        const result = this.globalMatchResults[originalIndex];
+        const gamePath = row && row.dataset && row.dataset.gamePath;
+        if (!gamePath) {
+            this.showAlert('Game path not found', 'error');
+            return;
+        }
+        
+        // Find the result by game path instead of index
+        const result = this.globalMatchResults.find(r => r.game_data && r.game_data.path === gamePath);
         if (!result) {
             this.showAlert('Game data not found', 'error');
             return;
@@ -6689,8 +6693,11 @@ class GameCollectionManager {
             tableRow.remove();
         }
         
-        // Remove from results array (use original index)
-        this.globalMatchResults.splice(originalIndex, 1);
+        // Remove from results array using game path
+        const resultIndex = this.globalMatchResults.findIndex(r => r.game_data && r.game_data.path === gamePath);
+        if (resultIndex !== -1) {
+            this.globalMatchResults.splice(resultIndex, 1);
+        }
         
         // Check if all games are processed
         if (this.globalMatchResults.length === 0) {
@@ -6938,7 +6945,14 @@ class GameCollectionManager {
         validateBtn.style.padding = '4px 8px';
         validateBtn.innerHTML = '<i class="bi bi-check-lg"></i> Validate';
         validateBtn.disabled = false; // Always enabled since we auto-select
-        validateBtn.onclick = () => this.validateGlobalMatch(index, databaseType);
+        validateBtn.onclick = async () => {
+            try {
+                await this.validateGlobalMatch(index, databaseType);
+            } catch (error) {
+                console.error('Error in button click handler:', error);
+                alert('Error in button click: ' + error.message);
+            }
+        };
         
         actionsCell.appendChild(validateBtn);
         row.appendChild(actionsCell);
@@ -6959,10 +6973,14 @@ class GameCollectionManager {
             // Get the game path from the row data attribute
             const row = select.closest('tr');
             const gamePath = row.dataset.gamePath;
-            const originalIndex = parseInt(row.dataset.originalIndex);
             
-            // Find the result using the original index
-            const result = this.globalMatchResults[originalIndex];
+            if (!gamePath) {
+                this.showAlert('Game path not found', 'error');
+                return;
+            }
+            
+            // Find the result using the game path
+            const result = this.globalMatchResults.find(r => r.game_data && r.game_data.path === gamePath);
             
             if (!result) {
                 this.showAlert('Game not found in results', 'error');
@@ -7001,8 +7019,11 @@ class GameCollectionManager {
                 tableRow.remove();
             }
             
-            // Remove from results array using original index
-            this.globalMatchResults.splice(originalIndex, 1);
+            // Remove from results array using game path
+            const resultIndex = this.globalMatchResults.findIndex(r => r.game_data && r.game_data.path === gamePath);
+            if (resultIndex !== -1) {
+                this.globalMatchResults.splice(resultIndex, 1);
+            }
             
             // Re-populate the table with updated results
             this.populateGlobalMatchTable();
