@@ -784,7 +784,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 @app.before_request
 def log_request_info():
     # Skip logging for frequent API calls to reduce console spam
-    if request.path not in ['/api/tasks', '/api/task/queue']:
+    if request.path not in ['/api/tasks', '/api/task/queue', '/api/task/status-and-queue']:
         print(f"DEBUG REQUEST: {request.method} {request.path} - Endpoint: {request.endpoint}")
 
 @app.before_request
@@ -2353,25 +2353,7 @@ def cleanup_old_backups(file_path, max_backups=10):
         print(f"❌ Error during backup cleanup for {file_path}: {e}")
 
 def create_media_filename(rom_path, media_extension):
-    """
-    Create a media filename based on ROM path and media extension.
-    Uses the ROM filename as-is since it's already validated.
-    
-    Args:
-        rom_path: Path to the ROM file OR already-extracted ROM filename without extension
-        media_extension: Extension for the media file (e.g., '.jpg', '.png', '.mp4')
-        
-    Returns:
-        Media filename using ROM name + media extension
-    """
-    # Check if rom_path is already a filename (no directory separators and no extension)
-    # or if it's a full path
-    if '/' in rom_path or '\\' in rom_path or rom_path.endswith(('.zip', '.7z', '.rar', '.iso', '.cue', '.bin', '.rom', '.nes', '.snes', '.smc', '.sfc', '.wsquashfs', '.wsquash')):
-        # It's a full path or has a ROM extension, extract filename without extension
-        rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
-    else:
-        # It's already a filename without extension, use as-is
-        rom_filename = rom_path
+    rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
     
     # Add the media extension
     return f"{rom_filename}{media_extension}"
@@ -7180,6 +7162,9 @@ def write_gamelist_xml(games, file_path):
                     field_elem = ET.SubElement(game_elem, field)
                     # Write raw text as-is; XML writer will handle escaping (& -> &amp;)
                     field_elem.text = str(value)
+                    # Debug logging for launchboxid
+                    if field == 'launchboxid':
+                        print(f"🔧 DEBUG: Writing launchboxid field: '{value}' (type: {type(value)}) as text: '{str(value)}'")
         
         # Write to file with formatting
         tree = ET.ElementTree(root)
@@ -7746,12 +7731,20 @@ def apply_partial_match():
         
         # Find and update the game
         game_updated = False
+        print(f"🔧 DEBUG: apply_partial_match - game_name: {game_name}, match_data: {match_data}")
         for i, game in enumerate(games):
             if game.get('name') == game_name:
+                print(f"🔧 DEBUG: Found game '{game_name}' in gamelist")
                 # Apply the match data
                 for field, value in match_data.items():
-                    if field in game and value:
+                    print(f"🔧 DEBUG: Processing field '{field}' with value '{value}' (type: {type(value)})")
+                    # Always update the field if value is provided (including 0 for launchboxid)
+                    if value is not None and value != '':
+                        old_value = game.get(field, '')
                         game[field] = value
+                        print(f"🔧 DEBUG: Updated {field}: '{old_value}' -> '{value}'")
+                    else:
+                        print(f"🔧 DEBUG: Skipped {field}: value is None or empty")
                 game_updated = True
                 break
         
@@ -7759,7 +7752,9 @@ def apply_partial_match():
             return jsonify({'error': 'Game not found in gamelist'}), 404
         
         # Save the updated gamelist
+        print(f"🔧 DEBUG: Saving gamelist with {len(games)} games to {gamelist_path}")
         write_gamelist_xml(games, gamelist_path)
+        print(f"🔧 DEBUG: Gamelist saved successfully")
         
         # Notify all connected clients about the gamelist update
         # Use the system_name parameter directly (it was already validated)
@@ -19929,8 +19924,6 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                                                     # Generate filename using common function
                                                     rom_path = game.get('path', '')
                                                     media_filename = create_media_filename(rom_path, target_extension)
-                                                    # Sanitize filename for filesystem compatibility
-                                                    media_filename = re.sub(r'[<>:"/\\|?*]', '_', media_filename)
                                                     
                                                     # Create media path using config directory
                                                     media_path = os.path.join(system_path, 'media', media_directory, media_filename)
