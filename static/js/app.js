@@ -5512,6 +5512,14 @@ class GameCollectionManager {
     }
     
     async showIgdbSearchModal(gameName, platformNameOrId, systemName) {
+        // Prevent multiple simultaneous requests
+        if (this.igdbSearchInProgress) {
+            console.log('🔧 DEBUG: IGDB search already in progress, ignoring request');
+            return;
+        }
+        
+        this.igdbSearchInProgress = true;
+        
         // Set the game name in the modal
         document.getElementById('igdbSearchGameName').textContent = gameName;
         
@@ -5539,6 +5547,7 @@ class GameCollectionManager {
         document.getElementById('igdbSearchSpinner').style.display = 'inline-block';
         
         try {
+            console.log('🔧 DEBUG: Making IGDB search request for:', gameName);
             // Search for games in IGDB
             const response = await fetch('/api/igdb/search', {
                 method: 'POST',
@@ -5568,6 +5577,9 @@ class GameCollectionManager {
         } catch (error) {
             document.getElementById('igdbSearchSpinner').style.display = 'none';
             this.showIgdbSearchError('Error searching IGDB games: ' + error.message);
+        } finally {
+            // Reset the flag to allow future requests
+            this.igdbSearchInProgress = false;
         }
     }
     
@@ -9052,7 +9064,17 @@ class GameCollectionManager {
     initializeEditModalIgdbSearch() {
         const modalFindIgdbMatchBtn = document.getElementById('modalFindIgdbMatchBtn');
         if (modalFindIgdbMatchBtn) {
-            modalFindIgdbMatchBtn.addEventListener('click', () => {
+            modalFindIgdbMatchBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Prevent rapid clicking
+                if (this.igdbSearchInProgress) {
+                    console.log('🔧 DEBUG: IGDB search button clicked but search already in progress');
+                    return;
+                }
+                
+                console.log('🔧 DEBUG: IGDB search button clicked');
                 this.showGameEditIgdbSearch();
             });
         }

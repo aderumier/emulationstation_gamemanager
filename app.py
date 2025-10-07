@@ -6105,19 +6105,18 @@ def search_igdb_games():
         if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
             return jsonify({'error': 'IGDB credentials not configured'}), 400
         
-        # Get access token
-        access_token = get_igdb_access_token()
+        # Get access token (async version for manual operations)
+        access_token = run_async_safely(get_igdb_access_token_async())
         if not access_token:
             return jsonify({'error': 'Failed to get IGDB access token'}), 500
         
-        # Get async client
-        import asyncio
-        async_client = asyncio.run(get_igdb_async_client())
+        # Get async client (manual version without rate limiting for search)
+        async_client = run_async_safely(get_igdb_manual_async_client())
         
         # Search for games
         if platform_id:
             # Search with platform filter
-            games = asyncio.run(search_igdb_games_by_name_async(
+            games = run_async_safely(search_igdb_games_by_name_async(
                 game_name, 
                 platform_id, 
                 access_token, 
@@ -6140,7 +6139,7 @@ def search_igdb_games():
             }
             
             # Make the request
-            response = asyncio.run(make_igdb_request_with_retry(async_client, search_url, headers, search_data))
+            response = run_async_safely(make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data))
             
             if response and response.status_code == 200:
                 games = response.json()
@@ -6162,6 +6161,7 @@ def search_igdb_games():
                 game['cover_id'] = None
                 game['cover_url'] = None
         
+        print(f"🔧 DEBUG: IGDB search completed - found {len(games)} games")
         return jsonify({
             'success': True,
             'games': games
@@ -6273,7 +6273,7 @@ def search_screenscraper_games():
         
         # Search for games using the new search_games_by_name method
         import asyncio
-        games_data = asyncio.run(screenscraper_service.search_games_by_name(game_name, system_name, limit))
+        games_data = run_async_safely(screenscraper_service.search_games_by_name(game_name, system_name, limit))
         
         # Format the results for the frontend
         games = []
@@ -6325,7 +6325,7 @@ def search_steam_games():
         steam_service = SteamService()
         
         # Get Steam apps list
-        apps = asyncio.run(steam_service.get_app_index())
+        apps = run_async_safely(steam_service.get_app_index())
         
         if not apps:
             return jsonify({'error': 'Failed to load Steam apps list'}), 500
@@ -6372,8 +6372,7 @@ def search_steamgriddb_games():
         # SteamGridDB service is already created above, no need to recreate it
         
         # Search for games using async function with 20 games limit
-        import asyncio
-        games = asyncio.run(steamgrid_service.get_steamgrid_id_by_name(game_name, api_key, limit=20))
+        games = run_async_safely(steamgrid_service.get_steamgrid_id_by_name(game_name, api_key, limit=20))
         
         return jsonify({
             'success': True,
@@ -17586,8 +17585,18 @@ async def get_igdb_access_token_async():
             'grant_type': 'client_credentials'
         }
         
-        async with httpx.AsyncClient(http2=True) as client:
-            response = await client.post(token_url, data=token_data)
+        async with httpx.AsyncClient(http2=True, timeout=10.0) as client:
+            print(f"🌐 HTTP REQUEST (TOKEN): POST {token_url}")
+            print(f"🌐 Token data: {token_data}")
+            try:
+                response = await client.post(token_url, data=token_data)
+                print(f"🌐 HTTP RESPONSE (TOKEN): {response.status_code}")
+                print(f"🌐 Response headers: {dict(response.headers)}")
+                if response.status_code != 200:
+                    print(f"🌐 Token response text: {response.text}")
+            except Exception as e:
+                print(f"🌐 HTTP REQUEST ERROR (TOKEN): {e}")
+                raise e
             
             if response.status_code == 200:
                 token_info = response.json()
@@ -17618,7 +17627,7 @@ async def get_igdb_access_token_async():
     except Exception as e:
         print(f"Error getting IGDB access token: {e}")
         return None
-async def make_igdb_request_with_retry(async_client, url, headers, data, max_retries=3):
+async def make_igdb_manual_request_with_retry(async_client, url, headers, data, max_retries=1):
     """Make an IGDB API request with retry logic for rate limiting"""
     import asyncio
     
@@ -17649,7 +17658,7 @@ async def make_igdb_request_with_retry(async_client, url, headers, data, max_ret
     
     return None
 
-async def make_igdb_manual_request_with_retry(async_client, url, headers, data, max_retries=3):
+async def make_igdb_manual_request_with_retry(async_client, url, headers, data, max_retries=1):
     """Make an IGDB API request with retry logic for manual scrap (no rate limiting)"""
     import asyncio
     
@@ -17704,7 +17713,7 @@ async def search_igdb_games_by_name_async(game_name, platform_id, access_token, 
         }
         
         # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             games = response.json()
@@ -17773,7 +17782,7 @@ async def fetch_igdb_involved_companies(async_client, access_token, client_id, g
         }
         
         # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             return response.json()
@@ -17914,7 +17923,7 @@ async def fetch_igdb_game_videos(async_client, access_token, client_id, game_id)
         }
         
         # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             videos = response.json()
@@ -18661,10 +18670,10 @@ async def get_igdb_manual_async_client():
                 keepalive_expiry=30.0        # Keep connections alive for 30 seconds
             ),
             timeout=httpx.Timeout(
-                connect=10.0,  # 10 seconds to establish connection
-                read=30.0,     # 30 seconds to read response
-                write=10.0,    # 10 seconds to write request
-                pool=5.0       # 5 seconds to get connection from pool
+                connect=5.0,   # 5 seconds to establish connection
+                read=10.0,     # 10 seconds to read response
+                write=5.0,     # 5 seconds to write request
+                pool=3.0       # 3 seconds to get connection from pool
             )
         )
         print("✅ IGDB manual async client initialized (no rate limiting, 8 connections)")
@@ -18691,6 +18700,15 @@ async def igdb_rate_limited_post(async_client, url, headers=None, content=None, 
     Rate limiting: 4 requests per second
     Connection pooling: Max 8 parallel connections with HTTP/2
     """
+    import time
+    start_time = time.time()
+    
+    # Log the request details
+    print(f"🌐 HTTP REQUEST (RATE-LIMITED): POST {url}")
+    print(f"🌐 Headers: {headers}")
+    if content:
+        print(f"🌐 Content: {content[:200]}{'...' if len(content) > 200 else ''}")
+    
     rate_limiter = get_igdb_rate_limiter()
     
     # Acquire rate limit before making the request (4 req/sec)
@@ -18699,7 +18717,25 @@ async def igdb_rate_limited_post(async_client, url, headers=None, content=None, 
     
     # Make the actual request using the connection pool
     # The httpx client will handle connection pooling (max 8 parallel)
-    return await async_client.post(url, headers=headers, content=content, **kwargs)
+    try:
+        response = await async_client.post(url, headers=headers, content=content, timeout=10.0, **kwargs)
+    except Exception as e:
+        print(f"🌐 HTTP REQUEST ERROR (RATE-LIMITED): {e}")
+        raise e
+    
+    end_time = time.time()
+    print(f"🌐 HTTP RESPONSE (RATE-LIMITED): {response.status_code} in {end_time - start_time:.3f}s")
+    print(f"🌐 Response headers: {dict(response.headers)}")
+    
+    # Log response content (full content)
+    try:
+        response_text = response.text
+        print(f"🌐 Response size: {len(response_text)} bytes")
+        print(f"🌐 Response content: {response_text}")
+    except Exception as e:
+        print(f"🌐 Error reading response: {e}")
+    
+    return response
 
 async def igdb_manual_post(async_client, url, headers=None, content=None, **kwargs):
     """Make a non-rate-limited POST request to IGDB API for manual scrap/multiscraper
@@ -18707,9 +18743,41 @@ async def igdb_manual_post(async_client, url, headers=None, content=None, **kwar
     No rate limiting for faster manual operations
     Connection pooling: Max 8 parallel connections with HTTP/2
     """
+    import time
+    start_time = time.time()
+    
+    # Log the request details
+    print(f"🌐 HTTP REQUEST: POST {url}")
+    print(f"🌐 Headers: {headers}")
+    if content:
+        print(f"🌐 Content: {content}")
+    
     # Make the request directly without rate limiting
     # The httpx client will handle connection pooling (max 8 parallel)
-    return await async_client.post(url, headers=headers, content=content, **kwargs)
+    try:
+        response = await async_client.post(url, headers=headers, content=content, timeout=10.0, **kwargs)
+    except Exception as e:
+        print(f"🌐 HTTP REQUEST ERROR: {e}")
+        raise e
+    
+    end_time = time.time()
+    print(f"🌐 HTTP RESPONSE: {response.status_code} in {end_time - start_time:.3f}s")
+    print(f"🌐 Response headers: {dict(response.headers)}")
+    
+    # Log response content (truncated for readability)
+    try:
+        response_text = response.text
+        print(f"🌐 Response size: {len(response_text)} bytes")
+        if response.status_code == 200:
+            # For successful responses, show first 300 chars
+            print(f"🌐 Response content: {response_text[:300]}{'...' if len(response_text) > 300 else ''}")
+        else:
+            # For error responses, show more details
+            print(f"🌐 Response text: {response_text[:500]}{'...' if len(response_text) > 500 else ''}")
+    except Exception as e:
+        print(f"🌐 Error reading response: {e}")
+    
+    return response
 
 # =============================================================================
 # IGDB Platform Cache Functions
