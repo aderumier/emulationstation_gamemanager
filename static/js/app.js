@@ -6241,7 +6241,16 @@ class GameCollectionManager {
                 // Store the results as a Map with ROM path as key
                 this.globalMatchResults = new Map();
                 data.results.forEach(result => {
-                    this.globalMatchResults.set(result.game_data.path, result);
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
                 });
                 this.populateGlobalMatchTable('launchbox');
             } else {
@@ -6303,7 +6312,16 @@ class GameCollectionManager {
                 // Store the results as a Map with ROM path as key
                 this.globalMatchResults = new Map();
                 data.results.forEach(result => {
-                    this.globalMatchResults.set(result.game_data.path, result);
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
                 });
                 this.populateGlobalMatchTable('mobygames');
         } else {
@@ -6365,7 +6383,16 @@ class GameCollectionManager {
                 // Store the results as a Map with ROM path as key
                 this.globalMatchResults = new Map();
                 data.results.forEach(result => {
-                    this.globalMatchResults.set(result.game_data.path, result);
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
                 });
                 this.populateGlobalMatchTable('steam');
             } else {
@@ -6433,7 +6460,16 @@ class GameCollectionManager {
                 // Store the results as a Map with ROM path as key
                 this.globalMatchResults = new Map();
                 data.results.forEach(result => {
-                    this.globalMatchResults.set(result.game_data.path, result);
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
                 });
                 this.showGlobalMatchResultsModal(data.results, databaseType);
             } else {
@@ -9779,6 +9815,16 @@ class GameCollectionManager {
         } else {
         }
 
+        // Add event listener for opening Remap Media Field modal
+        const openRemapMediaFieldModal = document.getElementById('openRemapMediaFieldModal');
+        if (openRemapMediaFieldModal) {
+            openRemapMediaFieldModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openRemapMediaFieldModal();
+            });
+        } else {
+        }
+
         // Add event listener for unified scraper config modal
         const openScraperConfigModal = document.getElementById('openScraperConfigModal');
         if (openScraperConfigModal) {
@@ -11109,6 +11155,135 @@ class GameCollectionManager {
         
         // Load systems data asynchronously after modal is shown
         this.loadSystemsData();
+    }
+
+    async openRemapMediaFieldModal() {
+        try {
+            const modal = new bootstrap.Modal(document.getElementById('remapMediaFieldModal'));
+            modal.show();
+            
+            // Load source fields (fields with media files from current gamelist)
+            await this.loadSourceFields();
+            
+            // Load target fields (available media fields from configuration)
+            await this.loadTargetFields();
+            
+            // Set up validation button
+            this.setupRemapValidation();
+            
+        } catch (error) {
+            console.error('Error opening remap media field modal:', error);
+            this.showAlert('Error opening remap media field modal', 'danger');
+        }
+    }
+
+    async loadSourceFields() {
+        try {
+            const response = await fetch('/api/remap-media-fields/source', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ system_name: this.currentSystem })
+            });
+            
+            const data = await response.json();
+            const sourceSelect = document.getElementById('sourceFieldSelect');
+            
+            if (data.success && data.fields) {
+                sourceSelect.innerHTML = '<option value="">Select source field...</option>';
+                data.fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    sourceSelect.appendChild(option);
+                });
+            } else {
+                sourceSelect.innerHTML = '<option value="">No media fields found</option>';
+            }
+        } catch (error) {
+            console.error('Error loading source fields:', error);
+            this.showAlert('Error loading source fields', 'danger');
+        }
+    }
+
+    async loadTargetFields() {
+        try {
+            const response = await fetch('/api/remap-media-fields/target');
+            const data = await response.json();
+            const targetSelect = document.getElementById('targetFieldSelect');
+            
+            if (data.success && data.fields) {
+                targetSelect.innerHTML = '<option value="">Select target field...</option>';
+                data.fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    targetSelect.appendChild(option);
+                });
+            } else {
+                targetSelect.innerHTML = '<option value="">No target fields available</option>';
+            }
+        } catch (error) {
+            console.error('Error loading target fields:', error);
+            this.showAlert('Error loading target fields', 'danger');
+        }
+    }
+
+    setupRemapValidation() {
+        const sourceSelect = document.getElementById('sourceFieldSelect');
+        const targetSelect = document.getElementById('targetFieldSelect');
+        const validateBtn = document.getElementById('validateRemapBtn');
+        
+        const updateValidateButton = () => {
+            const sourceValue = sourceSelect.value;
+            const targetValue = targetSelect.value;
+            validateBtn.disabled = !sourceValue || !targetValue || sourceValue === targetValue;
+        };
+        
+        sourceSelect.addEventListener('change', updateValidateButton);
+        targetSelect.addEventListener('change', updateValidateButton);
+        
+        // Add event listener for validate button
+        validateBtn.addEventListener('click', () => this.validateRemap());
+    }
+
+    async validateRemap() {
+        const sourceField = document.getElementById('sourceFieldSelect').value;
+        const targetField = document.getElementById('targetFieldSelect').value;
+        
+        if (!sourceField || !targetField || sourceField === targetField) {
+            this.showAlert('Please select different source and target fields', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/remap-media-fields/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    source_field: sourceField,
+                    target_field: targetField
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Successfully remapped ${sourceField} to ${targetField}`, 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('remapMediaFieldModal'));
+                modal.hide();
+                
+                // Refresh the grid to show changes
+                await this.refreshGridData();
+            } else {
+                this.showAlert(data.error || 'Error remapping fields', 'danger');
+            }
+        } catch (error) {
+            console.error('Error validating remap:', error);
+            this.showAlert('Error validating remap', 'danger');
+        }
     }
     
     showSystemsModalLoadingState() {

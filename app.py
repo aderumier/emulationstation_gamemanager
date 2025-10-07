@@ -7497,6 +7497,123 @@ def find_best_matches_endpoint():
         print(f"Error in find_best_matches endpoint: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/api/remap-media-fields/source', methods=['POST'])
+@login_required
+def get_remap_source_fields():
+    """Get source fields (fields with media files) from current gamelist"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        if not system_name:
+            return jsonify({'error': 'System name required'}), 400
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Get all unique field names that contain media files
+        media_fields = set()
+        for game in games:
+            for field_name, field_value in game.items():
+                if field_value and isinstance(field_value, str):
+                    # Check if the field value looks like a media file path
+                    if any(ext in field_value.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.mp4', '.avi', '.mkv', '.mov', '.wmv']):
+                        media_fields.add(field_name)
+        
+        return jsonify({
+            'success': True,
+            'fields': sorted(list(media_fields))
+        })
+        
+    except Exception as e:
+        print(f"Error getting source fields: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/remap-media-fields/target', methods=['GET'])
+@login_required
+def get_remap_target_fields():
+    """Get target fields (available media fields from configuration)"""
+    try:
+        # Load configuration to get available media fields
+        config_path = os.path.join('var', 'config', 'config.json')
+        if not os.path.exists(config_path):
+            return jsonify({'error': 'Configuration not found'}), 404
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Get media fields from config.json only
+        media_fields = []
+        if 'media_fields' in config:
+            media_fields = list(config['media_fields'].keys())
+        
+        return jsonify({
+            'success': True,
+            'fields': sorted(media_fields)
+        })
+        
+    except Exception as e:
+        print(f"Error getting target fields: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/remap-media-fields/validate', methods=['POST'])
+@login_required
+def validate_remap_media_fields():
+    """Validate and perform media field remapping"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        source_field = data.get('source_field')
+        target_field = data.get('target_field')
+        
+        if not all([system_name, source_field, target_field]):
+            return jsonify({'error': 'System name, source field, and target field are required'}), 400
+        
+        if source_field == target_field:
+            return jsonify({'error': 'Source and target fields cannot be the same'}), 400
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Perform remapping
+        games_updated = 0
+        for game in games:
+            if source_field in game and game[source_field]:
+                # Copy source field value to target field
+                game[target_field] = game[source_field]
+                # Remove source field
+                del game[source_field]
+                games_updated += 1
+        
+        # Save updated gamelist
+        write_gamelist_xml(games, gamelist_path)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully remapped {source_field} to {target_field} for {games_updated} games'
+        })
+        
+    except Exception as e:
+        print(f"Error validating remap: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/api/find-best-matches-mobygames', methods=['POST'])
 @login_required
 def find_best_matches_mobygames_endpoint():

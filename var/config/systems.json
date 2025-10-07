@@ -1522,7 +1522,8 @@
     "amiga3000": {
         "launchbox": "Commodore Amiga",
         "screenscraper": 111,
-        "igdb": "",
+        "igdb": 16,
+        "mobygames": "",
         "extensions": [
             ".7z",
             ".adf",

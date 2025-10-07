@@ -320,6 +320,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
             </div>
             
+            <!-- Current System Menu -->
+            <div class="navbar-nav me-3">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="currentSystemDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-controller me-1"></i>Current System
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="currentSystemDropdown">
+                        <li><a class="dropdown-item" href="#" id="openRemapMediaFieldModal">
+                            <i class="bi bi-arrow-left-right me-2"></i>Remap Media Field
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+            
             <!-- User Menu -->
             <div class="navbar-nav me-3">
                 <div class="nav-item dropdown">
@@ -3845,6 +3859,65 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remap Media Field Modal -->
+    <div class="modal fade" id="remapMediaFieldModal" tabindex="-1" aria-labelledby="remapMediaFieldModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="remapMediaFieldModalLabel">
+                        <i class="bi bi-arrow-left-right me-2"></i>Remap Media Field
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This tool allows you to remap media fields from one field to another. The source field will be deleted after the remapping is complete.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="sourceFieldSelect" class="form-label">
+                                <i class="bi bi-arrow-up me-1"></i>Source Field
+                            </label>
+                            <select class="form-select" id="sourceFieldSelect">
+                                <option value="">Select source field...</option>
+                            </select>
+                            <div class="form-text">Fields with media files from current gamelist</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="targetFieldSelect" class="form-label">
+                                <i class="bi bi-arrow-down me-1"></i>Target Field
+                            </label>
+                            <select class="form-select" id="targetFieldSelect">
+                                <option value="">Select target field...</option>
+                            </select>
+                            <div class="form-text">Available media fields from configuration</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> This operation will:
+                            <ul class="mb-0 mt-2">
+                                <li>Copy all values from the source field to the target field</li>
+                                <li>Delete the source field from the gamelist</li>
+                                <li>This action cannot be undone</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="validateRemapBtn" disabled>
+                        <i class="bi bi-check-circle me-2"></i>Validate Remap
+                    </button>
                 </div>
             </div>
         </div>
