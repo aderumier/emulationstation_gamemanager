@@ -747,7 +747,14 @@ class GameCollectionManager {
             oldGame.rating !== newGame.rating ||
             oldGame.players !== newGame.players ||
             oldGame.igdbid !== newGame.igdbid ||
-            oldGame.launchboxid !== newGame.launchboxid
+            oldGame.launchboxid !== newGame.launchboxid ||
+            oldGame.mobygamesid !== newGame.mobygamesid ||
+            oldGame.steamid !== newGame.steamid ||
+            oldGame.screenscraperid !== newGame.screenscraperid ||
+            oldGame.steamgridid !== newGame.steamgridid ||
+            oldGame.youtubeurl !== newGame.youtubeurl ||
+            oldGame.releasedate !== newGame.releasedate ||
+            oldGame.name !== newGame.name
         );
     }
     initializeTaskGrid() {
@@ -2413,6 +2420,14 @@ class GameCollectionManager {
                         backgroundColor: '#e8f5e8',
                         fontFamily: 'monospace',
                         fontSize: '0.9em'
+                    },
+                    valueFormatter: function(params) {
+                        // Ensure launchboxid is displayed as a string
+                        return params.value ? String(params.value) : '';
+                    },
+                    valueParser: function(params) {
+                        // Parse as integer for sorting/filtering
+                        return params.newValue ? parseInt(params.newValue, 10) : null;
                     }
                 },
                 { 
@@ -6584,10 +6599,10 @@ class GameCollectionManager {
         validateBtn.style.padding = '2px 6px';
         validateBtn.innerHTML = '<i class="bi bi-check"></i>';
         validateBtn.title = 'Apply Match';
-        validateBtn.onclick = () => {
+        validateBtn.onclick = async () => {
             console.log('Button clicked - originalIndex:', originalIndex, 'databaseType:', databaseType);
             try {
-                this.validateGlobalMatch(originalIndex, databaseType);
+                await this.validateGlobalMatch(originalIndex, databaseType);
             } catch (error) {
                 console.error('Error in button click handler:', error);
                 alert('Error in button click: ' + error.message);
@@ -6600,7 +6615,7 @@ class GameCollectionManager {
         return row;
     }
     
-    validateGlobalMatch(index, databaseType = 'launchbox') {
+    async validateGlobalMatch(index, databaseType = 'launchbox') {
         const select = document.getElementById(`globalMatchSelect_${index}`);
         if (!select || !select.value) {
             this.showAlert('Please select a match first', 'warning');
@@ -6661,11 +6676,11 @@ class GameCollectionManager {
         
         // Apply the match based on database type
         if (databaseType === 'launchbox') {
-            this.applyLaunchboxMatch(gameName, matchId);
+            await this.applyLaunchboxMatch(gameName, matchId);
         } else if (databaseType === 'mobygames') {
-            this.applyMobygamesMatch(gameName, matchId);
+            await this.applyMobygamesMatch(gameName, matchId);
         } else if (databaseType === 'steam') {
-            this.applySteamMatch(gameName, matchId);
+            await this.applySteamMatch(gameName, matchId);
         }
         
         // Remove the row from the table
@@ -6684,33 +6699,66 @@ class GameCollectionManager {
         }
     }
     
-    applyLaunchboxMatch(gameName, launchboxId) {
-        // Find the game in the grid and update it
-        const game = this.games.find(g => g.name === gameName);
-        if (game) {
-            game.launchboxid = launchboxId;
-            this.gridApi.redrawRows();
-            this.showAlert(`LaunchBox ID set to ${launchboxId} for "${gameName}"`, 'success');
+    async applyLaunchboxMatch(gameName, launchboxId) {
+        try {
+            // Find the game in the grid and update it
+            const game = this.games.find(g => g.name === gameName);
+            if (game) {
+                game.launchboxid = launchboxId;
+                
+                // Mark game as modified
+                this.markGameAsModified(game);
+                
+                // Save changes to backend directly
+                await this.saveGameChanges();
+                
+                this.showAlert(`LaunchBox ID set to ${launchboxId} for "${gameName}"`, 'success');
+            }
+        } catch (error) {
+            console.error('Error in applyLaunchboxMatch:', error);
+            this.showAlert(`Error saving LaunchBox ID: ${error.message}`, 'danger');
         }
     }
     
-    applyMobygamesMatch(gameName, mobygamesId) {
-        // Find the game in the grid and update it
-        const game = this.games.find(g => g.name === gameName);
-        if (game) {
-            game.mobygamesid = mobygamesId;
-            this.gridApi.redrawRows();
-            this.showAlert(`MobyGames ID set to ${mobygamesId} for "${gameName}"`, 'success');
+    async applyMobygamesMatch(gameName, mobygamesId) {
+        try {
+            // Find the game in the grid and update it
+            const game = this.games.find(g => g.name === gameName);
+            if (game) {
+                game.mobygamesid = mobygamesId;
+                
+                // Mark game as modified
+                this.markGameAsModified(game);
+                
+                // Save changes to backend directly
+                await this.saveGameChanges();
+                
+                this.showAlert(`MobyGames ID set to ${mobygamesId} for "${gameName}"`, 'success');
+            }
+        } catch (error) {
+            console.error('Error in applyMobygamesMatch:', error);
+            this.showAlert(`Error saving MobyGames ID: ${error.message}`, 'danger');
         }
     }
     
-    applySteamMatch(gameName, steamId) {
-        // Find the game in the grid and update it
-        const game = this.games.find(g => g.name === gameName);
-        if (game) {
-            game.steamid = steamId;
-            this.gridApi.redrawRows();
-            this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
+    async applySteamMatch(gameName, steamId) {
+        try {
+            // Find the game in the grid and update it
+            const game = this.games.find(g => g.name === gameName);
+            if (game) {
+                game.steamid = steamId;
+                
+                // Mark game as modified
+                this.markGameAsModified(game);
+                
+                // Save changes to backend directly
+                await this.saveGameChanges();
+                
+                this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
+            }
+        } catch (error) {
+            console.error('Error in applySteamMatch:', error);
+            this.showAlert(`Error saving Steam ID: ${error.message}`, 'danger');
         }
     }
 
@@ -6945,7 +6993,7 @@ class GameCollectionManager {
             this.modifiedGames.add(this.games[gameIndex].id);
             
             // Save the gamelist directly to var directory without confirmation
-            await this.saveGamelistDirect();
+            await this.saveGameChanges();
             
             // Remove the row from the table
             const tableRow = document.getElementById(`globalMatchRow_${index}`);
@@ -6971,32 +7019,6 @@ class GameCollectionManager {
         }
     }
 
-    async saveGamelistDirect() {
-        try {
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    games: this.games,
-                    delete_rom_paths: [],
-                    changed_games: []
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to save gamelist');
-            }
-
-        } catch (error) {
-            this.showAlert('Error saving gamelist: ' + error.message, 'danger');
-            throw error; // Re-throw to allow calling function to handle
-        }
-    }
 
     async generate2DBoxForSelected() {
         try {
@@ -16859,6 +16881,9 @@ class GameCollectionManager {
             
             // Mark game as modified
             this.markGameAsModified(updatedGame);
+            
+            // Save changes to backend directly
+            await this.saveGameChanges();
             
             // Refresh grid, respecting current filters
             await this.refreshGridData();
