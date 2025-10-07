@@ -6692,11 +6692,11 @@ class GameCollectionManager {
         
         // Apply the match based on database type
         if (databaseType === 'launchbox') {
-            await this.applyLaunchboxMatch(gameName, matchId);
+            await this.applyLaunchboxMatch(gamePath, matchId);
         } else if (databaseType === 'mobygames') {
-            await this.applyMobygamesMatch(gameName, matchId);
+            await this.applyMobygamesMatch(gamePath, matchId);
         } else if (databaseType === 'steam') {
-            await this.applySteamMatch(gameName, matchId);
+            await this.applySteamMatch(gamePath, matchId);
         }
         
         // Remove the row from the table
@@ -6715,10 +6715,10 @@ class GameCollectionManager {
         }
     }
     
-    async applyLaunchboxMatch(gameName, launchboxId) {
+    async applyLaunchboxMatch(gamePath, launchboxId) {
         try {
-            // Find the game in the grid and update it
-            const game = this.games.find(g => g.name === gameName);
+            // Find the game in the grid using ROM path
+            const game = this.games.find(g => g.path === gamePath);
             if (game) {
                 game.launchboxid = launchboxId;
                 
@@ -6728,7 +6728,9 @@ class GameCollectionManager {
                 // Save changes to backend directly
                 await this.saveGameChanges();
                 
-                this.showAlert(`LaunchBox ID set to ${launchboxId} for "${gameName}"`, 'success');
+                this.showAlert(`LaunchBox ID set to ${launchboxId} for "${game.name}"`, 'success');
+            } else {
+                this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
         } catch (error) {
             console.error('Error in applyLaunchboxMatch:', error);
@@ -6736,10 +6738,10 @@ class GameCollectionManager {
         }
     }
     
-    async applyMobygamesMatch(gameName, mobygamesId) {
+    async applyMobygamesMatch(gamePath, mobygamesId) {
         try {
-            // Find the game in the grid and update it
-            const game = this.games.find(g => g.name === gameName);
+            // Find the game in the grid using ROM path
+            const game = this.games.find(g => g.path === gamePath);
             if (game) {
                 game.mobygamesid = mobygamesId;
                 
@@ -6749,7 +6751,9 @@ class GameCollectionManager {
                 // Save changes to backend directly
                 await this.saveGameChanges();
                 
-                this.showAlert(`MobyGames ID set to ${mobygamesId} for "${gameName}"`, 'success');
+                this.showAlert(`MobyGames ID set to ${mobygamesId} for "${game.name}"`, 'success');
+            } else {
+                this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
         } catch (error) {
             console.error('Error in applyMobygamesMatch:', error);
@@ -6757,10 +6761,10 @@ class GameCollectionManager {
         }
     }
     
-    async applySteamMatch(gameName, steamId) {
+    async applySteamMatch(gamePath, steamId) {
         try {
-            // Find the game in the grid and update it
-            const game = this.games.find(g => g.name === gameName);
+            // Find the game in the grid using ROM path
+            const game = this.games.find(g => g.path === gamePath);
             if (game) {
                 game.steamid = steamId;
                 
@@ -6770,7 +6774,9 @@ class GameCollectionManager {
                 // Save changes to backend directly
                 await this.saveGameChanges();
                 
-                this.showAlert(`Steam ID set to ${steamId} for "${gameName}"`, 'success');
+                this.showAlert(`Steam ID set to ${steamId} for "${game.name}"`, 'success');
+            } else {
+                this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
         } catch (error) {
             console.error('Error in applySteamMatch:', error);
