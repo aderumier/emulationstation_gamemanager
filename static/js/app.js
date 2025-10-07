@@ -9825,6 +9825,16 @@ class GameCollectionManager {
         } else {
         }
 
+        // Add event listener for opening Move Medias modal
+        const openMoveMediasModal = document.getElementById('openMoveMediasModal');
+        if (openMoveMediasModal) {
+            openMoveMediasModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openMoveMediasModal();
+            });
+        } else {
+        }
+
         // Add event listener for unified scraper config modal
         const openScraperConfigModal = document.getElementById('openScraperConfigModal');
         if (openScraperConfigModal) {
@@ -11284,6 +11294,445 @@ class GameCollectionManager {
             console.error('Error validating remap:', error);
             this.showAlert('Error validating remap', 'danger');
         }
+    }
+
+    async openMoveMediasModal() {
+        try {
+            const modal = new bootstrap.Modal(document.getElementById('moveMediasModal'));
+            modal.show();
+            
+            // Reset UI state
+            this.resetMoveMediasUI();
+            
+            // Load media fields from configuration
+            await this.loadMoveMediasFields();
+            
+            // Set up validation button
+            this.setupMoveMediasValidation();
+            
+        } catch (error) {
+            console.error('Error opening move medias modal:', error);
+            this.showAlert('Error opening move medias modal', 'danger');
+        }
+    }
+
+    async loadMoveMediasFields() {
+        try {
+            const response = await fetch('/api/remap-media-fields/target');
+            const data = await response.json();
+            const mediaFieldSelect = document.getElementById('mediaFieldSelect');
+            
+            if (data.success && data.fields) {
+                mediaFieldSelect.innerHTML = '<option value="">Select media field...</option>';
+                data.fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    mediaFieldSelect.appendChild(option);
+                });
+            } else {
+                mediaFieldSelect.innerHTML = '<option value="">No media fields available</option>';
+            }
+        } catch (error) {
+            console.error('Error loading move medias fields:', error);
+            this.showAlert('Error loading media fields', 'danger');
+        }
+    }
+
+    setupMoveMediasValidation() {
+        const mediaFieldSelect = document.getElementById('mediaFieldSelect');
+        const validateBtn = document.getElementById('validateMoveMediasBtn');
+        const confirmBtn = document.getElementById('confirmMoveMediasBtn');
+        
+        const updateValidateButton = () => {
+            const fieldValue = mediaFieldSelect.value;
+            validateBtn.disabled = !fieldValue;
+        };
+        
+        mediaFieldSelect.addEventListener('change', updateValidateButton);
+        
+        // Add event listener for validate button (dry-run)
+        validateBtn.addEventListener('click', () => this.validateMoveMedias());
+        
+        // Add event listener for confirm button (actual move)
+        confirmBtn.addEventListener('click', () => this.confirmMoveMedias());
+    }
+
+    async validateMoveMedias() {
+        const mediaField = document.getElementById('mediaFieldSelect').value;
+        
+        if (!mediaField) {
+            this.showAlert('Please select a media field', 'warning');
+            return;
+        }
+        
+        try {
+            // Do a dry run to show what would happen
+            const dryRunResponse = await fetch('/api/move-medias/dry-run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    media_field: mediaField
+                })
+            });
+            
+            const dryRunData = await dryRunResponse.json();
+            
+            if (dryRunData.success) {
+                // Show dry-run results in modal
+                this.showMoveMediasDryRunResults(dryRunData.results);
+                
+                // Store the media field for confirmation
+                this.pendingMoveMediaField = mediaField;
+                
+                // Show confirm button and hide validate button
+                document.getElementById('validateMoveMediasBtn').style.display = 'none';
+                document.getElementById('confirmMoveMediasBtn').style.display = 'inline-block';
+            } else {
+                this.showAlert(dryRunData.error || 'Error in dry run', 'danger');
+            }
+        } catch (error) {
+            console.error('Error in dry run:', error);
+            this.showAlert('Error in dry run', 'danger');
+        }
+    }
+
+    async confirmMoveMedias() {
+        if (!this.pendingMoveMediaField) {
+            this.showAlert('No pending move operation', 'warning');
+            return;
+        }
+        
+        try {
+            // Proceed with actual move
+            const response = await fetch('/api/move-medias/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    media_field: this.pendingMoveMediaField
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Show actual results
+                this.showMoveMediasResults(data.results);
+                
+                // Show close button and hide other buttons
+                this.showMoveMediasCloseState();
+                
+                // Refresh the grid to show changes
+                await this.refreshGridData();
+            } else {
+                // Handle conflicts or other errors
+                if (data.conflicts && data.conflicts.length > 0) {
+                    this.showMoveMediasConflicts(data.conflicts);
+                } else {
+                    this.showAlert(data.error || 'Error moving media files', 'danger');
+                }
+            }
+        } catch (error) {
+            console.error('Error executing move medias:', error);
+            this.showAlert('Error moving media files', 'danger');
+        }
+    }
+    
+    resetMoveMediasUI() {
+        // Reset button states to initial state
+        document.getElementById('validateMoveMediasBtn').style.display = 'inline-block';
+        document.getElementById('confirmMoveMediasBtn').style.display = 'none';
+        document.getElementById('closeMoveMediasBtn').style.display = 'none';
+        
+        // Clear pending operation
+        this.pendingMoveMediaField = null;
+        
+        // Hide error/results section
+        const errorDiv = document.getElementById('moveMediasError');
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+        }
+        
+        // Reset media field selection
+        const mediaFieldSelect = document.getElementById('mediaFieldSelect');
+        if (mediaFieldSelect) {
+            mediaFieldSelect.value = '';
+        }
+    }
+    
+    showMoveMediasCloseState() {
+        // Hide all action buttons
+        document.getElementById('validateMoveMediasBtn').style.display = 'none';
+        document.getElementById('confirmMoveMediasBtn').style.display = 'none';
+        
+        // Show close button
+        document.getElementById('closeMoveMediasBtn').style.display = 'inline-block';
+        
+        // Clear pending operation
+        this.pendingMoveMediaField = null;
+    }
+
+    showMoveMediasConflicts(conflicts) {
+        const errorDiv = document.getElementById('moveMediasError');
+        const errorContent = document.getElementById('moveMediasErrorContent');
+        
+        let html = '<ul class="mb-0">';
+        
+        conflicts.forEach(conflict => {
+            html += `
+                <li>
+                    <strong>${conflict.game_name}</strong>: ${conflict.filename}
+                </li>
+            `;
+        });
+        
+        html += '</ul>';
+        errorContent.innerHTML = html;
+        errorDiv.style.display = 'block';
+    }
+
+    showMoveMediasDryRunResults(results) {
+        const errorDiv = document.getElementById('moveMediasError');
+        const errorContent = document.getElementById('moveMediasErrorContent');
+        
+        const summary = results.summary;
+        let html = `
+            <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Dry Run Results</strong> - This is what would happen if you proceed:
+                <div class="mt-2">
+                    <span class="badge bg-primary me-2">Move: ${summary.would_move_count}</span>
+                    <span class="badge bg-warning me-2">Skip: ${summary.would_skip_count}</span>
+                    <span class="badge bg-danger">Clear: ${summary.would_clear_count}</span>
+                </div>
+            </div>
+        `;
+        html += '<div class="accordion" id="dryRunResultsAccordion">';
+        
+        // Would move files section
+        if (results.would_move_files.length > 0) {
+            html += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="wouldMoveFilesHeader">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#wouldMoveFiles" aria-expanded="true">
+                            <i class="bi bi-arrow-right-circle-fill text-primary me-2"></i>
+                            Would Move Files (${results.would_move_files.length})
+                        </button>
+                    </h2>
+                    <div id="wouldMoveFiles" class="accordion-collapse collapse show" data-bs-parent="#dryRunResultsAccordion">
+                        <div class="accordion-body">
+                            <div class="list-group">
+            `;
+            
+            results.would_move_files.forEach(file => {
+                html += `
+                    <div class="list-group-item list-group-item-primary">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-arrow-right text-primary me-2"></i>
+                            <div>
+                                <strong>${file.game_name}</strong><br>
+                                <small class="text-muted">${file.old_path} → ${file.new_path}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div></div></div>';
+        }
+        
+        // Would skip files section
+        if (results.would_skip_files.length > 0) {
+            html += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="wouldSkipFilesHeader">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#wouldSkipFiles">
+                            <i class="bi bi-skip-forward-circle-fill text-warning me-2"></i>
+                            Would Skip Files (${results.would_skip_files.length})
+                        </button>
+                    </h2>
+                    <div id="wouldSkipFiles" class="accordion-collapse collapse" data-bs-parent="#dryRunResultsAccordion">
+                        <div class="accordion-body">
+                            <div class="list-group">
+            `;
+            
+            results.would_skip_files.forEach(file => {
+                html += `
+                    <div class="list-group-item list-group-item-warning">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-skip-forward text-warning me-2"></i>
+                            <div>
+                                <strong>${file.game_name}</strong><br>
+                                <small class="text-muted">${file.current_path}</small><br>
+                                <small class="text-danger">Reason: ${file.reason}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div></div></div>';
+        }
+        
+        // Would clear fields section
+        if (results.would_clear_fields.length > 0) {
+            html += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="wouldClearFieldsHeader">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#wouldClearFields">
+                            <i class="bi bi-trash-circle-fill text-danger me-2"></i>
+                            Would Clear Fields (${results.would_clear_fields.length})
+                        </button>
+                    </h2>
+                    <div id="wouldClearFields" class="accordion-collapse collapse" data-bs-parent="#dryRunResultsAccordion">
+                        <div class="accordion-body">
+                            <div class="list-group">
+            `;
+            
+            results.would_clear_fields.forEach(field => {
+                html += `
+                    <div class="list-group-item list-group-item-danger">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-trash text-danger me-2"></i>
+                            <div>
+                                <strong>${field.game_name}</strong><br>
+                                <small class="text-muted">${field.old_path}</small><br>
+                                <small class="text-danger">Reason: ${field.reason}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div></div></div>';
+        }
+        
+        html += '</div>';
+        errorContent.innerHTML = html;
+        errorDiv.style.display = 'block';
+    }
+
+    showMoveMediasResults(results) {
+        const errorDiv = document.getElementById('moveMediasError');
+        const errorContent = document.getElementById('moveMediasErrorContent');
+        
+        const summary = results.summary;
+        let html = `
+            <div class="alert alert-success mb-3">
+                <i class="bi bi-check-circle me-2"></i>
+                <strong>Move Operation Completed!</strong>
+                <div class="mt-2">
+                    <span class="badge bg-success me-2">Moved: ${summary.moved_count}</span>
+                    <span class="badge bg-warning me-2">Skipped: ${summary.unmoved_count}</span>
+                    <span class="badge bg-danger">Cleared: ${summary.cleared_count}</span>
+                </div>
+            </div>
+        `;
+        html += '<div class="accordion" id="moveResultsAccordion">';
+        
+        // Moved files section
+        if (results.moved_files.length > 0) {
+            html += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="movedFilesHeader">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#movedFiles" aria-expanded="true">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            Moved Files (${results.moved_files.length})
+                        </button>
+                    </h2>
+                    <div id="movedFiles" class="accordion-collapse collapse show" data-bs-parent="#moveResultsAccordion">
+                        <div class="accordion-body">
+                            <div class="list-group">
+            `;
+            
+            results.moved_files.forEach(file => {
+                html += `
+                    <div class="list-group-item list-group-item-success">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-arrow-right text-success me-2"></i>
+                            <div>
+                                <strong>${file.game_name}</strong><br>
+                                <small class="text-muted">${file.old_path} → ${file.new_path}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div></div></div>';
+        }
+        
+        // Unmoved files section
+        if (results.unmoved_files.length > 0) {
+            html += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="unmovedFilesHeader">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#unmovedFiles">
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                            Unmoved Files (${results.unmoved_files.length})
+                        </button>
+                    </h2>
+                    <div id="unmovedFiles" class="accordion-collapse collapse" data-bs-parent="#moveResultsAccordion">
+                        <div class="accordion-body">
+                            <div class="list-group">
+            `;
+            
+            results.unmoved_files.forEach(file => {
+                html += `
+                    <div class="list-group-item list-group-item-warning">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                            <div>
+                                <strong>${file.game_name}</strong><br>
+                                <small class="text-muted">${file.current_path}</small><br>
+                                <small class="text-danger">Reason: ${file.reason}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div></div></div>';
+        }
+        
+        // Cleared fields section
+        if (results.cleared_fields.length > 0) {
+            html += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="clearedFieldsHeader">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#clearedFields">
+                            <i class="bi bi-trash-fill text-danger me-2"></i>
+                            Cleared Fields (${results.cleared_fields.length})
+                        </button>
+                    </h2>
+                    <div id="clearedFields" class="accordion-collapse collapse" data-bs-parent="#moveResultsAccordion">
+                        <div class="accordion-body">
+                            <div class="list-group">
+            `;
+            
+            results.cleared_fields.forEach(field => {
+                html += `
+                    <div class="list-group-item list-group-item-danger">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-trash text-danger me-2"></i>
+                            <div>
+                                <strong>${field.game_name}</strong><br>
+                                <small class="text-muted">${field.old_path}</small><br>
+                                <small class="text-danger">Reason: ${field.reason}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div></div></div>';
+        }
+        
+        html += '</div>';
+        errorContent.innerHTML = html;
+        errorDiv.style.display = 'block';
     }
     
     showSystemsModalLoadingState() {
@@ -17262,6 +17711,13 @@ class GameCollectionManager {
             return;
         }
 
+        // Check if jQuery and Select2 are available
+        if (typeof $ === 'undefined' || typeof $.fn.select2 === 'undefined') {
+            console.warn('jQuery or Select2 not available, retrying in 100ms...');
+            setTimeout(() => this.initializeSelect2(), 100);
+            return;
+        }
+
         // Initialize Select2
         this.select2Instance = $(selectElement).select2({
             placeholder: 'Select System...',
@@ -17296,6 +17752,14 @@ class GameCollectionManager {
     
     updateSelect2Options() {
         console.log('updateSelect2Options called, select2Instance:', this.select2Instance);
+        
+        // Check if jQuery and Select2 are available
+        if (typeof $ === 'undefined' || typeof $.fn.select2 === 'undefined') {
+            console.warn('jQuery or Select2 not available in updateSelect2Options, retrying in 100ms...');
+            setTimeout(() => this.updateSelect2Options(), 100);
+            return;
+        }
+        
         if (!this.select2Instance) {
             console.log('Select2 instance not found, trying to initialize...');
             this.initializeSelect2();

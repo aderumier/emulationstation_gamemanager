@@ -7614,6 +7614,362 @@ def validate_remap_media_fields():
         print(f"Error validating remap: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/api/move-medias/check-conflicts', methods=['POST'])
+@login_required
+def check_move_medias_conflicts():
+    """Check for potential file conflicts when moving media files"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        media_field = data.get('media_field')
+        
+        if not all([system_name, media_field]):
+            return jsonify({'error': 'System name and media field are required'}), 400
+        
+        # Load configuration to get media field directory
+        config_path = os.path.join('var', 'config', 'config.json')
+        if not os.path.exists(config_path):
+            return jsonify({'error': 'Configuration not found'}), 404
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Get media field configuration
+        if 'media_fields' not in config or media_field not in config['media_fields']:
+            return jsonify({'error': f'Media field {media_field} not found in configuration'}), 400
+        
+        media_config = config['media_fields'][media_field]
+        target_dir = media_config.get('directory', f'media/{media_field}')
+        
+        # Ensure target directory includes 'media/' prefix if not already present
+        if not target_dir.startswith('media/'):
+            target_dir = f'media/{target_dir}'
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Check for conflicts
+        conflicts = []
+        for game in games:
+            if media_field in game and game[media_field]:
+                current_path = game[media_field]
+                
+                # Convert relative path to full path
+                if current_path.startswith('./'):
+                    current_path = current_path[2:]  # Remove './' prefix
+                
+                filename = os.path.basename(current_path)
+                target_path = os.path.join('roms', system_name, target_dir, filename)
+                
+                # Check if target file exists and is different from source
+                if os.path.exists(target_path):
+                    # Get full path to current file for comparison
+                    full_current_path = os.path.join('roms', system_name, current_path)
+                    
+                    # Only consider it a conflict if it's a different file
+                    if not os.path.samefile(full_current_path, target_path):
+                        conflicts.append({
+                            'game_name': game.get('name', 'Unknown'),
+                            'filename': filename,
+                            'current_path': current_path,
+                            'target_path': target_path
+                        })
+        
+        return jsonify({
+            'success': True,
+            'conflicts': conflicts
+        })
+        
+    except Exception as e:
+        print(f"Error checking move medias conflicts: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/move-medias/dry-run', methods=['POST'])
+@login_required
+def dry_run_move_medias():
+    """Dry run to show what files would be moved without actually moving them"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        media_field = data.get('media_field')
+        
+        if not all([system_name, media_field]):
+            return jsonify({'error': 'System name and media field are required'}), 400
+        
+        # Load configuration to get media field directory
+        config_path = os.path.join('var', 'config', 'config.json')
+        if not os.path.exists(config_path):
+            return jsonify({'error': 'Configuration not found'}), 404
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Get media field configuration
+        if 'media_fields' not in config or media_field not in config['media_fields']:
+            return jsonify({'error': f'Media field {media_field} not found in configuration'}), 400
+        
+        media_config = config['media_fields'][media_field]
+        target_dir = media_config.get('directory', f'media/{media_field}')
+        
+        # Ensure target directory includes 'media/' prefix if not already present
+        if not target_dir.startswith('media/'):
+            target_dir = f'media/{target_dir}'
+        
+        print(f"🔧 DEBUG: DRY RUN - Media field: {media_field}")
+        print(f"🔧 DEBUG: DRY RUN - Target directory: {target_dir}")
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Create target directory path for checking
+        full_target_dir = os.path.join('roms', system_name, target_dir)
+        print(f"🔧 DEBUG: DRY RUN - Full target directory: {full_target_dir}")
+        
+        # Process each game and create dry-run report
+        would_move_files = []
+        would_skip_files = []
+        would_clear_fields = []
+        
+        for game in games:
+            if media_field in game and game[media_field]:
+                current_path = game[media_field]
+                game_name = game.get('name', 'Unknown')
+                
+                print(f"🔧 DEBUG: DRY RUN - Processing game: {game_name}")
+                print(f"🔧 DEBUG: DRY RUN - Current path: {current_path}")
+                
+                # Use the exact path from gamelist.xml as source
+                if current_path.startswith('./'):
+                    current_path = current_path[2:]  # Remove './' prefix
+                
+                # Construct the full source path exactly as specified in gamelist.xml
+                full_source_path = os.path.join('roms', system_name, current_path)
+                filename = os.path.basename(current_path)
+                target_path = os.path.join(full_target_dir, filename)
+                
+                print(f"🔧 DEBUG: DRY RUN - Source path: {full_source_path}")
+                print(f"🔧 DEBUG: DRY RUN - Target path: {target_path}")
+                
+                # Check if source file exists
+                if os.path.exists(full_source_path):
+                    # File exists, check if target file already exists
+                    if os.path.exists(target_path):
+                        # Target file already exists - would skip
+                        would_skip_files.append({
+                            'game_name': game_name,
+                            'current_path': current_path,
+                            'target_path': f"{target_dir}/{filename}",
+                            'reason': 'Target file already exists'
+                        })
+                        print(f"🔧 DEBUG: DRY RUN - Would skip (target exists): {current_path}")
+                    else:
+                        # Target doesn't exist, would move
+                        would_move_files.append({
+                            'game_name': game_name,
+                            'old_path': current_path,
+                            'new_path': f"{target_dir}/{filename}",
+                            'source_file_path': full_source_path
+                        })
+                        print(f"🔧 DEBUG: DRY RUN - Would move: {current_path} → {target_dir}/{filename}")
+                else:
+                    # File doesn't exist, would clear the field
+                    would_clear_fields.append({
+                        'game_name': game_name,
+                        'old_path': current_path,
+                        'reason': 'File not found'
+                    })
+                    print(f"🔧 DEBUG: DRY RUN - Would clear field (file not found): {current_path}")
+        
+        # Create dry-run results
+        results = {
+            'would_move_files': would_move_files,
+            'would_skip_files': would_skip_files,
+            'would_clear_fields': would_clear_fields,
+            'summary': {
+                'total_processed': len(would_move_files) + len(would_skip_files) + len(would_clear_fields),
+                'would_move_count': len(would_move_files),
+                'would_skip_count': len(would_skip_files),
+                'would_clear_count': len(would_clear_fields)
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'dry_run': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        print(f"Error in dry run move medias: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/move-medias/validate', methods=['POST'])
+@login_required
+def validate_move_medias():
+    """Move media files to their proper directories and update gamelist"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        media_field = data.get('media_field')
+        
+        if not all([system_name, media_field]):
+            return jsonify({'error': 'System name and media field are required'}), 400
+        
+        # Load configuration to get media field directory
+        config_path = os.path.join('var', 'config', 'config.json')
+        if not os.path.exists(config_path):
+            return jsonify({'error': 'Configuration not found'}), 404
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Get media field configuration
+        if 'media_fields' not in config or media_field not in config['media_fields']:
+            return jsonify({'error': f'Media field {media_field} not found in configuration'}), 400
+        
+        media_config = config['media_fields'][media_field]
+        target_dir = media_config.get('directory', f'media/{media_field}')
+        
+        # Ensure target directory includes 'media/' prefix if not already present
+        if not target_dir.startswith('media/'):
+            target_dir = f'media/{target_dir}'
+        
+        print(f"🔧 DEBUG: Media field: {media_field}")
+        print(f"🔧 DEBUG: Target directory from config: {media_config.get('directory', f'media/{media_field}')}")
+        print(f"🔧 DEBUG: Final target directory: {target_dir}")
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Create target directory if it doesn't exist
+        full_target_dir = os.path.join('roms', system_name, target_dir)
+        print(f"🔧 DEBUG: Full target directory: {full_target_dir}")
+        os.makedirs(full_target_dir, exist_ok=True)
+        
+        # Process each game and create comprehensive report
+        moved_files = []
+        unmoved_files = []
+        cleared_fields = []
+        
+        for game in games:
+            if media_field in game and game[media_field]:
+                current_path = game[media_field]
+                game_name = game.get('name', 'Unknown')
+                
+                print(f"🔧 DEBUG: Processing game: {game_name}")
+                print(f"🔧 DEBUG: Current path: {current_path}")
+                
+                # Use the exact path from gamelist.xml as source
+                if current_path.startswith('./'):
+                    current_path = current_path[2:]  # Remove './' prefix
+                
+                # Construct the full source path exactly as specified in gamelist.xml
+                full_source_path = os.path.join('roms', system_name, current_path)
+                filename = os.path.basename(current_path)
+                target_path = os.path.join(full_target_dir, filename)
+                
+                print(f"🔧 DEBUG: Source path from gamelist: {current_path}")
+                print(f"🔧 DEBUG: Full source path: {full_source_path}")
+                print(f"🔧 DEBUG: Target path: {target_path}")
+                
+                # Check if source file exists
+                if os.path.exists(full_source_path):
+                    # File exists, check if target file already exists
+                    if os.path.exists(target_path):
+                        # Target file already exists - conflict
+                        unmoved_files.append({
+                            'game_name': game_name,
+                            'current_path': current_path,
+                            'target_path': f"{target_dir}/{filename}",
+                            'reason': 'Target file already exists'
+                        })
+                        print(f"🔧 DEBUG: Target file already exists - conflict")
+                    else:
+                        # Target doesn't exist, safe to move
+                        try:
+                            shutil.move(full_source_path, target_path)
+                            
+                            # Update gamelist with new path
+                            new_relative_path = os.path.join(target_dir, filename)
+                            game[media_field] = new_relative_path
+                            
+                            moved_files.append({
+                                'game_name': game_name,
+                                'old_path': current_path,
+                                'new_path': new_relative_path,
+                                'source_file_path': full_source_path
+                            })
+                            print(f"🔧 DEBUG: Successfully moved file: {current_path} → {new_relative_path}")
+                        except Exception as e:
+                            unmoved_files.append({
+                                'game_name': game_name,
+                                'current_path': current_path,
+                                'target_path': f"{target_dir}/{filename}",
+                                'reason': f'Error moving file: {str(e)}'
+                            })
+                            print(f"🔧 DEBUG: Error moving file: {str(e)}")
+                else:
+                    # File doesn't exist, clear the field
+                    game[media_field] = ''
+                    cleared_fields.append({
+                        'game_name': game_name,
+                        'old_path': current_path,
+                        'reason': 'File not found'
+                    })
+                    print(f"🔧 DEBUG: File not found - cleared field")
+        
+        # Save updated gamelist
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Create comprehensive results
+        results = {
+            'moved_files': moved_files,
+            'unmoved_files': unmoved_files,
+            'cleared_fields': cleared_fields,
+            'summary': {
+                'total_processed': len(moved_files) + len(unmoved_files) + len(cleared_fields),
+                'moved_count': len(moved_files),
+                'unmoved_count': len(unmoved_files),
+                'cleared_count': len(cleared_fields)
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        print(f"Error validating move medias: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/api/find-best-matches-mobygames', methods=['POST'])
 @login_required
 def find_best_matches_mobygames_endpoint():

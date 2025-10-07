@@ -330,6 +330,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openRemapMediaFieldModal">
                             <i class="bi bi-arrow-left-right me-2"></i>Remap Media Field
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openMoveMediasModal">
+                            <i class="bi bi-folder-arrow-up me-2"></i>Move Medias
+                        </a></li>
                     </ul>
                 </div>
             </div>
@@ -3917,6 +3920,73 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="validateRemapBtn" disabled>
                         <i class="bi bi-check-circle me-2"></i>Validate Remap
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Medias Modal -->
+    <div class="modal fade" id="moveMediasModal" tabindex="-1" aria-labelledby="moveMediasModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="moveMediasModalLabel">
+                        <i class="bi bi-folder-arrow-up me-2"></i>Move Medias
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This tool will move media files from their current location to the proper media directory based on the selected media field configuration.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="mediaFieldSelect" class="form-label">
+                                <i class="bi bi-folder me-1"></i>Media Field
+                            </label>
+                            <select class="form-select" id="mediaFieldSelect">
+                                <option value="">Select media field...</option>
+                            </select>
+                            <div class="form-text">Select the media field to organize files for</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> This operation will:
+                            <ul class="mb-0 mt-2">
+                                <li>Move media files to their proper directory structure</li>
+                                <li>Update gamelist.xml with new file paths</li>
+                                <li>Warn if files with the same name already exist in target directory</li>
+                                <li>This action cannot be undone</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div id="moveMediasError" class="mt-3" style="display: none;">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Cannot move files due to conflicts:</strong>
+                            <div id="moveMediasErrorContent" class="mt-2">
+                                <!-- Conflict details will be displayed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="validateMoveMediasBtn" disabled>
+                        <i class="bi bi-folder-arrow-up me-2"></i>Move Medias
+                    </button>
+                    <button type="button" class="btn btn-success" id="confirmMoveMediasBtn" style="display: none;">
+                        <i class="bi bi-check-circle me-2"></i>Confirm Move
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="closeMoveMediasBtn" style="display: none;" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Close
                     </button>
                 </div>
             </div>
