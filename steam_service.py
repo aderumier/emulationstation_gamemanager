@@ -434,7 +434,7 @@ class SteamService:
         # Steam CDN URLs
         steam_urls = {
             'capsule': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg",
-            'logo': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png",
+            'logo': f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/logo.png",
             'hero': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg",
             'screenshot': f"https://store.steampowered.com/app/{steam_id}"
         }

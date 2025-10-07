@@ -573,9 +573,14 @@ def _check_role_with_bot(discord_id, bot_token, required_guild_id, required_role
         return False, f"Error checking role with bot: {str(e)}"
 
 
-# Configuration loading function
+# Configuration loading function with caching
+_config_cache = None
+_config_file_mtime = None
+
 def load_config():
-    """Load configuration from config.json file"""
+    """Load configuration from config.json file with caching"""
+    global _config_cache, _config_file_mtime
+    
     config_file = 'var/config/config.json'
     default_config = {
         'roms_root_directory': 'roms',
@@ -592,6 +597,15 @@ def load_config():
         }
     }
     
+    # Check if we can use cached config
+    if _config_cache is not None and os.path.exists(config_file):
+        try:
+            current_mtime = os.path.getmtime(config_file)
+            if current_mtime == _config_file_mtime:
+                return _config_cache
+        except OSError:
+            pass  # File might not exist or be accessible
+    
     try:
         if os.path.exists(config_file):
             user_config = load_json_with_comments(config_file)
@@ -601,15 +615,23 @@ def load_config():
                     default_config[key].update(value)
                 else:
                     default_config[key] = value
-                print(f"✅ Configuration loaded from {config_file}")
+            
+            # Cache the config and file modification time
+            _config_cache = default_config
+            _config_file_mtime = os.path.getmtime(config_file)
+            print(f"✅ Configuration loaded from {config_file}")
         else:
             print(f"⚠️  No {config_file} found, using default configuration")
             # Create default config file
             with open(config_file, 'w') as f:
                 json.dump(default_config, f, indent=4)
             print(f"📝 Created default {config_file}")
+            _config_cache = default_config
+            _config_file_mtime = None
     except Exception as e:
         print(f"❌ Error loading configuration: {e}, using defaults")
+        _config_cache = default_config
+        _config_file_mtime = None
     
     return default_config
 
@@ -7988,20 +8010,29 @@ def multiscraper_search_endpoint():
         
         print(f"🔧 DEBUG: Multiscraper search - Game: {game_name}, Media Type: {media_type}, System: {system_name}")
         
+        import time
+        total_start_time = time.time()
+        
         # Find the game in the current system
+        gamelist_start_time = time.time()
         gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
             return jsonify({'error': 'Gamelist not found'}), 404
         
         games = parse_gamelist_xml(gamelist_path)
         game = next((g for g in games if g.get('name') == game_name), None)
+        gamelist_end_time = time.time()
+        print(f"⏱️ Gamelist parsing took {gamelist_end_time - gamelist_start_time:.3f} seconds")
         
         if not game:
             return jsonify({'error': 'Game not found in gamelist'}), 404
         
         # Get system configuration
+        config_start_time = time.time()
         systems_config = load_systems_config()
         sys_config = systems_config.get(system_name, {})
+        config_end_time = time.time()
+        print(f"⏱️ System config loading took {config_end_time - config_start_time:.3f} seconds")
         
         # Use manual scrap functionality for all scrapers
         import asyncio
@@ -8011,51 +8042,150 @@ def multiscraper_search_endpoint():
         current_game = game.copy()
         
         # Run manual scrap for all available scrapers
-        scraper_tasks = []
-        
-        # Add IGDB scraper if game has igdbid
-        if current_game.get('igdbid'):
-            scraper_tasks.append(('igdb', lambda: run_async_safely(scrape_igdb_manual(current_game, system_name, sys_config, target_media_type=media_type))))
-        
-        # Add Steam scraper if game has steamid
-        if current_game.get('steamid'):
-            scraper_tasks.append(('steam', lambda: run_async_safely(scrape_steam_manual(current_game, system_name, target_media_type=media_type))))
-        
-        # Add ScreenScraper if game has screenscraperid
-        if current_game.get('screenscraperid'):
-            scraper_tasks.append(('screenscraper', lambda: run_async_safely(scrape_screenscraper_manual(current_game, system_name, sys_config, target_media_type=media_type))))
-        
-        # Add SteamGridDB scraper if game has steamgridid
-        if current_game.get('steamgridid'):
-            scraper_tasks.append(('steamgriddb', lambda: run_async_safely(scrape_steamgriddb_manual(current_game, system_name, target_media_type=media_type))))
-        
-        # Add LaunchBox scraper if game has launchboxid
-        if current_game.get('launchboxid'):
-            scraper_tasks.append(('launchbox', lambda: run_async_safely(scrape_launchbox_manual(current_game, system_name, target_media_type=media_type))))
-        
-        # Add MobyGames scraper if game has mobygamesid
-        if current_game.get('mobygamesid'):
-            scraper_tasks.append(('mobygames', lambda: run_async_safely(scrape_mobygames_manual(current_game, system_name, sys_config, target_media_type=media_type))))
-        
-        print(f"🔧 DEBUG: Running {len(scraper_tasks)} scrapers for multiscraper search")
-        
-        # Execute all scrapers in parallel
         scrap_results = {}
-        for scraper_name, scraper_func in scraper_tasks:
-            try:
-                print(f"🔧 DEBUG: Running {scraper_name} scraper...")
-                result = scraper_func()
-                if result:
-                    print(f"🔧 DEBUG: {scraper_name} scraper returned data with keys: {list(result.keys())}")
-                    scrap_results[scraper_name] = result
-                else:
-                    print(f"🔧 DEBUG: {scraper_name} scraper returned None")
-            except Exception as e:
-                print(f"🔧 DEBUG: {scraper_name} scraper failed: {e}")
-                import traceback
-                print(f"🔧 DEBUG: {scraper_name} traceback: {traceback.format_exc()}")
+        
+        print(f"🔧 DEBUG: Running scrapers for multiscraper search")
+        
+        # Execute IGDB scraper if game has igdbid and supports the media type
+        if current_game.get('igdbid'):
+            # Check if IGDB supports this media type
+            igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
+            if media_type in igdb_image_mapping:
+                try:
+                    print(f"🔧 DEBUG: Running igdb scraper...")
+                    igdb_start_time = time.time()
+                    result = run_async_safely(scrape_igdb_manual(current_game, system_name, sys_config, target_media_type=media_type))
+                    igdb_end_time = time.time()
+                    print(f"⏱️ IGDB scraper took {igdb_end_time - igdb_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: igdb scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['igdb'] = result
+                    else:
+                        print(f"🔧 DEBUG: igdb scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: igdb scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: igdb traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping IGDB scraper - no mapping for media type '{media_type}'")
+        
+        # Execute Steam scraper if game has steamid and supports the media type
+        if current_game.get('steamid'):
+            # Check if Steam supports this media type
+            steam_image_mapping = scrappers_config.get('steam', {}).get('image_type_mappings', {})
+            if media_type in steam_image_mapping:
+                try:
+                    print(f"🔧 DEBUG: Running steam scraper...")
+                    steam_start_time = time.time()
+                    result = run_async_safely(scrape_steam_manual(current_game, system_name, target_media_type=media_type))
+                    steam_end_time = time.time()
+                    print(f"⏱️ Steam scraper took {steam_end_time - steam_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: steam scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['steam'] = result
+                    else:
+                        print(f"🔧 DEBUG: steam scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: steam scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: steam traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping Steam scraper - no mapping for media type '{media_type}'")
+        
+        # Execute ScreenScraper if game has screenscraperid and supports the media type
+        if current_game.get('screenscraperid'):
+            # Check if ScreenScraper supports this media type
+            screenscraper_image_mapping = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
+            if media_type in screenscraper_image_mapping:
+                try:
+                    print(f"🔧 DEBUG: Running screenscraper scraper...")
+                    screenscraper_start_time = time.time()
+                    result = run_async_safely(scrape_screenscraper_manual(current_game, system_name, sys_config, target_media_type=media_type))
+                    screenscraper_end_time = time.time()
+                    print(f"⏱️ ScreenScraper took {screenscraper_end_time - screenscraper_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: screenscraper scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['screenscraper'] = result
+                    else:
+                        print(f"🔧 DEBUG: screenscraper scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: screenscraper scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: screenscraper traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping ScreenScraper - no mapping for media type '{media_type}'")
+        
+        # Execute SteamGridDB scraper if game has steamgridid and supports the media type
+        if current_game.get('steamgridid'):
+            # Check if SteamGridDB supports this media type
+            steamgrid_image_mapping = scrappers_config.get('steamgriddb', {}).get('image_type_mappings', {})
+            if media_type in steamgrid_image_mapping:
+                try:
+                    print(f"🔧 DEBUG: Running steamgriddb scraper...")
+                    steamgrid_start_time = time.time()
+                    result = run_async_safely(scrape_steamgriddb_manual(current_game, system_name, target_media_type=media_type))
+                    steamgrid_end_time = time.time()
+                    print(f"⏱️ SteamGridDB took {steamgrid_end_time - steamgrid_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: steamgriddb scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['steamgriddb'] = result
+                    else:
+                        print(f"🔧 DEBUG: steamgriddb scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: steamgriddb scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: steamgriddb traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping SteamGridDB - no mapping for media type '{media_type}'")
+        
+        # Execute LaunchBox scraper if game has launchboxid and supports the media type
+        if current_game.get('launchboxid'):
+            # Check if LaunchBox supports this media type
+            launchbox_image_mapping = scrappers_config.get('launchbox', {}).get('image_type_mappings', {})
+            if media_type in launchbox_image_mapping:
+                try:
+                    print(f"🔧 DEBUG: Running launchbox scraper...")
+                    launchbox_start_time = time.time()
+                    result = run_async_safely(scrape_launchbox_manual(current_game, system_name, target_media_type=media_type))
+                    launchbox_end_time = time.time()
+                    print(f"⏱️ LaunchBox took {launchbox_end_time - launchbox_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: launchbox scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['launchbox'] = result
+                    else:
+                        print(f"🔧 DEBUG: launchbox scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: launchbox scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: launchbox traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping LaunchBox - no mapping for media type '{media_type}'")
+        
+        # Execute MobyGames scraper if game has mobygamesid and supports the media type
+        if current_game.get('mobygamesid'):
+            # Check if MobyGames supports this media type
+            mobygames_image_mapping = scrappers_config.get('mobygames', {}).get('image_type_mappings', {})
+            if media_type in mobygames_image_mapping:
+                try:
+                    print(f"🔧 DEBUG: Running mobygames scraper...")
+                    mobygames_start_time = time.time()
+                    result = run_async_safely(scrape_mobygames_manual(current_game, system_name, sys_config, target_media_type=media_type))
+                    mobygames_end_time = time.time()
+                    print(f"⏱️ MobyGames took {mobygames_end_time - mobygames_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: mobygames scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['mobygames'] = result
+                    else:
+                        print(f"🔧 DEBUG: mobygames scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: mobygames scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: mobygames traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping MobyGames - no mapping for media type '{media_type}'")
         
         # Filter results to only include the requested media type
+        processing_start_time = time.time()
         results = []
         for scraper_name, scrap_data in scrap_results.items():
             print(f"🔧 DEBUG: Processing {scraper_name} scraper data")
@@ -8102,6 +8232,12 @@ def multiscraper_search_endpoint():
                     print(f"🔧 DEBUG: {scraper_name} has no {media_type} or empty {media_type}")
             else:
                 print(f"🔧 DEBUG: {scraper_name} has no media_fields or scrap_data is None")
+        
+        processing_end_time = time.time()
+        print(f"⏱️ Result processing took {processing_end_time - processing_start_time:.3f} seconds")
+        
+        total_end_time = time.time()
+        print(f"⏱️ TOTAL multiscraper search took {total_end_time - total_start_time:.3f} seconds")
         
         print(f"🔧 DEBUG: Found {len(results)} results for media type '{media_type}' from {len(scrap_results)} scrapers")
         
@@ -8166,15 +8302,25 @@ def download_multiscraper_media_endpoint():
 
 def run_async_safely(coro):
     """Safely run an async coroutine, handling event loop conflicts"""
+    import time
+    
+    async_safely_start_time = time.time()
+    
     try:
-        # Try to get the current event loop
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If we're already in an async context, we need to run in a new thread
+        # Try asyncio.run first (fastest option)
+        result = asyncio.run(coro)
+        async_safely_end_time = time.time()
+        print(f"⏱️ run_async_safely (asyncio.run) took {async_safely_end_time - async_safely_start_time:.3f} seconds")
+        return result
+    except RuntimeError as e:
+        if "cannot be called from a running event loop" in str(e):
+            # We're in an async context, need to use thread
+            print(f"🔧 DEBUG: Event loop conflict detected, using thread fallback")
             import concurrent.futures
             import threading
             
-            def run_in_thread():
+            def run_in_new_thread():
+                """Run the coroutine in a completely new thread with its own event loop"""
                 new_loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(new_loop)
                 try:
@@ -8183,14 +8329,17 @@ def run_async_safely(coro):
                     new_loop.close()
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_in_thread)
-                return future.result()
+                future = executor.submit(run_in_new_thread)
+                result = future.result()
+                async_safely_end_time = time.time()
+                print(f"⏱️ run_async_safely (thread fallback) took {async_safely_end_time - async_safely_start_time:.3f} seconds")
+                return result
         else:
-            # No event loop running, we can use asyncio.run
-            return asyncio.run(coro)
-    except RuntimeError:
-        # Fallback to asyncio.run if there are any issues
-        return asyncio.run(coro)
+            # Other RuntimeError, re-raise
+            raise e
+    except Exception as e:
+        print(f"🔧 DEBUG: run_async_safely error: {e}")
+        raise e
 
 def download_and_save_media(media_url, game, media_type, system_name):
     """Download and save media to the appropriate directory"""
@@ -11560,37 +11709,57 @@ def apply_manual_scrap(system_name):
 async def scrape_igdb_manual(game, system_name, system_config, target_media_type=None):
     """Scrape IGDB data for manual scrap (returns data without writing files)"""
     try:
+        import time
+        
         # Get IGDB configuration
         igdb_config = get_igdb_config()
         if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
             return None
         
         # Get access token
+        token_start_time = time.time()
         access_token = await get_igdb_access_token_async()
+        token_end_time = time.time()
+        print(f"⏱️ IGDB access token retrieval took {token_end_time - token_start_time:.3f} seconds")
         if not access_token:
             return None
         
-        # Get async client
-        async_client = await get_igdb_async_client()
+        # Get async client (manual version without rate limiting)
+        client_start_time = time.time()
+        async_client = await get_igdb_manual_async_client()
+        client_end_time = time.time()
+        print(f"⏱️ IGDB manual client creation took {client_end_time - client_start_time:.3f} seconds")
         
         # Ensure genre cache is up to date
+        cache_start_time = time.time()
         await ensure_igdb_genre_cache()
+        cache_end_time = time.time()
+        print(f"⏱️ IGDB genre cache check took {cache_end_time - cache_start_time:.3f} seconds")
         
         # Get IGDB ID (required for manual scrap)
         existing_igdb_id = game.get('igdbid')
         if not existing_igdb_id:
             return None
         
-        # Get IGDB game data by ID only
-        igdb_game = await fetch_igdb_game_by_id_async(
-            existing_igdb_id,
-            access_token, 
-            igdb_config['client_id'],
-            async_client
-        )
-        
-        if not igdb_game:
-            return None
+        # For manual scrap with target_media_type, we can skip full game data fetch
+        # and just use the game ID directly for media fetching
+        if target_media_type:
+            print(f"🚀 IGDB MANUAL SCRAP: Skipping game data fetch for {target_media_type}, using ID directly")
+            igdb_game = {'id': existing_igdb_id, 'name': game.get('name', '')}
+        else:
+            # Get IGDB game data by ID only (for full scrap)
+            game_fetch_start_time = time.time()
+            igdb_game = await fetch_igdb_game_by_id_async(
+                existing_igdb_id,
+                access_token, 
+                igdb_config['client_id'],
+                async_client
+            )
+            game_fetch_end_time = time.time()
+            print(f"⏱️ IGDB game data fetch took {game_fetch_end_time - game_fetch_start_time:.3f} seconds")
+            
+            if not igdb_game:
+                return None
         
         # Get field mappings
         config = load_config()
@@ -11870,10 +12039,17 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
         # Get Steam service
         steam_service = SteamService()
         
-        # Get Steam game data
-        steam_data = await steam_service.get_steam_game_data(steam_id)
-        if not steam_data:
-            return None
+        # Get Steam game data (only if we need text fields)
+        steam_data = None
+        if not target_media_type:
+            # Only fetch game data if we need text fields
+            steam_data = await steam_service.get_steam_game_data(steam_id)
+            if not steam_data:
+                return None
+        else:
+            # For media-only requests, create minimal steam_data with just the steam_id
+            print(f"🚀 Steam MANUAL SCRAP: Skipping API call for {target_media_type}, using steam_id directly")
+            steam_data = {'steam_id': steam_id}
         
         # Extract text fields (skip if target_media_type is specified for speed)
         text_fields = {}
@@ -11911,41 +12087,52 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
             
             # Find the Steam type that maps to the target media type
             target_steam_type = None
+            print(f"🔧 DEBUG: Steam image mapping: {steam_image_mapping}")
+            print(f"🔧 DEBUG: Looking for target media type: {target_media_type}")
+            
             for field, steam_type in steam_image_mapping.items():
                 if field == target_media_type:
                     target_steam_type = steam_type
+                    print(f"🔧 DEBUG: Found mapping: {field} -> {steam_type}")
                     break
             
             # If no mapping found, use heuristics
             if not target_steam_type:
+                print(f"🔧 DEBUG: No mapping found, using heuristics for {target_media_type}")
                 if target_media_type in ['image', 'boxart']:
                     target_steam_type = 'capsule'
                 elif target_media_type in ['marquee']:
                     target_steam_type = 'logo'
                 elif target_media_type in ['fanart']:
                     target_steam_type = 'hero'
+                print(f"🔧 DEBUG: Heuristic mapping: {target_media_type} -> {target_steam_type}")
+            else:
+                print(f"🔧 DEBUG: Using configured mapping: {target_media_type} -> {target_steam_type}")
             
-            # Build only the needed URL
+            # Build only the needed URL (optimized for speed)
             if target_steam_type == 'capsule':
+                # Primary capsule image
                 capsule_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg"
-                capsule_field = target_media_type
-                media_fields.setdefault(capsule_field, []).append(capsule_url)
-                # Also include header_image from API if present
+                media_fields.setdefault(target_media_type, []).append(capsule_url)
+                # Alternative header image (if we have full steam_data)
                 if steam_data.get('header_image'):
-                    media_fields.setdefault(capsule_field, []).append(steam_data['header_image'])
+                    media_fields.setdefault(target_media_type, []).append(steam_data['header_image'])
+                # Additional Steam CDN alternative
+                header_url = f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{steam_id}/header.jpg?t=1682004272"
+                media_fields.setdefault(target_media_type, []).append(header_url)
             elif target_steam_type == 'logo':
-                logo_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png"
-                logo_field = target_media_type
-                media_fields.setdefault(logo_field, []).append(logo_url)
+                logo_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/logo.png"
+                print(f"🔧 DEBUG: Building logo URL: {logo_url}")
+                media_fields.setdefault(target_media_type, []).append(logo_url)
+                print(f"🔧 DEBUG: Added logo URL to media_fields[{target_media_type}]: {media_fields[target_media_type]}")
             elif target_steam_type == 'hero':
                 hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
-                hero_field = target_media_type
-                media_fields.setdefault(hero_field, []).append(hero_url)
+                media_fields.setdefault(target_media_type, []).append(hero_url)
         else:
             # Build all URLs (original behavior)
             print(f"🚀 Steam MANUAL SCRAP: Building all URLs")
             capsule_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg"
-            logo_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/logo_2x.png"
+            logo_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/logo.png"
             hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
 
             # Map and append as arrays
@@ -12153,9 +12340,9 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
 async def scrape_steamgriddb_manual(game, system_name, target_media_type=None):
     """Scrape SteamGridDB data for manual scrap (returns data without writing files)"""
     try:
-        steam_id = game.get('steamid')
         steamgrid_id = game.get('steamgridid')
-        if not steamgrid_id and not steam_id:
+        if not steamgrid_id:
+            print(f"🔧 DEBUG: SteamGridDB manual scrap - No steamgridid found, skipping")
             return None
         
         # Get SteamGridDB service
@@ -12165,12 +12352,6 @@ async def scrape_steamgriddb_manual(game, system_name, target_media_type=None):
         api_key = steamgrid_service.get_api_key()
         if not api_key:
             return None
-        
-        # Resolve SteamGridDB ID: prefer existing steamgridid, else lookup by steamid
-        if not steamgrid_id:
-            steamgrid_id = await steamgrid_service.get_steamgrid_id(steam_id=steam_id, api_key=api_key)
-            if not steamgrid_id:
-                return None
         
         # Get media data (optimize based on target_media_type)
         if target_media_type:
@@ -17325,8 +17506,58 @@ def get_igdb_access_token():
         print(f"Error getting IGDB access token: {e}")
         return None
 
+# IGDB access token cache
+_igdb_token_cache = None
+_igdb_token_expires_at = None
+
+def load_igdb_token_cache():
+    """Load IGDB token from cache file"""
+    global _igdb_token_cache, _igdb_token_expires_at
+    
+    try:
+        cache_file = 'var/cache/igdb_token'
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+                _igdb_token_cache = cache_data.get('access_token')
+                _igdb_token_expires_at = cache_data.get('expires_at')
+                print(f"🔧 DEBUG: Loaded IGDB token from cache (expires at {_igdb_token_expires_at})")
+                return True
+    except Exception as e:
+        print(f"🔧 DEBUG: Error loading IGDB token cache: {e}")
+    
+    return False
+
+def save_igdb_token_cache(access_token, expires_at):
+    """Save IGDB token to cache file"""
+    try:
+        os.makedirs('var/cache', exist_ok=True)
+        cache_file = 'var/cache/igdb_token'
+        cache_data = {
+            'access_token': access_token,
+            'expires_at': expires_at
+        }
+        with open(cache_file, 'w') as f:
+            json.dump(cache_data, f)
+        print(f"🔧 DEBUG: Saved IGDB token to cache (expires at {expires_at})")
+    except Exception as e:
+        print(f"🔧 DEBUG: Error saving IGDB token cache: {e}")
+
 async def get_igdb_access_token_async():
-    """Get IGDB access token asynchronously"""
+    """Get IGDB access token asynchronously with persistent caching"""
+    global _igdb_token_cache, _igdb_token_expires_at
+    
+    import time
+    
+    # Load from cache file if not already loaded
+    if _igdb_token_cache is None:
+        load_igdb_token_cache()
+    
+    # Check if we have a valid cached token
+    if _igdb_token_cache and _igdb_token_expires_at and time.time() < _igdb_token_expires_at:
+        print("🔧 DEBUG: Using cached IGDB access token")
+        return _igdb_token_cache
+    
     try:
         igdb_config = get_igdb_config()
         if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
@@ -17360,7 +17591,20 @@ async def get_igdb_access_token_async():
             
             if response.status_code == 200:
                 token_info = response.json()
-                return token_info.get('access_token')
+                access_token = token_info.get('access_token')
+                expires_in = token_info.get('expires_in', 3600)  # Default to 1 hour if not provided
+                
+                # Cache the token using the actual expiration time from the API
+                if access_token:
+                    _igdb_token_cache = access_token
+                    # Use the actual expires_in value, but subtract 1 hour (3600 seconds) as a safety buffer
+                    _igdb_token_expires_at = time.time() + expires_in - 3600
+                    print(f"🔧 DEBUG: Cached new IGDB access token (expires in {expires_in}s, cached until {expires_in-3600}s)")
+                    
+                    # Save to persistent cache file
+                    save_igdb_token_cache(access_token, _igdb_token_expires_at)
+                
+                return access_token
             else:
                 print(f"Failed to get IGDB access token: {response.status_code}")
                 if response.status_code == 400:
@@ -17396,6 +17640,41 @@ async def make_igdb_request_with_retry(async_client, url, headers, data, max_ret
                 
         except Exception as e:
             print(f"IGDB API request error (attempt {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                wait_time = (2 ** attempt) + 1
+                await asyncio.sleep(wait_time)
+                continue
+            else:
+                raise e
+    
+    return None
+
+async def make_igdb_manual_request_with_retry(async_client, url, headers, data, max_retries=3):
+    """Make an IGDB API request with retry logic for manual scrap (no rate limiting)"""
+    import asyncio
+    
+    for attempt in range(max_retries):
+        try:
+            response = await igdb_manual_post(async_client, url, headers=headers, content=data)
+            
+            if response.status_code == 200:
+                return response
+            elif response.status_code == 429:
+                # Rate limited - wait and retry (but this shouldn't happen with manual client)
+                wait_time = (2 ** attempt) + 1  # Exponential backoff: 2, 5, 9 seconds
+                print(f"IGDB API rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(wait_time)
+                continue
+            else:
+                print(f"IGDB API error: {response.status_code} - {response.text}")
+                return response
+                
+        except Exception as e:
+            # Suppress event loop errors on first attempt as they're often transient
+            if attempt == 0 and "Event loop is closed" in str(e):
+                print(f"IGDB API request error (attempt {attempt + 1}): Event loop issue, retrying...")
+            else:
+                print(f"IGDB API request error (attempt {attempt + 1}): {e}")
             if attempt < max_retries - 1:
                 wait_time = (2 ** attempt) + 1
                 await asyncio.sleep(wait_time)
@@ -17455,15 +17734,15 @@ async def fetch_igdb_game_by_id_async(game_id, access_token, client_id, async_cl
     try:
         search_url = "https://api.igdb.com/v4/games"
         search_data = f'fields id,name,summary,first_release_date,platforms,genres,total_rating,rating_count,player_perspectives,game_modes,cover,screenshots,artworks; where id = {game_id};'
-        
+
         headers = {
             'Client-ID': client_id,
             'Authorization': f'Bearer {access_token}',
             'Content-Type': 'text/plain'
         }
         
-        # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        # Make the request with retry logic (manual version without rate limiting)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             games = response.json()
@@ -17522,8 +17801,8 @@ async def fetch_igdb_artworks(async_client, access_token, client_id, game_id):
             'Content-Type': 'text/plain'
         }
         
-        # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        # Make the request with retry logic (manual version without rate limiting)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             artworks = response.json()
@@ -17583,8 +17862,8 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
             'Content-Type': 'text/plain'
         }
         
-        # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        # Make the request with retry logic (manual version without rate limiting)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             logos = response.json()
@@ -17691,8 +17970,8 @@ async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id)
             'Content-Type': 'text/plain'
         }
         
-        # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        # Make the request with retry logic (manual version without rate limiting)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             screenshots = response.json()
@@ -17781,7 +18060,7 @@ async def ensure_igdb_regions_cache(async_client, access_token, client_id):
                 'Content-Type': 'text/plain'
             }
             
-            response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+            response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
             
             if response and response.status_code == 200:
                 regions = response.json()
@@ -17927,8 +18206,8 @@ async def fetch_igdb_covers(async_client, access_token, client_id, game_id, game
             'Content-Type': 'text/plain'
         }
         
-        # Make the request with retry logic
-        response = await make_igdb_request_with_retry(async_client, search_url, headers, search_data)
+        # Make the request with retry logic (manual version without rate limiting)
+        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
         
         if response and response.status_code == 200:
             covers = response.json()
@@ -17948,7 +18227,7 @@ async def fetch_igdb_covers(async_client, access_token, client_id, game_id, game
                 localization_url = "https://api.igdb.com/v4/game_localizations"
                 localization_data = f'fields id,name,region; where id = ({",".join(map(str, localization_ids))});'
                 
-                localization_response = await make_igdb_request_with_retry(async_client, localization_url, headers, localization_data)
+                localization_response = await make_igdb_manual_request_with_retry(async_client, localization_url, headers, localization_data)
                 
                 if localization_response and localization_response.status_code == 200:
                     localizations = localization_response.json()
@@ -18230,6 +18509,7 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
 
 # Global httpx async client and rate limiter for IGDB API
 _igdb_async_client = None
+_igdb_manual_async_client = None
 _igdb_rate_limiter = None
 
 def get_igdb_rate_limiter():
@@ -18365,12 +18645,45 @@ async def get_igdb_async_client():
     
     return _igdb_async_client
 
+async def get_igdb_manual_async_client():
+    """Get or create httpx async client for IGDB manual scrap/multiscraper (no rate limiting)"""
+    global _igdb_manual_async_client
+    if _igdb_manual_async_client is None:
+        import httpx
+        
+        # Create async client with HTTP/2 and connection pooling for manual operations
+        # Max 8 parallel connections, NO rate limiting for faster manual scrap
+        _igdb_manual_async_client = httpx.AsyncClient(
+            http2=True,  # Enable HTTP/2 for better performance
+            limits=httpx.Limits(
+                max_connections=8,           # Maximum 8 parallel connections
+                max_keepalive_connections=8, # Keep 8 connections alive
+                keepalive_expiry=30.0        # Keep connections alive for 30 seconds
+            ),
+            timeout=httpx.Timeout(
+                connect=10.0,  # 10 seconds to establish connection
+                read=30.0,     # 30 seconds to read response
+                write=10.0,    # 10 seconds to write request
+                pool=5.0       # 5 seconds to get connection from pool
+            )
+        )
+        print("✅ IGDB manual async client initialized (no rate limiting, 8 connections)")
+    
+    return _igdb_manual_async_client
+
 async def close_igdb_async_client():
     """Close the global httpx async client"""
     global _igdb_async_client
     if _igdb_async_client is not None:
         await _igdb_async_client.aclose()
         _igdb_async_client = None
+
+async def close_igdb_manual_async_client():
+    """Close the manual httpx async client"""
+    global _igdb_manual_async_client
+    if _igdb_manual_async_client is not None:
+        await _igdb_manual_async_client.aclose()
+        _igdb_manual_async_client = None
 
 async def igdb_rate_limited_post(async_client, url, headers=None, content=None, **kwargs):
     """Make a rate-limited POST request to IGDB API
@@ -18385,6 +18698,16 @@ async def igdb_rate_limited_post(async_client, url, headers=None, content=None, 
     await rate_limiter.try_acquire_async('igdb_api_requests')
     
     # Make the actual request using the connection pool
+    # The httpx client will handle connection pooling (max 8 parallel)
+    return await async_client.post(url, headers=headers, content=content, **kwargs)
+
+async def igdb_manual_post(async_client, url, headers=None, content=None, **kwargs):
+    """Make a non-rate-limited POST request to IGDB API for manual scrap/multiscraper
+    
+    No rate limiting for faster manual operations
+    Connection pooling: Max 8 parallel connections with HTTP/2
+    """
+    # Make the request directly without rate limiting
     # The httpx client will handle connection pooling (max 8 parallel)
     return await async_client.post(url, headers=headers, content=content, **kwargs)
 
@@ -18710,10 +19033,11 @@ async def fetch_igdb_genres_async(access_token, client_id, async_client):
             'Content-Type': 'text/plain'
         }
         
-        response = await async_client.post(
+        response = await igdb_manual_post(
+            async_client,
             'https://api.igdb.com/v4/genres/',
             headers=headers,
-            data=query
+            content=query
         )
         
         if response.status_code == 200:
@@ -18750,8 +19074,8 @@ async def ensure_igdb_genre_cache():
         print("❌ Could not get IGDB access token")
         return {}
     
-    # Get async client
-    async_client = await get_igdb_async_client()
+    # Get async client (manual version without rate limiting)
+    async_client = await get_igdb_manual_async_client()
     
     # Fetch genres
     genres = await fetch_igdb_genres_async(access_token, igdb_config['client_id'], async_client)
@@ -22220,6 +22544,10 @@ if __name__ == '__main__':
     
     # Clean up any remaining temporary files from previous runs
     cleanup_temp_files()
+    
+    # Load IGDB token cache at startup
+    print("Loading IGDB token cache...")
+    load_igdb_token_cache()
     
     # Start server immediately, then load cache in background
     print("Starting server...")
