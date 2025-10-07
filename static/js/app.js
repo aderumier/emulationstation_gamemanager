@@ -6621,17 +6621,17 @@ class GameCollectionManager {
             this.showAlert('Please select a match first', 'warning');
             return;
         }
-        
-        // Use the game path to find the result instead of relying on array indices
+
+        // Get the original index from the row data attribute
         const row = select.closest('tr');
-        const gamePath = row && row.dataset && row.dataset.gamePath;
-        if (!gamePath) {
-            this.showAlert('Game path not found', 'error');
+        const originalIndex = row && row.dataset && row.dataset.originalIndex;
+        if (originalIndex === undefined || originalIndex === null) {
+            this.showAlert('Original index not found', 'error');
             return;
         }
-        
-        // Find the result by game path instead of index
-        const result = this.globalMatchResults.find(r => r.game_data && r.game_data.path === gamePath);
+
+        // Use the original index to get the correct result
+        const result = this.globalMatchResults[parseInt(originalIndex)];
         if (!result) {
             this.showAlert('Game data not found', 'error');
             return;
@@ -6692,11 +6692,10 @@ class GameCollectionManager {
         if (tableRow) {
             tableRow.remove();
         }
-        
-        // Remove from results array using game path
-        const resultIndex = this.globalMatchResults.findIndex(r => r.game_data && r.game_data.path === gamePath);
-        if (resultIndex !== -1) {
-            this.globalMatchResults.splice(resultIndex, 1);
+
+        // Remove from results array using original index
+        if (parseInt(originalIndex) < this.globalMatchResults.length) {
+            this.globalMatchResults.splice(parseInt(originalIndex), 1);
         }
         
         // Check if all games are processed
@@ -6970,17 +6969,17 @@ class GameCollectionManager {
                 return;
             }
             
-            // Get the game path from the row data attribute
+            // Get the original index from the row data attribute
             const row = select.closest('tr');
-            const gamePath = row.dataset.gamePath;
+            const originalIndex = row && row.dataset && row.dataset.originalIndex;
             
-            if (!gamePath) {
-                this.showAlert('Game path not found', 'error');
+            if (originalIndex === undefined || originalIndex === null) {
+                this.showAlert('Original index not found', 'error');
                 return;
             }
             
-            // Find the result using the game path
-            const result = this.globalMatchResults.find(r => r.game_data && r.game_data.path === gamePath);
+            // Use the original index to get the correct result
+            const result = this.globalMatchResults[parseInt(originalIndex)];
             
             if (!result) {
                 this.showAlert('Game not found in results', 'error');
@@ -7019,10 +7018,9 @@ class GameCollectionManager {
                 tableRow.remove();
             }
             
-            // Remove from results array using game path
-            const resultIndex = this.globalMatchResults.findIndex(r => r.game_data && r.game_data.path === gamePath);
-            if (resultIndex !== -1) {
-                this.globalMatchResults.splice(resultIndex, 1);
+            // Remove from results array using original index
+            if (parseInt(originalIndex) < this.globalMatchResults.length) {
+                this.globalMatchResults.splice(parseInt(originalIndex), 1);
             }
             
             // Re-populate the table with updated results
