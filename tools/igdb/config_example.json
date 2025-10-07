@@ -1,0 +1,6 @@
+{
+  "igdb": {
+    "client_id": "your_twitch_client_id_here",
+    "client_secret": "your_twitch_client_secret_here"
+  }
+}
