@@ -5550,9 +5550,9 @@ class GameCollectionManager {
         // Show spinner
         document.getElementById('igdbSearchSpinner').style.display = 'inline-block';
         
-        // Perform initial search
-        await this.performIgdbSearch();
-        
+        try {
+            // Perform initial search
+            await this.performIgdbSearch();
         } catch (error) {
             document.getElementById('igdbSearchSpinner').style.display = 'none';
             this.showIgdbSearchError('Error searching local IGDB database: ' + error.message);
@@ -5886,9 +5886,9 @@ class GameCollectionManager {
         // Show spinner
         document.getElementById('screenscraperSearchSpinner').style.display = 'inline-block';
         
-        // Perform initial search
-        await this.performScreenscraperSearch();
-        
+        try {
+            // Perform initial search
+            await this.performScreenscraperSearch();
         } catch (error) {
             document.getElementById('screenscraperSearchSpinner').style.display = 'none';
             this.showScreenscraperSearchError('Error searching ScreenScraper games: ' + error.message);
@@ -6241,9 +6241,9 @@ class GameCollectionManager {
         // Show spinner
         document.getElementById('mobygamesSearchSpinner').style.display = 'inline-block';
         
-        // Perform initial search
-        await this.performMobygamesSearch();
-        
+        try {
+            // Perform initial search
+            await this.performMobygamesSearch();
         } catch (error) {
             document.getElementById('mobygamesSearchSpinner').style.display = 'none';
             this.showMobygamesSearchError('Error searching MobyGames games: ' + error.message);
@@ -6341,9 +6341,9 @@ class GameCollectionManager {
         // Show spinner
         document.getElementById('steamgridSearchSpinner').style.display = 'inline-block';
         
-        // Perform initial search
-        await this.performSteamgridSearch();
-        
+        try {
+            // Perform initial search
+            await this.performSteamgridSearch();
         } catch (error) {
             document.getElementById('steamgridSearchSpinner').style.display = 'none';
             this.showSteamgridSearchError('Error searching SteamGridDB games: ' + error.message);
