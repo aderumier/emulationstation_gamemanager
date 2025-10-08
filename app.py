@@ -19739,7 +19739,7 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 }
                 
                 # Use the same download function as manual scraping
-                cover_path = await download_igdb_image(cover_data, system_name, rom_filename, 'cover')
+                cover_path = await download_igdb_image(cover_data, system_name, rom_path, 'cover')
                 if cover_path:
                     if cover_elem is None:
                         cover_elem = ET.SubElement(game, cover_field)
@@ -19770,7 +19770,7 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 }
                 
                 # Use the same download function as manual scraping
-                fanart_path = await download_igdb_image(artwork_data, system_name, rom_filename, 'artworks')
+                fanart_path = await download_igdb_image(artwork_data, system_name, rom_path, 'artworks')
                 if fanart_path:
                     if fanart_elem is None:
                         fanart_elem = ET.SubElement(game, fanart_field)
@@ -19801,7 +19801,7 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 }
                 
                 # Use the same download function as manual scraping
-                screenshot_path = await download_igdb_image(screenshot_data, system_name, rom_filename, 'screenshots')
+                screenshot_path = await download_igdb_image(screenshot_data, system_name, rom_path, 'screenshots')
                 if screenshot_path:
                     if screenshot_elem is None:
                         screenshot_elem = ET.SubElement(game, screenshot_field)
