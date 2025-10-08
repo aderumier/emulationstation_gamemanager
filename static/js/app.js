@@ -5520,11 +5520,12 @@ class GameCollectionManager {
         
         this.igdbSearchInProgress = true;
         
-        // Set the game name in the modal
-        document.getElementById('igdbSearchGameName').textContent = gameName;
+        // Set the game name in the editable input field
+        document.getElementById('igdbSearchGameNameInput').value = gameName;
         
-        // Store system name for use in results display
+        // Store system name and platform for use in results display
         this.currentIgdbSearchSystem = systemName;
+        this.currentIgdbSearchPlatform = platformNameOrId;
         
         // Clear previous results
         document.getElementById('igdbSearchResults').innerHTML = '';
@@ -5543,10 +5544,32 @@ class GameCollectionManager {
         });
         modal.show();
         
+        // Focus on the input field
+        document.getElementById('igdbSearchGameNameInput').focus();
+        
         // Show spinner
         document.getElementById('igdbSearchSpinner').style.display = 'inline-block';
         
+        // Perform initial search
+        await this.performIgdbSearch();
+        
+        } catch (error) {
+            document.getElementById('igdbSearchSpinner').style.display = 'none';
+            this.showIgdbSearchError('Error searching local IGDB database: ' + error.message);
+        } finally {
+            // Reset the flag to allow future requests
+            this.igdbSearchInProgress = false;
+        }
+    }
+    
+    async performIgdbSearch() {
         try {
+            const gameName = document.getElementById('igdbSearchGameNameInput').value.trim();
+            if (!gameName) {
+                this.showIgdbSearchError('Please enter a game name to search');
+                return;
+            }
+            
             console.log('🔧 DEBUG: Making IGDB local database search request for:', gameName);
             // Search for games in local IGDB database
             const response = await fetch('/api/igdb/database/search', {
@@ -5556,7 +5579,7 @@ class GameCollectionManager {
                 },
                 body: JSON.stringify({
                     game_name: gameName,
-                    platform_id: platformNameOrId,
+                    platform_id: this.currentIgdbSearchPlatform,
                     limit: 10
                 })
             });
@@ -5575,9 +5598,128 @@ class GameCollectionManager {
         } catch (error) {
             document.getElementById('igdbSearchSpinner').style.display = 'none';
             this.showIgdbSearchError('Error searching local IGDB database: ' + error.message);
-        } finally {
-            // Reset the flag to allow future requests
-            this.igdbSearchInProgress = false;
+        }
+    }
+    
+    async performMobygamesSearch() {
+        try {
+            const gameName = document.getElementById('mobygamesSearchGameNameInput').value.trim();
+            if (!gameName) {
+                this.showMobygamesSearchError('Please enter a game name to search');
+                return;
+            }
+            
+            // Show spinner
+            document.getElementById('mobygamesSearchSpinner').style.display = 'inline-block';
+            
+            console.log('🔧 DEBUG: Making MobyGames search request for:', gameName);
+            const response = await fetch('/api/mobygames/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: this.currentMobygamesSearchSystem,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('mobygamesSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displayMobygamesSearchResults(result.games);
+            } else {
+                this.showMobygamesSearchError(result.error || 'Failed to search MobyGames database');
+            }
+            
+        } catch (error) {
+            document.getElementById('mobygamesSearchSpinner').style.display = 'none';
+            this.showMobygamesSearchError('Error searching MobyGames database: ' + error.message);
+        }
+    }
+    
+    async performScreenscraperSearch() {
+        try {
+            const gameName = document.getElementById('screenscraperSearchGameNameInput').value.trim();
+            if (!gameName) {
+                this.showScreenscraperSearchError('Please enter a game name to search');
+                return;
+            }
+            
+            // Show spinner
+            document.getElementById('screenscraperSearchSpinner').style.display = 'inline-block';
+            
+            console.log('🔧 DEBUG: Making ScreenScraper search request for:', gameName);
+            const response = await fetch('/api/screenscraper/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: this.currentScreenscraperSearchSystem,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('screenscraperSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displayScreenscraperSearchResults(result.games);
+            } else {
+                this.showScreenscraperSearchError(result.error || 'Failed to search ScreenScraper database');
+            }
+            
+        } catch (error) {
+            document.getElementById('screenscraperSearchSpinner').style.display = 'none';
+            this.showScreenscraperSearchError('Error searching ScreenScraper database: ' + error.message);
+        }
+    }
+    
+    async performSteamgridSearch() {
+        try {
+            const gameName = document.getElementById('steamgridSearchGameNameInput').value.trim();
+            if (!gameName) {
+                this.showSteamgridSearchError('Please enter a game name to search');
+                return;
+            }
+            
+            // Show spinner
+            document.getElementById('steamgridSearchSpinner').style.display = 'inline-block';
+            
+            console.log('🔧 DEBUG: Making SteamGridDB search request for:', gameName);
+            const response = await fetch('/api/steamgrid/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('steamgridSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displaySteamgridSearchResults(result.games);
+            } else {
+                this.showSteamgridSearchError(result.error || 'Failed to search SteamGridDB database');
+            }
+            
+        } catch (error) {
+            document.getElementById('steamgridSearchSpinner').style.display = 'none';
+            this.showSteamgridSearchError('Error searching SteamGridDB database: ' + error.message);
         }
     }
     
@@ -5715,8 +5857,8 @@ class GameCollectionManager {
     }
     
     async showScreenscraperSearchModal(gameName, systemName) {
-        // Set the game name in the modal
-        document.getElementById('screenscraperSearchGameName').textContent = gameName;
+        // Set the game name in the editable input field
+        document.getElementById('screenscraperSearchGameNameInput').value = gameName;
         
         // Store system name for use in results display
         this.currentScreenscraperSearchSystem = systemName;
@@ -5738,34 +5880,15 @@ class GameCollectionManager {
         });
         modal.show();
         
+        // Focus on the input field
+        document.getElementById('screenscraperSearchGameNameInput').focus();
+        
         // Show spinner
         document.getElementById('screenscraperSearchSpinner').style.display = 'inline-block';
         
-        try {
-            // Search for games in ScreenScraper
-            const response = await fetch('/api/screenscraper/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    game_name: gameName,
-                    system_name: systemName,
-                    limit: 10
-                })
-            });
-            
-            const result = await response.json();
-            
-            // Hide spinner
-            document.getElementById('screenscraperSearchSpinner').style.display = 'none';
-            
-            if (response.ok && result.success) {
-                this.displayScreenscraperSearchResults(result.games);
-            } else {
-                this.showScreenscraperSearchError(result.error || 'Failed to search ScreenScraper games');
-            }
-            
+        // Perform initial search
+        await this.performScreenscraperSearch();
+        
         } catch (error) {
             document.getElementById('screenscraperSearchSpinner').style.display = 'none';
             this.showScreenscraperSearchError('Error searching ScreenScraper games: ' + error.message);
@@ -6089,8 +6212,8 @@ class GameCollectionManager {
     }
     
     async showMobygamesSearchModal(gameName, systemName) {
-        // Set the game name in the modal
-        document.getElementById('mobygamesSearchGameName').textContent = gameName;
+        // Set the game name in the editable input field
+        document.getElementById('mobygamesSearchGameNameInput').value = gameName;
         
         // Store system name for use in results display
         this.currentMobygamesSearchSystem = systemName;
@@ -6112,34 +6235,15 @@ class GameCollectionManager {
         });
         modal.show();
         
+        // Focus on the input field
+        document.getElementById('mobygamesSearchGameNameInput').focus();
+        
         // Show spinner
         document.getElementById('mobygamesSearchSpinner').style.display = 'inline-block';
         
-        try {
-            // Search for games in MobyGames
-            const response = await fetch('/api/mobygames/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    game_name: gameName,
-                    system_name: systemName,
-                    limit: 10
-                })
-            });
-            
-            const result = await response.json();
-            
-            // Hide spinner
-            document.getElementById('mobygamesSearchSpinner').style.display = 'none';
-            
-            if (response.ok && result.success) {
-                this.displayMobygamesSearchResults(result.games);
-            } else {
-                this.showMobygamesSearchError(result.error || 'Failed to search MobyGames games');
-            }
-            
+        // Perform initial search
+        await this.performMobygamesSearch();
+        
         } catch (error) {
             document.getElementById('mobygamesSearchSpinner').style.display = 'none';
             this.showMobygamesSearchError('Error searching MobyGames games: ' + error.message);
@@ -6208,8 +6312,8 @@ class GameCollectionManager {
     }
     
     async showSteamgridSearchModal(gameName, systemName) {
-        // Set the game name in the modal
-        document.getElementById('steamgridSearchGameName').textContent = gameName;
+        // Set the game name in the editable input field
+        document.getElementById('steamgridSearchGameNameInput').value = gameName;
         
         // Store system name for use in results display
         this.currentSteamgridSearchSystem = systemName;
@@ -6231,34 +6335,15 @@ class GameCollectionManager {
         });
         modal.show();
         
+        // Focus on the input field
+        document.getElementById('steamgridSearchGameNameInput').focus();
+        
         // Show spinner
         document.getElementById('steamgridSearchSpinner').style.display = 'inline-block';
         
-        try {
-            // Search for games in SteamGridDB
-            const response = await fetch('/api/steamgriddb/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    game_name: gameName,
-                    system_name: systemName,
-                    limit: 10
-                })
-            });
-            
-            const result = await response.json();
-            
-            // Hide spinner
-            document.getElementById('steamgridSearchSpinner').style.display = 'none';
-            
-            if (response.ok && result.success) {
-                this.displaySteamgridSearchResults(result.games);
-            } else {
-                this.showSteamgridSearchError(result.error || 'Failed to search SteamGridDB games');
-            }
-            
+        // Perform initial search
+        await this.performSteamgridSearch();
+        
         } catch (error) {
             document.getElementById('steamgridSearchSpinner').style.display = 'none';
             this.showSteamgridSearchError('Error searching SteamGridDB games: ' + error.message);
@@ -17182,6 +17267,67 @@ class GameCollectionManager {
                 }
             } catch (error) {
             }
+        }
+        
+        // Add event listeners for search modals
+        this.initializeSearchModalEventListeners();
+    }
+    
+    initializeSearchModalEventListeners() {
+        // IGDB Search Modal
+        const igdbSearchButton = document.getElementById('igdbSearchButton');
+        const igdbSearchInput = document.getElementById('igdbSearchGameNameInput');
+        if (igdbSearchButton && igdbSearchInput) {
+            igdbSearchButton.addEventListener('click', () => {
+                this.performIgdbSearch();
+            });
+            igdbSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performIgdbSearch();
+                }
+            });
+        }
+        
+        // MobyGames Search Modal
+        const mobygamesSearchButton = document.getElementById('mobygamesSearchButton');
+        const mobygamesSearchInput = document.getElementById('mobygamesSearchGameNameInput');
+        if (mobygamesSearchButton && mobygamesSearchInput) {
+            mobygamesSearchButton.addEventListener('click', () => {
+                this.performMobygamesSearch();
+            });
+            mobygamesSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performMobygamesSearch();
+                }
+            });
+        }
+        
+        // ScreenScraper Search Modal
+        const screenscraperSearchButton = document.getElementById('screenscraperSearchButton');
+        const screenscraperSearchInput = document.getElementById('screenscraperSearchGameNameInput');
+        if (screenscraperSearchButton && screenscraperSearchInput) {
+            screenscraperSearchButton.addEventListener('click', () => {
+                this.performScreenscraperSearch();
+            });
+            screenscraperSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performScreenscraperSearch();
+                }
+            });
+        }
+        
+        // SteamGridDB Search Modal
+        const steamgridSearchButton = document.getElementById('steamgridSearchButton');
+        const steamgridSearchInput = document.getElementById('steamgridSearchGameNameInput');
+        if (steamgridSearchButton && steamgridSearchInput) {
+            steamgridSearchButton.addEventListener('click', () => {
+                this.performSteamgridSearch();
+            });
+            steamgridSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performSteamgridSearch();
+                }
+            });
         }
     }
 
