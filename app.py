@@ -19558,7 +19558,12 @@ async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filenam
         
         # Process media fields (cover, fanart, screenshots, etc.)
         if not selected_fields or len(selected_fields) == 0 or any(field in selected_fields for field in ['cover', 'fanart', 'screenshot']):
+            print(f"🔍 DEBUG: Processing media fields for '{game_name}'")
+            print(f"🔍 DEBUG: selected_fields: {selected_fields}")
+            print(f"🔍 DEBUG: overwrite_media_fields: {overwrite_media_fields}")
             await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, get_gamelist_field_for_igdb_type, overwrite_media_fields)
+        else:
+            print(f"🔍 DEBUG: Skipping media fields for '{game_name}' - not in selected_fields")
         
         print(f"✅ Successfully processed local IGDB data for '{game_name}'")
         
@@ -19699,7 +19704,8 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
         
         # Process cover image
         if 'cover' in igdb_game and igdb_game['cover']:
-            cover_field = get_gamelist_field_for_igdb_type('covers', 'cover')
+            cover_field = get_gamelist_field_for_igdb_type('cover', 'cover')
+            print(f"🔍 DEBUG: Cover field mapping: 'cover' -> '{cover_field}'")
             cover_elem = game.find(cover_field)
             
             if cover_elem is None or not cover_elem.text or overwrite_media_fields:
@@ -19718,6 +19724,7 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
         # Process fanart (artworks)
         if 'artworks' in igdb_game and igdb_game['artworks']:
             fanart_field = get_gamelist_field_for_igdb_type('artworks', 'fanart')
+            print(f"🔍 DEBUG: Fanart field mapping: 'artworks' -> '{fanart_field}'")
             fanart_elem = game.find(fanart_field)
             
             if fanart_elem is None or not fanart_elem.text or overwrite_media_fields:
@@ -19735,7 +19742,8 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
         
         # Process screenshots
         if 'screenshots' in igdb_game and igdb_game['screenshots']:
-            screenshot_field = get_gamelist_field_for_igdb_type('screenshots', 'screenshot')
+            screenshot_field = get_gamelist_field_for_igdb_type('screenshots', 'image')
+            print(f"🔍 DEBUG: Screenshot field mapping: 'screenshots' -> '{screenshot_field}'")
             screenshot_elem = game.find(screenshot_field)
             
             if screenshot_elem is None or not screenshot_elem.text or overwrite_media_fields:
