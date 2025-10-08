@@ -7298,6 +7298,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
             # Get box image URL for this game
             database_id = item['game'].get('DatabaseID', '')
             box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
+            print(f"🔍 DEBUG: Game '{item['name']}' (ID: {database_id}) -> box_image_url: {box_image_url}")
         
             # Create match info
             match_info = {
@@ -9092,16 +9093,21 @@ def load_region_config():
 def get_launchbox_box_image_url(launchbox_id):
     """Get boxart image URL for a LaunchBox game using configuration mapping"""
     if not launchbox_id:
+        print(f"🔍 DEBUG: get_launchbox_box_image_url called with empty launchbox_id")
         return None
     
     try:
         # Use the global metadata cache
         if not global_metadata_cache:
+            print(f"🔍 DEBUG: Loading metadata cache for box image lookup")
             load_metadata_cache()
         
         game_metadata = global_metadata_cache.get(launchbox_id)
         if not game_metadata:
+            print(f"🔍 DEBUG: No game metadata found for ID {launchbox_id}")
             return None
+        
+        print(f"🔍 DEBUG: Found game metadata for ID {launchbox_id}, checking for images...")
         
         # Load image config for base URL and mappings
         image_config = load_image_mappings()
@@ -9114,6 +9120,7 @@ def get_launchbox_box_image_url(launchbox_id):
         
         # Look for boxart images in priority order
         if 'images' in game_metadata:
+            print(f"🔍 DEBUG: Game has {len(game_metadata['images'])} images, looking for boxart types: {boxart_types}")
             for boxart_type in boxart_types:
                 for image_element in game_metadata['images']:
                     # Handle dictionary format
@@ -9123,7 +9130,11 @@ def get_launchbox_box_image_url(launchbox_id):
                     if image_type == boxart_type:
                         filename = image_element.get('FileName', '')
                         if filename:
-                            return base_url + filename
+                            full_url = base_url + filename
+                            print(f"🔍 DEBUG: Found boxart image: {full_url}")
+                            return full_url
+        else:
+            print(f"🔍 DEBUG: Game metadata has no 'images' field")
         
         return None
         
