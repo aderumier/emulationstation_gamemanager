@@ -5695,7 +5695,7 @@ class GameCollectionManager {
             document.getElementById('steamgridSearchSpinner').style.display = 'inline-block';
             
             console.log('🔧 DEBUG: Making SteamGridDB search request for:', gameName);
-            const response = await fetch('/api/steamgrid/search', {
+            const response = await fetch('/api/steamgriddb/search', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
