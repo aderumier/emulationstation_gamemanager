@@ -19561,7 +19561,7 @@ async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filenam
             print(f"🔍 DEBUG: Processing media fields for '{game_name}'")
             print(f"🔍 DEBUG: selected_fields: {selected_fields}")
             print(f"🔍 DEBUG: overwrite_media_fields: {overwrite_media_fields}")
-            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, igdb_config.get('system_name'))
+            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, igdb_config.get('system_name'), rom_path)
         else:
             print(f"🔍 DEBUG: Skipping media fields for '{game_name}' - not in selected_fields")
         
@@ -19697,25 +19697,13 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
         print(f"❌ Error populating gamelist with IGDB data for '{game_name}': {e}")
         return False
 
-async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, system_name=None):
+async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, system_name=None, rom_path=None):
     """Download IGDB media using local database image IDs (reuse manual scraping logic)"""
     try:
         game_name = game.find('name').text.strip()
         
-        # Use provided system_name or try to extract from game path as fallback
-        if not system_name:
-            path_elem = game.find('path')
-            if path_elem is not None and path_elem.text:
-                # Extract system name from path like "/roms/nes/game.nes"
-                path_parts = path_elem.text.strip().split('/')
-                if len(path_parts) >= 3 and path_parts[1] == 'roms':
-                    system_name = path_parts[2]
-                else:
-                    system_name = 'unknown'
-            else:
-                system_name = 'unknown'
-        
         print(f"🔍 DEBUG: System name: {system_name}")
+        print(f"🔍 DEBUG: ROM path: {rom_path}")
         
         # Process cover image
         if 'cover' in igdb_game and igdb_game['cover']:
@@ -19731,20 +19719,17 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
             cover_elem = game.find(cover_field)
             
             if cover_elem is None or not cover_elem.text or overwrite_media_fields:
-                # Create image data structure like manual scraping
+                # Download cover using local image ID
                 cover_id = igdb_game['cover']
-                cover_data = {
-                    'image_id': cover_id,
-                    'url': f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
-                }
+                cover_url = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
                 
-                # Use the same download function as manual scraping
-                cover_path = await download_igdb_image(cover_data, system_name, rom_path, 'cover')
-                if cover_path:
+                # Download the image using simple approach
+                success = await download_image_simple(cover_url, system_name, rom_path, cover_field)
+                if success:
                     if cover_elem is None:
                         cover_elem = ET.SubElement(game, cover_field)
-                    cover_elem.text = cover_path
-                    print(f"✅ Downloaded cover for '{game_name}': {cover_path}")
+                    cover_elem.text = success
+                    print(f"✅ Downloaded cover for '{game_name}': {success}")
                 else:
                     print(f"❌ Failed to download cover for '{game_name}'")
         
