@@ -25,11 +25,13 @@ class IGDBService:
         self.igdb_db_file = os.path.join(self.db_path, 'igdb_db.pkl')
         self.platform_index_file = os.path.join(self.db_path, 'igdb_platform_partition_index.pkl')
         self.companies_file = os.path.join(self.db_path, 'igdb_companies.pkl')
+        self.genres_file = os.path.join(self.db_path, 'igdb_genres.pkl')
         
         # In-memory databases
         self.igdb_data = {}  # {game_id: game_data}
         self.platform_index = {}  # {platform_id: {first_char: {normalized_name: game_id}}}
         self.companies = {}  # {company_id: company_name}
+        self.genres = {}  # {genre_id: genre_name}
         
         # Load status
         self._loaded = False
@@ -101,6 +103,17 @@ class IGDBService:
                 print(f"⚠️ Companies file not found: {self.companies_file}")
                 self.logger.warning(f"Companies file not found: {self.companies_file}")
             
+            # Load genres lookup
+            if os.path.exists(self.genres_file):
+                print(f"🔧 DEBUG IGDB: Loading genres lookup...")
+                with open(self.genres_file, 'rb') as f:
+                    self.genres = pickle.load(f)
+                print(f"✅ Loaded genres lookup with {len(self.genres)} genres")
+                self.logger.info(f"✅ Loaded genres lookup with {len(self.genres)} genres")
+            else:
+                print(f"⚠️ Genres file not found: {self.genres_file}")
+                self.logger.warning(f"Genres file not found: {self.genres_file}")
+            
             end_time = time.time()
             print(f"✅ IGDB service loaded in {end_time - start_time:.2f} seconds!")
             self.logger.info(f"✅ IGDB service loaded in {end_time - start_time:.2f} seconds!")
@@ -128,6 +141,12 @@ class IGDBService:
         if not self.is_loaded():
             return None
         return self.companies.get(company_id)
+    
+    def get_genre_name(self, genre_id: int) -> Optional[str]:
+        """Get genre name by ID"""
+        if not self.is_loaded():
+            return None
+        return self.genres.get(genre_id)
     
     def search_games_by_name(self, game_name: str, platform_id: Optional[int] = None, limit: int = 10) -> List[Dict]:
         """Search for games by name using similarity search on specific platform only"""

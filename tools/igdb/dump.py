@@ -381,7 +381,7 @@ class IGDBDumper:
     async def dump_games_batch(self, offset: int = 0, limit: int = 500) -> List[Dict]:
         """Dump a batch of games from IGDB"""
         query = f"""
-        fields id,name,slug,summary,storyline,first_release_date,rating,rating_count,total_rating,total_rating_count,aggregated_rating,aggregated_rating_count,genres,platforms,game_modes,player_perspectives,cover,screenshots,artworks,websites,url,collection,franchise,game_engines,age_ratings,release_dates,alternative_names,external_games,dlcs,expansions,standalone_expansions,remakes,remasters,similar_games,version_parent,game_localizations;
+        fields id,name,slug,summary,storyline,first_release_date,rating,rating_count,total_rating,total_rating_count,aggregated_rating,aggregated_rating_count,genres,platforms,game_modes,player_perspectives,cover,screenshots,artworks,websites,url,collection,franchise,game_engines,age_ratings,release_dates,alternative_names,external_games,dlcs,expansions,standalone_expansions,remakes,remasters,similar_games,version_parent,game_localizations,involved_companies;
         limit {limit};
         offset {offset};
         """
@@ -960,7 +960,7 @@ class IGDBDumper:
         print(f"✅ Dumped {len(all_videos)} videos to {filename}")
         return all_videos
     
-    async def build_igdb_json(self, games: List[Dict], covers: List[Dict], screenshots: List[Dict], artworks: List[Dict], videos: List[Dict], companies: List[Dict]) -> Dict[int, Dict]:
+    async def build_igdb_json(self, games: List[Dict], covers: List[Dict], screenshots: List[Dict], artworks: List[Dict], videos: List[Dict], companies: List[Dict], genres: List[Dict]) -> Dict[int, Dict]:
         """Build consolidated igdb.json with game ID as key and resolved media references"""
         print("🔧 Building consolidated igdb.json...")
         
@@ -984,7 +984,35 @@ class IGDBDumper:
         # Create companies lookup (id => name)
         companies_lookup = {company['id']: company['name'] for company in companies if 'id' in company and 'name' in company}
         
-        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} artworks, {len(videos_lookup)} games with videos, {len(companies_lookup)} companies")
+        # Create genres lookup (id => name)
+        genres_lookup = {genre['id']: genre['name'] for genre in genres if 'id' in genre and 'name' in genre}
+        
+        # Create reverse mapping from companies to games
+        # published: [game_id1, game_id2, ...] -> game_id1: [company_id], game_id2: [company_id]
+        publishers_by_game = {}
+        developers_by_game = {}
+        
+        for company in companies:
+            company_id = company.get('id')
+            if not company_id:
+                continue
+                
+            # Map published games to this company
+            if 'published' in company and company['published']:
+                for game_id in company['published']:
+                    if game_id not in publishers_by_game:
+                        publishers_by_game[game_id] = []
+                    publishers_by_game[game_id].append(company_id)
+            
+            # Map developed games to this company
+            if 'developed' in company and company['developed']:
+                for game_id in company['developed']:
+                    if game_id not in developers_by_game:
+                        developers_by_game[game_id] = []
+                    developers_by_game[game_id].append(company_id)
+        
+        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} artworks, {len(videos_lookup)} games with videos, {len(companies_lookup)} companies, {len(genres_lookup)} genres")
+        print(f"📊 Created reverse mappings: {len(publishers_by_game)} games with publishers, {len(developers_by_game)} games with developers")
         
         # Build consolidated games dictionary
         igdb_data = {}
@@ -996,7 +1024,7 @@ class IGDBDumper:
             game_id = game['id']
             
             # Create game entry without unnecessary fields
-            excluded_fields = ['similar_games', 'websites', 'age_ratings', 'external_games', 'url', 'player_perspectives', 'game_modes', 'game_engines', 'release_dates', 'alternative_names', 'id']
+            excluded_fields = ['similar_games', 'websites', 'age_ratings', 'external_games', 'url', 'player_perspectives', 'game_modes', 'game_engines', 'release_dates', 'alternative_names', 'id', 'involved_companies']
             game_entry = {k: v for k, v in game.items() if k not in excluded_fields}
             
             # Resolve cover reference
@@ -1034,22 +1062,14 @@ class IGDBDumper:
             if game_id in videos_lookup:
                 game_entry['videos'] = videos_lookup[game_id]
             
-            # Add publisher and developer IDs
-            if 'involved_companies' in game_entry and game_entry['involved_companies']:
-                publishers = []
-                developers = []
-                for company in game_entry['involved_companies']:
-                    company_id = company.get('company')
-                    if company_id and company_id in companies_lookup:
-                        if company.get('publisher'):
-                            publishers.append(company_id)
-                        if company.get('developer'):
-                            developers.append(company_id)
-                
-                if publishers:
-                    game_entry['publisher'] = publishers[0] if len(publishers) == 1 else publishers
-                if developers:
-                    game_entry['developer'] = developers[0] if len(developers) == 1 else developers
+            # Add publisher and developer IDs using reverse mapping from companies
+            if game_id in publishers_by_game:
+                publishers = publishers_by_game[game_id]
+                game_entry['publisher'] = publishers[0] if len(publishers) == 1 else publishers
+            
+            if game_id in developers_by_game:
+                developers = developers_by_game[game_id]
+                game_entry['developer'] = developers[0] if len(developers) == 1 else developers
             
             igdb_data[game_id] = game_entry
         
@@ -1068,9 +1088,15 @@ class IGDBDumper:
         with open(companies_pickle_file, 'wb') as f:
             pickle.dump(companies_lookup, f)
         
+        # Save genres lookup as pickle for faster loading
+        genres_pickle_file = os.path.join(os.path.dirname(self.dump_dir), 'igdb_genres.pkl')
+        with open(genres_pickle_file, 'wb') as f:
+            pickle.dump(genres_lookup, f)
+        
         print(f"✅ Built consolidated igdb.json with {len(igdb_data)} games at {output_file}")
         print(f"✅ Saved pickle version at {pickle_file}")
         print(f"✅ Saved companies pickle at {companies_pickle_file}")
+        print(f"✅ Saved genres pickle at {genres_pickle_file}")
         return igdb_data
 
     async def build_platform_partition_index(self, games: List[Dict], alternative_names: List[Dict]) -> Dict:
@@ -1229,7 +1255,7 @@ async def main():
             
             # Build consolidated igdb.json
             if not dumper.should_stop:
-                igdb_data = await dumper.build_igdb_json(games, covers, screenshots, artworks, videos, companies)
+                igdb_data = await dumper.build_igdb_json(games, covers, screenshots, artworks, videos, companies, genres)
                 
                 # Build platform partition index
                 if not dumper.should_stop:

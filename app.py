@@ -11926,8 +11926,17 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             if igdb_game.get('genres'):
                 try:
                     genre_ids = igdb_game['genres']
-                    # For now, just use the IDs - we can enhance this later with genre mapping
-                    text_fields['genre'] = ', '.join(str(genre_id) for genre_id in genre_ids)
+                    genre_names = []
+                    for genre_id in genre_ids:
+                        genre_name = global_igdb_service.get_genre_name(genre_id)
+                        if genre_name:
+                            genre_names.append(genre_name)
+                        else:
+                            genre_names.append(f"Genre {genre_id}")
+                    
+                    if genre_names:
+                        text_fields['genre'] = ', '.join(genre_names)
+                        print(f"✅ Found genres: {text_fields['genre']}")
                 except Exception as e:
                     print(f"Error getting genres: {e}")
             

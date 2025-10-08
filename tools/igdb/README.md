@@ -87,6 +87,7 @@ The script will create the following files in `var/db/igdb/dump/`:
 - **`igdb.json`** - Consolidated games database with resolved media references
 - **`igdb_db.pkl`** - Pickle version of consolidated games database for faster loading
 - **`igdb_companies.pkl`** - Pickle version of companies lookup (id => name) for faster loading
+- **`igdb_genres.pkl`** - Pickle version of genres lookup (id => name) for faster loading
 - **`platform_partition_index.json`** - Platform-partitioned search index for efficient game lookup
 - **`igdb_platform_partition_index.pkl`** - Pickle version of platform partition index for faster loading
 - **`dump_summary.json`** - Summary with statistics and metadata
@@ -147,6 +148,7 @@ The script automatically generates pickle (`.pkl`) versions of the main data fil
 
 - **`igdb_db.pkl`** - Binary version of the consolidated games database
 - **`igdb_companies.pkl`** - Binary version of companies lookup (id => name mapping)
+- **`igdb_genres.pkl`** - Binary version of genres lookup (id => name mapping)
 - **`igdb_platform_partition_index.pkl`** - Binary version of the platform partition index
 
 #### Benefits of Pickle Files:
@@ -166,6 +168,10 @@ with open('var/db/igdb/igdb_db.pkl', 'rb') as f:
 # Load companies lookup
 with open('var/db/igdb/igdb_companies.pkl', 'rb') as f:
     companies = pickle.load(f)
+
+# Load genres lookup
+with open('var/db/igdb/igdb_genres.pkl', 'rb') as f:
+    genres = pickle.load(f)
 
 # Load platform partition index
 with open('var/db/igdb/igdb_platform_partition_index.pkl', 'rb') as f:
