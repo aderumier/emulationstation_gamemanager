@@ -19719,17 +19719,20 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
             cover_elem = game.find(cover_field)
             
             if cover_elem is None or not cover_elem.text or overwrite_media_fields:
-                # Download cover using local image ID
+                # Create image data structure like manual scraping
                 cover_id = igdb_game['cover']
-                cover_url = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
+                cover_data = {
+                    'image_id': cover_id,
+                    'url': f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
+                }
                 
-                # Download the image using simple approach
-                success = await download_image_simple(cover_url, system_name, rom_path, cover_field)
-                if success:
+                # Use the same download function as manual scraping
+                cover_path = await download_igdb_image(cover_data, system_name, rom_path, 'cover')
+                if cover_path:
                     if cover_elem is None:
                         cover_elem = ET.SubElement(game, cover_field)
-                    cover_elem.text = success
-                    print(f"✅ Downloaded cover for '{game_name}': {success}")
+                    cover_elem.text = cover_path
+                    print(f"✅ Downloaded cover for '{game_name}': {cover_path}")
                 else:
                     print(f"❌ Failed to download cover for '{game_name}'")
         
