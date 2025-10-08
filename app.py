@@ -19698,9 +19698,23 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
         return False
 
 async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields):
-    """Download IGDB media using local database image IDs (no API calls)"""
+    """Download IGDB media using local database image IDs (reuse manual scraping logic)"""
     try:
         game_name = game.find('name').text.strip()
+        
+        # Get system name from the game path
+        path_elem = game.find('path')
+        if path_elem is not None and path_elem.text:
+            # Extract system name from path like "/roms/nes/game.nes"
+            path_parts = path_elem.text.strip().split('/')
+            if len(path_parts) >= 3 and path_parts[1] == 'roms':
+                system_name = path_parts[2]
+            else:
+                system_name = 'unknown'
+        else:
+            system_name = 'unknown'
+        
+        print(f"🔍 DEBUG: System name: {system_name}")
         
         # Process cover image
         if 'cover' in igdb_game and igdb_game['cover']:
@@ -19716,17 +19730,22 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
             cover_elem = game.find(cover_field)
             
             if cover_elem is None or not cover_elem.text or overwrite_media_fields:
-                # Download cover using local image ID
+                # Create image data structure like manual scraping
                 cover_id = igdb_game['cover']
-                cover_url = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
+                cover_data = {
+                    'image_id': cover_id,
+                    'url': f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
+                }
                 
-                # Download the image
-                success = await download_image_local(cover_url, rom_filename, 'cover')
-                if success:
+                # Use the same download function as manual scraping
+                cover_path = await download_igdb_image(cover_data, system_name, rom_filename, 'cover')
+                if cover_path:
                     if cover_elem is None:
                         cover_elem = ET.SubElement(game, cover_field)
-                    cover_elem.text = f"{rom_filename}-cover.jpg"
-                    print(f"✅ Downloaded cover for '{game_name}'")
+                    cover_elem.text = cover_path
+                    print(f"✅ Downloaded cover for '{game_name}': {cover_path}")
+                else:
+                    print(f"❌ Failed to download cover for '{game_name}'")
         
         # Process fanart (artworks)
         if 'artworks' in igdb_game and igdb_game['artworks']:
@@ -19744,15 +19763,20 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
             if fanart_elem is None or not fanart_elem.text or overwrite_media_fields:
                 # Use the first artwork
                 artwork_id = igdb_game['artworks'][0] if isinstance(igdb_game['artworks'], list) else igdb_game['artworks']
-                fanart_url = f"https://images.igdb.com/igdb/image/upload/t_1080p/{artwork_id}.jpg"
+                artwork_data = {
+                    'image_id': artwork_id,
+                    'url': f"https://images.igdb.com/igdb/image/upload/t_1080p/{artwork_id}.jpg"
+                }
                 
-                # Download the image
-                success = await download_image_local(fanart_url, rom_filename, 'fanart')
-                if success:
+                # Use the same download function as manual scraping
+                fanart_path = await download_igdb_image(artwork_data, system_name, rom_filename, 'artworks')
+                if fanart_path:
                     if fanart_elem is None:
                         fanart_elem = ET.SubElement(game, fanart_field)
-                    fanart_elem.text = f"{rom_filename}-fanart.jpg"
-                    print(f"✅ Downloaded fanart for '{game_name}'")
+                    fanart_elem.text = fanart_path
+                    print(f"✅ Downloaded fanart for '{game_name}': {fanart_path}")
+                else:
+                    print(f"❌ Failed to download fanart for '{game_name}'")
         
         # Process screenshots
         if 'screenshots' in igdb_game and igdb_game['screenshots']:
@@ -19770,54 +19794,26 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
             if screenshot_elem is None or not screenshot_elem.text or overwrite_media_fields:
                 # Use the first screenshot
                 screenshot_id = igdb_game['screenshots'][0] if isinstance(igdb_game['screenshots'], list) else igdb_game['screenshots']
-                screenshot_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{screenshot_id}.jpg"
+                screenshot_data = {
+                    'image_id': screenshot_id,
+                    'url': f"https://images.igdb.com/igdb/image/upload/t_720p/{screenshot_id}.jpg"
+                }
                 
-                # Download the image
-                success = await download_image_local(screenshot_url, rom_filename, 'screenshot')
-                if success:
+                # Use the same download function as manual scraping
+                screenshot_path = await download_igdb_image(screenshot_data, system_name, rom_filename, 'screenshots')
+                if screenshot_path:
                     if screenshot_elem is None:
                         screenshot_elem = ET.SubElement(game, screenshot_field)
-                    screenshot_elem.text = f"{rom_filename}-screenshot.jpg"
-                    print(f"✅ Downloaded screenshot for '{game_name}'")
+                    screenshot_elem.text = screenshot_path
+                    print(f"✅ Downloaded screenshot for '{game_name}': {screenshot_path}")
+                else:
+                    print(f"❌ Failed to download screenshot for '{game_name}'")
         
     except Exception as e:
         print(f"❌ Error downloading IGDB media for '{game_name}': {e}")
         import traceback
         traceback.print_exc()
 
-async def download_image_local(url, rom_filename, image_type):
-    """Download an image from IGDB using local image ID"""
-    try:
-        import aiohttp
-        import os
-        
-        # Create media directory if it doesn't exist
-        media_dir = os.path.join('var', 'media')
-        os.makedirs(media_dir, exist_ok=True)
-        
-        # Generate filename
-        filename = f"{rom_filename}-{image_type}.jpg"
-        filepath = os.path.join(media_dir, filename)
-        
-        # Skip if file already exists
-        if os.path.exists(filepath):
-            return True
-        
-        # Download the image
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    with open(filepath, 'wb') as f:
-                        async for chunk in response.content.iter_chunked(8192):
-                            f.write(chunk)
-                    return True
-                else:
-                    print(f"❌ Failed to download {image_type} from {url}: HTTP {response.status}")
-                    return False
-                    
-    except Exception as e:
-        print(f"❌ Error downloading {image_type} image: {e}")
-        return False
 
 async def process_game_async(game, igdb_platform_id, access_token, client_id, async_client, igdb_config, company_cache=None):
     """Process a single game asynchronously"""
