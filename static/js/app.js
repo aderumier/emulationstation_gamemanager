@@ -5467,6 +5467,14 @@ class GameCollectionManager {
         
         // Show the game edit match modal
         this.showPartialMatches(gameName, null, 'gameEdit');
+        
+        // Focus on the input field after modal is shown
+        setTimeout(() => {
+            const inputField = document.getElementById('gameEditOriginalGameNameInput');
+            if (inputField) {
+                inputField.focus();
+            }
+        }, 300);
     }
     
     async showGameEditIgdbSearch() {
@@ -5720,6 +5728,53 @@ class GameCollectionManager {
         } catch (error) {
             document.getElementById('steamgridSearchSpinner').style.display = 'none';
             this.showSteamgridSearchError('Error searching SteamGridDB database: ' + error.message);
+        }
+    }
+    
+    async performLaunchboxSearch() {
+        try {
+            const gameName = document.getElementById('gameEditOriginalGameNameInput').value.trim();
+            if (!gameName) {
+                this.showAlert('Please enter a game name to search', 'warning');
+                return;
+            }
+            
+            // Show loading spinner
+            document.getElementById('gameEditLoadingSpinner').style.display = 'inline-block';
+            
+            console.log('🔧 DEBUG: Making LaunchBox search request for:', gameName);
+            
+            // Get system name
+            const systemName = this.currentModalData?.system || this.currentSystem;
+            if (!systemName) {
+                this.showAlert('System not found', 'warning');
+                return;
+            }
+            
+            const response = await fetch('/api/get-top-matches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ game_name: gameName, system_name: systemName })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Hide loading spinner
+            document.getElementById('gameEditLoadingSpinner').style.display = 'none';
+            
+            if (data.success) {
+                this.displayPartialMatchModal(gameName, data.matches, 'gameEdit');
+            } else {
+                this.showAlert('Error getting matches: ' + data.error, 'danger');
+            }
+            
+        } catch (error) {
+            document.getElementById('gameEditLoadingSpinner').style.display = 'none';
+            this.showAlert('Error searching LaunchBox database: ' + error.message, 'danger');
         }
     }
     
@@ -8998,7 +9053,7 @@ class GameCollectionManager {
     
     async reloadGameEditMatches() {
         // Get current game data
-        const gameName = document.getElementById('gameEditOriginalGameName').textContent;
+        const gameName = document.getElementById('gameEditOriginalGameNameInput').value.trim();
         const systemName = this.currentGameData?.system || this.currentSystem;
         
         if (!gameName || !systemName) {
@@ -17329,6 +17384,20 @@ class GameCollectionManager {
                 }
             });
         }
+        
+        // LaunchBox Find Best Match Modal
+        const gameEditSearchButton = document.getElementById('gameEditSearchButton');
+        const gameEditSearchInput = document.getElementById('gameEditOriginalGameNameInput');
+        if (gameEditSearchButton && gameEditSearchInput) {
+            gameEditSearchButton.addEventListener('click', () => {
+                this.performLaunchboxSearch();
+            });
+            gameEditSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performLaunchboxSearch();
+                }
+            });
+        }
     }
 
     async loadState() {
@@ -17495,8 +17564,11 @@ class GameCollectionManager {
     showModalWithLoading(gameName, modalType = 'global') {
         
         // Set original game name
-        const gameNameElementId = modalType === 'gameEdit' ? 'gameEditOriginalGameName' : 'globalOriginalGameName';
-        document.getElementById(gameNameElementId).textContent = gameName;
+        if (modalType === 'gameEdit') {
+            document.getElementById('gameEditOriginalGameNameInput').value = gameName;
+        } else {
+            document.getElementById('globalOriginalGameName').textContent = gameName;
+        }
         
         // Show progress if processing multiple games (only for global modal)
         if (modalType === 'global' && this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1) {

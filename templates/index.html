@@ -1056,7 +1056,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <strong>Original Game:</strong> <span id="gameEditOriginalGameName"></span>
+                        <label for="gameEditOriginalGameNameInput" class="form-label"><strong>Search for:</strong></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="gameEditOriginalGameNameInput" placeholder="Enter game name to search">
+                            <button type="button" class="btn btn-outline-primary" id="gameEditSearchButton">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
                         <div id="gameEditModalProgress" class="text-muted mt-1" style="display: none;"></div>
                     </div>
                     
