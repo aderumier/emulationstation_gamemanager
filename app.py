@@ -6066,10 +6066,12 @@ def scrap_igdb_system(system_name):
         if not system_name:
             return jsonify({'error': 'System name is required'}), 400
         
-        # Check if IGDB is enabled
+        # Check if local IGDB service is available
+        if not global_igdb_service or not global_igdb_service.is_loaded():
+            return jsonify({'error': 'IGDB local database not available. Please run the IGDB dump first.'}), 400
+        
+        # Get IGDB config (still needed for field mappings and settings)
         igdb_config = get_igdb_config()
-        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-            return jsonify({'error': 'IGDB credentials not configured'}), 400
         
         # Check if system has IGDB platform ID configured
         config = load_config()
@@ -11860,59 +11862,38 @@ def apply_manual_scrap(system_name):
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
 
 async def scrape_igdb_manual(game, system_name, system_config, target_media_type=None):
-    """Scrape IGDB data for manual scrap (returns data without writing files)"""
+    """Scrape IGDB data for manual scrap using local database (no API calls)"""
     try:
         import time
         
-        # Get IGDB configuration
+        # Check if local IGDB service is available
+        if not global_igdb_service or not global_igdb_service.is_loaded():
+            print("❌ IGDB local database not available for manual scrap")
+            return None
+        
+        # Get IGDB configuration (still needed for field mappings)
         igdb_config = get_igdb_config()
-        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-            return None
-        
-        # Get access token
-        token_start_time = time.time()
-        access_token = await get_igdb_access_token_async()
-        token_end_time = time.time()
-        print(f"⏱️ IGDB access token retrieval took {token_end_time - token_start_time:.3f} seconds")
-        if not access_token:
-            return None
-        
-        # Get async client (manual version without rate limiting)
-        client_start_time = time.time()
-        async_client = await get_igdb_manual_async_client()
-        client_end_time = time.time()
-        print(f"⏱️ IGDB manual client creation took {client_end_time - client_start_time:.3f} seconds")
-        
-        # Ensure genre cache is up to date
-        cache_start_time = time.time()
-        await ensure_igdb_genre_cache()
-        cache_end_time = time.time()
-        print(f"⏱️ IGDB genre cache check took {cache_end_time - cache_start_time:.3f} seconds")
         
         # Get IGDB ID (required for manual scrap)
         existing_igdb_id = game.get('igdbid')
         if not existing_igdb_id:
+            print("❌ No IGDB ID found for manual scrap")
             return None
         
-        # For manual scrap with target_media_type, we can skip full game data fetch
-        # and just use the game ID directly for media fetching
-        if target_media_type:
-            print(f"🚀 IGDB MANUAL SCRAP: Skipping game data fetch for {target_media_type}, using ID directly")
-            igdb_game = {'id': existing_igdb_id, 'name': game.get('name', '')}
-        else:
-            # Get IGDB game data by ID only (for full scrap)
-            game_fetch_start_time = time.time()
-            igdb_game = await fetch_igdb_game_by_id_async(
-                existing_igdb_id,
-                access_token, 
-                igdb_config['client_id'],
-                async_client
-            )
-            game_fetch_end_time = time.time()
-            print(f"⏱️ IGDB game data fetch took {game_fetch_end_time - game_fetch_start_time:.3f} seconds")
-            
-            if not igdb_game:
-                return None
+        print(f"✅ Using local IGDB database for manual scrap (no API calls)")
+        
+        # Get IGDB game data from local database
+        game_fetch_start_time = time.time()
+        igdb_game = global_igdb_service.get_game_by_id(int(existing_igdb_id))
+        game_fetch_end_time = time.time()
+        print(f"⏱️ IGDB local game data fetch took {game_fetch_end_time - game_fetch_start_time:.3f} seconds")
+        
+        if not igdb_game:
+            print(f"❌ No IGDB game data found for ID: {existing_igdb_id}")
+            return None
+        
+        # Add the ID back since it was removed from consolidated data
+        igdb_game['id'] = int(existing_igdb_id)
         
         # Get field mappings
         config = load_config()
@@ -11926,11 +11907,13 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                     return gamelist_field
             return default_field
         
-        # Extract text fields (skip if target_media_type is specified for speed)
+        # Extract text fields from local database
         text_fields = {}
         if not target_media_type:
             import time
             text_start_time = time.time()
+            
+            # Basic text fields from local database
             if igdb_game.get('name'):
                 text_fields['name'] = igdb_game['name']
             if igdb_game.get('summary'):
@@ -11939,81 +11922,80 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                 # Convert timestamp to ISO 8601 format
                 text_fields['releasedate'] = format_releasedate_to_iso8601(igdb_game['first_release_date'])
             
-            # Get genres
+            # Get genres (local database has genre IDs)
             if igdb_game.get('genres'):
                 try:
                     genre_ids = igdb_game['genres']
-                    # Map genre IDs to names using cache
-                    genre_names = map_igdb_genre_ids_to_names(genre_ids)
-                    if genre_names:
-                        text_fields['genre'] = ', '.join(genre_names)
+                    # For now, just use the IDs - we can enhance this later with genre mapping
+                    text_fields['genre'] = ', '.join(str(genre_id) for genre_id in genre_ids)
                 except Exception as e:
                     print(f"Error getting genres: {e}")
             
-            # Get involved companies
+            # Get publisher and developer information from consolidated database
             try:
-                involved_companies = await fetch_igdb_involved_companies(
-                    async_client, access_token, igdb_config['client_id'], igdb_game['id']
-                )
-                if involved_companies:
-                    # Extract company IDs first
-                    company_ids = [company.get('company') for company in involved_companies if company.get('company')]
+                # Get publisher information
+                if igdb_game.get('publisher'):
+                    publisher_ids = igdb_game['publisher']
+                    if not isinstance(publisher_ids, list):
+                        publisher_ids = [publisher_ids]
                     
-                    # Ensure company cache is loaded with required companies
-                    if company_ids:
-                        company_cache = await ensure_igdb_company_cache(company_ids)
-                    else:
-                        company_cache = load_igdb_company_cache()
+                    publisher_names = []
+                    for publisher_id in publisher_ids:
+                        publisher_name = global_igdb_service.get_company_name(publisher_id)
+                        if publisher_name:
+                            publisher_names.append(publisher_name)
+                        else:
+                            publisher_names.append(f"Company {publisher_id}")
                     
-                    developers = []
-                    publishers = []
-                    for company in involved_companies:
-                        company_id = company.get('company')
-                        if company_id:
-                            company_name = get_igdb_company_name(company_id, company_cache)
-                            if company_name and not company_name.startswith('Company '):
-                                if company.get('developer'):
-                                    developers.append(company_name)
-                                if company.get('publisher'):
-                                    publishers.append(company_name)
+                    if publisher_names:
+                        text_fields['publisher'] = ', '.join(publisher_names)
+                        print(f"✅ Found publisher: {text_fields['publisher']}")
+                
+                # Get developer information
+                if igdb_game.get('developer'):
+                    developer_ids = igdb_game['developer']
+                    if not isinstance(developer_ids, list):
+                        developer_ids = [developer_ids]
                     
-                    if developers:
-                        text_fields['developer'] = ', '.join(developers)
-                    if publishers:
-                        text_fields['publisher'] = ', '.join(publishers)
+                    developer_names = []
+                    for developer_id in developer_ids:
+                        developer_name = global_igdb_service.get_company_name(developer_id)
+                        if developer_name:
+                            developer_names.append(developer_name)
+                        else:
+                            developer_names.append(f"Company {developer_id}")
+                    
+                    if developer_names:
+                        text_fields['developer'] = ', '.join(developer_names)
+                        print(f"✅ Found developer: {text_fields['developer']}")
+                        
             except Exception as e:
-                print(f"Error getting involved companies: {e}")
+                print(f"Error getting publisher/developer information: {e}")
             
             text_end_time = time.time()
             print(f"⏱️ IGDB text field extraction took {text_end_time - text_start_time:.2f} seconds")
         
-        # Extract media fields using IGDB task helpers, normalize URLs like in downloads
+        # Extract media fields from local database
         media_fields: Dict[str, List[str]] = {}
 
-        def normalize_igdb_url(url: str) -> str:
-            if not url:
-                return url
-            # Prefix protocol if needed
-            if url.startswith('//'):
-                url = f"https:{url}"
-            elif not url.startswith('http'):
-                url = f"https://images.igdb.com{url}"
-            # Prefer larger size over thumb
-            url = url.replace('/t_thumb/', '/t_720p/')
-            return url
+        def normalize_igdb_url(image_id: str) -> str:
+            if not image_id:
+                return ""
+            # Construct IGDB image URL using local image ID
+            return f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg"
 
-        def add_media(mapped_field: str, url: str):
-            if not mapped_field or not url:
+        def add_media(mapped_field: str, image_id: str):
+            if not mapped_field or not image_id:
                 return
-            normalized_url = normalize_igdb_url(url)
+            normalized_url = normalize_igdb_url(image_id)
             media_fields.setdefault(mapped_field, []).append(normalized_url)
 
-        # Optimize media API calls based on target_media_type
+        # Process media fields from local database
         if target_media_type:
-            # Only fetch the specific media type needed
-            print(f"🚀 IGDB MANUAL SCRAP: Fetching only {target_media_type} for game {igdb_game['id']}")
+            # Only process the specific media type needed
+            print(f"🚀 IGDB MANUAL SCRAP: Processing only {target_media_type} for game {igdb_game['id']}")
             
-            # Determine which IGDB API to call based on target media type
+            # Determine which IGDB field to use based on target media type
             target_igdb_type = None
             for field, igdb_type in igdb_image_mapping.items():
                 if field == target_media_type:
@@ -12031,145 +12013,120 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                 elif target_media_type in ['screenshot']:
                     target_igdb_type = 'screenshots'
             
-            # Fetch only the needed media type
-            if target_igdb_type == 'cover':
+            # Process only the needed media type from local database
+            if target_igdb_type == 'cover' and igdb_game.get('cover'):
                 try:
                     import time
                     start_time = time.time()
-                    cover = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game.get('name', '')))
+                    cover_id = igdb_game['cover']
+                    add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover_id)
                     end_time = time.time()
-                    print(f"⏱️ IGDB API call 'covers' took {end_time - start_time:.2f} seconds")
-                    if cover and cover.get('url'):
-                        add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
+                    print(f"⏱️ IGDB local cover processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
-                    print(f"Error getting IGDB cover: {e}")
-            elif target_igdb_type == 'screenshots':
+                    print(f"Error processing IGDB cover: {e}")
+            elif target_igdb_type == 'screenshots' and igdb_game.get('screenshots'):
                 try:
                     import time
                     start_time = time.time()
-                    screenshots = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    screenshots = igdb_game['screenshots']
+                    if isinstance(screenshots, list):
+                        for screenshot_id in screenshots:
+                            add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot_id)
+                    else:
+                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshots)
                     end_time = time.time()
-                    print(f"⏱️ IGDB API call 'screenshots' took {end_time - start_time:.2f} seconds")
-                    if screenshots:
-                        for screenshot in screenshots:
-                            if screenshot and screenshot.get('url'):
-                                add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
+                    print(f"⏱️ IGDB local screenshots processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
-                    print(f"Error getting IGDB screenshots: {e}")
-            elif target_igdb_type == 'artworks':
+                    print(f"Error processing IGDB screenshots: {e}")
+            elif target_igdb_type == 'artworks' and igdb_game.get('artworks'):
                 try:
                     import time
                     start_time = time.time()
-                    artworks = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    artworks = igdb_game['artworks']
+                    if isinstance(artworks, list):
+                        for artwork_id in artworks:
+                            add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork_id)
+                    else:
+                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artworks)
                     end_time = time.time()
-                    print(f"⏱️ IGDB API call 'artworks' took {end_time - start_time:.2f} seconds")
-                    if artworks:
-                        for artwork in artworks:
-                            if artwork and artwork.get('url'):
-                                add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
+                    print(f"⏱️ IGDB local artworks processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
-                    print(f"Error getting IGDB artworks: {e}")
-            elif target_igdb_type == 'logos':
+                    print(f"Error processing IGDB artworks: {e}")
+            elif target_igdb_type == 'logos' and igdb_game.get('logos'):
                 try:
                     import time
                     start_time = time.time()
-                    logos = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
+                    logos = igdb_game['logos']
+                    if isinstance(logos, list):
+                        for logo_id in logos:
+                            logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
+                            add_media(logo_field, logo_id)
+                    else:
+                        logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
+                        add_media(logo_field, logos)
                     end_time = time.time()
-                    print(f"⏱️ IGDB API call 'logos' took {end_time - start_time:.2f} seconds")
-                    if logos:
-                        for logo in logos:
-                            if logo and logo.get('url'):
-                                logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
-                                add_media(logo_field, logo.get('url'))
+                    print(f"⏱️ IGDB local logos processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
-                    print(f"Error getting IGDB logos: {e}")
+                    print(f"Error processing IGDB logos: {e}")
         else:
-            # Fetch all media types (original behavior)
-            print(f"🚀 IGDB MANUAL SCRAP: Starting parallel media API calls for game {igdb_game['id']}")
+            # Process all media types from local database
+            print(f"🚀 IGDB MANUAL SCRAP: Processing all media types from local database for game {igdb_game['id']}")
             
-            async def fetch_cover():
-                try:
-                    import time
-                    start_time = time.time()
-                    result = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], igdb_game['id'], igdb_game.get('name', game.get('name', '')))
-                    end_time = time.time()
-                    print(f"⏱️ IGDB API call 'covers' took {end_time - start_time:.2f} seconds")
-                    return result
-                except Exception as e:
-                    print(f"Error getting IGDB cover: {e}")
-                    return None
-            
-            async def fetch_screenshots():
-                try:
-                    import time
-                    start_time = time.time()
-                    result = await fetch_igdb_screenshots(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-                    end_time = time.time()
-                    print(f"⏱️ IGDB API call 'screenshots' took {end_time - start_time:.2f} seconds")
-                    return result
-                except Exception as e:
-                    print(f"Error getting IGDB screenshots: {e}")
-                    return None
-            
-            async def fetch_artworks():
-                try:
-                    import time
-                    start_time = time.time()
-                    result = await fetch_igdb_artworks(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-                    end_time = time.time()
-                    print(f"⏱️ IGDB API call 'artworks' took {end_time - start_time:.2f} seconds")
-                    return result
-                except Exception as e:
-                    print(f"Error getting IGDB artworks: {e}")
-                    return None
-            
-            async def fetch_logos():
-                try:
-                    import time
-                    start_time = time.time()
-                    result = await fetch_igdb_logos(async_client, access_token, igdb_config['client_id'], igdb_game['id'])
-                    end_time = time.time()
-                    print(f"⏱️ IGDB API call 'logos' took {end_time - start_time:.2f} seconds")
-                    return result
-                except Exception as e:
-                    print(f"Error getting IGDB logos: {e}")
-                    return None
-            
-            # Execute all media API calls in parallel
             import time
             parallel_start_time = time.time()
-            cover, screenshots, artworks, logos = await asyncio.gather(
-                fetch_cover(),
-                fetch_screenshots(), 
-                fetch_artworks(),
-                fetch_logos(),
-                return_exceptions=True
-            )
-            parallel_end_time = time.time()
-            print(f"✅ IGDB MANUAL SCRAP: Parallel media API calls completed for game {igdb_game['id']} in {parallel_end_time - parallel_start_time:.2f} seconds")
             
-            # Process cover results
-            if cover and not isinstance(cover, Exception) and cover.get('url'):
-                add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover.get('url'))
+            # Process cover from local database
+            if igdb_game.get('cover'):
+                try:
+                    cover_id = igdb_game['cover']
+                    add_media(get_gamelist_field_for_igdb_type('cover', 'image'), cover_id)
+                    print(f"✅ Processed cover: {cover_id}")
+                except Exception as e:
+                    print(f"Error processing cover: {e}")
             
-            # Process screenshots results
-            if screenshots and not isinstance(screenshots, Exception):
-                for screenshot in screenshots:
-                    if screenshot and screenshot.get('url'):
-                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot.get('url'))
+            # Process screenshots from local database
+            if igdb_game.get('screenshots'):
+                try:
+                    screenshots = igdb_game['screenshots']
+                    if isinstance(screenshots, list):
+                        for screenshot_id in screenshots:
+                            add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot_id)
+                    else:
+                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshots)
+                    print(f"✅ Processed {len(screenshots) if isinstance(screenshots, list) else 1} screenshot(s)")
+                except Exception as e:
+                    print(f"Error processing screenshots: {e}")
             
-            # Process artworks results
-            if artworks and not isinstance(artworks, Exception):
-                for artwork in artworks:
-                    if artwork and artwork.get('url'):
-                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork.get('url'))
+            # Process artworks from local database
+            if igdb_game.get('artworks'):
+                try:
+                    artworks = igdb_game['artworks']
+                    if isinstance(artworks, list):
+                        for artwork_id in artworks:
+                            add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork_id)
+                    else:
+                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artworks)
+                    print(f"✅ Processed {len(artworks) if isinstance(artworks, list) else 1} artwork(s)")
+                except Exception as e:
+                    print(f"Error processing artworks: {e}")
             
-            # Process logos results
-            if logos and not isinstance(logos, Exception):
-                for logo in logos:
-                    if logo and logo.get('url'):
+            # Process logos from local database
+            if igdb_game.get('logos'):
+                try:
+                    logos = igdb_game['logos']
+                    if isinstance(logos, list):
+                        for logo_id in logos:
+                            logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
+                            add_media(logo_field, logo_id)
+                    else:
                         logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
-                        add_media(logo_field, logo.get('url'))
+                        add_media(logo_field, logos)
+                    print(f"✅ Processed {len(logos) if isinstance(logos, list) else 1} logo(s)")
+                except Exception as e:
+                    print(f"Error processing logos: {e}")
+            
+            parallel_end_time = time.time()
+            print(f"✅ IGDB MANUAL SCRAP: Local database media processing completed for game {igdb_game['id']} in {parallel_end_time - parallel_start_time:.2f} seconds")
         
         return {
             'text_fields': text_fields,
@@ -19474,6 +19431,248 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
     except Exception as e:
         print(f"Error populating gamelist with IGDB data: {e}")
         return False
+async def process_game_async_local(game, igdb_platform_id, igdb_config, company_cache=None):
+    """Process a single game using local IGDB database (no API calls)"""
+    try:
+        # Load IGDB field mappings from config
+        config = load_config()
+        igdb_mapping = scrappers_config.get('igdb', {}).get('mapping', {})
+        igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
+        
+        # Helper function to get gamelist field from IGDB type
+        def get_gamelist_field_for_igdb_type(igdb_type, default_field):
+            for gamelist_field, mapped_igdb_type in igdb_image_mapping.items():
+                if mapped_igdb_type == igdb_type:
+                    return gamelist_field
+            return default_field
+        
+        # Get game name
+        name_elem = game.find('name')
+        if name_elem is None or not name_elem.text:
+            return None, False, False  # game, found, error
+        
+        game_name = name_elem.text.strip()
+        
+        # Get ROM filename for media downloads
+        path_elem = game.find('path')
+        rom_path = path_elem.text if path_elem is not None and path_elem.text else f"/roms/{game_name}"
+        rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+        
+        # Check if already has IGDB ID
+        igdbid_elem = game.find('igdbid')
+        existing_igdb_id = None
+        if igdbid_elem is not None and igdbid_elem.text:
+            existing_igdb_id = igdbid_elem.text
+            print(f"🔄 Game '{game_name}' already has IGDB ID: {existing_igdb_id} - will still process for field updates")
+        
+        # Get IGDB game data from local database
+        if existing_igdb_id:
+            # Use existing IGDB ID to get game data from local database
+            print(f"🔍 Getting IGDB data from local database for existing ID: {existing_igdb_id}")
+            igdb_game = global_igdb_service.get_game_by_id(int(existing_igdb_id)) if global_igdb_service else None
+        else:
+            # Search for game in local IGDB database by name
+            print(f"🔍 Searching local IGDB database for game: {game_name}")
+            if global_igdb_service:
+                search_results = global_igdb_service.search_games_by_name(game_name, igdb_platform_id, limit=1)
+                igdb_game = search_results[0] if search_results else None
+            else:
+                igdb_game = None
+        
+        if igdb_game:
+            # Add IGDB ID to gamelist (only if it doesn't already exist)
+            if not existing_igdb_id:
+                if igdbid_elem is None:
+                    igdbid_elem = ET.SubElement(game, 'igdbid')
+                igdbid_elem.text = str(igdb_game['id'])
+                print(f"✅ Added IGDB ID for '{game_name}': {igdb_game['id']}")
+            else:
+                print(f"✅ Using existing IGDB ID for '{game_name}': {existing_igdb_id}")
+            
+            # Process game data (no API calls needed - all data is local)
+            await process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping, get_gamelist_field_for_igdb_type)
+            
+            return game, True, False  # game, found, error
+        else:
+            print(f"❌ No IGDB data found for '{game_name}' in local database")
+            return game, False, False  # game, found, error
+            
+    except Exception as e:
+        print(f"❌ Error processing game '{game_name}': {e}")
+        import traceback
+        traceback.print_exc()
+        return game, False, True  # game, found, error
+
+async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping, get_gamelist_field_for_igdb_type):
+    """Process IGDB game data using local database (no API calls)"""
+    try:
+        game_name = game.find('name').text.strip()
+        selected_fields = igdb_config.get('selected_fields', [])
+        overwrite_text_fields = igdb_config.get('overwrite_text_fields', False)
+        overwrite_media_fields = igdb_config.get('overwrite_media_fields', False)
+        
+        print(f"🔄 Processing local IGDB data for '{game_name}'...")
+        
+        # Process text fields (name, description, genre, etc.)
+        if not selected_fields or len(selected_fields) == 0 or any(field in selected_fields for field in ['name', 'desc', 'genre', 'developer', 'publisher']):
+            await populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, overwrite_text_fields)
+        
+        # Process media fields (cover, fanart, screenshots, etc.)
+        if not selected_fields or len(selected_fields) == 0 or any(field in selected_fields for field in ['cover', 'fanart', 'screenshot']):
+            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, get_gamelist_field_for_igdb_type, overwrite_media_fields)
+        
+        print(f"✅ Successfully processed local IGDB data for '{game_name}'")
+        
+    except Exception as e:
+        print(f"❌ Error processing IGDB game data for '{game_name}': {e}")
+        import traceback
+        traceback.print_exc()
+
+async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, overwrite_text_fields):
+    """Populate gamelist with IGDB data from local database (no API calls)"""
+    try:
+        game_name = game.find('name').text.strip()
+        updated = False
+        
+        # Map IGDB fields to gamelist fields
+        for gamelist_field, igdb_field in igdb_mapping.items():
+            if igdb_field in igdb_game and igdb_game[igdb_field]:
+                # Check if we should overwrite existing data
+                existing_elem = game.find(gamelist_field)
+                if existing_elem is not None and existing_elem.text and not overwrite_text_fields:
+                    continue  # Skip if field exists and overwrite is disabled
+                
+                # Get the value from IGDB data
+                igdb_value = igdb_game[igdb_field]
+                
+                # Handle different data types
+                if isinstance(igdb_value, list):
+                    if igdb_value:  # Only process if list is not empty
+                        if igdb_field == 'genres':
+                            # Convert genre IDs to names (we'll need to implement this)
+                            genre_names = []
+                            for genre_id in igdb_value:
+                                # For now, just use the ID - we can enhance this later
+                                genre_names.append(str(genre_id))
+                            value = ', '.join(genre_names)
+                        else:
+                            value = ', '.join(str(item) for item in igdb_value)
+                    else:
+                        continue  # Skip empty lists
+                else:
+                    value = str(igdb_value)
+                
+                # Set the gamelist field
+                if existing_elem is None:
+                    existing_elem = ET.SubElement(game, gamelist_field)
+                existing_elem.text = value
+                updated = True
+                print(f"✅ Updated {gamelist_field} for '{game_name}': {value[:100]}...")
+        
+        return updated
+        
+    except Exception as e:
+        print(f"❌ Error populating gamelist with IGDB data for '{game_name}': {e}")
+        return False
+
+async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, get_gamelist_field_for_igdb_type, overwrite_media_fields):
+    """Download IGDB media using local database image IDs (no API calls)"""
+    try:
+        game_name = game.find('name').text.strip()
+        
+        # Process cover image
+        if 'cover' in igdb_game and igdb_game['cover']:
+            cover_field = get_gamelist_field_for_igdb_type('covers', 'cover')
+            cover_elem = game.find(cover_field)
+            
+            if cover_elem is None or not cover_elem.text or overwrite_media_fields:
+                # Download cover using local image ID
+                cover_id = igdb_game['cover']
+                cover_url = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
+                
+                # Download the image
+                success = await download_image_local(cover_url, rom_filename, 'cover')
+                if success:
+                    if cover_elem is None:
+                        cover_elem = ET.SubElement(game, cover_field)
+                    cover_elem.text = f"{rom_filename}-cover.jpg"
+                    print(f"✅ Downloaded cover for '{game_name}'")
+        
+        # Process fanart (artworks)
+        if 'artworks' in igdb_game and igdb_game['artworks']:
+            fanart_field = get_gamelist_field_for_igdb_type('artworks', 'fanart')
+            fanart_elem = game.find(fanart_field)
+            
+            if fanart_elem is None or not fanart_elem.text or overwrite_media_fields:
+                # Use the first artwork
+                artwork_id = igdb_game['artworks'][0] if isinstance(igdb_game['artworks'], list) else igdb_game['artworks']
+                fanart_url = f"https://images.igdb.com/igdb/image/upload/t_1080p/{artwork_id}.jpg"
+                
+                # Download the image
+                success = await download_image_local(fanart_url, rom_filename, 'fanart')
+                if success:
+                    if fanart_elem is None:
+                        fanart_elem = ET.SubElement(game, fanart_field)
+                    fanart_elem.text = f"{rom_filename}-fanart.jpg"
+                    print(f"✅ Downloaded fanart for '{game_name}'")
+        
+        # Process screenshots
+        if 'screenshots' in igdb_game and igdb_game['screenshots']:
+            screenshot_field = get_gamelist_field_for_igdb_type('screenshots', 'screenshot')
+            screenshot_elem = game.find(screenshot_field)
+            
+            if screenshot_elem is None or not screenshot_elem.text or overwrite_media_fields:
+                # Use the first screenshot
+                screenshot_id = igdb_game['screenshots'][0] if isinstance(igdb_game['screenshots'], list) else igdb_game['screenshots']
+                screenshot_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{screenshot_id}.jpg"
+                
+                # Download the image
+                success = await download_image_local(screenshot_url, rom_filename, 'screenshot')
+                if success:
+                    if screenshot_elem is None:
+                        screenshot_elem = ET.SubElement(game, screenshot_field)
+                    screenshot_elem.text = f"{rom_filename}-screenshot.jpg"
+                    print(f"✅ Downloaded screenshot for '{game_name}'")
+        
+    except Exception as e:
+        print(f"❌ Error downloading IGDB media for '{game_name}': {e}")
+        import traceback
+        traceback.print_exc()
+
+async def download_image_local(url, rom_filename, image_type):
+    """Download an image from IGDB using local image ID"""
+    try:
+        import aiohttp
+        import os
+        
+        # Create media directory if it doesn't exist
+        media_dir = os.path.join('var', 'media')
+        os.makedirs(media_dir, exist_ok=True)
+        
+        # Generate filename
+        filename = f"{rom_filename}-{image_type}.jpg"
+        filepath = os.path.join(media_dir, filename)
+        
+        # Skip if file already exists
+        if os.path.exists(filepath):
+            return True
+        
+        # Download the image
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    with open(filepath, 'wb') as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            f.write(chunk)
+                    return True
+                else:
+                    print(f"❌ Failed to download {image_type} from {url}: HTTP {response.status}")
+                    return False
+                    
+    except Exception as e:
+        print(f"❌ Error downloading {image_type} image: {e}")
+        return False
+
 async def process_game_async(game, igdb_platform_id, access_token, client_id, async_client, igdb_config, company_cache=None):
     """Process a single game asynchronously"""
     try:
@@ -19898,13 +20097,15 @@ def run_igdb_scraper_task(system_name, task_id, selected_games=None, overwrite_t
     
     print(f"🔧 DEBUG: run_igdb_scraper_task received parameters - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)}), overwrite_media_fields: {overwrite_media_fields} (type: {type(overwrite_media_fields)}), selected_fields: {selected_fields} (type: {type(selected_fields)})")
     
-    # Check if IGDB credentials are configured
-    igdb_config = get_igdb_config()
-    if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
+    # Check if local IGDB service is available
+    if not global_igdb_service or not global_igdb_service.is_loaded():
         t = get_task(task_id)
         if t:
-            t.complete(False, "IGDB credentials not configured")
+            t.complete(False, "IGDB local database not available. Please run the IGDB dump first.")
         return
+    
+    # Get IGDB config (still needed for field mappings and settings)
+    igdb_config = get_igdb_config()
     
     # Create result queue for progress updates
     result_q = multiprocessing.Queue()
@@ -20001,22 +20202,23 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 })
                 return
             
-            # Get access token
-            access_token = get_igdb_access_token()
-            if not access_token:
+            # Check if local IGDB service is available
+            if not global_igdb_service or not global_igdb_service.is_loaded():
                 result_q.put({
                     'type': 'progress',
                     'task_id': task_id,
-                    'message': "IGDB scraping disabled: Invalid or missing credentials",
+                    'message': "IGDB local database not available. Please run the IGDB dump first.",
                     'progress_percentage': 100
                 })
                 result_q.put({
                     'type': 'complete',
                     'task_id': task_id,
                     'success': False,
-                    'message': "IGDB scraping disabled: Invalid or missing credentials. Please configure valid IGDB credentials in User Preferences > IGDB Configuration."
+                    'message': "IGDB local database not available. Please run the IGDB dump first to populate the local database."
                 })
                 return
+            
+            print(f"✅ Using local IGDB database for scraping (no API calls)")
             
             # Get gamelist path
             gamelist_path = get_gamelist_path(system_name)
@@ -20078,20 +20280,8 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
             
             print(f"Found {len(games)} games to process")
             
-            # Get async client
-            async_client = await get_igdb_async_client()
-            
-            # Ensure genre cache is up to date
-            await ensure_igdb_genre_cache()
-            
-            # Collect all company IDs from games to cache them
-            all_company_ids = set()
-            for game in games:
-                # We'll collect company IDs after we get the IGDB data
-                pass
-            
-            # Ensure company cache is available (we'll populate it as we go)
-            company_cache = load_igdb_company_cache()
+            # No need for async client or caches - using local database
+            company_cache = None
             
             processed_count = 0
             found_count = 0
@@ -20141,14 +20331,10 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 
                 async def process_game_with_concurrency_limit(game):
                     async with semaphore:
-                        # Each game will make rate-limited requests (4 req/sec)
-                        # The httpx client handles connection pooling (max 8 parallel)
-                        return await process_game_async(
+                        # Use local IGDB database (no API calls needed)
+                        return await process_game_async_local(
                             game, 
                             igdb_platform_id, 
-                            access_token, 
-                            igdb_config['client_id'],
-                            async_client,
                             igdb_config,
                             company_cache
                         )
@@ -20228,8 +20414,8 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 'error': str(e)
             })
         finally:
-            # Close async client
-            await close_igdb_async_client()
+            # No async client to close - using local database
+            pass
     
     # Run the async scraper
     asyncio.run(async_scraper())
