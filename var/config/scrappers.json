@@ -91,14 +91,14 @@
             "marquee": [
                 "wheel"
             ],
-            "boxart": [
-                "box-2D"
-            ],
+            "boxart": [],
             "thumbnail": [
                 "box-3D"
             ],
             "boxback": [
-                "box-2D-back"
+                "Box - Back",
+                "Fanart - Box - Back",
+                "Advertisement Flyer - Back"
             ],
             "image": [
                 "ss"
