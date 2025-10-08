@@ -19573,8 +19573,36 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
         game_name = game.find('name').text.strip()
         updated = False
         
+        # Handle special field name mismatches between config and consolidated database
+        # The config expects 'genre' but the database has 'genres'
+        if 'genre' in igdb_mapping and 'genres' in igdb_game and igdb_game['genres']:
+            gamelist_field = igdb_mapping['genre']
+            existing_elem = game.find(gamelist_field)
+            if existing_elem is None or not existing_elem.text or overwrite_text_fields:
+                # Convert genre IDs to names using local database
+                genre_names = []
+                for genre_id in igdb_game['genres']:
+                    genre_name = global_igdb_service.get_genre_name(genre_id) if global_igdb_service else None
+                    if genre_name:
+                        genre_names.append(genre_name)
+                    else:
+                        genre_names.append(f"Genre {genre_id}")
+                
+                value = ', '.join(genre_names)
+                
+                # Set the gamelist field
+                if existing_elem is None:
+                    existing_elem = ET.SubElement(game, gamelist_field)
+                existing_elem.text = value
+                updated = True
+                print(f"✅ Updated {gamelist_field} for '{game_name}': {value}")
+        
         # Map IGDB fields to gamelist fields
         for gamelist_field, igdb_field in igdb_mapping.items():
+            # Skip genre field since we handled it separately above
+            if igdb_field == 'genre':
+                continue
+                
             if igdb_field in igdb_game and igdb_game[igdb_field]:
                 # Check if we should overwrite existing data
                 existing_elem = game.find(gamelist_field)

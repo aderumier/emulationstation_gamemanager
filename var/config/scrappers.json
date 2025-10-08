@@ -61,7 +61,7 @@
             "summary": "desc",
             "developer": "developer",
             "publisher": "publisher",
-            "genre": "genre",
+            "genres": "genre",
             "rating": "rating",
             "players": "players",
             "release_date": "releasedate",
