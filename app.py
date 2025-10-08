@@ -19602,6 +19602,17 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
             # Skip genre field since we handled it separately above
             if igdb_field == 'genre':
                 continue
+            
+            # Debug logging for summary field
+            if igdb_field == 'summary':
+                print(f"🔍 DEBUG: Processing summary field for '{game_name}'")
+                print(f"🔍 DEBUG: igdb_field='{igdb_field}', gamelist_field='{gamelist_field}'")
+                print(f"🔍 DEBUG: igdb_field in igdb_game: {igdb_field in igdb_game}")
+                if igdb_field in igdb_game:
+                    print(f"🔍 DEBUG: igdb_game[{igdb_field}] exists: {igdb_game[igdb_field] is not None}")
+                    print(f"🔍 DEBUG: igdb_game[{igdb_field}] is truthy: {bool(igdb_game[igdb_field])}")
+                    if igdb_game[igdb_field]:
+                        print(f"🔍 DEBUG: Summary content: {igdb_game[igdb_field][:100]}...")
                 
             if igdb_field in igdb_game and igdb_game[igdb_field]:
                 # Check if we should overwrite existing data
@@ -19668,6 +19679,12 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                 existing_elem.text = value
                 updated = True
                 print(f"✅ Updated {gamelist_field} for '{game_name}': {value[:100]}...")
+                
+                # Special debug for description field
+                if gamelist_field == 'desc':
+                    print(f"🔍 DEBUG: Description field updated for '{game_name}'")
+                    print(f"🔍 DEBUG: Value length: {len(value)}")
+                    print(f"🔍 DEBUG: First 200 chars: {value[:200]}")
         
         return updated
         
