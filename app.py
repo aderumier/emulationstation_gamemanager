@@ -19561,7 +19561,7 @@ async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filenam
             print(f"🔍 DEBUG: Processing media fields for '{game_name}'")
             print(f"🔍 DEBUG: selected_fields: {selected_fields}")
             print(f"🔍 DEBUG: overwrite_media_fields: {overwrite_media_fields}")
-            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields)
+            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, igdb_config.get('system_name'))
         else:
             print(f"🔍 DEBUG: Skipping media fields for '{game_name}' - not in selected_fields")
         
@@ -19697,22 +19697,23 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
         print(f"❌ Error populating gamelist with IGDB data for '{game_name}': {e}")
         return False
 
-async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields):
+async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, system_name=None):
     """Download IGDB media using local database image IDs (reuse manual scraping logic)"""
     try:
         game_name = game.find('name').text.strip()
         
-        # Get system name from the game path
-        path_elem = game.find('path')
-        if path_elem is not None and path_elem.text:
-            # Extract system name from path like "/roms/nes/game.nes"
-            path_parts = path_elem.text.strip().split('/')
-            if len(path_parts) >= 3 and path_parts[1] == 'roms':
-                system_name = path_parts[2]
+        # Use provided system_name or try to extract from game path as fallback
+        if not system_name:
+            path_elem = game.find('path')
+            if path_elem is not None and path_elem.text:
+                # Extract system name from path like "/roms/nes/game.nes"
+                path_parts = path_elem.text.strip().split('/')
+                if len(path_parts) >= 3 and path_parts[1] == 'roms':
+                    system_name = path_parts[2]
+                else:
+                    system_name = 'unknown'
             else:
                 system_name = 'unknown'
-        else:
-            system_name = 'unknown'
         
         print(f"🔍 DEBUG: System name: {system_name}")
         
