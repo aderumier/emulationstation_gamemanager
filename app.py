@@ -19480,11 +19480,41 @@ async def process_game_async_local(game, igdb_platform_id, igdb_config, company_
             print(f"🔍 Getting IGDB data from local database for existing ID: {existing_igdb_id}")
             igdb_game = global_igdb_service.get_game_by_id(int(existing_igdb_id)) if global_igdb_service else None
         else:
-            # Search for game in local IGDB database by name
+            # Search for game in local IGDB database by name using direct lookup first
             print(f"🔍 Searching local IGDB database for game: {game_name}")
             if global_igdb_service:
-                search_results = global_igdb_service.search_games_by_name(game_name, igdb_platform_id, limit=1)
-                igdb_game = search_results[0] if search_results else None
+                # First try direct lookup on platform partitioned index
+                from game_utils import normalize_game_name
+                normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+                
+                if normalized_name and igdb_platform_id in global_igdb_service.platform_index:
+                    platform_data = global_igdb_service.platform_index[igdb_platform_id]
+                    first_char = normalized_name[0].lower()
+                    
+                    if first_char in platform_data:
+                        partition_games = platform_data[first_char]
+                        if normalized_name in partition_games:
+                            # Direct match found!
+                            game_id = partition_games[normalized_name]
+                            print(f"✅ Direct match found for '{game_name}' (normalized: '{normalized_name}') -> ID: {game_id}")
+                            igdb_game = global_igdb_service.get_game_by_id(game_id)
+                            if igdb_game:
+                                igdb_game['id'] = game_id  # Add ID back
+                        else:
+                            print(f"❌ No direct match found for '{game_name}' (normalized: '{normalized_name}') in platform {igdb_platform_id}")
+                            igdb_game = None
+                    else:
+                        print(f"❌ No games found for first character '{first_char}' in platform {igdb_platform_id}")
+                        igdb_game = None
+                else:
+                    print(f"❌ Platform {igdb_platform_id} not found in index or empty normalized name")
+                    igdb_game = None
+                
+                # If no direct match found, fall back to similarity search
+                if not igdb_game:
+                    print(f"🔄 No direct match found, falling back to similarity search...")
+                    search_results = global_igdb_service.search_games_by_name(game_name, igdb_platform_id, limit=1)
+                    igdb_game = search_results[0] if search_results else None
             else:
                 igdb_game = None
         
