@@ -19529,7 +19529,7 @@ async def process_game_async_local(game, igdb_platform_id, igdb_config, company_
                 print(f"✅ Using existing IGDB ID for '{game_name}': {existing_igdb_id}")
             
             # Process game data (no API calls needed - all data is local)
-            await process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping)
+            await process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping, rom_path)
             
             return game, True, False  # game, found, error
         else:
@@ -19542,7 +19542,7 @@ async def process_game_async_local(game, igdb_platform_id, igdb_config, company_
         traceback.print_exc()
         return game, False, True  # game, found, error
 
-async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping):
+async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping, rom_path):
     """Process IGDB game data using local database (no API calls)"""
     try:
         game_name = game.find('name').text.strip()
