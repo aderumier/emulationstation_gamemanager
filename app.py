@@ -19558,18 +19558,51 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                 if isinstance(igdb_value, list):
                     if igdb_value:  # Only process if list is not empty
                         if igdb_field == 'genres':
-                            # Convert genre IDs to names (we'll need to implement this)
+                            # Convert genre IDs to names using local database
                             genre_names = []
                             for genre_id in igdb_value:
-                                # For now, just use the ID - we can enhance this later
-                                genre_names.append(str(genre_id))
+                                genre_name = global_igdb_service.get_genre_name(genre_id) if global_igdb_service else None
+                                if genre_name:
+                                    genre_names.append(genre_name)
+                                else:
+                                    genre_names.append(f"Genre {genre_id}")
                             value = ', '.join(genre_names)
+                        elif igdb_field == 'publisher':
+                            # Convert publisher IDs to names using local database
+                            publisher_names = []
+                            for publisher_id in igdb_value:
+                                publisher_name = global_igdb_service.get_company_name(publisher_id) if global_igdb_service else None
+                                if publisher_name:
+                                    publisher_names.append(publisher_name)
+                                else:
+                                    publisher_names.append(f"Company {publisher_id}")
+                            value = ', '.join(publisher_names)
+                        elif igdb_field == 'developer':
+                            # Convert developer IDs to names using local database
+                            developer_names = []
+                            for developer_id in igdb_value:
+                                developer_name = global_igdb_service.get_company_name(developer_id) if global_igdb_service else None
+                                if developer_name:
+                                    developer_names.append(developer_name)
+                                else:
+                                    developer_names.append(f"Company {developer_id}")
+                            value = ', '.join(developer_names)
                         else:
                             value = ', '.join(str(item) for item in igdb_value)
                     else:
                         continue  # Skip empty lists
                 else:
-                    value = str(igdb_value)
+                    # Handle single values
+                    if igdb_field == 'publisher':
+                        # Convert single publisher ID to name
+                        publisher_name = global_igdb_service.get_company_name(igdb_value) if global_igdb_service else None
+                        value = publisher_name if publisher_name else f"Company {igdb_value}"
+                    elif igdb_field == 'developer':
+                        # Convert single developer ID to name
+                        developer_name = global_igdb_service.get_company_name(igdb_value) if global_igdb_service else None
+                        value = developer_name if developer_name else f"Company {igdb_value}"
+                    else:
+                        value = str(igdb_value)
                 
                 # Set the gamelist field
                 if existing_elem is None:
