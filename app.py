@@ -19529,7 +19529,7 @@ async def process_game_async_local(game, igdb_platform_id, igdb_config, company_
                 print(f"✅ Using existing IGDB ID for '{game_name}': {existing_igdb_id}")
             
             # Process game data (no API calls needed - all data is local)
-            await process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping, get_gamelist_field_for_igdb_type)
+            await process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping)
             
             return game, True, False  # game, found, error
         else:
@@ -19542,7 +19542,7 @@ async def process_game_async_local(game, igdb_platform_id, igdb_config, company_
         traceback.print_exc()
         return game, False, True  # game, found, error
 
-async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping, get_gamelist_field_for_igdb_type):
+async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filename, igdb_mapping, igdb_image_mapping):
     """Process IGDB game data using local database (no API calls)"""
     try:
         game_name = game.find('name').text.strip()
@@ -19561,7 +19561,7 @@ async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filenam
             print(f"🔍 DEBUG: Processing media fields for '{game_name}'")
             print(f"🔍 DEBUG: selected_fields: {selected_fields}")
             print(f"🔍 DEBUG: overwrite_media_fields: {overwrite_media_fields}")
-            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, get_gamelist_field_for_igdb_type, overwrite_media_fields)
+            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields)
         else:
             print(f"🔍 DEBUG: Skipping media fields for '{game_name}' - not in selected_fields")
         
@@ -19697,14 +19697,21 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
         print(f"❌ Error populating gamelist with IGDB data for '{game_name}': {e}")
         return False
 
-async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, get_gamelist_field_for_igdb_type, overwrite_media_fields):
+async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields):
     """Download IGDB media using local database image IDs (no API calls)"""
     try:
         game_name = game.find('name').text.strip()
         
         # Process cover image
         if 'cover' in igdb_game and igdb_game['cover']:
-            cover_field = get_gamelist_field_for_igdb_type('cover', 'cover')
+            # Find gamelist field that maps to 'cover' IGDB field
+            cover_field = None
+            for gamelist_field, igdb_field in igdb_image_mapping.items():
+                if igdb_field == 'cover':
+                    cover_field = gamelist_field
+                    break
+            if not cover_field:
+                cover_field = 'cover'  # fallback
             print(f"🔍 DEBUG: Cover field mapping: 'cover' -> '{cover_field}'")
             cover_elem = game.find(cover_field)
             
@@ -19723,7 +19730,14 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
         
         # Process fanart (artworks)
         if 'artworks' in igdb_game and igdb_game['artworks']:
-            fanart_field = get_gamelist_field_for_igdb_type('artworks', 'fanart')
+            # Find gamelist field that maps to 'artworks' IGDB field
+            fanart_field = None
+            for gamelist_field, igdb_field in igdb_image_mapping.items():
+                if igdb_field == 'artworks':
+                    fanart_field = gamelist_field
+                    break
+            if not fanart_field:
+                fanart_field = 'fanart'  # fallback
             print(f"🔍 DEBUG: Fanart field mapping: 'artworks' -> '{fanart_field}'")
             fanart_elem = game.find(fanart_field)
             
@@ -19742,7 +19756,14 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
         
         # Process screenshots
         if 'screenshots' in igdb_game and igdb_game['screenshots']:
-            screenshot_field = get_gamelist_field_for_igdb_type('screenshots', 'image')
+            # Find gamelist field that maps to 'screenshots' IGDB field
+            screenshot_field = None
+            for gamelist_field, igdb_field in igdb_image_mapping.items():
+                if igdb_field == 'screenshots':
+                    screenshot_field = gamelist_field
+                    break
+            if not screenshot_field:
+                screenshot_field = 'image'  # fallback
             print(f"🔍 DEBUG: Screenshot field mapping: 'screenshots' -> '{screenshot_field}'")
             screenshot_elem = game.find(screenshot_field)
             
