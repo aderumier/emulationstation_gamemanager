@@ -6289,8 +6289,35 @@ def search_igdb_database():
         
         print(f"🔧 DEBUG API: IGDB service loaded, is_loaded={igdb_service.is_loaded()}")
         
-        # Search for games
-        games = igdb_service.search_games_by_name(game_name, platform_id, limit)
+        # Search for games - try direct lookup first, then similarity search
+        games = []
+        
+        if platform_id is not None:
+            # First try direct lookup on platform partitioned index
+            from game_utils import normalize_game_name
+            normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+            
+            if normalized_name and platform_id in igdb_service.platform_index:
+                platform_data = igdb_service.platform_index[platform_id]
+                first_char = normalized_name[0].lower()
+                
+                if first_char in platform_data:
+                    partition_games = platform_data[first_char]
+                    if normalized_name in partition_games:
+                        # Direct match found!
+                        game_id = partition_games[normalized_name]
+                        print(f"✅ Direct match found for '{game_name}' (normalized: '{normalized_name}') -> ID: {game_id}")
+                        game_data = igdb_service.get_game_by_id(game_id)
+                        if game_data:
+                            game_data['id'] = game_id  # Add ID back
+                            game_data['_similarity_score'] = 1.0  # Perfect match
+                            games.append(game_data)
+                            print(f"🔧 DEBUG API: Direct match added to results")
+        
+        # If no direct match found, fall back to similarity search
+        if not games:
+            print(f"🔄 No direct match found, falling back to similarity search...")
+            games = igdb_service.search_games_by_name(game_name, platform_id, limit)
         
         print(f"🔧 DEBUG API: Search returned {len(games)} games")
         
