@@ -24,10 +24,12 @@ class IGDBService:
         self.db_path = 'var/db/igdb'
         self.igdb_db_file = os.path.join(self.db_path, 'igdb_db.pkl')
         self.platform_index_file = os.path.join(self.db_path, 'igdb_platform_partition_index.pkl')
+        self.companies_file = os.path.join(self.db_path, 'igdb_companies.pkl')
         
         # In-memory databases
         self.igdb_data = {}  # {game_id: game_data}
         self.platform_index = {}  # {platform_id: {first_char: {normalized_name: game_id}}}
+        self.companies = {}  # {company_id: company_name}
         
         # Load status
         self._loaded = False
@@ -88,6 +90,17 @@ class IGDBService:
                 print(f"⚠️ Platform partition index file not found: {self.platform_index_file}")
                 self.logger.warning(f"Platform partition index file not found: {self.platform_index_file}")
             
+            # Load companies lookup
+            if os.path.exists(self.companies_file):
+                print(f"🔧 DEBUG IGDB: Loading companies lookup...")
+                with open(self.companies_file, 'rb') as f:
+                    self.companies = pickle.load(f)
+                print(f"✅ Loaded companies lookup with {len(self.companies)} companies")
+                self.logger.info(f"✅ Loaded companies lookup with {len(self.companies)} companies")
+            else:
+                print(f"⚠️ Companies file not found: {self.companies_file}")
+                self.logger.warning(f"Companies file not found: {self.companies_file}")
+            
             end_time = time.time()
             print(f"✅ IGDB service loaded in {end_time - start_time:.2f} seconds!")
             self.logger.info(f"✅ IGDB service loaded in {end_time - start_time:.2f} seconds!")
@@ -109,6 +122,12 @@ class IGDBService:
         if not self.is_loaded():
             return None
         return self.igdb_data.get(game_id)
+    
+    def get_company_name(self, company_id: int) -> Optional[str]:
+        """Get company name by ID"""
+        if not self.is_loaded():
+            return None
+        return self.companies.get(company_id)
     
     def search_games_by_name(self, game_name: str, platform_id: Optional[int] = None, limit: int = 10) -> List[Dict]:
         """Search for games by name using similarity search on specific platform only"""

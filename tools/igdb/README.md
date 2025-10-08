@@ -82,9 +82,11 @@ The script will create the following files in `var/db/igdb/dump/`:
 - **`all_covers.json`** - All cover images from IGDB database
 - **`all_screenshots.json`** - All screenshots from IGDB database
 - **`all_artworks.json`** - All artworks from IGDB database
+- **`all_videos.json`** - All game videos from IGDB database
 - **`all_alternative_names.json`** - All alternative names from IGDB database
 - **`igdb.json`** - Consolidated games database with resolved media references
 - **`igdb_db.pkl`** - Pickle version of consolidated games database for faster loading
+- **`igdb_companies.pkl`** - Pickle version of companies lookup (id => name) for faster loading
 - **`platform_partition_index.json`** - Platform-partitioned search index for efficient game lookup
 - **`igdb_platform_partition_index.pkl`** - Pickle version of platform partition index for faster loading
 - **`dump_summary.json`** - Summary with statistics and metadata
@@ -99,6 +101,10 @@ The script automatically creates a consolidated `var/db/igdb/igdb.json` file tha
   - `cover` integer ID → `image_id` from covers database
   - `screenshots` array of IDs → array of `image_id` from screenshots database
   - `artworks` array of IDs → array of `image_id` from artworks database
+  - `videos` array of video objects → array of video data from videos database
+- **Adds company information**:
+  - `publisher` → company ID (single ID or array for multiple publishers)
+  - `developer` → company ID (single ID or array for multiple developers)
 - **Optimized for applications**: Ready-to-use format for game lookup and media display
 
 ### Platform Partition Index
@@ -140,6 +146,7 @@ This index enables fast platform-specific game searches using normalized names, 
 The script automatically generates pickle (`.pkl`) versions of the main data files for significantly faster loading:
 
 - **`igdb_db.pkl`** - Binary version of the consolidated games database
+- **`igdb_companies.pkl`** - Binary version of companies lookup (id => name mapping)
 - **`igdb_platform_partition_index.pkl`** - Binary version of the platform partition index
 
 #### Benefits of Pickle Files:
@@ -155,6 +162,10 @@ import pickle
 # Load consolidated games database
 with open('var/db/igdb/igdb_db.pkl', 'rb') as f:
     igdb_data = pickle.load(f)
+
+# Load companies lookup
+with open('var/db/igdb/igdb_companies.pkl', 'rb') as f:
+    companies = pickle.load(f)
 
 # Load platform partition index
 with open('var/db/igdb/igdb_platform_partition_index.pkl', 'rb') as f:
