@@ -16,17 +16,24 @@ import asyncio
 import httpx
 import time
 import signal
+import argparse
+import pickle
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
+# Import normalization function from game_utils
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from game_utils import normalize_game_name
+
 class IGDBDumper:
-    def __init__(self):
+    def __init__(self, force=False):
         # Load credentials from credentials.json
         self.client_id = None
         self.client_secret = None
         self.access_token = None
         self.async_client = None
         self.dump_dir = "var/db/igdb/dump"
+        self.force = force
         
         # Create dump directory
         os.makedirs(self.dump_dir, exist_ok=True)
@@ -48,6 +55,27 @@ class IGDBDumper:
         
         signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
         signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
+    
+    def file_exists_and_valid(self, filename: str) -> bool:
+        """Check if a dump file exists and contains valid data"""
+        if self.force:
+            return False
+        
+        filepath = os.path.join(self.dump_dir, filename)
+        if not os.path.exists(filepath):
+            return False
+        
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Check if it's a non-empty list or dict
+                if isinstance(data, list) and len(data) > 0:
+                    return True
+                elif isinstance(data, dict) and len(data) > 0:
+                    return True
+                return False
+        except (json.JSONDecodeError, IOError):
+            return False
     
     def save_progress(self, progress_data: Dict[str, Any]):
         """Save current progress to file"""
@@ -185,6 +213,14 @@ class IGDBDumper:
     
     async def dump_platforms(self) -> List[Dict]:
         """Dump all platforms from IGDB"""
+        if self.file_exists_and_valid('platforms.json'):
+            print("📱 Platforms already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'platforms.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                platforms = json.load(f)
+            print(f"✅ Loaded {len(platforms)} platforms from {filename}")
+            return platforms
+        
         print("📱 Dumping platforms...")
         
         query = """
@@ -204,6 +240,14 @@ class IGDBDumper:
     
     async def dump_genres(self) -> List[Dict]:
         """Dump all genres from IGDB"""
+        if self.file_exists_and_valid('genres.json'):
+            print("🎭 Genres already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'genres.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                genres = json.load(f)
+            print(f"✅ Loaded {len(genres)} genres from {filename}")
+            return genres
+        
         print("🎭 Dumping genres...")
         
         query = """
@@ -223,6 +267,14 @@ class IGDBDumper:
     
     async def dump_game_modes(self) -> List[Dict]:
         """Dump all game modes from IGDB"""
+        if self.file_exists_and_valid('game_modes.json'):
+            print("🎮 Game modes already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'game_modes.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                game_modes = json.load(f)
+            print(f"✅ Loaded {len(game_modes)} game modes from {filename}")
+            return game_modes
+        
         print("🎮 Dumping game modes...")
         
         query = """
@@ -242,6 +294,14 @@ class IGDBDumper:
     
     async def dump_player_perspectives(self) -> List[Dict]:
         """Dump all player perspectives from IGDB"""
+        if self.file_exists_and_valid('player_perspectives.json'):
+            print("👁️ Player perspectives already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'player_perspectives.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                perspectives = json.load(f)
+            print(f"✅ Loaded {len(perspectives)} player perspectives from {filename}")
+            return perspectives
+        
         print("👁️ Dumping player perspectives...")
         
         query = """
@@ -260,23 +320,63 @@ class IGDBDumper:
         return perspectives
     
     async def dump_companies(self) -> List[Dict]:
-        """Dump all companies from IGDB"""
+        """Dump all companies from IGDB (with pagination)"""
+        if self.file_exists_and_valid('companies.json'):
+            print("🏢 Companies already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'companies.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                companies = json.load(f)
+            print(f"✅ Loaded {len(companies)} companies from {filename}")
+            return companies
+        
         print("🏢 Dumping companies...")
         
-        query = """
-        fields id,name,slug,description,country,start_date,logo,url,websites;
-        limit 500;
-        """
+        all_companies = []
+        offset = 0
+        batch_size = 500
         
-        companies = await self.make_request('companies', query)
+        try:
+            while True:
+                # Check if we should stop
+                if self.should_stop:
+                    print(f"🛑 Stopping at {len(all_companies)} companies (offset: {offset})")
+                    break
+                
+                print(f"📦 Fetching companies batch: offset={offset}, limit={batch_size}")
+                
+                query = f"""
+                fields id,name,slug,description,country,start_date,logo,url,websites;
+                limit {batch_size};
+                offset {offset};
+                """
+                
+                companies_batch = await self.make_request('companies', query)
+                
+                if not companies_batch:
+                    print("📭 No more companies to fetch")
+                    break
+                
+                all_companies.extend(companies_batch)
+                offset += batch_size
+                
+                print(f"✅ Fetched {len(companies_batch)} companies (total: {len(all_companies)})")
+                
+                # If we got fewer companies than requested, we've reached the end
+                if len(companies_batch) < batch_size:
+                    print("📭 Reached end of companies")
+                    break
+        
+        except KeyboardInterrupt:
+            print(f"🛑 Interrupted at {len(all_companies)} companies (offset: {offset})")
+            raise
         
         # Save to file
         filename = os.path.join(self.dump_dir, 'companies.json')
         with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(companies, f, indent=2, ensure_ascii=False)
+            json.dump(all_companies, f, indent=2, ensure_ascii=False)
         
-        print(f"✅ Dumped {len(companies)} companies to {filename}")
-        return companies
+        print(f"✅ Dumped {len(all_companies)} companies to {filename}")
+        return all_companies
     
     async def dump_games_batch(self, offset: int = 0, limit: int = 500) -> List[Dict]:
         """Dump a batch of games from IGDB"""
@@ -291,6 +391,14 @@ class IGDBDumper:
     
     async def dump_games(self, max_games: Optional[int] = None) -> List[Dict]:
         """Dump all games from IGDB (with pagination and resume support)"""
+        if self.file_exists_and_valid('games.json'):
+            print("🎯 Games already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'games.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_games = json.load(f)
+            print(f"✅ Loaded {len(all_games)} games from {filename}")
+            return all_games
+        
         print("🎯 Dumping games...")
         
         # Load existing progress
@@ -365,6 +473,14 @@ class IGDBDumper:
     
     async def dump_covers(self, game_ids: List[int]) -> List[Dict]:
         """Dump covers for specific games"""
+        if self.file_exists_and_valid('covers.json'):
+            print("🖼️ Covers already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'covers.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_covers = json.load(f)
+            print(f"✅ Loaded {len(all_covers)} covers from {filename}")
+            return all_covers
+        
         print(f"🖼️ Dumping covers for {len(game_ids)} games...")
         
         # Process in batches to avoid query length limits
@@ -396,6 +512,14 @@ class IGDBDumper:
     
     async def dump_screenshots(self, game_ids: List[int]) -> List[Dict]:
         """Dump screenshots for specific games"""
+        if self.file_exists_and_valid('screenshots.json'):
+            print("📸 Screenshots already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'screenshots.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_screenshots = json.load(f)
+            print(f"✅ Loaded {len(all_screenshots)} screenshots from {filename}")
+            return all_screenshots
+        
         print(f"📸 Dumping screenshots for {len(game_ids)} games...")
         
         # Process in batches
@@ -427,6 +551,14 @@ class IGDBDumper:
     
     async def dump_artworks(self, game_ids: List[int]) -> List[Dict]:
         """Dump artworks for specific games"""
+        if self.file_exists_and_valid('artworks.json'):
+            print("🎨 Artworks already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'artworks.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_artworks = json.load(f)
+            print(f"✅ Loaded {len(all_artworks)} artworks from {filename}")
+            return all_artworks
+        
         print(f"🎨 Dumping artworks for {len(game_ids)} games...")
         
         # Process in batches
@@ -455,6 +587,443 @@ class IGDBDumper:
         
         print(f"✅ Dumped {len(all_artworks)} artworks to {filename}")
         return all_artworks
+    
+    async def dump_alternative_names(self, game_ids: List[int]) -> List[Dict]:
+        """Dump alternative names for specific games"""
+        if self.file_exists_and_valid('alternative_names.json'):
+            print("📝 Alternative names already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'alternative_names.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_alternative_names = json.load(f)
+            print(f"✅ Loaded {len(all_alternative_names)} alternative names from {filename}")
+            return all_alternative_names
+        
+        print(f"📝 Dumping alternative names for {len(game_ids)} games...")
+        
+        # Process in batches
+        batch_size = 100
+        all_alternative_names = []
+        
+        for i in range(0, len(game_ids), batch_size):
+            batch_ids = game_ids[i:i + batch_size]
+            ids_str = ','.join(map(str, batch_ids))
+            
+            query = f"""
+            fields id,name,comment,game;
+            where game = ({ids_str});
+            limit 500;
+            """
+            
+            alternative_names = await self.make_request('alternative_names', query)
+            all_alternative_names.extend(alternative_names)
+            
+            print(f"✅ Fetched {len(alternative_names)} alternative names (batch {i//batch_size + 1})")
+        
+        # Save to file
+        filename = os.path.join(self.dump_dir, 'alternative_names.json')
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(all_alternative_names, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Dumped {len(all_alternative_names)} alternative names to {filename}")
+        return all_alternative_names
+    
+    async def dump_all_alternative_names(self) -> List[Dict]:
+        """Dump all alternative names from IGDB (with pagination)"""
+        if self.file_exists_and_valid('all_alternative_names.json'):
+            print("📝 All alternative names already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'all_alternative_names.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_alternative_names = json.load(f)
+            print(f"✅ Loaded {len(all_alternative_names)} alternative names from {filename}")
+            return all_alternative_names
+        
+        print("📝 Dumping all alternative names...")
+        
+        all_alternative_names = []
+        offset = 0
+        batch_size = 500
+        
+        try:
+            while True:
+                # Check if we should stop
+                if self.should_stop:
+                    print(f"🛑 Stopping at {len(all_alternative_names)} alternative names (offset: {offset})")
+                    break
+                
+                print(f"📦 Fetching alternative names batch: offset={offset}, limit={batch_size}")
+                
+                query = f"""
+                fields id,name,comment,game;
+                limit {batch_size};
+                offset {offset};
+                """
+                
+                alternative_names_batch = await self.make_request('alternative_names', query)
+                
+                if not alternative_names_batch:
+                    print("📭 No more alternative names to fetch")
+                    break
+                
+                all_alternative_names.extend(alternative_names_batch)
+                offset += batch_size
+                
+                print(f"✅ Fetched {len(alternative_names_batch)} alternative names (total: {len(all_alternative_names)})")
+                
+                # If we got fewer alternative names than requested, we've reached the end
+                if len(alternative_names_batch) < batch_size:
+                    print("📭 Reached end of alternative names")
+                    break
+        
+        except KeyboardInterrupt:
+            print(f"🛑 Interrupted at {len(all_alternative_names)} alternative names (offset: {offset})")
+            raise
+        
+        # Save to file
+        filename = os.path.join(self.dump_dir, 'all_alternative_names.json')
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(all_alternative_names, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Dumped {len(all_alternative_names)} alternative names to {filename}")
+        return all_alternative_names
+    
+    async def dump_all_covers(self) -> List[Dict]:
+        """Dump all covers from IGDB (with pagination)"""
+        if self.file_exists_and_valid('all_covers.json'):
+            print("🖼️ All covers already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'all_covers.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_covers = json.load(f)
+            print(f"✅ Loaded {len(all_covers)} covers from {filename}")
+            return all_covers
+        
+        print("🖼️ Dumping all covers...")
+        
+        all_covers = []
+        offset = 0
+        batch_size = 500
+        
+        try:
+            while True:
+                # Check if we should stop
+                if self.should_stop:
+                    print(f"🛑 Stopping at {len(all_covers)} covers (offset: {offset})")
+                    break
+                
+                print(f"📦 Fetching covers batch: offset={offset}, limit={batch_size}")
+                
+                query = f"""
+                fields id,image_id,width,height,url,game_localization;
+                limit {batch_size};
+                offset {offset};
+                """
+                
+                covers_batch = await self.make_request('covers', query)
+                
+                if not covers_batch:
+                    print("📭 No more covers to fetch")
+                    break
+                
+                all_covers.extend(covers_batch)
+                offset += batch_size
+                
+                print(f"✅ Fetched {len(covers_batch)} covers (total: {len(all_covers)})")
+                
+                # If we got fewer covers than requested, we've reached the end
+                if len(covers_batch) < batch_size:
+                    print("📭 Reached end of covers")
+                    break
+        
+        except KeyboardInterrupt:
+            print(f"🛑 Interrupted at {len(all_covers)} covers (offset: {offset})")
+            raise
+        
+        # Save to file
+        filename = os.path.join(self.dump_dir, 'all_covers.json')
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(all_covers, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Dumped {len(all_covers)} covers to {filename}")
+        return all_covers
+    
+    async def dump_all_screenshots(self) -> List[Dict]:
+        """Dump all screenshots from IGDB (with pagination)"""
+        if self.file_exists_and_valid('all_screenshots.json'):
+            print("📸 All screenshots already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'all_screenshots.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_screenshots = json.load(f)
+            print(f"✅ Loaded {len(all_screenshots)} screenshots from {filename}")
+            return all_screenshots
+        
+        print("📸 Dumping all screenshots...")
+        
+        all_screenshots = []
+        offset = 0
+        batch_size = 500
+        
+        try:
+            while True:
+                # Check if we should stop
+                if self.should_stop:
+                    print(f"🛑 Stopping at {len(all_screenshots)} screenshots (offset: {offset})")
+                    break
+                
+                print(f"📦 Fetching screenshots batch: offset={offset}, limit={batch_size}")
+                
+                query = f"""
+                fields id,image_id,width,height,url;
+                limit {batch_size};
+                offset {offset};
+                """
+                
+                screenshots_batch = await self.make_request('screenshots', query)
+                
+                if not screenshots_batch:
+                    print("📭 No more screenshots to fetch")
+                    break
+                
+                all_screenshots.extend(screenshots_batch)
+                offset += batch_size
+                
+                print(f"✅ Fetched {len(screenshots_batch)} screenshots (total: {len(all_screenshots)})")
+                
+                # If we got fewer screenshots than requested, we've reached the end
+                if len(screenshots_batch) < batch_size:
+                    print("📭 Reached end of screenshots")
+                    break
+        
+        except KeyboardInterrupt:
+            print(f"🛑 Interrupted at {len(all_screenshots)} screenshots (offset: {offset})")
+            raise
+        
+        # Save to file
+        filename = os.path.join(self.dump_dir, 'all_screenshots.json')
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(all_screenshots, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Dumped {len(all_screenshots)} screenshots to {filename}")
+        return all_screenshots
+    
+    async def dump_all_artworks(self) -> List[Dict]:
+        """Dump all artworks from IGDB (with pagination)"""
+        if self.file_exists_and_valid('all_artworks.json'):
+            print("🎨 All artworks already dumped, loading from file...")
+            filename = os.path.join(self.dump_dir, 'all_artworks.json')
+            with open(filename, 'r', encoding='utf-8') as f:
+                all_artworks = json.load(f)
+            print(f"✅ Loaded {len(all_artworks)} artworks from {filename}")
+            return all_artworks
+        
+        print("🎨 Dumping all artworks...")
+        
+        all_artworks = []
+        offset = 0
+        batch_size = 500
+        
+        try:
+            while True:
+                # Check if we should stop
+                if self.should_stop:
+                    print(f"🛑 Stopping at {len(all_artworks)} artworks (offset: {offset})")
+                    break
+                
+                print(f"📦 Fetching artworks batch: offset={offset}, limit={batch_size}")
+                
+                query = f"""
+                fields id,image_id,width,height,url;
+                limit {batch_size};
+                offset {offset};
+                """
+                
+                artworks_batch = await self.make_request('artworks', query)
+                
+                if not artworks_batch:
+                    print("📭 No more artworks to fetch")
+                    break
+                
+                all_artworks.extend(artworks_batch)
+                offset += batch_size
+                
+                print(f"✅ Fetched {len(artworks_batch)} artworks (total: {len(all_artworks)})")
+                
+                # If we got fewer artworks than requested, we've reached the end
+                if len(artworks_batch) < batch_size:
+                    print("📭 Reached end of artworks")
+                    break
+        
+        except KeyboardInterrupt:
+            print(f"🛑 Interrupted at {len(all_artworks)} artworks (offset: {offset})")
+            raise
+        
+        # Save to file
+        filename = os.path.join(self.dump_dir, 'all_artworks.json')
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(all_artworks, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Dumped {len(all_artworks)} artworks to {filename}")
+        return all_artworks
+    
+    async def build_igdb_json(self, games: List[Dict], covers: List[Dict], screenshots: List[Dict], artworks: List[Dict]) -> Dict[int, Dict]:
+        """Build consolidated igdb.json with game ID as key and resolved media references"""
+        print("🔧 Building consolidated igdb.json...")
+        
+        # Create lookup dictionaries for media
+        covers_lookup = {cover['id']: cover['image_id'] for cover in covers if 'id' in cover and 'image_id' in cover}
+        screenshots_lookup = {screenshot['id']: screenshot['image_id'] for screenshot in screenshots if 'id' in screenshot and 'image_id' in screenshot}
+        artworks_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork}
+        
+        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} artworks")
+        
+        # Build consolidated games dictionary
+        igdb_data = {}
+        
+        for game in games:
+            if 'id' not in game:
+                continue
+                
+            game_id = game['id']
+            
+            # Create game entry without unnecessary fields
+            excluded_fields = ['similar_games', 'websites', 'age_ratings', 'external_games', 'url', 'player_perspectives', 'game_modes', 'game_engines', 'release_dates', 'alternative_names', 'id']
+            game_entry = {k: v for k, v in game.items() if k not in excluded_fields}
+            
+            # Resolve cover reference
+            if 'cover' in game_entry and game_entry['cover']:
+                cover_id = game_entry['cover']
+                if cover_id in covers_lookup:
+                    game_entry['cover'] = covers_lookup[cover_id]
+                else:
+                    # Keep original ID if not found in lookup
+                    pass
+            
+            # Resolve screenshots references
+            if 'screenshots' in game_entry and game_entry['screenshots']:
+                resolved_screenshots = []
+                for screenshot_id in game_entry['screenshots']:
+                    if screenshot_id in screenshots_lookup:
+                        resolved_screenshots.append(screenshots_lookup[screenshot_id])
+                    else:
+                        # Keep original ID if not found in lookup
+                        resolved_screenshots.append(screenshot_id)
+                game_entry['screenshots'] = resolved_screenshots
+            
+            # Resolve artworks references
+            if 'artworks' in game_entry and game_entry['artworks']:
+                resolved_artworks = []
+                for artwork_id in game_entry['artworks']:
+                    if artwork_id in artworks_lookup:
+                        resolved_artworks.append(artworks_lookup[artwork_id])
+                    else:
+                        # Keep original ID if not found in lookup
+                        resolved_artworks.append(artwork_id)
+                game_entry['artworks'] = resolved_artworks
+            
+            igdb_data[game_id] = game_entry
+        
+        # Save consolidated file in the same directory as other dump files
+        output_file = os.path.join(self.dump_dir, 'igdb.json')
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(igdb_data, f, indent=2, ensure_ascii=False)
+        
+        # Also save as pickle for faster loading (in parent directory)
+        pickle_file = os.path.join(os.path.dirname(self.dump_dir), 'igdb_db.pkl')
+        with open(pickle_file, 'wb') as f:
+            pickle.dump(igdb_data, f)
+        
+        print(f"✅ Built consolidated igdb.json with {len(igdb_data)} games at {output_file}")
+        print(f"✅ Saved pickle version at {pickle_file}")
+        return igdb_data
+
+    async def build_platform_partition_index(self, games: List[Dict], alternative_names: List[Dict]) -> Dict:
+        """Build platform-partitioned index: [platformid][firstletter][normalizedname] = gameid"""
+        print("🔧 Building platform-partitioned index...")
+        
+        # Create lookup for alternative names by game_id
+        alt_names_lookup = {}
+        for alt_name in alternative_names:
+            game_id = alt_name.get('game')
+            if game_id:
+                if game_id not in alt_names_lookup:
+                    alt_names_lookup[game_id] = []
+                alt_names_lookup[game_id].append(alt_name.get('name', ''))
+        
+        print(f"📊 Created alternative names lookup for {len(alt_names_lookup)} games")
+        
+        # Build platform partition index
+        platform_index = {}
+        processed_games = 0
+        
+        for game in games:
+            if 'id' not in game:
+                continue
+                
+            game_id = game['id']
+            game_name = game.get('name', '')
+            platforms = game.get('platforms', [])
+            
+            # Skip games without platforms or name
+            if not platforms or not game_name:
+                continue
+            
+            # Get all names for this game (main name + alternative names)
+            all_names = [game_name]
+            if game_id in alt_names_lookup:
+                all_names.extend(alt_names_lookup[game_id])
+            
+            # Process each platform
+            for platform_id in platforms:
+                if platform_id not in platform_index:
+                    platform_index[platform_id] = {}
+                
+                # Process each name (main + alternatives)
+                for name in all_names:
+                    if not name or not name.strip():
+                        continue
+                    
+                    # Normalize the name
+                    normalized_name = normalize_game_name(name, remove_paranthesis=True, remove_articles=True)
+                    if not normalized_name:
+                        continue
+                    
+                    # Get first character for partitioning
+                    first_char = normalized_name[0] if normalized_name else 'other'
+                    if first_char not in platform_index[platform_id]:
+                        platform_index[platform_id][first_char] = {}
+                    
+                    # Store the mapping: normalized_name -> game_id
+                    platform_index[platform_id][first_char][normalized_name] = game_id
+            
+            processed_games += 1
+            if processed_games % 1000 == 0:
+                print(f"📊 Processed {processed_games} games for platform index...")
+        
+        # Save the platform partition index
+        output_file = os.path.join(self.dump_dir, 'platform_partition_index.json')
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(platform_index, f, indent=2, ensure_ascii=False)
+        
+        # Also save as pickle for faster loading (in parent directory)
+        pickle_file = os.path.join(os.path.dirname(self.dump_dir), 'igdb_platform_partition_index.pkl')
+        with open(pickle_file, 'wb') as f:
+            pickle.dump(platform_index, f)
+        
+        # Calculate statistics
+        total_platforms = len(platform_index)
+        total_partitions = sum(len(platform_data) for platform_data in platform_index.values())
+        total_entries = sum(
+            len(partition_data) 
+            for platform_data in platform_index.values() 
+            for partition_data in platform_data.values()
+        )
+        
+        print(f"✅ Built platform partition index:")
+        print(f"   📊 {total_platforms} platforms")
+        print(f"   📊 {total_partitions} partitions")
+        print(f"   📊 {total_entries} total entries")
+        print(f"   📁 Saved JSON to: {output_file}")
+        print(f"   📁 Saved pickle to: {pickle_file}")
+        
+        return platform_index
     
     async def create_dump_summary(self, stats: Dict[str, Any]):
         """Create a summary file with dump statistics"""
@@ -488,51 +1057,22 @@ class IGDBDumper:
 
 async def main():
     """Main function to run the IGDB dump"""
-    dumper = IGDBDumper()
+    parser = argparse.ArgumentParser(description='Dump IGDB database to local JSON files')
+    parser.add_argument('--force', action='store_true', 
+                       help='Force redump of existing files')
+    args = parser.parse_args()
+    
+    dumper = IGDBDumper(force=args.force)
     
     try:
         await dumper.initialize()
         
-        # Check if we're resuming
-        progress = dumper.load_progress()
-        if progress.get('interrupted'):
-            print("🔄 Resuming interrupted dump...")
-        
-        # Dump basic data (only if not already done)
-        if not progress.get('platforms_done'):
-            platforms = await dumper.dump_platforms()
-            dumper.save_progress({**progress, 'platforms_done': True})
-        else:
-            print("📱 Platforms already dumped, skipping...")
-            platforms = []
-        
-        if not progress.get('genres_done'):
-            genres = await dumper.dump_genres()
-            dumper.save_progress({**progress, 'genres_done': True})
-        else:
-            print("🎭 Genres already dumped, skipping...")
-            genres = []
-        
-        if not progress.get('game_modes_done'):
-            game_modes = await dumper.dump_game_modes()
-            dumper.save_progress({**progress, 'game_modes_done': True})
-        else:
-            print("🎮 Game modes already dumped, skipping...")
-            game_modes = []
-        
-        if not progress.get('player_perspectives_done'):
-            player_perspectives = await dumper.dump_player_perspectives()
-            dumper.save_progress({**progress, 'player_perspectives_done': True})
-        else:
-            print("👁️ Player perspectives already dumped, skipping...")
-            player_perspectives = []
-        
-        if not progress.get('companies_done'):
-            companies = await dumper.dump_companies()
-            dumper.save_progress({**progress, 'companies_done': True})
-        else:
-            print("🏢 Companies already dumped, skipping...")
-            companies = []
+        # Dump basic data (will skip if files already exist unless --force is used)
+        platforms = await dumper.dump_platforms()
+        genres = await dumper.dump_genres()
+        game_modes = await dumper.dump_game_modes()
+        player_perspectives = await dumper.dump_player_perspectives()
+        companies = await dumper.dump_companies()
         
         # Dump all games from IGDB database (with resume support)
         games = await dumper.dump_games()
@@ -540,14 +1080,23 @@ async def main():
         # Extract game IDs for media
         game_ids = [game['id'] for game in games if 'id' in game]
         
-        # Dump media for games (only if games are complete)
+        # Dump all media from IGDB database (only if games are complete)
         if not dumper.should_stop:
-            covers = await dumper.dump_covers(game_ids)
-            screenshots = await dumper.dump_screenshots(game_ids)
-            artworks = await dumper.dump_artworks(game_ids)
+            covers = await dumper.dump_all_covers()
+            screenshots = await dumper.dump_all_screenshots()
+            artworks = await dumper.dump_all_artworks()
+            all_alternative_names = await dumper.dump_all_alternative_names()
+            
+            # Build consolidated igdb.json
+            if not dumper.should_stop:
+                igdb_data = await dumper.build_igdb_json(games, covers, screenshots, artworks)
+                
+                # Build platform partition index
+                if not dumper.should_stop:
+                    platform_index = await dumper.build_platform_partition_index(games, all_alternative_names)
         else:
             print("🛑 Skipping media dump due to stop signal")
-            covers, screenshots, artworks = [], [], []
+            covers, screenshots, artworks, all_alternative_names = [], [], [], []
         
         # Create summary
         stats = {
@@ -559,7 +1108,15 @@ async def main():
             'games': len(games),
             'covers': len(covers),
             'screenshots': len(screenshots),
-            'artworks': len(artworks)
+            'artworks': len(artworks),
+            'alternative_names': len(all_alternative_names),
+            'consolidated_games': len(igdb_data) if 'igdb_data' in locals() else 0,
+            'platform_index_platforms': len(platform_index) if 'platform_index' in locals() else 0,
+            'platform_index_entries': sum(
+                len(partition_data) 
+                for platform_data in platform_index.values() 
+                for partition_data in platform_data.values()
+            ) if 'platform_index' in locals() else 0
         }
         
         await dumper.create_dump_summary(stats)

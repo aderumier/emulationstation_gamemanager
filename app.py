@@ -55,6 +55,7 @@ from steam_service import SteamService
 from screenscraper_service import ScreenScraperService
 from steamgrid_service import SteamGridService
 from mobygames_service import MobyGamesService
+from igdb_service import IGDBService
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -3285,6 +3286,10 @@ global_mobygames_service_loaded = False
 global_steam_service = None
 global_steam_service_loaded = False
 
+# Global IGDB service instance
+global_igdb_service = None
+global_igdb_service_loaded = False
+
 def get_mobygames_game_data(game, system_name, service=None):
     """Get MobyGames game data by ID or name - common function for scrapper and manual scrap"""
     if not service:
@@ -3630,6 +3635,32 @@ def load_steam_service():
     except Exception as e:
         print(f"❌ Failed to load Steam service: {e}")
         global_steam_service_loaded = True  # Mark as loaded to prevent retries
+        return None
+
+def load_igdb_service():
+    """Load IGDB service in background"""
+    global global_igdb_service, global_igdb_service_loaded
+    
+    if global_igdb_service_loaded:
+        return global_igdb_service
+    
+    try:
+        print("🔄 Loading IGDB service and databases...")
+        start_time = time.time()
+        
+        # Initialize IGDB service (this will load pickle files)
+        from igdb_service import IGDBService
+        global_igdb_service = IGDBService()
+        
+        end_time = time.time()
+        print(f"✅ IGDB service loaded in {end_time - start_time:.2f} seconds!")
+        global_igdb_service_loaded = True
+        
+        return global_igdb_service
+        
+    except Exception as e:
+        print(f"❌ Failed to load IGDB service: {e}")
+        global_igdb_service_loaded = True  # Mark as loaded to prevent retries
         return None
 
 def _save_global_cache_to_file(cache_data):
@@ -6227,6 +6258,129 @@ def get_igdb_cover(game_id):
     except Exception as e:
         print(f"Error fetching IGDB cover for game {game_id}: {e}")
         return jsonify({'error': f'Failed to fetch cover: {str(e)}'}), 500
+
+@app.route('/api/igdb/database/search', methods=['POST'])
+@login_required
+def search_igdb_database():
+    """Search for games in IGDB database using local pickle files"""
+    try:
+        data = request.get_json()
+        print(f"🔧 DEBUG API: search_igdb_database called with data: {data}")
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        platform_id = data.get('platform_id')  # Optional platform filter
+        limit = data.get('limit', 10)
+        
+        print(f"🔧 DEBUG API: Parsed - game_name='{game_name}', platform_id={platform_id}, limit={limit}")
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        # Get IGDB service
+        igdb_service = load_igdb_service()
+        if not igdb_service:
+            print("🔧 DEBUG API: IGDB service not available")
+            return jsonify({'error': 'IGDB service not available'}), 500
+        
+        print(f"🔧 DEBUG API: IGDB service loaded, is_loaded={igdb_service.is_loaded()}")
+        
+        # Search for games
+        games = igdb_service.search_games_by_name(game_name, platform_id, limit)
+        
+        print(f"🔧 DEBUG API: Search returned {len(games)} games")
+        
+        # Add debug search for Alan Wake specifically
+        if game_name.lower() == 'alan wake':
+            print("🔧 DEBUG API: Running debug search for Alan Wake...")
+            igdb_service.debug_search_game(game_name, platform_id)
+        
+        return jsonify({
+            'success': True,
+            'games': games
+        })
+        
+    except Exception as e:
+        print(f"🔧 DEBUG API: Exception in search_igdb_database: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to search IGDB database: {str(e)}'}), 500
+
+@app.route('/api/igdb/database/similar', methods=['POST'])
+@login_required
+def find_similar_igdb_database():
+    """Find similar games in IGDB database using fuzzy matching"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        platform_id = data.get('platform_id')  # Optional platform filter
+        limit = data.get('limit', 10)
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        # Get IGDB service
+        igdb_service = load_igdb_service()
+        if not igdb_service:
+            return jsonify({'error': 'IGDB service not available'}), 500
+        
+        # Find similar games
+        games = igdb_service.find_similar_games(game_name, platform_id, limit)
+        
+        return jsonify({
+            'success': True,
+            'games': games
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to find similar IGDB games: {str(e)}'}), 500
+
+@app.route('/api/igdb/database/platforms', methods=['GET'])
+@login_required
+def get_igdb_database_platforms():
+    """Get list of IGDB platforms with game counts from local database"""
+    try:
+        # Get IGDB service
+        igdb_service = load_igdb_service()
+        if not igdb_service:
+            return jsonify({'error': 'IGDB service not available'}), 500
+        
+        # Get platforms
+        platforms = igdb_service.get_platforms()
+        
+        return jsonify({
+            'success': True,
+            'platforms': platforms
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get IGDB platforms: {str(e)}'}), 500
+
+@app.route('/api/igdb/database/stats', methods=['GET'])
+@login_required
+def get_igdb_database_statistics():
+    """Get IGDB database statistics from local pickle files"""
+    try:
+        # Get IGDB service
+        igdb_service = load_igdb_service()
+        if not igdb_service:
+            return jsonify({'error': 'IGDB service not available'}), 500
+        
+        # Get statistics
+        stats = igdb_service.get_statistics()
+        
+        return jsonify({
+            'success': True,
+            'statistics': stats
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get IGDB statistics: {str(e)}'}), 500
 
 @app.route('/api/screenscraper/search', methods=['POST'])
 @login_required
@@ -22662,6 +22816,13 @@ if __name__ == '__main__':
     
     steam_thread = threading.Thread(target=load_steam_background, daemon=True)
     steam_thread.start()
+    
+    # Start IGDB service loading in a separate thread
+    def load_igdb_background():
+        load_igdb_service()
+    
+    igdb_thread = threading.Thread(target=load_igdb_background, daemon=True)
+    igdb_thread.start()
     
     # Use a more robust approach with proper signal handling
     import sys

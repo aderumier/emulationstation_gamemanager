@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y \
     python3-flask-login \
     python3-flask-socketio \
     python3-flask-cors \
+    python3-flask-compress \
     python3-requests \
     python3-httpx \
     python3-h2 \
@@ -34,6 +35,7 @@ RUN apt-get update && apt-get install -y \
     python3-bcrypt \
     python3-dotenv \
     python3-wand \
+    python3-jellyfish \
     # Application dependencies
     imagemagick \
     ffmpeg \
@@ -52,18 +54,13 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-COPY gamemanager_2.4.4-1_all.deb .
+COPY gamemanager_2.4.5-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_2.4.4-1_all.deb / && \
-    rm gamemanager_2.4.4-1_all.deb
+RUN dpkg-deb -x gamemanager_2.4.5-1_all.deb / && \
+    rm gamemanager_2.4.5-1_all.deb
 
-# Install the package dependencies manually
-# Note: python3-jellyfish installation may fail due to network issues
-# The application will work without it, but some features may be limited
-RUN apt-get update && \
-    (apt-get install -y python3-jellyfish || echo "Warning: Failed to install python3-jellyfish, continuing without it") && \
-    rm -rf /var/lib/apt/lists/*
+# Python packages are installed via system packages above
 
 # Create necessary directories with proper structure first
 RUN mkdir -p \

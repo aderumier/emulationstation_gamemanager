@@ -16,7 +16,7 @@ from dump import IGDBDumper
 
 async def test_dump():
     """Test the IGDB dump with minimal data"""
-    dumper = IGDBDumper()
+    dumper = IGDBDumper(force=True)  # Force redump for testing
     
     try:
         print("🧪 Testing IGDB dump functionality...")
@@ -46,6 +46,10 @@ async def test_dump():
             # Test artworks
             artworks = await dumper.dump_artworks(game_ids)
             print(f"✅ Artworks dump successful: {len(artworks)} artworks")
+            
+            # Test alternative names
+            alternative_names = await dumper.dump_alternative_names(game_ids)
+            print(f"✅ Alternative names dump successful: {len(alternative_names)} alternative names")
         
         print("\n🎉 All tests passed!")
         

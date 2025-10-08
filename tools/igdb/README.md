@@ -42,12 +42,23 @@ This tool allows you to dump data from the IGDB (Internet Game Database) API int
 # Run the dump script
 python tools/igdb/dump.py
 
+# Force redump of all files (ignore existing files)
+python tools/igdb/dump.py --force
+
 # Check progress
 python tools/igdb/progress.py show
 
 # Clear progress (start fresh)
 python tools/igdb/progress.py clear
 ```
+
+### File-Based Skipping
+
+By default, the dump script will skip files that already exist and contain valid data:
+
+- **Skip existing files**: If a JSON file already exists and contains data, it will be loaded instead of redumping
+- **Force redump**: Use `--force` flag to ignore existing files and redump everything
+- **Validation**: Files are validated to ensure they contain valid JSON data before being skipped
 
 ### Stop/Resume Functionality
 
@@ -68,10 +79,87 @@ The script will create the following files in `var/db/igdb/dump/`:
 - **`player_perspectives.json`** - Player perspectives (First-person, Third-person, etc.)
 - **`companies.json`** - Game companies (developers, publishers)
 - **`games.json`** - Complete game database (all games)
-- **`covers.json`** - Game cover images
-- **`screenshots.json`** - Game screenshots
-- **`artworks.json`** - Game artworks
+- **`all_covers.json`** - All cover images from IGDB database
+- **`all_screenshots.json`** - All screenshots from IGDB database
+- **`all_artworks.json`** - All artworks from IGDB database
+- **`all_alternative_names.json`** - All alternative names from IGDB database
+- **`igdb.json`** - Consolidated games database with resolved media references
+- **`igdb_db.pkl`** - Pickle version of consolidated games database for faster loading
+- **`platform_partition_index.json`** - Platform-partitioned search index for efficient game lookup
+- **`igdb_platform_partition_index.pkl`** - Pickle version of platform partition index for faster loading
 - **`dump_summary.json`** - Summary with statistics and metadata
+
+### Consolidated igdb.json
+
+The script automatically creates a consolidated `var/db/igdb/igdb.json` file that:
+
+- **Uses game ID as key**: `{game_id: game_data}` structure for efficient lookup
+- **Removes unnecessary fields**: Excludes `similar_games`, `websites`, `age_ratings`, `external_games`, `url`, `player_perspectives`, `game_modes`, `game_engines`, `release_dates`, `alternative_names`, and `id` to reduce file size
+- **Resolves media references**: 
+  - `cover` integer ID → `image_id` from covers database
+  - `screenshots` array of IDs → array of `image_id` from screenshots database
+  - `artworks` array of IDs → array of `image_id` from artworks database
+- **Optimized for applications**: Ready-to-use format for game lookup and media display
+
+### Platform Partition Index
+
+The script automatically creates a platform-partitioned search index at `var/db/igdb/platform_partition_index.json` that:
+
+- **Structure**: `[platform_id][first_letter][normalized_name] = game_id`
+- **Includes all names**: Both main game names and alternative names from the database
+- **Normalized search**: Uses the same normalization function as other services for consistent matching
+- **Efficient lookup**: Partitioned by platform and first letter for fast searches
+- **Complete coverage**: Every game name (main + alternatives) is indexed for each platform
+
+#### Example structure:
+```json
+{
+  "6": {  // PlayStation platform ID
+    "s": {
+      "supermariobros": 12345,
+      "supermariobros3": 12346
+    },
+    "m": {
+      "mariokart": 12347,
+      "metroid": 12348
+    }
+  },
+  "7": {  // Nintendo 64 platform ID
+    "s": {
+      "supermario64": 12349,
+      "supermariobros": 12350
+    }
+  }
+}
+```
+
+This index enables fast platform-specific game searches using normalized names, similar to the MobyGames and Launchbox partitioned indexes.
+
+### Pickle Files for Performance
+
+The script automatically generates pickle (`.pkl`) versions of the main data files for significantly faster loading:
+
+- **`igdb_db.pkl`** - Binary version of the consolidated games database
+- **`igdb_platform_partition_index.pkl`** - Binary version of the platform partition index
+
+#### Benefits of Pickle Files:
+- **Faster loading**: 5-10x faster than JSON parsing for large datasets
+- **Memory efficient**: Direct Python object deserialization
+- **Production ready**: Ideal for applications that need to load data frequently
+- **Same data**: Identical content to JSON files, just in binary format
+
+#### Usage Example:
+```python
+import pickle
+
+# Load consolidated games database
+with open('var/db/igdb/igdb_db.pkl', 'rb') as f:
+    igdb_data = pickle.load(f)
+
+# Load platform partition index
+with open('var/db/igdb/igdb_platform_partition_index.pkl', 'rb') as f:
+    platform_index = pickle.load(f)
+```
 
 ### Customization
 

@@ -1,3 +1,21 @@
+gamemanager (2.4.5) stable; urgency=medium
+
+  * Add IGDB database dump tool with stop/resume functionality
+  * Create standalone IGDB dump script in tools/igdb/dump.py
+  * Add comprehensive stop/resume functionality with progress tracking
+  * Support for dumping entire IGDB database (games, platforms, genres, etc.)
+  * Rate limiting and batch processing for large datasets
+  * Progress management utility for checking and clearing progress
+  * Complete documentation and examples
+  * Independent of main application code
+  * Fix frontend multiple IGDB search requests issue
+  * Add request progress tracking to prevent simultaneous requests
+  * Implement button click protection with event prevention
+  * Add proper cleanup with finally block to reset request flag
+  * Remove aggressive backend rate limiting (root cause was frontend)
+  * Add debug logging to track request lifecycle
+  * Prevent rapid clicking and duplicate API calls
+
 gamemanager (2.3.3) stable; urgency=medium
 
   * Fix mediatype files deployment to match platforms.json behavior
