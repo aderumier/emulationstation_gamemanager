@@ -6894,7 +6894,7 @@ def rom_system_gamelist(system_name):
             for changed_game in changed_games:
                 if changed_game.get('changed_fields'):
                     print(f"🔔 Notifying about game update: {changed_game['game_name']} with fields: {changed_game['changed_fields']}")
-                    notify_game_updated(system_name, changed_game['game_name'], changed_game['changed_fields'])
+                    notify_game_updated(system_name, changed_game.get('rom_path', ''), changed_game['changed_fields'])
                 else:
                     print(f"⚠️  Changed game missing changed_fields: {changed_game}")
             
@@ -8485,7 +8485,7 @@ def download_multiscraper_media_endpoint():
             write_gamelist_xml(games, gamelist_path)
             
             # Notify all connected clients about the game update
-            notify_game_updated(system_name, game_name, [media_type])
+            notify_game_updated(system_name, game.get('path', ''), [media_type])
             
             return jsonify({'success': True, 'message': 'Media downloaded successfully'})
         else:
@@ -8902,7 +8902,7 @@ def apply_partial_match():
         # Notify all connected clients about the gamelist update
         # Use the system_name parameter directly (it was already validated)
         notify_gamelist_updated(system_name, len(games))
-        notify_game_updated(system_name, game_name, list(match_data.keys()))
+        notify_game_updated(system_name, game.get('path', ''), list(match_data.keys()))
         
         return jsonify({
             'success': True,
@@ -10755,7 +10755,7 @@ def upload_game_media(system_name):
         
         # Notify all connected clients about the gamelist update
         notify_gamelist_updated(system_name, len(games))
-        notify_game_updated(system_name, game.get('name', 'Unknown'), [media_field])
+        notify_game_updated(system_name, game.get('path', ''), [media_field])
         
         # Log the upload
         app.logger.info(f'Uploaded media file: {file_path} for game {rom_path} field {media_field}')
@@ -11010,7 +11010,7 @@ def delete_game_media(system_name):
         
         # Notify all connected clients about the gamelist update
         notify_gamelist_updated(system_name, len(games))
-        notify_game_updated(system_name, game.get('name', 'Unknown'), [media_field])
+        notify_game_updated(system_name, game.get('path', ''), [media_field])
         
         # Log the deletion
         app.logger.info(f'Deleted media field {media_field} for game {rom_path}')
@@ -11096,7 +11096,7 @@ def delete_game_media_batch(system_name):
         
         # Notify all connected clients about the gamelist update
         notify_gamelist_updated(system_name, len(games))
-        notify_game_updated(system_name, game.get('name', 'Unknown'), deleted_fields)
+        notify_game_updated(system_name, game.get('path', ''), deleted_fields)
         
         # Log the deletion
         app.logger.info(f'Deleted media fields {deleted_fields} for game {rom_path}')
@@ -16770,14 +16770,14 @@ def notify_game_deleted(system_name, deleted_files):
         'message': f'Deleted {len(deleted_files)} files'
     })
 
-def notify_game_updated(system_name, game_name, changes):
+def notify_game_updated(system_name, rom_path, changes):
     """Notify all clients when a game is updated"""
-    print(f"🔔 About to notify game update for system: {system_name}, game: {game_name}")
+    print(f"🔔 About to notify game update for system: {system_name}, rom_path: {rom_path}")
     debug_client_tracking()
     notify_system_update(system_name, 'game_updated', {
-        'game_name': game_name,
+        'rom_path': rom_path,
         'changes': changes,
-        'message': f'Game updated: {game_name}'
+        'message': f'Game updated: {rom_path}'
     })
 def debug_client_tracking():
     """Debug function to show current client tracking state"""
@@ -17488,11 +17488,7 @@ def download_launchbox_media():
         
         # Save the updated gamelist
         save_formatted_gamelist_xml(tree, gamelist_path)
-        
-        # Notify all connected clients about the gamelist update
-        games = parse_gamelist_xml(gamelist_path)
-        notify_gamelist_updated(system_name, len(games))
-        notify_game_updated(system_name, game_element.find('name').text if game_element.find('name') is not None else 'Unknown', [media_type])
+        notify_game_updated(system_name, game_element.find('path').text if game_element.find('path') is not None else '', [media_type])
         
         return jsonify({
             'success': True,

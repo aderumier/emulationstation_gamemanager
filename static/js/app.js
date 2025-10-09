@@ -1931,7 +1931,7 @@ class GameCollectionManager {
                 break;
                 
             case 'game_updated':
-                this.showToast(`Game updated: ${updateData.game_name}`, 'info');
+                this.showToast(`Game updated: ${updateData.rom_path}`, 'info');
                 // For game updates, we need to fetch the latest data to sync properly
                 this.syncGameData();
                 break;
@@ -2050,6 +2050,14 @@ class GameCollectionManager {
                     // Use AG Grid's setGridOption to efficiently update the grid
                     // This will preserve selection and scroll position
                     await this.refreshGridData();
+                    
+                    // Refresh media preview for currently selected game if any
+                    if (this.mediaPreviewEnabled && this.currentMediaPreviewGame) {
+                        const selectedRows = this.gridApi.getSelectedRows();
+                        if (selectedRows.length > 0) {
+                            this.showMediaPreview(selectedRows[0]);
+                        }
+                    }
                     
                 }
             }
@@ -4870,6 +4878,7 @@ class GameCollectionManager {
                     changed_games: [{
                         game_id: game.id,
                         game_name: game.name,
+                        rom_path: game.path,
                         changed_fields: changedFields
                     }]
                 })
