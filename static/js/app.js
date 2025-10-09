@@ -6155,17 +6155,17 @@ class GameCollectionManager {
             const description = game.description ? (game.description.length > 200 ? game.description.substring(0, 200) + '...' : game.description) : 'No description available';
             const price = game.price || 'Free';
             const releaseDate = game.release_date || 'Unknown';
-            const capsuleImage = game.capsule_image || null;
-            const capsuleImageFallback = game.capsule_image_fallback || null;
             const similarityScore = game.similarity_score ? Math.round(game.similarity_score * 100) : 0;
             
-            // Create image HTML with fallback logic
+            // Create placeholder image HTML (will be replaced when actual image loads)
             const imageHtml = `
                 <div class="mb-2 text-center">
-                    <img src="${capsuleImage || ''}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
-                         onerror="handleSteamImageError(this, '${capsuleImageFallback || ''}')" 
-                         onload="" 
-                         alt="Game capsule" loading="lazy">
+                    <div id="steam-image-${game.appid}" class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                        <div class="text-muted">
+                            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                            <div class="small">Loading capsule art...</div>
+                        </div>
+                    </div>
                 </div>`;
             
             html += `
@@ -6198,6 +6198,68 @@ class GameCollectionManager {
         });
         
         resultsContainer.innerHTML = html;
+        
+        // Load capsule images asynchronously for each game
+        this.loadSteamImagesAsync(games);
+    }
+    
+    async loadSteamImagesAsync(games) {
+        // Load capsule images for each game in parallel
+        const imagePromises = games.map(game => this.loadSteamImageForGame(game.appid));
+        
+        // Wait for all images to load (or fail)
+        await Promise.allSettled(imagePromises);
+    }
+    
+    async loadSteamImageForGame(steamId) {
+        try {
+            const response = await fetch('/api/steam/capsule-images', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    steam_id: steamId
+                })
+            });
+            
+            const result = await response.json();
+            const imageContainer = document.getElementById(`steam-image-${steamId}`);
+            
+            if (!imageContainer) {
+                return; // Container might have been removed
+            }
+            
+            if (response.ok && result.success && result.capsule_image) {
+                // Successfully loaded image - replace placeholder with actual image
+                imageContainer.innerHTML = `
+                    <img src="${result.capsule_image}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="handleSteamImageError(this, '${result.capsule_image_fallback || ''}')" 
+                         alt="Game capsule" loading="lazy">
+                `;
+            } else {
+                // Failed to load image - show error state
+                imageContainer.innerHTML = `
+                    <div class="text-muted">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                        <div class="small">No capsule art available</div>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error(`Error loading capsule image for Steam ID ${steamId}:`, error);
+            
+            // Show error state
+            const imageContainer = document.getElementById(`steam-image-${steamId}`);
+            if (imageContainer) {
+                imageContainer.innerHTML = `
+                    <div class="text-muted">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                        <div class="small">Failed to load image</div>
+                    </div>
+                `;
+            }
+        }
     }
     
     showSteamSearchError(message) {

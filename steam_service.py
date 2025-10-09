@@ -789,8 +789,8 @@ class SteamService:
                         'description': 'Steam game',  # Steam API doesn't provide descriptions in the basic app list
                         'price': 'Unknown',  # Would need additional API call
                         'release_date': 'Unknown',  # Would need additional API call
-                        'capsule_image': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg" if steam_id else None,
-                        'capsule_image_fallback': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900.jpg" if steam_id else None,
+                        'capsule_image': None,  # Will be fetched asynchronously
+                        'capsule_image_fallback': None,  # Will be fetched asynchronously
                         'similarity_score': similarity,
                         'matched_name': item.name
                     })
@@ -808,6 +808,19 @@ class SteamService:
             print(f"🔍 DEBUG: Steam Match {i+1}: '{match['matched_name']}' (score: {match['similarity_score']:.4f})")
         
         return result
+
+    def get_steam_capsule_images(self, steam_id: int) -> Dict[str, Optional[str]]:
+        """Get capsule image URLs for a specific Steam app ID"""
+        if not steam_id:
+            return {
+                'capsule_image': None,
+                'capsule_image_fallback': None
+            }
+        
+        return {
+            'capsule_image': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg",
+            'capsule_image_fallback': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900.jpg"
+        }
 
 
 def get_media_directory_and_extensions(gamelist_field: str) -> Tuple[Optional[str], Optional[List[str]]]:
