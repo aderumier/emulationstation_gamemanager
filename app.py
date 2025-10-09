@@ -2376,7 +2376,19 @@ def cleanup_old_backups(file_path, max_backups=10):
         print(f"❌ Error during backup cleanup for {file_path}: {e}")
 
 def create_media_filename(rom_path, media_extension):
-    rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
+    """
+    Create media filename from ROM path, handling dots in ROM names correctly.
+    Uses regex to remove only the last file extension, preserving dots in the middle.
+    """
+    if not rom_path:
+        return f"unknown{media_extension}"
+    
+    # Extract filename from path (handle both forward and backward slashes)
+    filename = os.path.basename(rom_path)
+    
+    # Remove only the last file extension using regex (preserves dots in middle)
+    # This regex matches a dot followed by any non-dot characters at the end of the string
+    rom_filename = re.sub(r'\.[^.]*$', '', filename)
     
     # Add the media extension
     return f"{rom_filename}{media_extension}"
@@ -6835,8 +6847,8 @@ def rom_system_gamelist(system_name):
                             failed_deletions.append({'path': rom_path, 'error': 'ROM file not found'})
                         
                         # Find and delete associated media files
-                        rom_filename = os.path.splitext(os.path.basename(rom_path))[0]
-                        app.logger.info(f'Looking for media files with ROM filename: {rom_filename}')
+                        rom_filename_without_extension = re.sub(r'\.[^.]*$', '', os.path.basename(rom_path))
+                        app.logger.info(f'Looking for media files with ROM filename: {rom_filename_without_extension}')
                         media_dir = os.path.join(system_path, 'media')
                         
                         if os.path.exists(media_dir):
@@ -6848,7 +6860,7 @@ def rom_system_gamelist(system_name):
                                 if os.path.exists(field_dir):
                                     # Look for files that start with the ROM filename
                                     for file in os.listdir(field_dir):
-                                        if file.startswith(rom_filename):
+                                        if file.startswith(rom_filename_without_extension):
                                             file_path = os.path.join(field_dir, file)
                                             try:
                                                 os.remove(file_path)
@@ -18576,7 +18588,7 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             
             # Write the raw image data to a temporary file first in var/temp/medias/
             # Use .temp.{extension} format for better identification
-            rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
+            rom_name_without_ext = re.sub(r'\.[^.]*$', '', os.path.basename(rom_filename))
             temp_filename = f"{rom_name_without_ext}_{image_type}_{int(time.time())}.temp{file_extension}"
             temp_file_path = os.path.join(temp_medias_dir, temp_filename)
             with open(temp_file_path, 'wb') as f:
