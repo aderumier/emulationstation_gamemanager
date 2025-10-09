@@ -6486,8 +6486,11 @@ def get_screenscraper_box_image():
     """Get ScreenScraper box image for a specific game ID"""
     try:
         game_id = request.args.get('game_id')
+        system_name = request.args.get('system_name')
         if not game_id:
             return jsonify({'error': 'Game ID is required'}), 400
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
         
         # Check if ScreenScraper credentials are configured
         from credential_manager import credential_manager
@@ -6508,7 +6511,7 @@ def get_screenscraper_box_image():
         
         # Get box image URL for the game
         import asyncio
-        box_image_url = run_async_safely(screenscraper_service.get_game_box_image(game_id))
+        box_image_url = run_async_safely(screenscraper_service.get_game_box_image(game_id, system_name))
         
         return jsonify({
             'success': True,

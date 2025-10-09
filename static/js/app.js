@@ -6032,13 +6032,13 @@ class GameCollectionManager {
     
     async loadScreenscraperImagesAsync(games) {
         // Load images in parallel for better performance
-        const imagePromises = games.map(game => this.loadScreenscraperImageForGame(game.id));
+        const imagePromises = games.map(game => this.loadScreenscraperImageForGame(game.id, game.system));
         await Promise.allSettled(imagePromises);
     }
     
-    async loadScreenscraperImageForGame(gameId) {
+    async loadScreenscraperImageForGame(gameId, systemName) {
         try {
-            const response = await fetch(`/api/screenscraper/box-image?game_id=${gameId}`);
+            const response = await fetch(`/api/screenscraper/box-image?game_id=${gameId}&system_name=${encodeURIComponent(systemName)}`);
             const result = await response.json();
             
             const imageContainer = document.getElementById(`screenscraper-image-${gameId}`);
