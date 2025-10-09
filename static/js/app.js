@@ -42,6 +42,7 @@ class GameCollectionManager {
         this.logHistory = [];
         this.lastProcessedGame = null;
         this.lastClickedColumn = null; // Track which column was last clicked for double-click behavior
+        this.screenscraperSearchInProgress = false; // Track ScreenScraper search progress
         
         // Initialize clear image cache button visibility (Media Preview is default active tab)
         setTimeout(() => {
@@ -5659,10 +5660,15 @@ class GameCollectionManager {
     }
     
     async performScreenscraperSearch() {
-        console.log('performScreenscraperSearch called');
+        // Prevent multiple simultaneous requests
+        if (this.screenscraperSearchInProgress) {
+            return;
+        }
+        
+        this.screenscraperSearchInProgress = true;
+        
         try {
             const gameName = document.getElementById('screenscraperSearchGameNameInput').value.trim();
-            console.log('Game name:', gameName);
             if (!gameName) {
                 this.showScreenscraperSearchError('Please enter a game name to search');
                 return;
@@ -5670,8 +5676,6 @@ class GameCollectionManager {
             
             // Show spinner
             document.getElementById('screenscraperSearchSpinner').style.display = 'inline-block';
-            
-            console.log('🔧 DEBUG: Making ScreenScraper search request for:', gameName);
             const response = await fetch('/api/screenscraper/search', {
                 method: 'POST',
                 headers: {
@@ -5698,6 +5702,9 @@ class GameCollectionManager {
         } catch (error) {
             document.getElementById('screenscraperSearchSpinner').style.display = 'none';
             this.showScreenscraperSearchError('Error searching ScreenScraper database: ' + error.message);
+        } finally {
+            // Reset the flag to allow future requests
+            this.screenscraperSearchInProgress = false;
         }
     }
     
@@ -5917,8 +5924,8 @@ class GameCollectionManager {
             system: systemName
         };
         
-        // Show the ScreenScraper search modal without auto-search (since user will click search button)
-        this.showScreenscraperSearchModal(gameName, systemName, false);
+        // Show the ScreenScraper search modal with auto-search
+        this.showScreenscraperSearchModal(gameName, systemName);
     }
     
     async showScreenscraperSearchModal(gameName, systemName, autoSearch = true) {
@@ -17348,19 +17355,12 @@ class GameCollectionManager {
         const screenscraperSearchInput = document.getElementById('screenscraperSearchGameNameInput');
         if (screenscraperSearchButton && screenscraperSearchInput) {
             screenscraperSearchButton.addEventListener('click', () => {
-                console.log('ScreenScraper search button clicked');
                 this.performScreenscraperSearch();
             });
             screenscraperSearchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
-                    console.log('ScreenScraper search input Enter pressed');
                     this.performScreenscraperSearch();
                 }
-            });
-        } else {
-            console.error('ScreenScraper search elements not found:', {
-                button: !!screenscraperSearchButton,
-                input: !!screenscraperSearchInput
             });
         }
         
