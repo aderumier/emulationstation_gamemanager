@@ -5659,8 +5659,10 @@ class GameCollectionManager {
     }
     
     async performScreenscraperSearch() {
+        console.log('performScreenscraperSearch called');
         try {
             const gameName = document.getElementById('screenscraperSearchGameNameInput').value.trim();
+            console.log('Game name:', gameName);
             if (!gameName) {
                 this.showScreenscraperSearchError('Please enter a game name to search');
                 return;
@@ -17346,12 +17348,19 @@ class GameCollectionManager {
         const screenscraperSearchInput = document.getElementById('screenscraperSearchGameNameInput');
         if (screenscraperSearchButton && screenscraperSearchInput) {
             screenscraperSearchButton.addEventListener('click', () => {
+                console.log('ScreenScraper search button clicked');
                 this.performScreenscraperSearch();
             });
             screenscraperSearchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
+                    console.log('ScreenScraper search input Enter pressed');
                     this.performScreenscraperSearch();
                 }
+            });
+        } else {
+            console.error('ScreenScraper search elements not found:', {
+                button: !!screenscraperSearchButton,
+                input: !!screenscraperSearchInput
             });
         }
         
