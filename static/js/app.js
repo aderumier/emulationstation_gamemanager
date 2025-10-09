@@ -5915,11 +5915,11 @@ class GameCollectionManager {
             system: systemName
         };
         
-        // Show the ScreenScraper search modal
-        this.showScreenscraperSearchModal(gameName, systemName);
+        // Show the ScreenScraper search modal without auto-search (since user will click search button)
+        this.showScreenscraperSearchModal(gameName, systemName, false);
     }
     
-    async showScreenscraperSearchModal(gameName, systemName) {
+    async showScreenscraperSearchModal(gameName, systemName, autoSearch = true) {
         // Set the game name in the editable input field
         document.getElementById('screenscraperSearchGameNameInput').value = gameName;
         
@@ -5946,15 +5946,18 @@ class GameCollectionManager {
         // Focus on the input field
         document.getElementById('screenscraperSearchGameNameInput').focus();
         
-        // Show spinner
-        document.getElementById('screenscraperSearchSpinner').style.display = 'inline-block';
-        
-        try {
-            // Perform initial search
-            await this.performScreenscraperSearch();
-        } catch (error) {
-            document.getElementById('screenscraperSearchSpinner').style.display = 'none';
-            this.showScreenscraperSearchError('Error searching ScreenScraper games: ' + error.message);
+        // Only perform auto-search if requested
+        if (autoSearch) {
+            // Show spinner
+            document.getElementById('screenscraperSearchSpinner').style.display = 'inline-block';
+            
+            try {
+                // Perform initial search
+                await this.performScreenscraperSearch();
+            } catch (error) {
+                document.getElementById('screenscraperSearchSpinner').style.display = 'none';
+                this.showScreenscraperSearchError('Error searching ScreenScraper games: ' + error.message);
+            }
         }
     }
     
