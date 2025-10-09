@@ -2375,20 +2375,17 @@ def cleanup_old_backups(file_path, max_backups=10):
     except Exception as e:
         print(f"❌ Error during backup cleanup for {file_path}: {e}")
 
-def create_media_filename(rom_path, media_extension):
+def create_media_filename(rompath_or_romfile, media_extension):
     """
-    Create media filename from ROM path, handling dots in ROM names correctly.
-    Uses regex to remove only the last file extension, preserving dots in the middle.
+    Create media filename from ROM path or ROM filename, handling dots in ROM names correctly.
+    Uses os.path.splitext to remove the file extension, preserving dots in the middle.
+    Can accept either a full ROM path (e.g., './system/game.nes') or just a ROM filename (e.g., 'game.nes').
     """
-    if not rom_path:
+    if not rompath_or_romfile:
         return f"unknown{media_extension}"
     
-    # Extract filename from path (handle both forward and backward slashes)
-    filename = os.path.basename(rom_path)
-    
-    # Remove only the last file extension using regex (preserves dots in middle)
-    # This regex matches a dot followed by any non-dot characters at the end of the string
-    rom_filename = re.sub(r'\.[^.]*$', '', filename)
+    # Extract filename without extension from path or filename
+    rom_filename = os.path.splitext(os.path.basename(rompath_or_romfile))[0]
     
     # Add the media extension
     return f"{rom_filename}{media_extension}"
@@ -6847,7 +6844,7 @@ def rom_system_gamelist(system_name):
                             failed_deletions.append({'path': rom_path, 'error': 'ROM file not found'})
                         
                         # Find and delete associated media files
-                        rom_filename_without_extension = re.sub(r'\.[^.]*$', '', os.path.basename(rom_path))
+                        rom_filename_without_extension = os.path.splitext(os.path.basename(rom_path))[0]
                         app.logger.info(f'Looking for media files with ROM filename: {rom_filename_without_extension}')
                         media_dir = os.path.join(system_path, 'media')
                         
@@ -8486,6 +8483,10 @@ def download_multiscraper_media_endpoint():
         if success:
             # Update the gamelist
             write_gamelist_xml(games, gamelist_path)
+            
+            # Notify all connected clients about the game update
+            notify_game_updated(system_name, game_name, [media_type])
+            
             return jsonify({'success': True, 'message': 'Media downloaded successfully'})
         else:
             return jsonify({'error': 'Failed to download media'}), 500
@@ -9501,13 +9502,15 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
                 media_directory = get_media_directory(gamelist_field)
                 
                 if not media_directory:
-                    media_directory = gamelist_field  # fallback to field name if no mapping found
+                    continue  # Skip if no media directory mapping found
                 
                 # Construct download URL and local path
                 base_url = 'https://images.launchbox-app.com/'
                 download_url = base_url + best_image['filename']
                 file_extension = os.path.splitext(best_image['filename'])[1]
-                local_filename = create_media_filename(rom_filename, file_extension)
+                # Get ROM path from current_game_data
+                rom_path = current_game_data.get('path', '') if current_game_data else ''
+                local_filename = create_media_filename(rom_path, file_extension)
                 local_path = os.path.join(system_path, 'media', media_directory, local_filename)
                 
                 # Create media directory if it doesn't exist
@@ -17426,8 +17429,6 @@ def download_launchbox_media():
         if rom_path_elem is None or rom_path_elem.text is None:
             return jsonify({'error': 'Game path not found'}), 400
         
-        rom_filename = os.path.splitext(os.path.basename(rom_path_elem.text))[0]
-        
         # Create media directory if it doesn't exist
         system_path = os.path.join(ROMS_FOLDER, system_name)
         media_dir = os.path.join(system_path, 'media', media_directory)
@@ -18588,7 +18589,7 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             
             # Write the raw image data to a temporary file first in var/temp/medias/
             # Use .temp.{extension} format for better identification
-            rom_name_without_ext = re.sub(r'\.[^.]*$', '', os.path.basename(rom_filename))
+            rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
             temp_filename = f"{rom_name_without_ext}_{image_type}_{int(time.time())}.temp{file_extension}"
             temp_file_path = os.path.join(temp_medias_dir, temp_filename)
             with open(temp_file_path, 'wb') as f:
