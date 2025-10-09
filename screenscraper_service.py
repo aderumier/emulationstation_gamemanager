@@ -820,6 +820,41 @@ class ScreenScraperService:
 
         return None
     
+    async def get_game_box_image(self, game_id: str, system_name: str = None) -> Optional[str]:
+        """
+        Get the box image URL for a specific ScreenScraper game ID.
+        
+        Args:
+            game_id: ScreenScraper game ID
+            system_name: The system name (optional, used for system ID resolution)
+            
+        Returns:
+            Box image URL if found, else None
+        """
+        try:
+            # Get the full game data
+            game_data = await self.get_game_by_id(game_id, system_name or 'unknown')
+            if not game_data:
+                return None
+            
+            # Extract box image URL from the game data
+            # The box image is typically in the media section
+            if 'medias' in game_data:
+                medias = game_data['medias']
+                if isinstance(medias, dict) and 'media-box-2D' in medias:
+                    box_media = medias['media-box-2D']
+                    if isinstance(box_media, list) and len(box_media) > 0:
+                        # Get the first box image
+                        return box_media[0].get('url')
+                    elif isinstance(box_media, dict):
+                        return box_media.get('url')
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error getting box image for game {game_id}: {e}")
+            return None
+    
     async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None, is_cancelled_callback=None) -> Dict[str, str]:
         """
         Process a batch of games to find their ScreenScraper IDs.

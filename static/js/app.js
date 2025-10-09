@@ -5983,22 +5983,16 @@ class GameCollectionManager {
             const description = game.description ? (game.description.length > 200 ? game.description.substring(0, 200) + '...' : game.description) : 'No description available';
             const genre = game.genre || 'Unknown Genre';
             const publisher = game.publisher || 'Unknown Publisher';
-            const boxImage = game.box_image || null;
             
-            // Create image HTML with fallback
-            const imageHtml = boxImage ? `
+            // Create loading placeholder for box image
+            const imageHtml = `
                 <div class="mb-2 text-center">
-                    <img src="${boxImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
-                         onerror="handleScreenscraperImageError(this)" 
-                         onload="" 
-                         alt="Game box art" loading="lazy">
-                </div>
-            ` : `
-                <div class="mb-2 text-center">
-                    <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                    <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;" id="screenscraper-image-${game.id}">
                         <div class="text-muted">
-                            <i class="bi bi-image" style="font-size: 2rem;"></i>
-                            <div class="small">No box art available</div>
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div class="small mt-2">Loading box art...</div>
                         </div>
                     </div>
                 </div>
@@ -6031,6 +6025,53 @@ class GameCollectionManager {
         });
         
         resultsContainer.innerHTML = html;
+        
+        // Load box images asynchronously
+        this.loadScreenscraperImagesAsync(games);
+    }
+    
+    async loadScreenscraperImagesAsync(games) {
+        // Load images in parallel for better performance
+        const imagePromises = games.map(game => this.loadScreenscraperImageForGame(game.id));
+        await Promise.allSettled(imagePromises);
+    }
+    
+    async loadScreenscraperImageForGame(gameId) {
+        try {
+            const response = await fetch(`/api/screenscraper/box-image?game_id=${gameId}`);
+            const result = await response.json();
+            
+            const imageContainer = document.getElementById(`screenscraper-image-${gameId}`);
+            if (!imageContainer) return;
+            
+            if (response.ok && result.success && result.box_image) {
+                // Replace loading placeholder with actual image
+                imageContainer.innerHTML = `
+                    <img src="${result.box_image}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="this.parentElement.innerHTML='<div class=\\"text-muted\\"><i class=\\"bi bi-image\\" style=\\"font-size: 2rem;\\"></i><div class=\\"small\\">No box art available</div></div>'" 
+                         alt="Game box art" loading="lazy">
+                `;
+            } else {
+                // Show no image available
+                imageContainer.innerHTML = `
+                    <div class="text-muted">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                        <div class="small">No box art available</div>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error(`Error loading ScreenScraper image for game ${gameId}:`, error);
+            const imageContainer = document.getElementById(`screenscraper-image-${gameId}`);
+            if (imageContainer) {
+                imageContainer.innerHTML = `
+                    <div class="text-muted">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                        <div class="small">No box art available</div>
+                    </div>
+                `;
+            }
+        }
     }
     
     showScreenscraperSearchError(message) {

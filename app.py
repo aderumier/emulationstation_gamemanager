@@ -6453,7 +6453,7 @@ def search_screenscraper_games():
         import asyncio
         games_data = run_async_safely(screenscraper_service.search_games_by_name(game_name, system_name, limit))
         
-        # Format the results for the frontend
+        # Format the results for the frontend (without box images for async loading)
         games = []
         for game_data in games_data:
             games.append({
@@ -6468,7 +6468,7 @@ def search_screenscraper_games():
                 'players': game_data.get('players', ''),
                 'region': game_data.get('region', ''),
                 'system': game_data.get('system', system_name),
-                'box_image': game_data.get('box_image', '')
+                'box_image': None  # Will be loaded asynchronously
             })
         
         return jsonify({
@@ -6479,6 +6479,45 @@ def search_screenscraper_games():
     except Exception as e:
         print(f"Error searching ScreenScraper games: {e}")
         return jsonify({'error': f'Failed to search ScreenScraper games: {str(e)}'}), 500
+
+@app.route('/api/screenscraper/box-image', methods=['GET'])
+@login_required
+def get_screenscraper_box_image():
+    """Get ScreenScraper box image for a specific game ID"""
+    try:
+        game_id = request.args.get('game_id')
+        if not game_id:
+            return jsonify({'error': 'Game ID is required'}), 400
+        
+        # Check if ScreenScraper credentials are configured
+        from credential_manager import credential_manager
+        screenscraper_creds = credential_manager.get_screenscraper_credentials()
+        if not (screenscraper_creds.get('ssid') and screenscraper_creds.get('sspassword')):
+            return jsonify({'error': 'ScreenScraper credentials not configured'}), 400
+        
+        # Load config
+        config = load_config()
+        screenscraper_config = scrappers_config.get('screenscraper', {})
+        
+        # Import ScreenScraper service
+        from screenscraper_service import ScreenScraperService
+        
+        # Create ScreenScraper service
+        systems_config = load_systems_config()
+        screenscraper_service = ScreenScraperService(config, screenscraper_creds, scrappers_config, systems_config)
+        
+        # Get box image URL for the game
+        import asyncio
+        box_image_url = run_async_safely(screenscraper_service.get_game_box_image(game_id))
+        
+        return jsonify({
+            'success': True,
+            'box_image': box_image_url
+        })
+        
+    except Exception as e:
+        print(f"Error getting ScreenScraper box image: {e}")
+        return jsonify({'error': f'Failed to get ScreenScraper box image: {str(e)}'}), 500
 
 @app.route('/api/steam/search', methods=['POST'])
 @login_required
