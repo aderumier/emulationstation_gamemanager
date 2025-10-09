@@ -1504,17 +1504,6 @@ def _scraping_result_listener(result_q):
                 # Do NOT finalize or advance queue for progress updates
                 continue
             
-            # Handle partial match requests from worker
-            if isinstance(res, dict) and res.get('type') == 'partial_match_request':
-                partial_match_request = res.get('partial_match_request')
-                if partial_match_request:
-                    try:
-                        # Add to global partial match queue
-                        partial_match_queue.append(partial_match_request)
-                        print(f"DEBUG: Added partial match request to queue from worker: {partial_match_request.get('game_name', 'Unknown')}")
-                    except Exception as e:
-                        print(f"DEBUG: Failed to add partial match request to queue: {e}")
-                continue
 
             # Final result from worker
             task_id = res.get('task_id')
@@ -3271,8 +3260,6 @@ def run_image_download_task(system_name, data):
             tasks[current_task_id].complete(False, str(e))
         print(f"Error in image download task: {e}")
 
-# Partial match modal queue for scraping
-partial_match_queue = []
 
 # Platform-specific metadata cache
 platform_metadata_cache = {}
@@ -8820,98 +8807,6 @@ def find_best_matches_steam_endpoint():
         print(f"Error in find_best_matches_steam endpoint: {e}")
         return jsonify({'error': f'Failed to find Steam matches: {str(e)}'}), 500
 
-@app.route('/api/check-partial-match-requests', methods=['GET'])
-@login_required
-def check_partial_match_requests():
-    """Check for pending partial match requests during scraping"""
-    try:
-        global partial_match_queue
-        
-        print(f"DEBUG: Checking partial match queue, size: {len(partial_match_queue)}")
-        
-        if partial_match_queue:
-            # Return the first pending request
-            request_data = partial_match_queue.pop(0)
-            print(f"DEBUG: Returning partial match request: {request_data['game_name']}")
-            return jsonify({
-                'has_request': True,
-                'request': request_data
-            })
-        else:
-            print("DEBUG: No partial match requests in queue")
-            return jsonify({
-                'has_request': False
-            })
-    except Exception as e:
-        print(f"Error in check_partial_match_requests endpoint: {e}")
-        return jsonify({
-            'error': f'Internal server error: {str(e)}',
-            'has_request': False
-        }), 500
-
-@app.route('/api/apply-partial-match', methods=['POST'])
-@login_required
-def apply_partial_match():
-    """Apply a partial match from the queue to update game data"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        game_name = data.get('game_name')
-        match_data = data.get('match_data')
-        system_name = data.get('system_name')
-        
-        if not all([game_name, match_data, system_name]):
-            return jsonify({'error': 'Missing required fields'}), 400
-        
-        # Load the current gamelist
-        gamelist_path = get_gamelist_path(system_name)
-        if not os.path.exists(gamelist_path):
-            return jsonify({'error': 'Gamelist not found'}), 404
-        
-        games = parse_gamelist_xml(gamelist_path)
-        
-        # Find and update the game
-        game_updated = False
-        print(f"🔧 DEBUG: apply_partial_match - game_name: {game_name}, match_data: {match_data}")
-        for i, game in enumerate(games):
-            if game.get('name') == game_name:
-                print(f"🔧 DEBUG: Found game '{game_name}' in gamelist")
-                # Apply the match data
-                for field, value in match_data.items():
-                    print(f"🔧 DEBUG: Processing field '{field}' with value '{value}' (type: {type(value)})")
-                    # Always update the field if value is provided (including 0 for launchboxid)
-                    if value is not None and value != '':
-                        old_value = game.get(field, '')
-                        game[field] = value
-                        print(f"🔧 DEBUG: Updated {field}: '{old_value}' -> '{value}'")
-                    else:
-                        print(f"🔧 DEBUG: Skipped {field}: value is None or empty")
-                game_updated = True
-                break
-        
-        if not game_updated:
-            return jsonify({'error': 'Game not found in gamelist'}), 404
-        
-        # Save the updated gamelist
-        print(f"🔧 DEBUG: Saving gamelist with {len(games)} games to {gamelist_path}")
-        write_gamelist_xml(games, gamelist_path)
-        print(f"🔧 DEBUG: Gamelist saved successfully")
-        
-        # Notify all connected clients about the gamelist update
-        # Use the system_name parameter directly (it was already validated)
-        notify_gamelist_updated(system_name, len(games))
-        notify_game_updated(system_name, game.get('path', ''), list(match_data.keys()))
-        
-        return jsonify({
-            'success': True,
-            'message': f'Game "{game_name}" updated successfully'
-        })
-        
-    except Exception as e:
-        print(f"Error in apply_partial_match endpoint: {e}")
-        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/scrap-launchbox-stop', methods=['POST'])
 @login_required

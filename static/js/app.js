@@ -1957,7 +1957,6 @@ class GameCollectionManager {
         this.selectedMatchIndex = -1;
         this.currentMatches = null;
         this.currentOriginalGameName = null;
-        this.currentScrapingRequest = null;
         this.isModalOpen = false;
         this.pendingBestMatchResults = null;
         this.currentBestMatchIndex = 0;
@@ -7760,195 +7759,13 @@ class GameCollectionManager {
             
             this.showAlert('Stop signal sent to scraping process...', 'info');
             
-            // Stop partial match polling
-            this.stopPartialMatchPolling();
             
         } catch (error) {
             this.showAlert(`Error stopping: ${error.message}`, 'danger');
         }
     }
 
-    startPartialMatchPolling() {
-        
-        // Clear any existing interval
-        if (this.partialMatchPollingInterval) {
-            clearInterval(this.partialMatchPollingInterval);
-        }
-        
-        // Poll every 2 seconds for partial match requests
-        this.partialMatchPollingInterval = setInterval(async () => {
-            try {
-                // Don't poll if a modal is already open
-                if (this.isModalOpen) {
-                    return;
-                }
-                
-                const response = await fetch('/api/check-partial-match-requests');
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.has_request) {
-                        // Show the partial match modal for this request
-                        this.showPartialMatchFromScraping(data.request);
-                    } else {
-                    }
-                } else {
-                }
-            } catch (error) {
-            }
-        }, 2000);
-        
-    }
     
-    stopPartialMatchPolling() {
-        if (this.partialMatchPollingInterval) {
-            clearInterval(this.partialMatchPollingInterval);
-            this.partialMatchPollingInterval = null;
-        }
-    }
-    
-    showPartialMatchFromScraping(requestData) {
-        
-        // Convert top_matches to the format expected by the modal
-        const matches = [];
-        if (requestData.top_matches && Array.isArray(requestData.top_matches)) {
-            requestData.top_matches.forEach(matchData => {
-                const match = {
-                    game: matchData,
-                    score: matchData.score || 0,
-                    match_type: matchData.match_type || requestData.match_source,
-                    matched_name: matchData.matched_name || matchData.name || 'Unknown',
-                    database_id: matchData.database_id || matchData.DatabaseID || '',
-                    name: matchData.name || matchData.Name || '',
-                    overview: matchData.overview || matchData.Overview || '',
-                    developer: matchData.developer || matchData.Developer || '',
-                    publisher: matchData.publisher || matchData.Publisher || '',
-                    genre: matchData.genre || matchData.Genre || '',
-                    rating: matchData.rating || matchData.Rating || '',
-                    players: matchData.players || matchData.Players || ''
-                };
-                matches.push(match);
-            });
-        } else {
-            // Fallback to single match if top_matches not available
-            const match = {
-                game: requestData.best_match,
-                score: requestData.score,
-                match_type: requestData.match_source,
-                matched_name: requestData.matched_name,
-                database_id: requestData.best_match.DatabaseID || '',
-                name: requestData.best_match.Name || '',
-                overview: requestData.best_match.Overview || '',
-                developer: requestData.best_match.Developer || '',
-                publisher: requestData.best_match.Publisher || '',
-                genre: requestData.best_match.Genre || '',
-                rating: requestData.best_match.Rating || '',
-                players: requestData.best_match.Players || ''
-            };
-            matches.push(match);
-        }
-
-        // Show the modal with all the match data
-        this.displayScraperPartialMatchModal(requestData.game_name, matches);
-        
-        // Store the request data for when user applies the match
-        this.currentScrapingRequest = requestData;
-        
-    }
-    displayScraperPartialMatchModal(originalGameName, matches) {
-        
-        // Set original game name
-        document.getElementById('originalGameName').textContent = originalGameName;
-        
-        // Find the original game data to display details
-        const originalGame = this.games.find(game => game.name === originalGameName);
-        if (originalGame) {
-            // Populate original game details
-            document.getElementById('originalGamePublisher').textContent = originalGame.publisher || 'N/A';
-            document.getElementById('originalGameDeveloper').textContent = originalGame.developer || 'N/A';
-            document.getElementById('originalGameRomFile').textContent = originalGame.path || 'N/A';
-            
-            // Try to extract release date from various fields
-            let releaseDate = 'N/A';
-            if (originalGame.releaseDate) {
-                releaseDate = originalGame.releaseDate;
-            } else if (originalGame.date) {
-                releaseDate = originalGame.date;
-            } else if (originalGame.year) {
-                releaseDate = originalGame.year;
-            }
-            document.getElementById('originalGameReleaseDate').textContent = releaseDate;
-        } else {
-            // Clear fields if game not found
-            document.getElementById('originalGamePublisher').textContent = 'N/A';
-            document.getElementById('originalGameDeveloper').textContent = 'N/A';
-            document.getElementById('originalGameRomFile').textContent = 'N/A';
-            document.getElementById('originalGameReleaseDate').textContent = 'N/A';
-        }
-        
-        // Store for later use
-        this.currentMatches = matches;
-        this.currentOriginalGameName = originalGameName;
-        this.selectedMatchIndex = -1;
-        
-        // Clear previous matches
-        const matchesList = document.getElementById('matchesList');
-        matchesList.innerHTML = '';
-        
-        // Generate match cards (async)
-        this.createMatchCards(matches, matchesList);
-        
-        // Enable the apply button
-        document.getElementById('applySelectedMatch').disabled = true;
-        
-        // Add event listener for apply button
-        const applyBtn = document.getElementById('applySelectedMatch');
-        applyBtn.onclick = () => this.applySelectedMatch();
-
-        // Check if modal element exists
-        const modalElement = document.getElementById('partialMatchModal');
-        if (!modalElement) {
-            return;
-        }
-        
-        // Create modal instance
-        const modal = new bootstrap.Modal(modalElement);
-        
-        // Only add event listener once
-        if (!this.modalEventListenersAdded) {
-            modalElement.addEventListener('hidden.bs.modal', () => {
-                
-                // Check if we're in multi-game mode and this is not the last game
-                if (this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1 && this.currentBestMatchIndex < this.pendingBestMatchResults.length - 1) {
-                    return;
-                }
-                
-                // If we're on the last game or single game, allow normal modal closure
-                
-                // Force reset all state to prevent UI from getting stuck
-                this.resetUIState();
-                
-            });
-            this.modalEventListenersAdded = true;
-        }
-        
-        // Ensure the cancel button works by adding a direct click handler
-        const cancelBtn = modalElement.querySelector('[data-bs-dismiss="modal"]');
-        if (cancelBtn) {
-            // Remove any existing click handlers to prevent duplicates
-            cancelBtn.replaceWith(cancelBtn.cloneNode(true));
-            const freshCancelBtn = modalElement.querySelector('[data-bs-dismiss="modal"]');
-            freshCancelBtn.addEventListener('click', () => {
-                modal.hide();
-            });
-        }
-        
-        // Set modal as open
-        this.isModalOpen = true;
-        
-        // Show the modal
-        modal.show();
-        
-    }
 
     async waitForTaskCompletion() {
         // Wait for task to complete by polling task status
@@ -17890,52 +17707,46 @@ class GameCollectionManager {
         const originalGameName = this.currentOriginalGameName;
 
         try {
-            // Check if this is a partial match from scraping
-            if (this.currentScrapingRequest) {
-                // Apply partial match from scraping queue
-                await this.applyPartialMatchFromScraping(selectedMatch, originalGameName);
-            } else {
-                // Check if we're in multi-game mode
-                if (this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1) {
-                    // Check if this is the last game
-                    if (this.currentBestMatchIndex >= this.pendingBestMatchResults.length - 1) {
-                        // Last game - apply match and close modal
-                        await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType);
-                        
-                        // Reset multi-game state
-                        this.pendingBestMatchResults = null;
-                        this.currentBestMatchIndex = 0;
-                        
-                        // Force refresh the UI state and reset any stuck state
-                        setTimeout(() => {
-                            this.refreshGameGrid();
-                            this.resetUIState();
-                            
-                            // Force close the modal and clean up any remaining state
-                            const modalElement = document.getElementById('partialMatchModal');
-                            if (modalElement) {
-                                const modal = bootstrap.Modal.getInstance(modalElement);
-                                if (modal) {
-                                    modal.hide();
-                                }
-                                // Remove any backdrop or modal-related classes
-                                modalElement.classList.remove('show');
-                                document.body.classList.remove('modal-open');
-                                const backdrop = document.querySelector('.modal-backdrop');
-                                if (backdrop) {
-                                    backdrop.remove();
-                                }
-                            }
-                        }, 100);
-                    } else {
-                        // Not the last game - apply match and move to next
-                        await this.applyRegularMatch(selectedMatch, originalGameName, false, modalType);
-                        this.moveToNextGame();
-                    }
-                } else {
-                    // Single game mode - close modal normally
+            // Check if we're in multi-game mode
+            if (this.pendingBestMatchResults && this.pendingBestMatchResults.length > 1) {
+                // Check if this is the last game
+                if (this.currentBestMatchIndex >= this.pendingBestMatchResults.length - 1) {
+                    // Last game - apply match and close modal
                     await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType);
+                    
+                    // Reset multi-game state
+                    this.pendingBestMatchResults = null;
+                    this.currentBestMatchIndex = 0;
+                    
+                    // Force refresh the UI state and reset any stuck state
+                    setTimeout(() => {
+                        this.refreshGameGrid();
+                        this.resetUIState();
+                        
+                        // Force close the modal and clean up any remaining state
+                        const modalElement = document.getElementById('partialMatchModal');
+                        if (modalElement) {
+                            const modal = bootstrap.Modal.getInstance(modalElement);
+                            if (modal) {
+                                modal.hide();
+                            }
+                            // Remove any backdrop or modal-related classes
+                            modalElement.classList.remove('show');
+                            document.body.classList.remove('modal-open');
+                            const backdrop = document.querySelector('.modal-backdrop');
+                            if (backdrop) {
+                                backdrop.remove();
+                            }
+                        }
+                    }, 100);
+                } else {
+                    // Not the last game - apply match and move to next
+                    await this.applyRegularMatch(selectedMatch, originalGameName, false, modalType);
+                    this.moveToNextGame();
                 }
+            } else {
+                // Single game mode - close modal normally
+                await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType);
             }
             
         } catch (error) {
@@ -17943,82 +17754,6 @@ class GameCollectionManager {
         }
     }
     
-    async applyPartialMatchFromScraping(selectedMatch, originalGameName) {
-        try {
-            const requestData = this.currentScrapingRequest;
-            
-            // Prepare match data for the API
-            const matchData = {};
-            if (selectedMatch.name) matchData.name = selectedMatch.name;
-            if (selectedMatch.overview) matchData.desc = selectedMatch.overview;
-            if (selectedMatch.developer) matchData.developer = selectedMatch.developer;
-            if (selectedMatch.publisher) matchData.publisher = selectedMatch.publisher;
-            if (selectedMatch.genre) matchData.genre = selectedMatch.genre;
-            if (selectedMatch.rating) matchData.rating = selectedMatch.rating;
-            if (selectedMatch.players) matchData.players = selectedMatch.players;
-            if (selectedMatch.database_id) matchData.launchboxid = selectedMatch.database_id;
-            
-            // Send to backend API
-            const response = await fetch('/api/apply-partial-match', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    game_name: originalGameName,
-                    match_data: matchData,
-                    system_name: requestData.system_name
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            if (result.success) {
-                // Update local game data
-                const gameIndex = this.games.findIndex(game => game.name === originalGameName);
-                if (gameIndex !== -1) {
-                    const originalGame = this.games[gameIndex];
-                    const updatedGame = { ...originalGame };
-                    
-                    // Apply fields from the match
-                    if (selectedMatch.name) updatedGame.name = selectedMatch.name;
-                    if (selectedMatch.overview) updatedGame.desc = selectedMatch.overview;
-                    if (selectedMatch.developer) updatedGame.developer = selectedMatch.developer;
-                    if (selectedMatch.publisher) updatedGame.publisher = selectedMatch.publisher;
-                    if (selectedMatch.genre) updatedGame.genre = selectedMatch.genre;
-                    if (selectedMatch.rating) updatedGame.rating = selectedMatch.rating;
-                    if (selectedMatch.players) updatedGame.players = selectedMatch.players;
-                    if (selectedMatch.database_id) updatedGame.launchboxid = selectedMatch.database_id;
-                    
-                    // Update the games array
-                    this.games[gameIndex] = updatedGame;
-                    
-                    // Mark game as modified
-                    this.markGameAsModified(updatedGame);
-                    
-                    // Refresh grid to show updated data, respecting current filters
-                    await this.refreshGridData();
-                    
-                }
-                
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('partialMatchModal'));
-                modal.hide();
-                
-                // Show success message
-                this.showAlert(`Successfully applied partial match for "${originalGameName}" during scraping`, 'success');
-                
-                // Clear the current scraping request
-                this.currentScrapingRequest = null;
-            } else {
-                throw new Error(result.error || 'Unknown error');
-            }
-            
-        } catch (error) {
-            this.showAlert('Error applying partial match: ' + error.message, 'danger');
-        }
-    }
     
     async applyRegularMatch(selectedMatch, originalGameName, closeModal = true, modalType = 'global') {
         try {
