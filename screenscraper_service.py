@@ -388,7 +388,7 @@ class ScreenScraperService:
         # Static ScreenScraper configuration
         self.api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
         self.max_connections = max_connections  # Dynamic max_connections from user info
-        self.timeout = 30
+        self.timeout = 60
         self.retry_attempts = 3
         
         # Extract credentials
@@ -471,8 +471,7 @@ class ScreenScraperService:
             'recherche': cleaned_game_name
         }
         
-        # Disable retry for debugging - only try once
-        for attempt in range(1):
+        for attempt in range(self.retry_attempts):
             try:
                 print(f"Searching ScreenScraper for '{cleaned_game_name}' (attempt {attempt + 1})")
                 print(f"API URL: {search_api_url}")
@@ -635,10 +634,13 @@ class ScreenScraperService:
                 print(f"Exception type: {type(e)}")
                 import traceback
                 traceback.print_exc()
-                # No retry - just return empty list
+                if attempt < self.retry_attempts - 1:
+                    print(f"Retrying in 2 seconds... (attempt {attempt + 1}/{self.retry_attempts})")
+                    await asyncio.sleep(2)
+                    continue
                 return []
         
-        print(f"Failed to search ScreenScraper games after 1 attempt")
+        print(f"Failed to search ScreenScraper games after {self.retry_attempts} attempts")
         return []
     
     async def search_game(self, rom_filename: str, system_name: str) -> Optional[Dict]:
