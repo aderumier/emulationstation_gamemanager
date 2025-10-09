@@ -833,21 +833,39 @@ class ScreenScraperService:
         """
         try:
             # Get the full game data
-            game_data = await self.get_game_by_id(game_id, system_name or 'unknown')
+            if not system_name:
+                print(f"System name is required for game {game_id}")
+                return None
+            game_data = await self.get_game_by_id(game_id, system_name)
             if not game_data:
                 return None
             
             # Extract box image URL from the game data
             # The box image is typically in the media section
+            print(f"🔧 DEBUG: Extracting box image for game {game_id}")
+            print(f"🔧 DEBUG: Game data keys: {list(game_data.keys())}")
+            
             if 'medias' in game_data:
                 medias = game_data['medias']
+                print(f"🔧 DEBUG: Medias keys: {list(medias.keys()) if isinstance(medias, dict) else 'Not a dict'}")
+                
                 if isinstance(medias, dict) and 'media-box-2D' in medias:
                     box_media = medias['media-box-2D']
+                    print(f"🔧 DEBUG: Box media type: {type(box_media)}")
+                    
                     if isinstance(box_media, list) and len(box_media) > 0:
                         # Get the first box image
-                        return box_media[0].get('url')
+                        url = box_media[0].get('url')
+                        print(f"🔧 DEBUG: Found box image URL: {url}")
+                        return url
                     elif isinstance(box_media, dict):
-                        return box_media.get('url')
+                        url = box_media.get('url')
+                        print(f"🔧 DEBUG: Found box image URL: {url}")
+                        return url
+                else:
+                    print(f"🔧 DEBUG: No media-box-2D found in medias")
+            else:
+                print(f"🔧 DEBUG: No medias section found in game data")
             
             return None
             
