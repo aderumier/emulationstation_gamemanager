@@ -3102,8 +3102,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <table class="table table-sm table-striped table-hover compact-table" id="mobygamesMappingsTable">
                                         <thead>
                                             <tr>
-                                                <th style="width: 50%">Gamelist Field</th>
                                                 <th style="width: 50%">MobyGames Field</th>
+                                                <th style="width: 50%">Gamelist Field</th>
                                             </tr>
                                         </thead>
                                         <tbody id="mobygamesMappingsTableBody">
@@ -3111,38 +3111,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         </tbody>
                                     </table>
                                 </div>
-                                <div class="text-muted small mt-2">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    <strong>Note:</strong> MobyGames uses local JSON databases. No API credentials are required.
-                                </div>
-                                
-                                <!-- MobyGames Database Status -->
-                                <div class="row mt-4">
-                                    <div class="col-12">
-                                        <h6><i class="bi bi-database me-2"></i>MobyGames Database Status</h6>
-                                        <div class="card">
-                                            <div class="card-body">
-                                                <div class="row">
-                                                    <div class="col-md-8">
-                                                        <div class="mb-3">
-                                                            <label class="form-label">Available Systems</label>
-                                                            <div id="mobygamesSystemsList" class="text-muted">
-                                                                <i class="bi bi-hourglass-split me-1"></i>Loading systems...
-                                                            </div>
-                                                            <div class="form-text">Systems with available MobyGames databases in var/db/mobygames/</div>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-4">
-                                                        <div class="d-flex gap-2">
-                                                            <button type="button" class="btn btn-outline-primary btn-sm" id="refreshMobygamesSystemsBtn">
-                                                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <div class="text-muted small">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        <strong>Note:</strong> MobyGames uses local JSON databases. No API credentials are required.
                                     </div>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshMobygamesMappingsBtn" title="Refresh mappings">
+                                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                                    </button>
                                 </div>
                             </div>
                         </div>

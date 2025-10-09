@@ -58,6 +58,12 @@ echo "📦 Copying MobyGames databases..."
 mkdir -p debian/opt/gamemanager/var/db/mobygames
 cp var/db/mobygames/*.json debian/opt/gamemanager/var/db/mobygames/
 
+# IGDB databases and pickle files
+echo "📦 Copying IGDB databases and pickle files..."
+mkdir -p debian/opt/gamemanager/var/db/igdb
+cp var/db/igdb/*.pkl debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB pickle files found, skipping..."
+cp var/db/igdb/mediatype.txt debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB mediatype.txt found, skipping..."
+
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
 
@@ -160,6 +166,27 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/var/db/mobygames/Windows.json" ]; then
     echo "❌ ERROR: Windows.json MobyGames database not found in package!"
+    exit 1
+fi
+
+# Verify IGDB pickle files are included (if they exist)
+if [ -f "var/db/igdb/igdb_db.pkl" ] && [ ! -f "debian/opt/gamemanager/var/db/igdb/igdb_db.pkl" ]; then
+    echo "❌ ERROR: igdb_db.pkl not found in package!"
+    exit 1
+fi
+
+if [ -f "var/db/igdb/igdb_platform_partition_index.pkl" ] && [ ! -f "debian/opt/gamemanager/var/db/igdb/igdb_platform_partition_index.pkl" ]; then
+    echo "❌ ERROR: igdb_platform_partition_index.pkl not found in package!"
+    exit 1
+fi
+
+if [ -f "var/db/igdb/igdb_companies.pkl" ] && [ ! -f "debian/opt/gamemanager/var/db/igdb/igdb_companies.pkl" ]; then
+    echo "❌ ERROR: igdb_companies.pkl not found in package!"
+    exit 1
+fi
+
+if [ -f "var/db/igdb/igdb_genres.pkl" ] && [ ! -f "debian/opt/gamemanager/var/db/igdb/igdb_genres.pkl" ]; then
+    echo "❌ ERROR: igdb_genres.pkl not found in package!"
     exit 1
 fi
 

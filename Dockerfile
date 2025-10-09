@@ -100,6 +100,15 @@ RUN mkdir -p /opt/gamemanager/mobygames_db.default && \
     chmod -R 644 /opt/gamemanager/mobygames_db.default/*.json 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/mobygames_db.default/
 
+# Copy IGDB pickle files to default location outside var (for volume mount scenarios)
+RUN mkdir -p /opt/gamemanager/igdb_db.default && \
+    chmod -R 755 /opt/gamemanager/var/db/igdb/ 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/db/igdb/*.pkl 2>/dev/null || true && \
+    (cp /opt/gamemanager/var/db/igdb/*.pkl /opt/gamemanager/igdb_db.default/ 2>/dev/null || echo "No IGDB pickle files found") && \
+    chmod -R 755 /opt/gamemanager/igdb_db.default/ && \
+    chmod -R 644 /opt/gamemanager/igdb_db.default/*.pkl 2>/dev/null || true && \
+    chown -R appuser:appuser /opt/gamemanager/igdb_db.default/
+
 # Copy mediatype files to default location outside var (for volume mount scenarios)
 RUN (cp /opt/gamemanager/var/db/igdb/mediatype.txt /opt/gamemanager/igdb_mediatype.txt.default 2>/dev/null || echo 'cover\nscreenshots\nartworks\nlogos' > /opt/gamemanager/igdb_mediatype.txt.default) && \
     (cp /opt/gamemanager/var/db/launchbox/mediatype.json /opt/gamemanager/launchbox_mediatype.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/launchbox_mediatype.json.default) && \
@@ -188,6 +197,15 @@ if [ -d /opt/gamemanager/mobygames_db.default ] && [ "$(ls -A /opt/gamemanager/m
     echo "✅ MobyGames database files copied to volume"
 else
     echo "⚠️  No MobyGames database files found in default location"
+fi
+
+# Copy IGDB pickle files to var/db (always copy to ensure they're in the volume)
+echo "Copying IGDB pickle files to var/db/igdb..."
+if [ -d /opt/gamemanager/igdb_db.default ] && [ "$(ls -A /opt/gamemanager/igdb_db.default 2>/dev/null)" ]; then
+    cp /opt/gamemanager/igdb_db.default/*.pkl /opt/gamemanager/var/db/igdb/
+    echo "✅ IGDB pickle files copied to volume"
+else
+    echo "⚠️  No IGDB pickle files found in default location"
 fi
 
 # Ensure proper permissions

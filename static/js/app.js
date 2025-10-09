@@ -13452,7 +13452,7 @@ class GameCollectionManager {
                     <div class="row g-2">
                         <div class="col-5">
                             <label class="form-label small fw-bold">Available Types</label>
-                            <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px;">
+                            <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px; min-width: 300px;">
                                 ${launchboxMediaTypes.filter(type => !launchboxTypes.includes(type)).map(type => 
                                     `<option value="${type}">${type}</option>`
                         ).join('')}
@@ -13468,7 +13468,7 @@ class GameCollectionManager {
                         </div>
                         <div class="col-5">
                             <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
-                            <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto;" id="selectedTypes_${mediaField}">
+                            <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto; min-width: 300px;" id="selectedTypes_${mediaField}">
                                 ${launchboxTypes.map((type, index) => 
                                     `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
                                         <span class="small">${type}</span>
@@ -13622,7 +13622,7 @@ class GameCollectionManager {
     }
     
     initializeDragAndDrop(mediaField, scraperType = 'launchbox') {
-        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(scraperType === 'screenscraper' ? `screenscraper_selectedTypes_${mediaField}` : `selectedTypes_${mediaField}`);
         if (!selectedTypesContainer) return;
         
         // Remove existing event listeners
@@ -13657,14 +13657,14 @@ class GameCollectionManager {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         
-        const container = e.target.closest('#selectedTypes_' + mediaField);
+        const container = e.target.closest('#selectedTypes_' + mediaField) || e.target.closest('#screenscraper_selectedTypes_' + mediaField);
         if (container) {
             container.classList.add('drag-active');
         }
     }
     
     handleDragLeave(e, mediaField) {
-        const container = e.target.closest('#selectedTypes_' + mediaField);
+        const container = e.target.closest('#selectedTypes_' + mediaField) || e.target.closest('#screenscraper_selectedTypes_' + mediaField);
         if (container && !container.contains(e.relatedTarget)) {
             container.classList.remove('drag-active');
         }
@@ -13673,7 +13673,7 @@ class GameCollectionManager {
     handleDrop(e, mediaField, scraperType = 'launchbox') {
         e.preventDefault();
         const draggedType = e.dataTransfer.getData('text/plain');
-        const container = e.target.closest('#selectedTypes_' + mediaField);
+        const container = e.target.closest('#selectedTypes_' + mediaField) || e.target.closest('#screenscraper_selectedTypes_' + mediaField);
         
         if (container) {
             container.classList.remove('drag-active');
@@ -13903,7 +13903,7 @@ class GameCollectionManager {
                     <div class="row g-2">
                         <div class="col-5">
                             <label class="form-label small fw-bold">Available Types</label>
-                            <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px;">
+                            <select class="form-select form-select-sm" multiple size="4" id="screenscraper_availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px; min-width: 300px;">
                                 ${screenscraperMediaTypes.filter(type => !screenscraperTypes.includes(type)).map(type => 
                                     `<option value="${type}">${type}</option>`
                         ).join('')}
@@ -13919,7 +13919,7 @@ class GameCollectionManager {
                         </div>
                         <div class="col-5">
                             <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
-                            <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto;" id="selectedTypes_${mediaField}">
+                            <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto; min-width: 300px;" id="screenscraper_selectedTypes_${mediaField}">
                                 ${screenscraperTypes.map((type, index) => 
                                     `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
                                         <span class="small">${type}</span>
@@ -14002,8 +14002,8 @@ class GameCollectionManager {
     
     // ScreenScraper type management functions
     addScreenscraperType(mediaField) {
-        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
-        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`screenscraper_availableTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(`screenscraper_selectedTypes_${mediaField}`);
         
         if (!availableSelect || !selectedTypesContainer) return;
         
@@ -14038,8 +14038,8 @@ class GameCollectionManager {
     }
     
     removeScreenscraperType(mediaField) {
-        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
-        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(`screenscraper_selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`screenscraper_availableTypes_${mediaField}`);
         
         if (!selectedTypesContainer || !availableSelect) return;
         
@@ -14077,8 +14077,8 @@ class GameCollectionManager {
     }
     
     removeSpecificScreenscraperType(mediaField, type) {
-        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
-        const availableSelect = document.getElementById(`availableTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(`screenscraper_selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`screenscraper_availableTypes_${mediaField}`);
         
         if (!selectedTypesContainer || !availableSelect) return;
         
@@ -14108,7 +14108,7 @@ class GameCollectionManager {
     }
     
     async saveScreenscraperMapping(mediaField) {
-        const selectedTypesContainer = document.getElementById(`selectedTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(`screenscraper_selectedTypes_${mediaField}`);
         if (!selectedTypesContainer) return;
         
         // Get all selected types in order
@@ -14374,51 +14374,90 @@ class GameCollectionManager {
     }
     
     initializeMobygamesConfigModal() {
-        // Refresh button
-        const refreshMobygamesSystemsBtn = document.getElementById('refreshMobygamesSystemsBtn');
-        if (refreshMobygamesSystemsBtn) {
-            refreshMobygamesSystemsBtn.addEventListener('click', () => {
-                this.loadMobygamesSystemsData();
+        // Refresh mappings button
+        const refreshMobygamesMappingsBtn = document.getElementById('refreshMobygamesMappingsBtn');
+        if (refreshMobygamesMappingsBtn) {
+            refreshMobygamesMappingsBtn.addEventListener('click', () => {
+                this.loadMobygamesMappingsData();
             });
         }
         
         // Load initial data
-        this.loadMobygamesSystemsData();
+        this.loadMobygamesMappingsData();
     }
     
-    async loadMobygamesSystemsData() {
+    async loadMobygamesMappingsData() {
         try {
-            const systemsList = document.getElementById('mobygamesSystemsList');
-            if (systemsList) {
-                systemsList.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading systems...';
-                
-                // Get available systems from the config
-                const response = await fetch('/api/config');
-                const config = await response.json();
-                const systems = config.systems || {};
-                
-                // Filter systems that have MobyGames configuration
-                const mobygamesSystems = Object.entries(systems)
-                    .filter(([key, value]) => value.mobygames)
-                    .map(([key, value]) => ({ key, name: value.mobygames }));
-                
-                if (mobygamesSystems.length > 0) {
-                    const systemsHtml = mobygamesSystems.map(system => 
-                        `<span class="badge bg-primary me-1 mb-1">${system.name}</span>`
-                    ).join('');
-                    systemsList.innerHTML = systemsHtml;
-                } else {
-                    systemsList.innerHTML = '<span class="text-muted">No MobyGames systems configured</span>';
-                }
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            if (config.mobygames && config.mobygames.mapping) {
+                this.populateMobygamesMappingsTable(config.mobygames.mapping);
+            } else {
+                this.showAlert('Failed to load MobyGames mappings data', 'danger');
             }
         } catch (error) {
-            console.error('Error loading MobyGames systems:', error);
-            const systemsList = document.getElementById('mobygamesSystemsList');
-            if (systemsList) {
-                systemsList.innerHTML = '<span class="text-danger">Error loading systems</span>';
-            }
+            this.showAlert('Error loading MobyGames mappings data', 'danger');
         }
     }
+    
+    populateMobygamesMappingsTable(mobygamesMappings) {
+        const tbody = document.getElementById('mobygamesMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        // Get available gamelist fields for the combobox
+        const availableGamelistFields = [
+            'name', 'desc', 'developer', 'publisher', 'genre', 'rating', 
+            'releasedate', 'players', 'youtubeurl', 'nbvotes'
+        ];
+        
+        // Create rows for each mapping
+        Object.entries(mobygamesMappings).forEach(([mobygamesField, gamelistField]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="mobygames-field-display fw-bold">${mobygamesField}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" onchange="gameManager.updateMobygamesMapping('${mobygamesField}', this.value)">
+                        <option value="">-- Select Gamelist Field --</option>
+                        ${availableGamelistFields.map(field => 
+                            `<option value="${field}" ${field === gamelistField ? 'selected' : ''}>${field}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    async updateMobygamesMapping(mobygamesField, gamelistField) {
+        try {
+            const response = await fetch('/api/config', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    path: `mobygames.mapping.${mobygamesField}`,
+                    value: gamelistField
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                this.showAlert('MobyGames mapping updated successfully', 'success');
+            } else {
+                this.showAlert('Failed to update MobyGames mapping', 'danger');
+            }
+        } catch (error) {
+            console.error('Error updating MobyGames mapping:', error);
+            this.showAlert('Error updating MobyGames mapping', 'danger');
+        }
+    }
+    
     
     initializeSteamgriddbConfigModal() {
         // Refresh button

@@ -91,7 +91,10 @@
             "marquee": [
                 "wheel"
             ],
-            "boxart": [],
+            "boxart": [
+                "bezel-16-9",
+                "bezel-4-3-cocktail"
+            ],
             "thumbnail": [
                 "box-3D"
             ],
