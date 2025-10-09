@@ -6426,21 +6426,13 @@ class GameCollectionManager {
             const verified = game.verified ? 'Verified' : 'Unverified';
             const verifiedClass = game.verified ? 'bg-success' : 'bg-secondary';
             
-            // Create grid image HTML with fallback
-            const gridImage = game.grid_image || null;
-            const imageHtml = gridImage ? `
+            // Create placeholder image HTML (will be replaced when actual image loads)
+            const imageHtml = `
                 <div class="mb-2 text-center">
-                    <img src="${gridImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
-                         onerror="handleSteamgridImageError(this)" 
-                         onload="" 
-                         alt="Game grid art" loading="lazy">
-                </div>
-            ` : `
-                <div class="mb-2 text-center">
-                    <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                    <div id="steamgrid-image-${game.id}" class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
                         <div class="text-muted">
-                            <i class="bi bi-image" style="font-size: 2rem;"></i>
-                            <div class="small">No grid art available</div>
+                            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                            <div class="small">Loading grid art...</div>
                         </div>
                     </div>
                 </div>
@@ -6472,6 +6464,68 @@ class GameCollectionManager {
         });
         
         resultsContainer.innerHTML = html;
+        
+        // Load grid images asynchronously for each game
+        this.loadSteamgridImagesAsync(games);
+    }
+    
+    async loadSteamgridImagesAsync(games) {
+        // Load grid images for each game in parallel
+        const imagePromises = games.map(game => this.loadSteamgridImageForGame(game.id));
+        
+        // Wait for all images to load (or fail)
+        await Promise.allSettled(imagePromises);
+    }
+    
+    async loadSteamgridImageForGame(steamgridId) {
+        try {
+            const response = await fetch('/api/steamgriddb/grid-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    steamgrid_id: steamgridId
+                })
+            });
+            
+            const result = await response.json();
+            const imageContainer = document.getElementById(`steamgrid-image-${steamgridId}`);
+            
+            if (!imageContainer) {
+                return; // Container might have been removed
+            }
+            
+            if (response.ok && result.success && result.grid_image) {
+                // Successfully loaded image - replace placeholder with actual image
+                imageContainer.innerHTML = `
+                    <img src="${result.grid_image}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="handleSteamgridImageError(this)" 
+                         alt="Game grid art" loading="lazy">
+                `;
+            } else {
+                // Failed to load image - show error state
+                imageContainer.innerHTML = `
+                    <div class="text-muted">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                        <div class="small">No grid art available</div>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error(`Error loading grid image for SteamGridDB ID ${steamgridId}:`, error);
+            
+            // Show error state
+            const imageContainer = document.getElementById(`steamgrid-image-${steamgridId}`);
+            if (imageContainer) {
+                imageContainer.innerHTML = `
+                    <div class="text-muted">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                        <div class="small">Failed to load image</div>
+                    </div>
+                `;
+            }
+        }
     }
     
     showSteamgridSearchError(message) {

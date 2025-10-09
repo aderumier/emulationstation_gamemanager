@@ -179,7 +179,7 @@ class SteamGridService:
                         games_data = data['data']
                         print(f"   🎮 Found {len(games_data)} games in SteamGridDB search results:")
                         
-                        # Convert to our standard format and fetch grid images
+                        # Convert to our standard format (without fetching grid images)
                         games = []
                         for i, game in enumerate(games_data):
                             game_info = {
@@ -187,33 +187,14 @@ class SteamGridService:
                                 'name': game.get('name', 'Unknown'),
                                 'verified': game.get('verified', False),
                                 'types': game.get('types', ['game']),
-                                'grid_image': None  # Will be populated below
+                                'grid_image': None  # Will be fetched asynchronously
                             }
                             games.append(game_info)
                             print(f"      [{i+1}] ID: {game_info['id']}, Name: '{game_info['name']}', Verified: {game_info['verified']}")
                         
-                        # Fetch grid images for each game (in parallel for better performance)
-                        if games:
-                            print(f"   🖼️  Fetching grid images for {len(games)} games...")
-                            grid_tasks = []
-                            for game in games:
-                                task = self.get_steamgrid_grid_image(game['id'], api_key)
-                                grid_tasks.append(task)
-                            
-                            # Execute all grid image requests in parallel
-                            grid_images = await asyncio.gather(*grid_tasks, return_exceptions=True)
-                            
-                            # Assign grid images to games
-                            for i, (game, grid_image) in enumerate(zip(games, grid_images)):
-                                if isinstance(grid_image, str):
-                                    game['grid_image'] = grid_image
-                                    print(f"      [{i+1}] Grid image: {grid_image[:50]}...")
-                                else:
-                                    print(f"      [{i+1}] No grid image available")
-                        
-                        # Return up to limit games
+                        # Return up to limit games (without grid images for faster response)
                         result = games[:limit]
-                        print(f"   ✅ Returning {len(result)} games with grid images (limit: {limit})")
+                        print(f"   ✅ Returning {len(result)} games (grid images will be loaded asynchronously)")
                         return result
                     else:
                         print(f"   ❌ No SteamGridDB search results for '{clean_name}' (success={data.get('success')}, data={data.get('data')})")

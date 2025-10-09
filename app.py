@@ -6547,9 +6547,7 @@ def search_steamgriddb_games():
         if not api_key:
             return jsonify({'error': 'SteamGridDB API key not configured'}), 400
         
-        # SteamGridDB service is already created above, no need to recreate it
-        
-        # Search for games using async function with 20 games limit
+        # Search for games using async function with 20 games limit (without grid images for faster response)
         games = run_async_safely(steamgrid_service.get_steamgrid_id_by_name(game_name, api_key, limit=20))
         
         return jsonify({
@@ -6560,6 +6558,47 @@ def search_steamgriddb_games():
     except Exception as e:
         print(f"Error searching SteamGridDB games: {e}")
         return jsonify({'error': f'Failed to search SteamGridDB games: {str(e)}'}), 500
+
+@app.route('/api/steamgriddb/grid-image', methods=['POST'])
+@login_required
+def get_steamgriddb_grid_image():
+    """Get grid image for a specific SteamGridDB game ID"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        steamgrid_id = data.get('steamgrid_id')
+        if not steamgrid_id:
+            return jsonify({'error': 'SteamGridDB ID is required'}), 400
+        
+        # Import SteamGridDB service
+        from steamgrid_service import SteamGridService
+        
+        # Create SteamGridDB service
+        steamgrid_service = SteamGridService()
+        
+        # Get API key
+        api_key = steamgrid_service.get_api_key()
+        if not api_key:
+            return jsonify({'error': 'SteamGridDB API key not configured'}), 400
+        
+        # Fetch grid image for the specific ID
+        grid_image_url = run_async_safely(steamgrid_service.get_steamgrid_grid_image(steamgrid_id, api_key))
+        
+        return jsonify({
+            'success': True,
+            'steamgrid_id': steamgrid_id,
+            'grid_image': grid_image_url
+        })
+        
+    except Exception as e:
+        print(f"Error fetching SteamGridDB grid image for ID {data.get('steamgrid_id', 'unknown')}: {e}")
+        return jsonify({
+            'success': False,
+            'steamgrid_id': data.get('steamgrid_id', 'unknown'),
+            'error': f'Failed to fetch grid image: {str(e)}'
+        }), 500
 
 @app.route('/api/steam-mappings', methods=['GET', 'PUT', 'POST'])
 @login_required
