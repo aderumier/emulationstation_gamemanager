@@ -9,20 +9,20 @@ echo "Storing original configuration file checksums..."
 # Create temporary directory for checksums
 mkdir -p /tmp/gamemanager-upgrade
 
-# Store checksums of existing configuration files
+# Backup existing configuration files
 if [ -f "/opt/gamemanager/var/config/config.json" ]; then
-    md5sum "/opt/gamemanager/var/config/config.json" > /tmp/gamemanager-upgrade/config.json.old
-    echo "Stored checksum for config.json"
+    cp "/opt/gamemanager/var/config/config.json" "/tmp/gamemanager-upgrade/config.json.backup"
+    echo "Backed up config.json"
 fi
 
 if [ -f "/opt/gamemanager/var/config/scrappers.json" ]; then
-    md5sum "/opt/gamemanager/var/config/scrappers.json" > /tmp/gamemanager-upgrade/scrappers.json.old
-    echo "Stored checksum for scrappers.json"
+    cp "/opt/gamemanager/var/config/scrappers.json" "/tmp/gamemanager-upgrade/scrappers.json.backup"
+    echo "Backed up scrappers.json"
 fi
 
 if [ -f "/opt/gamemanager/var/config/systems.json" ]; then
-    md5sum "/opt/gamemanager/var/config/systems.json" > /tmp/gamemanager-upgrade/systems.json.old
-    echo "Stored checksum for systems.json"
+    cp "/opt/gamemanager/var/config/systems.json" "/tmp/gamemanager-upgrade/systems.json.backup"
+    echo "Backed up systems.json"
 fi
 
 echo "GameManager pre-installation script completed."

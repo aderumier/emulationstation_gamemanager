@@ -124,10 +124,11 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
         local file_name=$(basename "$file_path")
         
         if [ -f "$file_path" ]; then
-            # Get stored old checksum from preinst
-            local old_checksum_file="/tmp/gamemanager-upgrade/$file_name.old"
-            if [ -f "$old_checksum_file" ]; then
-                local old_checksum=$(cat "$old_checksum_file" | cut -d' ' -f1)
+            # Check if we have a backup from preinst
+            local backup_file="/tmp/gamemanager-upgrade/$file_name.backup"
+            if [ -f "$backup_file" ]; then
+                # Compare backup with current file
+                local old_checksum=$(md5sum "$backup_file" | cut -d' ' -f1)
                 local new_checksum=$(md5sum "$file_path" | cut -d' ' -f1)
                 
                 if [ "$old_checksum" != "$new_checksum" ]; then
@@ -151,10 +152,12 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
                         [NnOo])
                             echo "Restoring original version of $file_name..."
                             # Restore the original file from backup
-                            local old_file_path=$(cat "$old_checksum_file" | cut -d' ' -f3-)
-                            if [ -f "$old_file_path" ]; then
-                                cp "$old_file_path" "$file_path"
-                                echo "✅ $file_name restored to original version"
+                            if [ -f "$backup_file" ]; then
+                                if cp "$backup_file" "$file_path" 2>/dev/null; then
+                                    echo "✅ $file_name restored to original version"
+                                else
+                                    echo "⚠️  Could not restore original file, keeping new version"
+                                fi
                             else
                                 echo "⚠️  Could not restore original file, keeping new version"
                             fi
@@ -162,9 +165,8 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
                         [Dd])
                             echo "Showing differences for $file_name:"
                             echo "--- Original version (left) vs New version (right) ---"
-                            local old_file_path=$(cat "$old_checksum_file" | cut -d' ' -f3-)
-                            if [ -f "$old_file_path" ]; then
-                                diff -u "$old_file_path" "$file_path" || true
+                            if [ -f "$backup_file" ]; then
+                                diff -u "$backup_file" "$file_path" || true
                             else
                                 echo "Could not show differences - original file not found"
                             fi
@@ -177,9 +179,12 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
                                     ;;
                                 *)
                                     echo "Restoring original version of $file_name..."
-                                    if [ -f "$old_file_path" ]; then
-                                        cp "$old_file_path" "$file_path"
-                                        echo "✅ $file_name restored to original version"
+                                    if [ -f "$backup_file" ]; then
+                                        if cp "$backup_file" "$file_path" 2>/dev/null; then
+                                            echo "✅ $file_name restored to original version"
+                                        else
+                                            echo "⚠️  Could not restore original file, keeping new version"
+                                        fi
                                     else
                                         echo "⚠️  Could not restore original file, keeping new version"
                                     fi
