@@ -6031,23 +6031,18 @@ class GameCollectionManager {
     }
     
     async loadScreenscraperImagesAsync(games) {
-        console.log('🔧 DEBUG: Starting async loading for', games.length, 'ScreenScraper games');
         // Load images in parallel for better performance
         const imagePromises = games.map(game => this.loadScreenscraperImageForGame(game.id, game.system));
         await Promise.allSettled(imagePromises);
-        console.log('🔧 DEBUG: Finished async loading for ScreenScraper games');
     }
     
     async loadScreenscraperImageForGame(gameId, systemName) {
-        console.log(`🔧 DEBUG: Loading ScreenScraper image for game ${gameId}, system ${systemName}`);
         try {
             const response = await fetch(`/api/screenscraper/box-image?game_id=${gameId}&system_name=${encodeURIComponent(systemName)}`);
             const result = await response.json();
-            console.log(`🔧 DEBUG: ScreenScraper API response for game ${gameId}:`, result);
             
             const imageContainer = document.getElementById(`screenscraper-image-${gameId}`);
             if (!imageContainer) {
-                console.error(`🔧 DEBUG: Image container not found for game ${gameId}`);
                 return;
             }
             
