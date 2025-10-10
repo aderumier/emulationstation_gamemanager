@@ -6496,11 +6496,11 @@ def search_steam_games():
         if not game_name:
             return jsonify({'error': 'Game name is required'}), 400
         
-        # Import Steam service
-        from steam_service import SteamService
+        # Use global Steam service (already has partitioned index built)
+        steam_service = load_steam_service()
         
-        # Create Steam service
-        steam_service = SteamService()
+        if not steam_service:
+            return jsonify({'error': 'Steam service not available'}), 500
         
         # Get Steam apps list
         apps = run_async_safely(steam_service.get_app_index())
@@ -6508,7 +6508,7 @@ def search_steam_games():
         if not apps:
             return jsonify({'error': 'Failed to load Steam apps list'}), 500
         
-        # Use similarity algorithm to find best matches
+        # Use similarity algorithm to find best matches (uses pre-built partitioned index)
         games = steam_service.find_similarity_matches(game_name, apps, limit)
         
         return jsonify({
