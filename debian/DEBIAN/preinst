@@ -2,9 +2,29 @@
 set -e
 
 # Pre-installation script for GameManager
-# Configuration files are now managed by dpkg conffiles mechanism
+# Store original configuration file checksums before package installation
+
+echo "Storing original configuration file checksums..."
+
+# Create temporary directory for checksums
+mkdir -p /tmp/gamemanager-upgrade
+
+# Store checksums of existing configuration files
+if [ -f "/opt/gamemanager/var/config/config.json" ]; then
+    md5sum "/opt/gamemanager/var/config/config.json" > /tmp/gamemanager-upgrade/config.json.old
+    echo "Stored checksum for config.json"
+fi
+
+if [ -f "/opt/gamemanager/var/config/scrappers.json" ]; then
+    md5sum "/opt/gamemanager/var/config/scrappers.json" > /tmp/gamemanager-upgrade/scrappers.json.old
+    echo "Stored checksum for scrappers.json"
+fi
+
+if [ -f "/opt/gamemanager/var/config/systems.json" ]; then
+    md5sum "/opt/gamemanager/var/config/systems.json" > /tmp/gamemanager-upgrade/systems.json.old
+    echo "Stored checksum for systems.json"
+fi
 
 echo "GameManager pre-installation script completed."
-echo "Configuration files will be handled by dpkg conffiles mechanism."
 
 exit 0
