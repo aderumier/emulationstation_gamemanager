@@ -10408,6 +10408,14 @@ def refresh_steam_cache_endpoint():
         steam_service._build_partitioned_index(apps)
         steam_service._save_partitioned_index_to_cache()
         
+        # Update the global Steam service instance with the new partitioned index
+        global global_steam_service
+        if global_steam_service is not None:
+            print("🔄 Updating global Steam service with new partitioned index...")
+            global_steam_service._partitioned_index = steam_service._partitioned_index
+            global_steam_service._partitioned_index_loaded_from_cache = True
+            print("✅ Global Steam service updated with new partitioned index")
+        
         return jsonify({
             'success': True,
             'message': f'Steam cache refreshed successfully - downloaded {len(apps)} apps and rebuilt partitioned index'
