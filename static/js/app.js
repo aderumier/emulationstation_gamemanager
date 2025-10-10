@@ -6215,16 +6215,24 @@ class GameCollectionManager {
             const releaseDate = game.release_date || 'Unknown';
             const similarityScore = game.similarity_score ? Math.round(game.similarity_score * 100) : 0;
             
-            // Create placeholder image HTML (will be replaced when actual image loads)
-            const imageHtml = `
+            // Create image HTML with capsule image URLs from search results
+            const capsuleImage = game.capsule_image || null;
+            const imageHtml = capsuleImage ? `
                 <div class="mb-2 text-center">
-                    <div id="steam-image-${game.appid}" class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                    <img src="${capsuleImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
+                         onerror="this.parentElement.innerHTML='<div class=\\"d-flex align-items-center justify-content-center\\" style=\\"height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;\\"><div class=\\"text-muted\\"><i class=\\"bi bi-image\\" style=\\"font-size: 2rem;\\"></i><div class=\\"small\\">No capsule art available</div></div></div>'" 
+                         alt="Steam capsule art" loading="lazy">
+                </div>
+            ` : `
+                <div class="mb-2 text-center">
+                    <div class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
                         <div class="text-muted">
-                            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-                            <div class="small">Loading capsule art...</div>
+                            <i class="bi bi-image" style="font-size: 2rem;"></i>
+                            <div class="small">No capsule art available</div>
                         </div>
                     </div>
-                </div>`;
+                </div>
+            `;
             
             html += `
                 <div class="col-md-6 col-lg-4 mb-3">
@@ -6256,69 +6264,8 @@ class GameCollectionManager {
         });
         
         resultsContainer.innerHTML = html;
-        
-        // Load capsule images asynchronously for each game
-        this.loadSteamImagesAsync(games);
     }
     
-    async loadSteamImagesAsync(games) {
-        // Load capsule images for each game in parallel
-        const imagePromises = games.map(game => this.loadSteamImageForGame(game.appid));
-        
-        // Wait for all images to load (or fail)
-        await Promise.allSettled(imagePromises);
-    }
-    
-    async loadSteamImageForGame(steamId) {
-        try {
-            const response = await fetch('/api/steam/capsule-images', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    steam_id: steamId
-                })
-            });
-            
-            const result = await response.json();
-            const imageContainer = document.getElementById(`steam-image-${steamId}`);
-            
-            if (!imageContainer) {
-                return; // Container might have been removed
-            }
-            
-            if (response.ok && result.success && result.capsule_image) {
-                // Successfully loaded image - replace placeholder with actual image
-                imageContainer.innerHTML = `
-                    <img src="${result.capsule_image}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
-                         onerror="handleSteamImageError(this, '${result.capsule_image_fallback || ''}')" 
-                         alt="Game capsule" loading="lazy">
-                `;
-            } else {
-                // Failed to load image - show error state
-                imageContainer.innerHTML = `
-                    <div class="text-muted">
-                        <i class="bi bi-image" style="font-size: 2rem;"></i>
-                        <div class="small">No capsule art available</div>
-                    </div>
-                `;
-            }
-        } catch (error) {
-            console.error(`Error loading capsule image for Steam ID ${steamId}:`, error);
-            
-            // Show error state
-            const imageContainer = document.getElementById(`steam-image-${steamId}`);
-            if (imageContainer) {
-                imageContainer.innerHTML = `
-                    <div class="text-muted">
-                        <i class="bi bi-image" style="font-size: 2rem;"></i>
-                        <div class="small">Failed to load image</div>
-                    </div>
-                `;
-            }
-        }
-    }
     
     showSteamSearchError(message) {
         const errorContainer = document.getElementById('steamSearchError');

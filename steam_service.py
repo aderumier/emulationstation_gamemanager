@@ -789,8 +789,8 @@ class SteamService:
                         'description': 'Steam game',  # Steam API doesn't provide descriptions in the basic app list
                         'price': 'Unknown',  # Would need additional API call
                         'release_date': 'Unknown',  # Would need additional API call
-                        'capsule_image': None,  # Will be fetched asynchronously
-                        'capsule_image_fallback': None,  # Will be fetched asynchronously
+                        'capsule_image': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900_2x.jpg",
+                        'capsule_image_fallback': f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_600x900.jpg",
                         'similarity_score': similarity,
                         'matched_name': item.name
                     })

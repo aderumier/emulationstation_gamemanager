@@ -6520,42 +6520,6 @@ def search_steam_games():
         print(f"Error searching Steam games: {e}")
         return jsonify({'error': f'Failed to search Steam games: {str(e)}'}), 500
 
-@app.route('/api/steam/capsule-images', methods=['POST'])
-@login_required
-def get_steam_capsule_images():
-    """Get capsule images for a specific Steam app ID"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        steam_id = data.get('steam_id')
-        if not steam_id:
-            return jsonify({'error': 'Steam ID is required'}), 400
-        
-        # Import Steam service
-        from steam_service import SteamService
-        
-        # Create Steam service
-        steam_service = SteamService()
-        
-        # Get capsule images for the specific Steam ID
-        images = steam_service.get_steam_capsule_images(steam_id)
-        
-        return jsonify({
-            'success': True,
-            'steam_id': steam_id,
-            'capsule_image': images['capsule_image'],
-            'capsule_image_fallback': images['capsule_image_fallback']
-        })
-        
-    except Exception as e:
-        print(f"Error fetching Steam capsule images for ID {data.get('steam_id', 'unknown')}: {e}")
-        return jsonify({
-            'success': False,
-            'steam_id': data.get('steam_id', 'unknown'),
-            'error': f'Failed to fetch capsule images: {str(e)}'
-        }), 500
 
 @app.route('/api/steamgriddb/search', methods=['POST'])
 @login_required
