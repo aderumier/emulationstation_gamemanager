@@ -183,26 +183,43 @@ class IGDBService:
             partition_games = platform_data[first_char]
             print(f"🔧 DEBUG IGDB: Found {len(partition_games)} games in partition")
             
-            # Calculate similarity for each game
-            results = []
+            # Calculate similarity for each game and deduplicate by game ID
+            game_similarities = {}  # {game_id: max_similarity}
+            game_data_cache = {}    # {game_id: game_data}
+            
             for normalized_name, game_id in partition_games.items():
                 similarity = calculate_similarity(normalized_query, normalized_name)
                 if similarity > 0.3:  # Minimum similarity threshold
                     print(f"🔧 DEBUG IGDB: Found match: '{normalized_name}' (ID: {game_id}) with similarity {similarity}")
-                    game_data = self.get_game_by_id(game_id)
-                    if game_data:
-                        game_data['_similarity_score'] = round(similarity, 3)
-                        game_data['id'] = game_id  # Add the ID back since it was removed from consolidated data
-                        results.append(game_data)
-                    else:
-                        print(f"🔧 DEBUG IGDB: Game data not found for ID {game_id}")
+                    
+                    # Keep track of the highest similarity for this game ID
+                    if game_id not in game_similarities or similarity > game_similarities[game_id]:
+                        game_similarities[game_id] = similarity
+                        
+                        # Get game data only once per game ID
+                        if game_id not in game_data_cache:
+                            game_data = self.get_game_by_id(game_id)
+                            if game_data:
+                                game_data['id'] = game_id  # Add the ID back since it was removed from consolidated data
+                                game_data_cache[game_id] = game_data
+                            else:
+                                print(f"🔧 DEBUG IGDB: Game data not found for ID {game_id}")
+            
+            # Build final results with highest similarity scores
+            results = []
+            for game_id, max_similarity in game_similarities.items():
+                if game_id in game_data_cache:
+                    game_data = game_data_cache[game_id].copy()
+                    game_data['_similarity_score'] = round(max_similarity, 3)
+                    results.append(game_data)
             
             # Sort by similarity score (highest first)
             results.sort(key=lambda x: x.get('_similarity_score', 0), reverse=True)
             
-            # Limit results
-            limited_results = results[:limit]
-            print(f"🔧 DEBUG IGDB: Returning {len(limited_results)} results")
+            # Limit results to top 20, then apply user's limit
+            top_results = results[:20]  # Always get top 20 by similarity
+            limited_results = top_results[:limit]  # Then apply user's limit
+            print(f"🔧 DEBUG IGDB: Returning {len(limited_results)} results (from top {len(top_results)} by similarity)")
             return limited_results
         
         print("🔧 DEBUG IGDB: No platform specified, returning empty results")
