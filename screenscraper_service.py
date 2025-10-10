@@ -471,7 +471,8 @@ class ScreenScraperService:
             'recherche': cleaned_game_name
         }
         
-        for attempt in range(self.retry_attempts):
+        # Only try once - no retries
+        for attempt in range(1):
             try:
                 print(f"Searching ScreenScraper for '{cleaned_game_name}' (attempt {attempt + 1})")
                 print(f"API URL: {search_api_url}")
@@ -625,22 +626,16 @@ class ScreenScraperService:
                 else:
                     print(f"ScreenScraper API returned status {response.status_code}")
                     print(f"Response content: {response.text[:500]}...")  # Log first 500 chars of response
-                    if attempt < self.retry_attempts - 1:
-                        await asyncio.sleep(2)
-                        continue
+                    return []
                         
             except Exception as e:
                 print(f"Error searching ScreenScraper games: {e}")
                 print(f"Exception type: {type(e)}")
                 import traceback
                 traceback.print_exc()
-                if attempt < self.retry_attempts - 1:
-                    print(f"Retrying in 2 seconds... (attempt {attempt + 1}/{self.retry_attempts})")
-                    await asyncio.sleep(2)
-                    continue
                 return []
         
-        print(f"Failed to search ScreenScraper games after {self.retry_attempts} attempts")
+        print(f"Failed to search ScreenScraper games after 1 attempt")
         return []
     
     async def search_game(self, rom_filename: str, system_name: str) -> Optional[Dict]:
