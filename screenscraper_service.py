@@ -873,18 +873,46 @@ class ScreenScraperService:
                         detailed_progress_callback(f"Error: No ROM filename for {game_name}")
                     return None
                 
-                # Search for game and get full data
-                print(f"🔍 Searching ScreenScraper for: {game_name}")
-                if detailed_progress_callback:
-                    detailed_progress_callback(f"Searching ScreenScraper for: {game_name}")
-                
-                search_result = await self.search_game(rom_filename, system_name)
-                if search_result:
-                    jeu_id = search_result['jeu_id']
-                    game_data = search_result['game_data']
-                    print(f"✅ Found ScreenScraper ID {jeu_id} for {game_name}")
+                # Check if game already has a ScreenScraper ID
+                existing_screenscraper_id = game.get('screenscraperid')
+                if existing_screenscraper_id and str(existing_screenscraper_id).strip() and str(existing_screenscraper_id) != '0':
+                    # Use existing ScreenScraper ID directly
+                    jeu_id = str(existing_screenscraper_id)
+                    print(f"🔄 Using existing ScreenScraper ID {jeu_id} for {game_name}")
                     if detailed_progress_callback:
-                        detailed_progress_callback(f"Found ScreenScraper ID {jeu_id} for {game_name}")
+                        detailed_progress_callback(f"Using existing ScreenScraper ID {jeu_id} for {game_name}")
+                    
+                    # Get game data using jeuInfos.php API
+                    game_data = await self.get_game_by_id(jeu_id, system_name)
+                    if not game_data:
+                        print(f"❌ Failed to get game data for existing ID {jeu_id}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Failed to get game data for existing ID {jeu_id}")
+                        return None
+                    
+                    print(f"✅ Retrieved game data for existing ScreenScraper ID {jeu_id}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Retrieved game data for existing ScreenScraper ID {jeu_id}")
+                else:
+                    # Search for game and get full data
+                    print(f"🔍 Searching ScreenScraper for: {game_name}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Searching ScreenScraper for: {game_name}")
+                    
+                    search_result = await self.search_game(rom_filename, system_name)
+                    if search_result:
+                        jeu_id = search_result['jeu_id']
+                        game_data = search_result['game_data']
+                        print(f"✅ Found ScreenScraper ID {jeu_id} for {game_name}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Found ScreenScraper ID {jeu_id} for {game_name}")
+                    else:
+                        print(f"❌ No ScreenScraper ID found for {game_name}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"No ScreenScraper ID found for {game_name}")
+                        return None
+                
+                if game_data:
                     
                     # Add path to game data for media processing
                     game_data['path'] = game_path
