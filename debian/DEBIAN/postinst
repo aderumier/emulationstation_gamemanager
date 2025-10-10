@@ -115,10 +115,75 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
         echo "Removed old pyrate_limiter/pyrate_limiter directory"
     fi
     
-    # Handle configuration files - dpkg conffiles mechanism will handle user prompts
-    echo "Configuration files are managed by dpkg conffiles mechanism."
-    echo "If you were prompted about configuration file changes during installation,"
-    echo "your choice has been respected."
+    # Custom conffiles mechanism - check and prompt for configuration file changes
+    echo "Checking configuration files for changes..."
+    
+    # Function to handle configuration file replacement
+    handle_config_file() {
+        local file_path="$1"
+        local file_name=$(basename "$file_path")
+        
+        if [ -f "$file_path" ]; then
+            # Calculate checksums
+            local old_checksum=$(md5sum "$file_path" | cut -d' ' -f1)
+            local new_checksum=$(md5sum "/opt/gamemanager/var/config/$file_name" | cut -d' ' -f1)
+            
+            if [ "$old_checksum" != "$new_checksum" ]; then
+                echo ""
+                echo "Configuration file '$file_path' has been modified since installation."
+                echo "Package distributor has shipped an updated version."
+                echo ""
+                echo "What would you like to do about it?"
+                echo "  Y or I  : install the package maintainer's version"
+                echo "  N or O  : keep your currently-installed version"
+                echo "  D       : show the differences between the versions"
+                echo ""
+                echo -n "Your choice [Y/I/N/O/D]: "
+                read -r choice
+                
+                case "$choice" in
+                    [YyIi])
+                        echo "Installing new version of $file_name..."
+                        cp "/opt/gamemanager/var/config/$file_name" "$file_path"
+                        echo "✅ $file_name updated"
+                        ;;
+                    [NnOo])
+                        echo "Keeping current version of $file_name"
+                        ;;
+                    [Dd])
+                        echo "Showing differences for $file_name:"
+                        echo "--- Current version (left) vs New version (right) ---"
+                        diff -u "$file_path" "/opt/gamemanager/var/config/$file_name" || true
+                        echo ""
+                        echo -n "Do you want to install the new version? [Y/N]: "
+                        read -r diff_choice
+                        case "$diff_choice" in
+                            [Yy])
+                                cp "/opt/gamemanager/var/config/$file_name" "$file_path"
+                                echo "✅ $file_name updated"
+                                ;;
+                            *)
+                                echo "Keeping current version of $file_name"
+                                ;;
+                        esac
+                        ;;
+                    *)
+                        echo "Invalid choice. Keeping current version of $file_name"
+                        ;;
+                esac
+            else
+                echo "✅ $file_name is up to date"
+            fi
+        else
+            echo "Installing new configuration file: $file_name"
+            cp "/opt/gamemanager/var/config/$file_name" "$file_path"
+        fi
+    }
+    
+    # Handle each configuration file
+    handle_config_file "/opt/gamemanager/var/config/config.json"
+    handle_config_file "/opt/gamemanager/var/config/scrappers.json"
+    handle_config_file "/opt/gamemanager/var/config/systems.json"
     
     # Ensure disable_local_auth is always false for security
     echo "Ensuring disable_local_auth is set to false for security..."
