@@ -820,59 +820,6 @@ class ScreenScraperService:
 
         return None
     
-    async def get_game_box_image(self, game_id: str, system_name: str = None) -> Optional[str]:
-        """
-        Get the box image URL for a specific ScreenScraper game ID.
-        
-        Args:
-            game_id: ScreenScraper game ID
-            system_name: The system name (optional, used for system ID resolution)
-            
-        Returns:
-            Box image URL if found, else None
-        """
-        try:
-            # Get the full game data
-            if not system_name:
-                print(f"System name is required for game {game_id}")
-                return None
-            game_data = await self.get_game_by_id(game_id, system_name)
-            if not game_data:
-                return None
-            
-            # Extract box image URL from the game data
-            # The box image is typically in the media section
-            print(f"🔧 DEBUG: Extracting box image for game {game_id}")
-            print(f"🔧 DEBUG: Game data keys: {list(game_data.keys())}")
-            
-            if 'medias' in game_data:
-                medias = game_data['medias']
-                print(f"🔧 DEBUG: Medias keys: {list(medias.keys()) if isinstance(medias, dict) else 'Not a dict'}")
-                
-                if isinstance(medias, dict) and 'media-box-2D' in medias:
-                    box_media = medias['media-box-2D']
-                    print(f"🔧 DEBUG: Box media type: {type(box_media)}")
-                    
-                    if isinstance(box_media, list) and len(box_media) > 0:
-                        # Get the first box image
-                        url = box_media[0].get('url')
-                        print(f"🔧 DEBUG: Found box image URL: {url}")
-                        return url
-                    elif isinstance(box_media, dict):
-                        url = box_media.get('url')
-                        print(f"🔧 DEBUG: Found box image URL: {url}")
-                        return url
-                else:
-                    print(f"🔧 DEBUG: No media-box-2D found in medias")
-            else:
-                print(f"🔧 DEBUG: No medias section found in game data")
-            
-            return None
-            
-        except Exception as e:
-            print(f"Error getting box image for game {game_id}: {e}")
-            return None
-    
     async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None, is_cancelled_callback=None) -> Dict[str, str]:
         """
         Process a batch of games to find their ScreenScraper IDs.
