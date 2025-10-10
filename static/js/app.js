@@ -6220,7 +6220,7 @@ class GameCollectionManager {
             const imageHtml = capsuleImage ? `
                 <div class="mb-2 text-center">
                     <img src="${capsuleImage}" class="img-fluid rounded" style="max-height: 200px; width: auto;" 
-                         onerror="this.parentElement.innerHTML='<div class=\\"d-flex align-items-center justify-content-center\\" style=\\"height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;\\"><div class=\\"text-muted\\"><i class=\\"bi bi-image\\" style=\\"font-size: 2rem;\\"></i><div class=\\"small\\">No capsule art available</div></div></div>'" 
+                         onerror="handleSteamImageError(this)" 
                          alt="Steam capsule art" loading="lazy">
                 </div>
             ` : `
@@ -19115,6 +19115,28 @@ function handleLaunchboxImageError(img) {
     
     // Replace the image with placeholder
     img.parentNode.replaceChild(placeholder, img);
+}
+
+// Handle Steam image loading errors
+function handleSteamImageError(imgElement) {
+    // Prevent infinite loop
+    if (imgElement.onerror === null) {
+        return;
+    }
+    
+    // Create placeholder div
+    const placeholder = document.createElement('div');
+    placeholder.className = 'd-flex align-items-center justify-content-center';
+    placeholder.style.cssText = 'height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;';
+    placeholder.innerHTML = `
+        <div class="text-muted">
+            <i class="bi bi-image" style="font-size: 2rem;"></i>
+            <div class="small">No capsule art available</div>
+        </div>
+    `;
+    
+    // Replace the image with placeholder
+    imgElement.parentNode.replaceChild(placeholder, imgElement);
 }
 
 // Initialize the game manager when the DOM is loaded
