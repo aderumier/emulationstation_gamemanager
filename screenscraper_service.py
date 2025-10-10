@@ -414,18 +414,8 @@ class ScreenScraperService:
         
         # Get the ScreenScraper system ID from the main systems config
         main_systems_config = self.systems_config
-        
-        # Try exact match first
         system_config = main_systems_config.get(system_name, {})
         screenscraper_system_id = system_config.get('screenscraper')
-        
-        # If not found, try case-insensitive lookup
-        if not screenscraper_system_id:
-            for config_system_name, config_data in main_systems_config.items():
-                if config_system_name.lower() == system_name.lower():
-                    screenscraper_system_id = config_data.get('screenscraper')
-                    print(f"Found case-insensitive match: '{config_system_name}' -> {screenscraper_system_id}")
-                    break
         
         if not screenscraper_system_id:
             print(f"No ScreenScraper system ID found for {system_name}")
