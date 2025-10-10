@@ -520,10 +520,10 @@ class ScreenScraperService:
                                     if game_name == 'Unknown':
                                         game_name = jeu['noms'][0].get('text', 'Unknown')
                                 
-                                # Get system name
-                                system_name_result = system_name
+                                # Get system name (convert to lowercase to match config)
+                                system_name_result = system_name.lower()
                                 if 'systeme' in jeu and isinstance(jeu['systeme'], dict):
-                                    system_name_result = jeu['systeme'].get('text', system_name)
+                                    system_name_result = jeu['systeme'].get('text', system_name).lower()
                                 
                                 # Get publisher
                                 publisher = 'Unknown'
