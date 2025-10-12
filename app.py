@@ -1046,9 +1046,16 @@ def delete_orphan_media_files(system_name):
             
             print(f"Parsing gamelist for media references...")
             
+            # Get media fields from configuration
+            config = load_config()
+            media_fields = config.get('media_fields', {})
+            media_types = list(media_fields.keys())
+            
+            print(f"Using media types from config: {media_types}")
+            
             # Find all media elements (image, video, marquee, etc.)
             for game in root.findall('game'):
-                for media_type in ['image', 'video', 'marquee', 'thumbnail', 'fanart']:
+                for media_type in media_types:
                     media_elem = game.find(media_type)
                     if media_elem is not None and media_elem.text:
                         # Get the relative path from the media element
@@ -4289,6 +4296,12 @@ def parse_gamelist_xml(file_path):
                     game_data['youtubeurl'] = text
                 elif tag == 'hidden':
                     game_data['hidden'] = text
+                elif tag == 'favorite':
+                    # Handle boolean field - convert string to boolean
+                    game_data['favorite'] = text.lower() == 'true' if text else False
+                elif tag == 'kidgame':
+                    # Handle boolean field - convert string to boolean
+                    game_data['kidgame'] = text.lower() == 'true' if text else False
                 else:
                     # Handle unknown tags by storing them as text
                     game_data[tag] = text
@@ -7427,21 +7440,17 @@ def write_gamelist_xml(games, file_path):
                 if field == 'releasedate' and value:
                     value = format_releasedate_to_iso8601(value)
                 
-                # Always include media-related fields, even if empty
-                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']:
-                    field_elem = ET.SubElement(game_elem, field)
-                    field_elem.text = str(value) if value else ''
-                elif field == 'hidden':
-                    # Always include hidden field if present
-                    field_elem = ET.SubElement(game_elem, field)
-                    field_elem.text = str(value) if value else ''
-                elif value is not None and value != '':
-                    field_elem = ET.SubElement(game_elem, field)
-                    # Write raw text as-is; XML writer will handle escaping (& -> &amp;)
-                    field_elem.text = str(value)
-                    # Debug logging for launchboxid
-                    if field == 'launchboxid':
-                        print(f"🔧 DEBUG: Writing launchboxid field: '{value}' (type: {type(value)}) as text: '{str(value)}'")
+                # Handle boolean fields - convert to lowercase string
+                if field in ['favorite', 'kidgame']:
+                    value = 'true' if value else 'false'
+                
+                # Add all fields from the game data
+                field_elem = ET.SubElement(game_elem, field)
+                field_elem.text = str(value) if value else ''
+                
+                # Debug logging for launchboxid
+                if field == 'launchboxid':
+                    print(f"🔧 DEBUG: Writing launchboxid field: '{value}' (type: {type(value)}) as text: '{str(value)}'")
         
         # Write to file with formatting
         tree = ET.ElementTree(root)
@@ -8617,7 +8626,7 @@ def download_and_save_media(media_url, game, media_type, system_name):
         print(f"🔧 DEBUG: File saved to {target_path}")
         
         # Update game data
-        relative_path = os.path.join(target_dir, media_filename)
+        relative_path = os.path.join('.', target_dir, media_filename)
         game[media_type] = relative_path
         print(f"🔧 DEBUG: Updated game[{media_type}] = {relative_path}")
         
@@ -8712,6 +8721,7 @@ def find_best_matches_mobygames_endpoint():
                 results.append({
                     'game_path': game_data.get('path', ''),
                     'game_name': game_name,
+                    'existing_mobygamesid': game_data.get('mobygamesid'),
                     'game_data': game_data,  # Include full game data for publisher info
                     'match_found': True,
                     'best_match': best_match,
@@ -8721,6 +8731,7 @@ def find_best_matches_mobygames_endpoint():
                 results.append({
                     'game_path': game_data.get('path', ''),
                     'game_name': game_name,
+                    'existing_mobygamesid': game_data.get('mobygamesid'),
                     'match_found': False,
                     'best_match': None,
                     'all_matches': []
@@ -8817,6 +8828,7 @@ def find_best_matches_steam_endpoint():
                 results.append({
                     'game_path': game_data.get('path', ''),
                     'game_name': game_name,
+                    'existing_steamid': game_data.get('steamid'),
                     'game_data': game_data,  # Include full game data for publisher info
                     'match_found': True,
                     'best_match': {
@@ -8831,6 +8843,7 @@ def find_best_matches_steam_endpoint():
                 results.append({
                     'game_path': game_data.get('path', ''),
                     'game_name': game_name,
+                    'existing_steamid': game_data.get('steamid'),
                     'match_found': False,
                     'best_match': None,
                     'all_matches': []
@@ -8846,6 +8859,121 @@ def find_best_matches_steam_endpoint():
     except Exception as e:
         print(f"Error in find_best_matches_steam endpoint: {e}")
         return jsonify({'error': f'Failed to find Steam matches: {str(e)}'}), 500
+
+
+@app.route('/api/find-best-matches-igdb', methods=['POST'])
+@login_required
+def find_best_matches_igdb_endpoint():
+    """Find best matches for selected games using IGDB database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        selected_games = data.get('selected_games', [])
+        
+        if not system_name:
+            return jsonify({'error': 'System name required'}), 400
+        
+        if not selected_games:
+            return jsonify({'error': 'No games selected'}), 400
+        
+        # Get the global IGDB service instance
+        igdb_service = load_igdb_service()
+        
+        if not igdb_service:
+            return jsonify({'error': 'IGDB service not available'}), 500
+        
+        print(f"🔧 DEBUG IGDB Find Best Match: IGDB service loaded, is_loaded={igdb_service.is_loaded()}")
+        
+        # Load gamelist to get game details
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Find selected games in gamelist
+        games_to_process = [g for g in all_games if g.get('path') in selected_games]
+        
+        if not games_to_process:
+            return jsonify({'error': 'No selected games found in gamelist'}), 404
+        
+        results = []
+        for game_data in games_to_process:
+            game_name = game_data.get('name', '')
+            if not game_name:
+                continue
+            
+            print(f"🔧 DEBUG IGDB Find Best Match: Searching for '{game_name}'")
+            
+            # Search IGDB for best matches
+            # Use platform_id 18 for NES (Nintendo Entertainment System)
+            platform_id = 18 if system_name.lower() == 'nes' else None
+            matches = igdb_service.search_games_by_name(game_name, platform_id=platform_id, limit=5)
+            
+            print(f"🔧 DEBUG IGDB Find Best Match: Found {len(matches)} matches for '{game_name}'")
+            if matches:
+                print(f"🔧 DEBUG IGDB Find Best Match: First match fields: {list(matches[0].keys())}")
+                print(f"🔧 DEBUG IGDB Find Best Match: First match name: {matches[0].get('name', 'NO_NAME_FIELD')}")
+                print(f"🔧 DEBUG IGDB Find Best Match: First match summary: {matches[0].get('summary', 'NO_SUMMARY_FIELD')}")
+            
+            if matches:
+                # Map IGDB data structure to expected format
+                best_match = matches[0]  # IGDB already returns results sorted by similarity
+                
+                results.append({
+                    'game_data': game_data,
+                    'game_path': game_data.get('path'),
+                    'game_name': game_data.get('name', ''),
+                    'existing_igdbid': game_data.get('igdbid'),
+                    'match_found': True,
+                    'match_data': {
+                        'id': best_match.get('id'),
+                        'name': best_match.get('name'),
+                        'summary': best_match.get('summary', ''),
+                        'first_release_date': best_match.get('first_release_date'),
+                        'genres': best_match.get('genres', []),
+                        'publisher': igdb_service.get_company_name(best_match.get('publisher', [0])[0]) if best_match.get('publisher') and isinstance(best_match.get('publisher'), list) and len(best_match.get('publisher')) > 0 else 'Unknown Publisher',
+                        'similarity_score': best_match.get('_similarity_score', 0.0)
+                    },
+                    'all_matches': [
+                        {
+                            'id': match.get('id'),
+                            'name': match.get('name'),
+                            'summary': match.get('summary', ''),
+                            'first_release_date': match.get('first_release_date'),
+                            'genres': match.get('genres', []),
+                            'publisher': igdb_service.get_company_name(match.get('publisher', [0])[0]) if match.get('publisher') and isinstance(match.get('publisher'), list) and len(match.get('publisher')) > 0 else 'Unknown Publisher',
+                            'similarity_score': match.get('_similarity_score', 0.0)
+                        }
+                        for match in matches[:5]
+                    ]
+                })
+            else:
+                results.append({
+                    'game_data': game_data,
+                    'game_path': game_data.get('path'),
+                    'game_name': game_data.get('name', ''),
+                    'existing_igdbid': game_data.get('igdbid'),
+                    'match_found': False,
+                    'match_data': None,
+                    'all_matches': []
+                })
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'total_games': len(games_to_process),
+            'matched_games': len([r for r in results if r['match_found']])
+        })
+        
+    except Exception as e:
+        print(f"Error in find_best_matches_igdb endpoint: {e}")
+        return jsonify({'error': f'Failed to find IGDB matches: {str(e)}'}), 500
 
 
 @app.route('/api/scrap-launchbox-stop', methods=['POST'])
@@ -9664,7 +9792,9 @@ def scan_media_files(system_name):
             
             # Ensure all expected media fields exist in the game data
             # Use the same field names that the scraper expects (from consolidated config.json)
-            scraper_media_fields = ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']
+            config = load_config()
+            media_fields = config.get('media_fields', {})
+            scraper_media_fields = list(media_fields.keys())
             missing_fields = []
             none_fields = []
             
@@ -9727,7 +9857,10 @@ def scan_media_files(system_name):
             
             # Also check for orphaned media entries that might not be in the media_fields
             # This handles cases where the gamelist has media fields that aren't in the current config
-            orphaned_media_fields = ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix']
+            # Get additional media fields from config that might not be in the current media_fields
+            config = load_config()
+            all_media_fields = config.get('media_fields', {})
+            orphaned_media_fields = list(all_media_fields.keys())
             
             for field in orphaned_media_fields:
                 if field in game and game[field]:
@@ -9795,20 +9928,14 @@ def save_gamelist_xml(file_path, games):
         for i, game in enumerate(games):
             game_elem = ET.SubElement(root, 'game')
             
-            # Add all fields - include empty values for media fields to ensure they're saved
+            # Add all fields from the game data
             for field, value in game.items():
-                # Always include media-related fields, even if empty
-                if field in ['image', 'video', 'marquee', 'wheel', 'boxart', 'thumbnail', 'screenshot', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'extra1', 'mix', 'youtubeurl', 'steamgridid']:
-                    elem = ET.SubElement(game_elem, field)
-                    elem.text = html.escape(str(value), quote=False) if value else ''
-                elif field == 'hidden':
-                    # Always include hidden field if present
-                    elem = ET.SubElement(game_elem, field)
-                    elem.text = html.escape(str(value), quote=False) if value else ''
-                elif value:  # For non-media fields, only add if they have values
-                    elem = ET.SubElement(game_elem, field)
-                    # Properly escape XML characters
-                    elem.text = html.escape(str(value), quote=False)
+                # Handle boolean fields - convert to lowercase string
+                if field in ['favorite', 'kidgame']:
+                    value = 'true' if value else 'false'
+                
+                elem = ET.SubElement(game_elem, field)
+                elem.text = html.escape(str(value), quote=False) if value else ''
         
         # Create XML tree and save
         tree = ET.ElementTree(root)

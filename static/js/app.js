@@ -1555,6 +1555,10 @@ class GameCollectionManager {
             e.preventDefault();
             this.findBestMatchForSelectedSteam(); // Use Steam-specific functionality
         });
+        document.getElementById('findBestMatchIgdbBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.findBestMatchForSelectedIgdb(); // Use IGDB-specific functionality
+        });
         
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
@@ -3495,6 +3499,10 @@ class GameCollectionManager {
         document.getElementById('editSteamgridid').value = '';
         document.getElementById('editYoutubeurl').value = '';
         
+        // Clear boolean fields
+        this.updateFavoriteStar(false);
+        document.getElementById('editKidgame').checked = false;
+        
         // Now populate with game data
         document.getElementById('editName').value = game.name || '';
         document.getElementById('editPath').value = game.path || '';
@@ -3529,6 +3537,10 @@ class GameCollectionManager {
         document.getElementById('editMobygamesid').value = game.mobygamesid || '';
         document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
+        // Handle boolean fields
+        this.updateFavoriteStar(game.favorite === true || game.favorite === 'true');
+        document.getElementById('editKidgame').checked = game.kidgame === true || game.kidgame === 'true';
+        
         // Populate the media tab with the same media display as the preview panel
         await this.showEditGameMedia(game);
         
@@ -3543,6 +3555,9 @@ class GameCollectionManager {
         
         // Initialize Find Best Match button for edit modal
         this.initializeEditModalFindBestMatch();
+        
+        // Initialize favorite star click handler
+        this.initializeFavoriteStar();
         
         // Initialize IGDB search button for edit modal
         this.initializeEditModalIgdbSearch();
@@ -4847,6 +4862,10 @@ class GameCollectionManager {
         game.steamgridid = document.getElementById('editSteamgridid').value;
         game.mobygamesid = document.getElementById('editMobygamesid').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
+        
+        // Handle boolean fields
+        game.favorite = this.isFavoriteStarActive();
+        game.kidgame = document.getElementById('editKidgame').checked;
 
         // Detect which fields changed
         const changedFields = [];
@@ -4865,6 +4884,8 @@ class GameCollectionManager {
         if (originalGame.steamgridid !== game.steamgridid) changedFields.push('steamgridid');
         if (originalGame.mobygamesid !== game.mobygamesid) changedFields.push('mobygamesid');
         if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
+        if (originalGame.favorite !== game.favorite) changedFields.push('favorite');
+        if (originalGame.kidgame !== game.kidgame) changedFields.push('kidgame');
 
         try {
             // Immediately save changes to gamelist.xml
@@ -6840,6 +6861,77 @@ class GameCollectionManager {
         }
     }
 
+    async findBestMatchForSelectedIgdb() {
+        // IGDB find best match functionality with auto-selection
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
+            }
+
+            // Show the modal with loading state
+            this.showGlobalMatchModal();
+            
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            // Use the IGDB API endpoint
+            const response = await fetch('/api/find-best-matches-igdb', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
+                });
+                this.populateGlobalMatchTable('igdb');
+            } else {
+                this.showGlobalMatchEmpty();
+                this.showAlert('No matches found for the selected games', 'info');
+            }
+            
+        } catch (error) {
+            this.showAlert('Error finding best matches: ' + error.message, 'danger');
+            this.hideGlobalMatchModal();
+        } finally {
+            // Reset button state
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
+            }
+        }
+    }
+
     async findBestMatchForSelected(databaseType = 'launchbox') {
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
@@ -7146,6 +7238,18 @@ class GameCollectionManager {
                 this.showAlert(`Invalid Steam match selected. Index: ${selectedIndex}, Array length: ${allMatches.length}`, 'error');
                 return;
             }
+        } else if (databaseType === 'igdb') {
+            const allMatches = result.all_matches || [];
+            if (allMatches.length === 0) {
+                this.showAlert('No IGDB matches available', 'error');
+                return;
+            }
+            if (selectedIndex >= 0 && selectedIndex < allMatches.length && allMatches[selectedIndex]) {
+                matchId = allMatches[selectedIndex].id;
+            } else {
+                this.showAlert(`Invalid IGDB match selected. Index: ${selectedIndex}, Array length: ${allMatches.length}`, 'error');
+                return;
+            }
         }
         
         if (!matchId) {
@@ -7160,6 +7264,8 @@ class GameCollectionManager {
             await this.applyMobygamesMatch(gamePath, matchId);
         } else if (databaseType === 'steam') {
             await this.applySteamMatch(gamePath, matchId);
+        } else if (databaseType === 'igdb') {
+            await this.applyIgdbMatch(gamePath, matchId);
         }
         
         // Remove the row from the table
@@ -7246,6 +7352,29 @@ class GameCollectionManager {
             this.showAlert(`Error saving Steam ID: ${error.message}`, 'danger');
         }
     }
+    
+    async applyIgdbMatch(gamePath, igdbId) {
+        try {
+            // Find the game in the grid using ROM path
+            const game = this.games.find(g => g.path === gamePath);
+            if (game) {
+                game.igdbid = igdbId;
+                
+                // Mark game as modified
+                this.markGameAsModified(game);
+                
+                // Save changes to backend directly
+                await this.saveGameChanges();
+                
+                this.showAlert(`IGDB ID set to ${igdbId} for "${game.name}"`, 'success');
+            } else {
+                this.showAlert(`Game with path "${gamePath}" not found`, 'error');
+            }
+        } catch (error) {
+            console.error('Error in applyIgdbMatch:', error);
+            this.showAlert(`Error saving IGDB ID: ${error.message}`, 'danger');
+        }
+    }
 
     populateGlobalMatchTable(databaseType = 'launchbox') {
         const progressDiv = document.getElementById('globalMatchProgress');
@@ -7279,6 +7408,10 @@ class GameCollectionManager {
                 // Use best_match for consistency
                 scoreA = (a.best_match && a.best_match.similarity_score) ? a.best_match.similarity_score : 0;
                 scoreB = (b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0;
+            } else if (databaseType === 'igdb') {
+                // Use match_data for IGDB
+                scoreA = (a.match_data && a.match_data.similarity_score) ? a.match_data.similarity_score : 0;
+                scoreB = (b.match_data && b.match_data.similarity_score) ? b.match_data.similarity_score : 0;
             }
             
             return scoreB - scoreA; // Sort descending (highest first)
@@ -7313,6 +7446,9 @@ class GameCollectionManager {
             topMatches = result.all_matches || [];
         } else if (databaseType === 'steam') {
             currentId = result.existing_steamid || 'None';
+            topMatches = result.all_matches || [];
+        } else if (databaseType === 'igdb') {
+            currentId = result.existing_igdbid || 'None';
             topMatches = result.all_matches || [];
         }
         
@@ -7377,6 +7513,11 @@ class GameCollectionManager {
                 name = match.name;
                 publisher = match.publisher || 'Unknown Publisher';
                 id = match.game_id;
+            } else if (databaseType === 'igdb') {
+                score = match.similarity_score ? (match.similarity_score * 100).toFixed(1) : '0.0';
+                name = match.name;
+                publisher = match.publisher || 'Unknown Publisher';
+                id = match.id;
             }
             
             let optionText = `${score}%: ${name} (${publisher})`;
@@ -19012,6 +19153,43 @@ class GameCollectionManager {
         } catch (error) {
             this.showAlert('Error saving configuration', 'error');
         }
+    }
+    
+    initializeFavoriteStar() {
+        const favoriteStar = document.getElementById('editFavorite');
+        if (favoriteStar) {
+            favoriteStar.addEventListener('click', () => {
+                const isCurrentlyActive = this.isFavoriteStarActive();
+                this.updateFavoriteStar(!isCurrentlyActive);
+            });
+        }
+    }
+    
+    updateFavoriteStar(isActive) {
+        const favoriteStar = document.getElementById('editFavorite');
+        if (favoriteStar) {
+            if (isActive) {
+                favoriteStar.className = 'bi bi-star-fill text-warning';
+                favoriteStar.style.fontSize = '1.5rem';
+                favoriteStar.style.cursor = 'pointer';
+                favoriteStar.style.transition = 'all 0.2s ease';
+                favoriteStar.title = 'Click to remove from favorites';
+            } else {
+                favoriteStar.className = 'bi bi-star text-muted';
+                favoriteStar.style.fontSize = '1.5rem';
+                favoriteStar.style.cursor = 'pointer';
+                favoriteStar.style.transition = 'all 0.2s ease';
+                favoriteStar.title = 'Click to add to favorites';
+            }
+        }
+    }
+    
+    isFavoriteStarActive() {
+        const favoriteStar = document.getElementById('editFavorite');
+        if (favoriteStar) {
+            return favoriteStar.classList.contains('bi-star-fill');
+        }
+        return false;
     }
 }
 
