@@ -9312,7 +9312,9 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                                 print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
                                                 if image_id not in seen_image_ids and isinstance(image_id, str):
                                                     seen_image_ids.add(image_id)
-                                                    urls.append(normalize_igdb_url(image_id))
+                                                    url = normalize_igdb_url(image_id)
+                                                    print(f"🔧 DEBUG: Generated URL: {url}")
+                                                    urls.append(url)
                                                 else:
                                                     print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
                                         else:
