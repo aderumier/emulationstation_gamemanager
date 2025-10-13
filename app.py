@@ -9268,13 +9268,19 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                             if game_id in igdb_service.igdb_data:
                                 game = igdb_service.igdb_data[game_id]
                                 urls = []
-                                if 'artworks' in game and game['artworks']:
-                                    for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
-                                        image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
-                                        if image_id:
-                                            if media_type == 'fanart':
+                                if media_type == 'fanart':
+                                    # For fanart, use artworks
+                                    if 'artworks' in game and game['artworks']:
+                                        for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
+                                            image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
+                                            if image_id:
                                                 urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg")
-                                            else:  # marquee
+                                else:  # marquee
+                                    # For marquee, use logos field (not artworks)
+                                    if 'logos' in game and game['logos']:
+                                        for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
+                                            image_id = logo.get('image_id') if isinstance(logo, dict) else logo
+                                            if image_id:
                                                 urls.append(f"https://images.igdb.com/igdb/image/upload/t_logo_med/{image_id}.jpg")
                                 if urls:
                                     platform_name = 'Unknown'
@@ -9310,13 +9316,19 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 similar_games.sort(key=lambda x: x.get('_similarity_score', 0), reverse=True)
                 for game in similar_games[:50]:
                     urls = []
-                    if 'artworks' in game and game['artworks']:
-                        for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
-                            image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
-                            if image_id:
-                                if media_type == 'fanart':
+                    if media_type == 'fanart':
+                        # For fanart, use artworks
+                        if 'artworks' in game and game['artworks']:
+                            for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
+                                image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
+                                if image_id:
                                     urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg")
-                                else:
+                    else:  # marquee
+                        # For marquee, use logos field (not artworks)
+                        if 'logos' in game and game['logos']:
+                            for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
+                                image_id = logo.get('image_id') if isinstance(logo, dict) else logo
+                                if image_id:
                                     urls.append(f"https://images.igdb.com/igdb/image/upload/t_logo_med/{image_id}.jpg")
                     if urls:
                         platform_name = 'Unknown'
