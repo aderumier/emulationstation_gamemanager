@@ -8701,6 +8701,8 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 print(f"🔧 DEBUG: IGDB normalized name: '{normalized_name}'")
                 print(f"🔧 DEBUG: IGDB platform_index keys: {list(igdb_service.platform_index.keys())}")
                 # platform_index structure: { platform_id -> { first_char -> { normalized_name -> id } } }
+                # Find all matching games across all platforms
+                matching_games = []
                 for platform_id, platform_data in igdb_service.platform_index.items():
                     if not normalized_name:
                         continue
@@ -8710,85 +8712,114 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         print(f"🔧 DEBUG: IGDB platform {platform_id}, first_char '{first_char}', partition_games keys: {list(partition_games.keys())[:5]}...")
                         if normalized_name in partition_games:
                             game_id = partition_games[normalized_name]
-                            print(f"🔧 DEBUG: IGDB found game_id {game_id} for normalized name '{normalized_name}'")
+                            print(f"🔧 DEBUG: IGDB found game_id {game_id} for normalized name '{normalized_name}' on platform {platform_id}")
                             if game_id in igdb_service.igdb_data:
                                 game = igdb_service.igdb_data[game_id]
-                                print(f"🔧 DEBUG: IGDB game data keys: {list(game.keys())}")
-                                print(f"🔧 DEBUG: IGDB game has logos: {'logos' in game}")
-                                if 'logos' in game:
-                                    print(f"🔧 DEBUG: IGDB logos value: {game['logos']}")
-                                if 'artworks' in game:
-                                    print(f"🔧 DEBUG: IGDB artworks value: {game['artworks']}")
-                                    if isinstance(game['artworks'], dict) and game['artworks']:
-                                        first_artwork_id = next(iter(game['artworks'].keys()))
-                                        print(f"🔧 DEBUG: IGDB first artwork: {first_artwork_id}")
-                                print(f"🔧 DEBUG: About to process {media_type} for game {game.get('name', 'Unknown')}")
-                                urls = []
-                                seen_image_ids = set()  # Track seen image IDs to avoid duplicates
+                                matching_games.append((game_id, game, platform_id))
+                
+                print(f"🔧 DEBUG: IGDB found {len(matching_games)} matching games across all platforms")
+                
+                # Find the best matching game that has the requested media type
+                best_game = None
+                best_game_id = None
+                best_platform_id = None
+                
+                for game_id, game, platform_id in matching_games:
+                    has_media = False
+                    if media_type == 'fanart':
+                        has_media = 'artworks' in game and game['artworks'] and isinstance(game['artworks'], dict) and len(game['artworks']) > 0
+                    elif media_type == 'marquee':
+                        has_media = 'logos' in game and game['logos'] and isinstance(game['logos'], dict) and len(game['logos']) > 0
+                    
+                    if has_media:
+                        best_game = game
+                        best_game_id = game_id
+                        best_platform_id = platform_id
+                        print(f"🔧 DEBUG: IGDB found game with {media_type}: ID {game_id} on platform {platform_id}")
+                        break
+                
+                # If no game with media found, use the first match
+                if not best_game and matching_games:
+                    best_game_id, best_game, best_platform_id = matching_games[0]
+                    print(f"🔧 DEBUG: IGDB no game with {media_type} found, using first match: ID {best_game_id}")
+                
+                if best_game:
+                    print(f"🔧 DEBUG: IGDB using game_id {best_game_id} from platform {best_platform_id}")
+                    print(f"🔧 DEBUG: IGDB game data keys: {list(best_game.keys())}")
+                    print(f"🔧 DEBUG: IGDB game has logos: {'logos' in best_game}")
+                    if 'logos' in best_game:
+                        print(f"🔧 DEBUG: IGDB logos value: {best_game['logos']}")
+                    if 'artworks' in best_game:
+                        print(f"🔧 DEBUG: IGDB artworks value: {best_game['artworks']}")
+                        if isinstance(best_game['artworks'], dict) and best_game['artworks']:
+                            first_artwork_id = next(iter(best_game['artworks'].keys()))
+                            print(f"🔧 DEBUG: IGDB first artwork: {first_artwork_id}")
+                    print(f"🔧 DEBUG: About to process {media_type} for game {best_game.get('name', 'Unknown')}")
+                    urls = []
+                    seen_image_ids = set()  # Track seen image IDs to avoid duplicates
                                 
-                                if media_type == 'fanart':
-                                    # For fanart, use artworks
-                                    if 'artworks' in game and game['artworks']:
-                                        print(f"🔧 DEBUG: IGDB artworks type: {type(game['artworks'])}, value: {game['artworks']}")
-                                        if isinstance(game['artworks'], dict):
-                                            # New format: dict with image_id as key
-                                            print(f"🔧 DEBUG: IGDB artworks is a dict with {len(game['artworks'])} keys")
-                                            for image_id in game['artworks'].keys():
-                                                print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
-                                                if image_id not in seen_image_ids and isinstance(image_id, str):
-                                                    seen_image_ids.add(image_id)
-                                                    url = normalize_igdb_url(image_id)
-                                                    print(f"🔧 DEBUG: Generated URL: {url}")
-                                                    urls.append(url)
-                                                else:
-                                                    print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
-                                        else:
-                                            print(f"🔧 DEBUG: IGDB artworks is not a dict, it's: {type(game['artworks'])}")
-                                            print(f"🔧 DEBUG: This means the database still has old format data!")
-                                else:  # marquee
-                                    # For marquee, use logos field (not artworks)
-                                    if 'logos' in game and game['logos']:
-                                        print(f"🔧 DEBUG: IGDB logos type: {type(game['logos'])}, value: {game['logos']}")
-                                        if isinstance(game['logos'], dict):
-                                            # New format: dict with image_id as key
-                                            for image_id in game['logos'].keys():
-                                                print(f"🔧 DEBUG: Processing logo image_id: {image_id} (type: {type(image_id)})")
-                                                if image_id not in seen_image_ids and isinstance(image_id, str):
-                                                    seen_image_ids.add(image_id)
-                                                    urls.append(normalize_igdb_url(image_id))
-                                                else:
-                                                    print(f"🔧 DEBUG: Skipping invalid logo image_id: {image_id} (type: {type(image_id)})")
-                                if urls:
-                                    platform_name = 'Unknown'
-                                    if 'platform' in game and game['platform']:
-                                        platform_name = game['platform'].get('name', 'Unknown')
-                                    
-                                    # Check if we already have this game in results to avoid duplicates
-                                    game_id = game.get('id', '')
-                                    existing_game = next((r for r in results if r.get('game_id') == game_id), None)
-                                    
-                                    if existing_game:
-                                        # Merge URLs with existing game, avoiding duplicates
-                                        existing_urls = existing_game.get(f'{media_type}_urls', [])
-                                        existing_urls_set = set(existing_urls)
-                                        new_urls = [url for url in urls if url not in existing_urls_set]
-                                        existing_game[f'{media_type}_urls'].extend(new_urls)
-                                        print(f"🔧 DEBUG: IGDB merged {len(new_urls)} additional {media_type} URLs for existing game '{game.get('name', '')}'")
+                    if media_type == 'fanart':
+                        # For fanart, use artworks
+                        if 'artworks' in best_game and best_game['artworks']:
+                            print(f"🔧 DEBUG: IGDB artworks type: {type(best_game['artworks'])}, value: {best_game['artworks']}")
+                            if isinstance(best_game['artworks'], dict):
+                                # New format: dict with image_id as key
+                                print(f"🔧 DEBUG: IGDB artworks is a dict with {len(best_game['artworks'])} keys")
+                                for image_id in best_game['artworks'].keys():
+                                    print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
+                                    if image_id not in seen_image_ids and isinstance(image_id, str):
+                                        seen_image_ids.add(image_id)
+                                        url = normalize_igdb_url(image_id)
+                                        print(f"🔧 DEBUG: Generated URL: {url}")
+                                        urls.append(url)
                                     else:
-                                        # Add new game to results
-                                        results.append({
-                                            'scraper': 'igdb',
-                                            'game_name': game.get('name', ''),
-                                            'game_id': game_id,
-                                            'similarity_score': 1.0,
-                                            f'{media_type}_urls': urls,
-                                            'region': 'Unknown',
-                                            'platform': platform_name
-                                        })
-                                        print(f"🔧 DEBUG: IGDB added {len(urls)} {media_type} URLs for game '{game.get('name', '')}'")
-                                else:
-                                    print(f"🔧 DEBUG: IGDB game '{game.get('name', '')}' found but no {media_type} URLs generated")
-                            break
+                                        print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
+                            else:
+                                print(f"🔧 DEBUG: IGDB artworks is not a dict, it's: {type(best_game['artworks'])}")
+                                print(f"🔧 DEBUG: This means the database still has old format data!")
+                    else:  # marquee
+                        # For marquee, use logos field (not artworks)
+                        if 'logos' in best_game and best_game['logos']:
+                            print(f"🔧 DEBUG: IGDB logos type: {type(best_game['logos'])}, value: {best_game['logos']}")
+                            if isinstance(best_game['logos'], dict):
+                                # New format: dict with image_id as key
+                                for image_id in best_game['logos'].keys():
+                                    print(f"🔧 DEBUG: Processing logo image_id: {image_id} (type: {type(image_id)})")
+                                    if image_id not in seen_image_ids and isinstance(image_id, str):
+                                        seen_image_ids.add(image_id)
+                                        urls.append(normalize_igdb_url(image_id))
+                                    else:
+                                        print(f"🔧 DEBUG: Skipping invalid logo image_id: {image_id} (type: {type(image_id)})")
+                    
+                    if urls:
+                        platform_name = 'Unknown'
+                        if 'platform' in best_game and best_game['platform']:
+                            platform_name = best_game['platform'].get('name', 'Unknown')
+                        
+                        # Check if we already have this game in results to avoid duplicates
+                        existing_game = next((r for r in results if r.get('game_id') == best_game_id), None)
+                        
+                        if existing_game:
+                            # Merge URLs with existing game, avoiding duplicates
+                            existing_urls = existing_game.get(f'{media_type}_urls', [])
+                            existing_urls_set = set(existing_urls)
+                            new_urls = [url for url in urls if url not in existing_urls_set]
+                            existing_game[f'{media_type}_urls'].extend(new_urls)
+                            print(f"🔧 DEBUG: IGDB merged {len(new_urls)} additional {media_type} URLs for existing game '{best_game.get('name', '')}'")
+                        else:
+                            # Add new game to results
+                            results.append({
+                                'scraper': 'igdb',
+                                'game_name': best_game.get('name', ''),
+                                'game_id': best_game_id,
+                                'similarity_score': 1.0,
+                                f'{media_type}_urls': urls,
+                                'region': 'Unknown',
+                                'platform': platform_name
+                            })
+                            print(f"🔧 DEBUG: IGDB added {len(urls)} {media_type} URLs for game '{best_game.get('name', '')}'")
+                    else:
+                        print(f"🔧 DEBUG: IGDB game '{best_game.get('name', '')}' found but no {media_type} URLs generated")
             else:
                 # Similarity search across all platforms
                 from game_utils import calculate_similarity
