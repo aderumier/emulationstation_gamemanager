@@ -13198,7 +13198,7 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             if not image_id:
                 return ""
             # Construct IGDB image URL using local image ID
-            return f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg"
+            return f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.png"
 
         def add_media(mapped_field: str, image_id: str):
             if not mapped_field or not image_id:
