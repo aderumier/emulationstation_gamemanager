@@ -9301,25 +9301,37 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 if media_type == 'fanart':
                                     # For fanart, use artworks
                                     if 'artworks' in game and game['artworks']:
-                                        for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
-                                            if isinstance(artwork, dict):
-                                                image_id = artwork.get('id') or artwork.get('image_id')  # Support both new and old format
-                                                if image_id:
-                                                    urls.append(normalize_igdb_url(image_id))
-                                            else:
-                                                # Fallback for old format (simple string)
-                                                urls.append(normalize_igdb_url(artwork))
+                                        if isinstance(game['artworks'], dict):
+                                            # New format: dict with image_id as key
+                                            for image_id in game['artworks'].keys():
+                                                urls.append(normalize_igdb_url(image_id))
+                                        elif isinstance(game['artworks'], list):
+                                            # Old format: list of objects or strings
+                                            for artwork in game['artworks']:
+                                                if isinstance(artwork, dict):
+                                                    image_id = artwork.get('id') or artwork.get('image_id')
+                                                    if image_id:
+                                                        urls.append(normalize_igdb_url(image_id))
+                                                else:
+                                                    # Fallback for old format (simple string)
+                                                    urls.append(normalize_igdb_url(artwork))
                                 else:  # marquee
                                     # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
-                                        for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
-                                            if isinstance(logo, dict):
-                                                image_id = logo.get('id') or logo.get('image_id')  # Support both new and old format
-                                                if image_id:
-                                                    urls.append(normalize_igdb_url(image_id))
-                                            else:
-                                                # Fallback for old format (simple string)
-                                                urls.append(normalize_igdb_url(logo))
+                                        if isinstance(game['logos'], dict):
+                                            # New format: dict with image_id as key
+                                            for image_id in game['logos'].keys():
+                                                urls.append(normalize_igdb_url(image_id))
+                                        elif isinstance(game['logos'], list):
+                                            # Old format: list of objects or strings
+                                            for logo in game['logos']:
+                                                if isinstance(logo, dict):
+                                                    image_id = logo.get('id') or logo.get('image_id')
+                                                    if image_id:
+                                                        urls.append(normalize_igdb_url(image_id))
+                                                else:
+                                                    # Fallback for old format (simple string)
+                                                    urls.append(normalize_igdb_url(logo))
                                 if urls:
                                     platform_name = 'Unknown'
                                     if 'platform' in game and game['platform']:
@@ -9360,25 +9372,37 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     if media_type == 'fanart':
                         # For fanart, use artworks
                         if 'artworks' in game and game['artworks']:
-                            for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
-                                if isinstance(artwork, dict):
-                                    image_id = artwork.get('id') or artwork.get('image_id')  # Support both new and old format
-                                    if image_id:
-                                        urls.append(normalize_igdb_url(image_id))
-                                else:
-                                    # Fallback for old format (simple string)
-                                    urls.append(normalize_igdb_url(artwork))
+                            if isinstance(game['artworks'], dict):
+                                # New format: dict with image_id as key
+                                for image_id in game['artworks'].keys():
+                                    urls.append(normalize_igdb_url(image_id))
+                            elif isinstance(game['artworks'], list):
+                                # Old format: list of objects or strings
+                                for artwork in game['artworks']:
+                                    if isinstance(artwork, dict):
+                                        image_id = artwork.get('id') or artwork.get('image_id')
+                                        if image_id:
+                                            urls.append(normalize_igdb_url(image_id))
+                                    else:
+                                        # Fallback for old format (simple string)
+                                        urls.append(normalize_igdb_url(artwork))
                     else:  # marquee
                         # For marquee, use logos field (not artworks)
-                                    if 'logos' in game and game['logos']:
-                                        for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
-                                            if isinstance(logo, dict):
-                                                image_id = logo.get('id') or logo.get('image_id')  # Support both new and old format
-                                                if image_id:
-                                                    urls.append(normalize_igdb_url(image_id))
-                                            else:
-                                                # Fallback for old format (simple string)
-                                                urls.append(normalize_igdb_url(logo))
+                        if 'logos' in game and game['logos']:
+                            if isinstance(game['logos'], dict):
+                                # New format: dict with image_id as key
+                                for image_id in game['logos'].keys():
+                                    urls.append(normalize_igdb_url(image_id))
+                            elif isinstance(game['logos'], list):
+                                # Old format: list of objects or strings
+                                for logo in game['logos']:
+                                    if isinstance(logo, dict):
+                                        image_id = logo.get('id') or logo.get('image_id')
+                                        if image_id:
+                                            urls.append(normalize_igdb_url(image_id))
+                                    else:
+                                        # Fallback for old format (simple string)
+                                        urls.append(normalize_igdb_url(logo))
                     if urls:
                         platform_name = 'Unknown'
                         if 'platform' in game and game['platform']:

@@ -1054,33 +1054,34 @@ class IGDBDumper:
             
             # Resolve artworks references and separate logos from fanart
             if 'artworks' in game_entry and game_entry['artworks']:
-                resolved_artworks = []
-                resolved_logos = []
+                resolved_artworks = {}
+                resolved_logos = {}
                 
                 # Process each artwork and separate logos from fanart
                 for artwork_id in game_entry['artworks']:
                     if artwork_id in logos_lookup:
-                        # This is a logo - add optimized logo data to logos list
+                        # This is a logo - add optimized logo data to logos dict
                         logo_data = logos_lookup[artwork_id]
-                        resolved_logos.append({
-                            'id': logo_data['image_id'],
+                        image_id = logo_data['image_id']
+                        resolved_logos[image_id] = {
                             'w': logo_data.get('width'),
                             'h': logo_data.get('height')
-                        })
+                        }
                     elif artwork_id in fanart_lookup:
-                        # This is fanart (landscape only) - add optimized fanart data to artworks list
+                        # This is fanart (landscape only) - add optimized fanart data to artworks dict
                         fanart_data = fanart_lookup[artwork_id]
-                        resolved_artworks.append({
-                            'id': fanart_data['image_id'],
+                        image_id = fanart_data['image_id']
+                        resolved_artworks[image_id] = {
                             'w': fanart_data.get('width'),
                             'h': fanart_data.get('height')
-                        })
+                        }
                     elif artwork_id in artworks_lookup:
-                        # Fallback: if not in specific lookups, add to artworks (just image_id)
-                        resolved_artworks.append(artworks_lookup[artwork_id])
+                        # Fallback: if not in specific lookups, add to artworks (just image_id as key)
+                        image_id = artworks_lookup[artwork_id]
+                        resolved_artworks[image_id] = {}
                     else:
                         # Keep original ID if not found in lookup
-                        resolved_artworks.append(artwork_id)
+                        resolved_artworks[artwork_id] = {}
                 
                 # Update the game entry with separated media
                 game_entry['artworks'] = resolved_artworks
