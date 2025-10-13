@@ -1055,21 +1055,23 @@ class IGDBDumper:
             if 'artworks' in game_entry and game_entry['artworks']:
                 resolved_artworks = []
                 resolved_logos = []
+                
+                # Process each artwork and separate logos from fanart
                 for artwork_id in game_entry['artworks']:
-                    if artwork_id in artworks_lookup:
+                    if artwork_id in logos_lookup:
+                        # This is a logo - add to logos list
+                        resolved_logos.append(logos_lookup[artwork_id])
+                    elif artwork_id in fanart_lookup:
+                        # This is fanart - add to artworks list
+                        resolved_artworks.append(fanart_lookup[artwork_id])
+                    elif artwork_id in artworks_lookup:
+                        # Fallback: if not in specific lookups, add to artworks
                         resolved_artworks.append(artworks_lookup[artwork_id])
                     else:
                         # Keep original ID if not found in lookup
                         resolved_artworks.append(artwork_id)
                 
-                # Separate logos from fanart based on artwork_type
-                for artwork_id in game_entry['artworks']:
-                    if artwork_id in logos_lookup:
-                        resolved_logos.append(logos_lookup[artwork_id])
-                    elif artwork_id in fanart_lookup:
-                        # This is already in resolved_artworks, so we keep it there
-                        pass
-                
+                # Update the game entry with separated media
                 game_entry['artworks'] = resolved_artworks
                 if resolved_logos:
                     game_entry['logos'] = resolved_logos
