@@ -9295,7 +9295,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                         for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
                                             image_id = logo.get('image_id') if isinstance(logo, dict) else logo
                                             if image_id:
-                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_logo_med/{image_id}.png")
+                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.png")
                                 if urls:
                                     platform_name = 'Unknown'
                                     if 'platform' in game and game['platform']:
@@ -9346,7 +9346,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                         for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
                                             image_id = logo.get('image_id') if isinstance(logo, dict) else logo
                                             if image_id:
-                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_logo_med/{image_id}.png")
+                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.png")
                     if urls:
                         platform_name = 'Unknown'
                         if 'platform' in game and game['platform']:
