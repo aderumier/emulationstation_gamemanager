@@ -19506,19 +19506,26 @@ class GameCollectionManager {
     async populateMarqueeScrapersDropdown() {
         try {
             const response = await fetch('/api/config');
-            const config = await response.json();
+            const data = await response.json();
             
-            const dropdown = document.getElementById('marqueeScraper');
-            dropdown.innerHTML = '<option value="all">All Scrapers</option>';
-            
-            if (config.scrappers_config) {
-                Object.keys(config.scrappers_config).forEach(scraperName => {
-                    const scraperConfig = config.scrappers_config[scraperName];
-                    if (scraperConfig.image_type_mappings && scraperConfig.image_type_mappings.marquee) {
-                        const option = document.createElement('option');
-                        option.value = scraperName;
-                        option.textContent = scraperName.charAt(0).toUpperCase() + scraperName.slice(1);
-                        dropdown.appendChild(option);
+            if (data) {
+                const select = document.getElementById('marqueeScraper');
+                // Clear existing options except "All Scrapers"
+                select.innerHTML = '<option value="all">All Scrapers</option>';
+                
+                // Add scrapers that have marquee mapping
+                Object.keys(data).forEach(scraperName => {
+                    const scraperConfig = data[scraperName];
+                    // Check if this is a scraper config (has image_type_mappings)
+                    if (scraperConfig && typeof scraperConfig === 'object' && scraperConfig.image_type_mappings) {
+                        const imageMappings = scraperConfig.image_type_mappings || {};
+                        
+                        if ('marquee' in imageMappings) {
+                            const option = document.createElement('option');
+                            option.value = scraperName;
+                            option.textContent = scraperName.charAt(0).toUpperCase() + scraperName.slice(1);
+                            select.appendChild(option);
+                        }
                     }
                 });
             }
