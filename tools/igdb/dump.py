@@ -966,7 +966,7 @@ class IGDBDumper:
         
         # Create lookup dictionaries for media
         covers_lookup = {cover['id']: cover['image_id'] for cover in covers if 'id' in cover and 'image_id' in cover}
-        screenshots_lookup = {screenshot['id']: screenshot['image_id'] for screenshot in screenshots if 'id' in screenshot and 'image_id' in screenshot}
+        screenshots_lookup = {screenshot['id']: screenshot for screenshot in screenshots if 'id' in screenshot and 'image_id' in screenshot}
         artworks_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork}
         
         # Create separate lookup for logos (artwork_type = 7 only) and fanart (all other types)
@@ -1043,13 +1043,18 @@ class IGDBDumper:
             
             # Resolve screenshots references
             if 'screenshots' in game_entry and game_entry['screenshots']:
-                resolved_screenshots = []
+                resolved_screenshots = {}
                 for screenshot_id in game_entry['screenshots']:
                     if screenshot_id in screenshots_lookup:
-                        resolved_screenshots.append(screenshots_lookup[screenshot_id])
+                        screenshot_data = screenshots_lookup[screenshot_id]
+                        image_id = screenshot_data['image_id']
+                        resolved_screenshots[image_id] = {
+                            'w': screenshot_data.get('width'),
+                            'h': screenshot_data.get('height')
+                        }
                     else:
                         # Keep original ID if not found in lookup
-                        resolved_screenshots.append(screenshot_id)
+                        resolved_screenshots[screenshot_id] = {}
                 game_entry['screenshots'] = resolved_screenshots
             
             # Resolve artworks references and separate logos from fanart
