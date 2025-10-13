@@ -8680,7 +8680,6 @@ def download_multiscraper_media_endpoint():
         print(f"Error downloading multiscraper media: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
-def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type):
 
 def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type):
     """Common helper to search media by scraper for a given media_type ('fanart'|'marquee').
