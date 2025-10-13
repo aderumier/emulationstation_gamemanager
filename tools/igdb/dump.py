@@ -1038,8 +1038,8 @@ class IGDBDumper:
                 if cover_id in covers_lookup:
                     game_entry['cover'] = covers_lookup[cover_id]
                 else:
-                    # Keep original ID if not found in lookup
-                    pass
+                    # Remove cover if not found in lookup
+                    del game_entry['cover']
             
             # Resolve screenshots references
             if 'screenshots' in game_entry and game_entry['screenshots']:
@@ -1052,9 +1052,7 @@ class IGDBDumper:
                             'w': screenshot_data.get('width'),
                             'h': screenshot_data.get('height')
                         }
-                    else:
-                        # Keep original ID if not found in lookup
-                        resolved_screenshots[screenshot_id] = {}
+                    # No fallback - only include screenshots found in lookup
                 game_entry['screenshots'] = resolved_screenshots
             
             # Resolve artworks references and separate logos from fanart
