@@ -9298,8 +9298,6 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                     if isinstance(game['artworks'], dict) and game['artworks']:
                                         first_artwork_id = next(iter(game['artworks'].keys()))
                                         print(f"🔧 DEBUG: IGDB first artwork: {first_artwork_id}")
-                                    elif isinstance(game['artworks'], list) and game['artworks']:
-                                        print(f"🔧 DEBUG: IGDB first artwork: {game['artworks'][0]}")
                                 urls = []
                                 seen_image_ids = set()  # Track seen image IDs to avoid duplicates
                                 
@@ -9332,19 +9330,6 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                                             print(f"🔧 DEBUG: Skipping invalid parsed image_id: {image_id} (type: {type(image_id)})")
                                             except Exception as e:
                                                 print(f"🔧 DEBUG: Failed to parse artworks string: {e}")
-                                        elif isinstance(game['artworks'], list):
-                                            # Old format: list of objects or strings
-                                            for artwork in game['artworks']:
-                                                if isinstance(artwork, dict):
-                                                    image_id = artwork.get('id') or artwork.get('image_id')
-                                                    if image_id and image_id not in seen_image_ids:
-                                                        seen_image_ids.add(image_id)
-                                                        urls.append(normalize_igdb_url(image_id))
-                                                else:
-                                                    # Fallback for old format (simple string)
-                                                    if artwork and artwork not in seen_image_ids:
-                                                        seen_image_ids.add(artwork)
-                                                        urls.append(normalize_igdb_url(artwork))
                                 else:  # marquee
                                     # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
@@ -9374,19 +9359,6 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                                             print(f"🔧 DEBUG: Skipping invalid parsed logo image_id: {image_id} (type: {type(image_id)})")
                                             except Exception as e:
                                                 print(f"🔧 DEBUG: Failed to parse logos string: {e}")
-                                        elif isinstance(game['logos'], list):
-                                            # Old format: list of objects or strings
-                                            for logo in game['logos']:
-                                                if isinstance(logo, dict):
-                                                    image_id = logo.get('id') or logo.get('image_id')
-                                                    if image_id and image_id not in seen_image_ids:
-                                                        seen_image_ids.add(image_id)
-                                                        urls.append(normalize_igdb_url(image_id))
-                                                else:
-                                                    # Fallback for old format (simple string)
-                                                    if logo and logo not in seen_image_ids:
-                                                        seen_image_ids.add(logo)
-                                                        urls.append(normalize_igdb_url(logo))
                                 if urls:
                                     platform_name = 'Unknown'
                                     if 'platform' in game and game['platform']:
@@ -9461,19 +9433,6 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                                 urls.append(normalize_igdb_url(image_id))
                                 except Exception as e:
                                     print(f"🔧 DEBUG: Failed to parse artworks string in similarity search: {e}")
-                            elif isinstance(game['artworks'], list):
-                                # Old format: list of objects or strings
-                                for artwork in game['artworks']:
-                                    if isinstance(artwork, dict):
-                                        image_id = artwork.get('id') or artwork.get('image_id')
-                                        if image_id and image_id not in seen_image_ids:
-                                            seen_image_ids.add(image_id)
-                                            urls.append(normalize_igdb_url(image_id))
-                                    else:
-                                        # Fallback for old format (simple string)
-                                        if artwork and artwork not in seen_image_ids:
-                                            seen_image_ids.add(artwork)
-                                            urls.append(normalize_igdb_url(artwork))
                     else:  # marquee
                         # For marquee, use logos field (not artworks)
                         if 'logos' in game and game['logos']:
@@ -9495,19 +9454,6 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                                 urls.append(normalize_igdb_url(image_id))
                                 except Exception as e:
                                     print(f"🔧 DEBUG: Failed to parse logos string in similarity search: {e}")
-                            elif isinstance(game['logos'], list):
-                                # Old format: list of objects or strings
-                                for logo in game['logos']:
-                                    if isinstance(logo, dict):
-                                        image_id = logo.get('id') or logo.get('image_id')
-                                        if image_id and image_id not in seen_image_ids:
-                                            seen_image_ids.add(image_id)
-                                            urls.append(normalize_igdb_url(image_id))
-                                    else:
-                                        # Fallback for old format (simple string)
-                                        if logo and logo not in seen_image_ids:
-                                            seen_image_ids.add(logo)
-                                            urls.append(normalize_igdb_url(logo))
                     if urls:
                         platform_name = 'Unknown'
                         if 'platform' in game and game['platform']:
@@ -13420,13 +13366,6 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                         # New format: dict with image_id as key
                         for screenshot_id in screenshots.keys():
                             add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot_id)
-                    elif isinstance(screenshots, list):
-                        # Old format: list
-                        for screenshot_id in screenshots:
-                            add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot_id)
-                    else:
-                        # Fallback: single value
-                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshots)
                     end_time = time.time()
                     print(f"⏱️ IGDB local screenshots processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
@@ -13440,13 +13379,6 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                         # New format: dict with image_id as key
                         for artwork_id in artworks.keys():
                             add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork_id)
-                    elif isinstance(artworks, list):
-                        # Old format: list
-                        for artwork_id in artworks:
-                            add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork_id)
-                    else:
-                        # Fallback: single value
-                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artworks)
                     end_time = time.time()
                     print(f"⏱️ IGDB local artworks processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
@@ -13461,15 +13393,6 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                         for logo_id in logos.keys():
                             logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
                             add_media(logo_field, logo_id)
-                    elif isinstance(logos, list):
-                        # Old format: list
-                        for logo_id in logos:
-                            logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
-                            add_media(logo_field, logo_id)
-                    else:
-                        # Fallback: single value
-                        logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
-                        add_media(logo_field, logos)
                     end_time = time.time()
                     print(f"⏱️ IGDB local logos processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
@@ -13499,15 +13422,6 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                         for screenshot_id in screenshots.keys():
                             add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot_id)
                         print(f"✅ Processed {len(screenshots)} screenshot(s)")
-                    elif isinstance(screenshots, list):
-                        # Old format: list
-                        for screenshot_id in screenshots:
-                            add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshot_id)
-                        print(f"✅ Processed {len(screenshots)} screenshot(s)")
-                    else:
-                        # Fallback: single value
-                        add_media(get_gamelist_field_for_igdb_type('screenshots', 'image'), screenshots)
-                        print(f"✅ Processed 1 screenshot")
                 except Exception as e:
                     print(f"Error processing screenshots: {e}")
             
@@ -13520,15 +13434,6 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                         for artwork_id in artworks.keys():
                             add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork_id)
                         print(f"✅ Processed {len(artworks)} artwork(s)")
-                    elif isinstance(artworks, list):
-                        # Old format: list
-                        for artwork_id in artworks:
-                            add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artwork_id)
-                        print(f"✅ Processed {len(artworks)} artwork(s)")
-                    else:
-                        # Fallback: single value
-                        add_media(get_gamelist_field_for_igdb_type('artworks', 'fanart'), artworks)
-                        print(f"✅ Processed 1 artwork")
                 except Exception as e:
                     print(f"Error processing artworks: {e}")
             
@@ -13542,17 +13447,6 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                             logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
                             add_media(logo_field, logo_id)
                         print(f"✅ Processed {len(logos)} logo(s)")
-                    elif isinstance(logos, list):
-                        # Old format: list
-                        for logo_id in logos:
-                            logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
-                            add_media(logo_field, logo_id)
-                        print(f"✅ Processed {len(logos)} logo(s)")
-                    else:
-                        # Fallback: single value
-                        logo_field = get_gamelist_field_for_igdb_type('logos', 'marquee')
-                        add_media(logo_field, logos)
-                        print(f"✅ Processed 1 logo")
                 except Exception as e:
                     print(f"Error processing logos: {e}")
             
@@ -21170,12 +21064,6 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 if isinstance(igdb_game['artworks'], dict):
                     # New format: dict with image_id as key
                     artwork_id = next(iter(igdb_game['artworks'].keys())) if igdb_game['artworks'] else None
-                elif isinstance(igdb_game['artworks'], list):
-                    # Old format: list
-                    artwork_id = igdb_game['artworks'][0] if igdb_game['artworks'] else None
-                else:
-                    # Fallback: single value
-                    artwork_id = igdb_game['artworks']
                 
                 if artwork_id:
                     artwork_data = {
@@ -21211,12 +21099,6 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 if isinstance(igdb_game['screenshots'], dict):
                     # New format: dict with image_id as key
                     screenshot_id = next(iter(igdb_game['screenshots'].keys())) if igdb_game['screenshots'] else None
-                elif isinstance(igdb_game['screenshots'], list):
-                    # Old format: list
-                    screenshot_id = igdb_game['screenshots'][0] if igdb_game['screenshots'] else None
-                else:
-                    # Fallback: single value
-                    screenshot_id = igdb_game['screenshots']
                 
                 if screenshot_id:
                     screenshot_data = {
