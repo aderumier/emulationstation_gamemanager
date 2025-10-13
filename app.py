@@ -8793,6 +8793,8 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 # Similarity search across all platforms
                 from game_utils import calculate_similarity
                 similar_games = []
+                # Normalize the search game name for consistent comparison
+                normalized_search_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
                 for platform_id, platform_data in igdb_service.platform_index.items():
                     # Flatten normalized_name -> id
                     flat = []
@@ -8801,7 +8803,8 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     for normalized_name, gid in flat:
                         if gid in igdb_service.igdb_data:
                             game = igdb_service.igdb_data[gid]
-                            similarity = calculate_similarity(game_name, game.get('name', ''))
+                            # Compare normalized names for better similarity matching
+                            similarity = calculate_similarity(normalized_search_name, normalized_name)
                             if similarity > 0.9:
                                 game = game.copy()
                                 game['_similarity_score'] = similarity
