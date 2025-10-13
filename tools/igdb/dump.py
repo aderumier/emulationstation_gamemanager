@@ -570,7 +570,7 @@ class IGDBDumper:
             ids_str = ','.join(map(str, batch_ids))
             
             query = f"""
-            fields id,image_id,width,height,url;
+            fields id,image_id,width,height,url,artwork_type;
             where game = ({ids_str});
             limit 500;
             """
@@ -830,7 +830,7 @@ class IGDBDumper:
                 print(f"📦 Fetching artworks batch: offset={offset}, limit={batch_size}")
                 
                 query = f"""
-                fields id,image_id,width,height,url;
+                fields id,image_id,width,height,url,artwork_type;
                 limit {batch_size};
                 offset {offset};
                 """
@@ -969,6 +969,10 @@ class IGDBDumper:
         screenshots_lookup = {screenshot['id']: screenshot['image_id'] for screenshot in screenshots if 'id' in screenshot and 'image_id' in screenshot}
         artworks_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork}
         
+        # Create separate lookup for logos (artwork_type = 7) and fanart (artwork_type != 7)
+        logos_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') == 7}
+        fanart_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') != 7}
+        
         # Create videos lookup by game ID
         videos_lookup = {}
         for video in videos:
@@ -1011,7 +1015,7 @@ class IGDBDumper:
                         developers_by_game[game_id] = []
                     developers_by_game[game_id].append(company_id)
         
-        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} artworks, {len(videos_lookup)} games with videos, {len(companies_lookup)} companies, {len(genres_lookup)} genres")
+        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} artworks ({len(fanart_lookup)} fanart, {len(logos_lookup)} logos), {len(videos_lookup)} games with videos, {len(companies_lookup)} companies, {len(genres_lookup)} genres")
         print(f"📊 Created reverse mappings: {len(publishers_by_game)} games with publishers, {len(developers_by_game)} games with developers")
         
         # Build consolidated games dictionary
@@ -1047,16 +1051,28 @@ class IGDBDumper:
                         resolved_screenshots.append(screenshot_id)
                 game_entry['screenshots'] = resolved_screenshots
             
-            # Resolve artworks references
+            # Resolve artworks references and separate logos from fanart
             if 'artworks' in game_entry and game_entry['artworks']:
                 resolved_artworks = []
+                resolved_logos = []
                 for artwork_id in game_entry['artworks']:
                     if artwork_id in artworks_lookup:
                         resolved_artworks.append(artworks_lookup[artwork_id])
                     else:
                         # Keep original ID if not found in lookup
                         resolved_artworks.append(artwork_id)
+                
+                # Separate logos from fanart based on artwork_type
+                for artwork_id in game_entry['artworks']:
+                    if artwork_id in logos_lookup:
+                        resolved_logos.append(logos_lookup[artwork_id])
+                    elif artwork_id in fanart_lookup:
+                        # This is already in resolved_artworks, so we keep it there
+                        pass
+                
                 game_entry['artworks'] = resolved_artworks
+                if resolved_logos:
+                    game_entry['logos'] = resolved_logos
             
             # Add videos for this game
             if game_id in videos_lookup:
