@@ -9306,12 +9306,32 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 if media_type == 'fanart':
                                     # For fanart, use artworks
                                     if 'artworks' in game and game['artworks']:
+                                        print(f"🔧 DEBUG: IGDB artworks type: {type(game['artworks'])}, value: {game['artworks']}")
                                         if isinstance(game['artworks'], dict):
                                             # New format: dict with image_id as key
                                             for image_id in game['artworks'].keys():
-                                                if image_id not in seen_image_ids:
+                                                print(f"🔧 DEBUG: Processing image_id: {image_id} (type: {type(image_id)})")
+                                                if image_id not in seen_image_ids and isinstance(image_id, str):
                                                     seen_image_ids.add(image_id)
                                                     urls.append(normalize_igdb_url(image_id))
+                                                else:
+                                                    print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
+                                        elif isinstance(game['artworks'], str):
+                                            # Handle case where artworks is a string representation of a dict
+                                            print(f"🔧 DEBUG: IGDB artworks is a string, trying to parse as dict")
+                                            try:
+                                                import ast
+                                                artworks_dict = ast.literal_eval(game['artworks'])
+                                                if isinstance(artworks_dict, dict):
+                                                    for image_id in artworks_dict.keys():
+                                                        print(f"🔧 DEBUG: Processing parsed image_id: {image_id} (type: {type(image_id)})")
+                                                        if image_id not in seen_image_ids and isinstance(image_id, str):
+                                                            seen_image_ids.add(image_id)
+                                                            urls.append(normalize_igdb_url(image_id))
+                                                        else:
+                                                            print(f"🔧 DEBUG: Skipping invalid parsed image_id: {image_id} (type: {type(image_id)})")
+                                            except Exception as e:
+                                                print(f"🔧 DEBUG: Failed to parse artworks string: {e}")
                                         elif isinstance(game['artworks'], list):
                                             # Old format: list of objects or strings
                                             for artwork in game['artworks']:
@@ -9328,12 +9348,32 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 else:  # marquee
                                     # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
+                                        print(f"🔧 DEBUG: IGDB logos type: {type(game['logos'])}, value: {game['logos']}")
                                         if isinstance(game['logos'], dict):
                                             # New format: dict with image_id as key
                                             for image_id in game['logos'].keys():
-                                                if image_id not in seen_image_ids:
+                                                print(f"🔧 DEBUG: Processing logo image_id: {image_id} (type: {type(image_id)})")
+                                                if image_id not in seen_image_ids and isinstance(image_id, str):
                                                     seen_image_ids.add(image_id)
                                                     urls.append(normalize_igdb_url(image_id))
+                                                else:
+                                                    print(f"🔧 DEBUG: Skipping invalid logo image_id: {image_id} (type: {type(image_id)})")
+                                        elif isinstance(game['logos'], str):
+                                            # Handle case where logos is a string representation of a dict
+                                            print(f"🔧 DEBUG: IGDB logos is a string, trying to parse as dict")
+                                            try:
+                                                import ast
+                                                logos_dict = ast.literal_eval(game['logos'])
+                                                if isinstance(logos_dict, dict):
+                                                    for image_id in logos_dict.keys():
+                                                        print(f"🔧 DEBUG: Processing parsed logo image_id: {image_id} (type: {type(image_id)})")
+                                                        if image_id not in seen_image_ids and isinstance(image_id, str):
+                                                            seen_image_ids.add(image_id)
+                                                            urls.append(normalize_igdb_url(image_id))
+                                                        else:
+                                                            print(f"🔧 DEBUG: Skipping invalid parsed logo image_id: {image_id} (type: {type(image_id)})")
+                                            except Exception as e:
+                                                print(f"🔧 DEBUG: Failed to parse logos string: {e}")
                                         elif isinstance(game['logos'], list):
                                             # Old format: list of objects or strings
                                             for logo in game['logos']:
@@ -9406,9 +9446,21 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                             if isinstance(game['artworks'], dict):
                                 # New format: dict with image_id as key
                                 for image_id in game['artworks'].keys():
-                                    if image_id not in seen_image_ids:
+                                    if image_id not in seen_image_ids and isinstance(image_id, str):
                                         seen_image_ids.add(image_id)
                                         urls.append(normalize_igdb_url(image_id))
+                            elif isinstance(game['artworks'], str):
+                                # Handle case where artworks is a string representation of a dict
+                                try:
+                                    import ast
+                                    artworks_dict = ast.literal_eval(game['artworks'])
+                                    if isinstance(artworks_dict, dict):
+                                        for image_id in artworks_dict.keys():
+                                            if image_id not in seen_image_ids and isinstance(image_id, str):
+                                                seen_image_ids.add(image_id)
+                                                urls.append(normalize_igdb_url(image_id))
+                                except Exception as e:
+                                    print(f"🔧 DEBUG: Failed to parse artworks string in similarity search: {e}")
                             elif isinstance(game['artworks'], list):
                                 # Old format: list of objects or strings
                                 for artwork in game['artworks']:
@@ -9428,9 +9480,21 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                             if isinstance(game['logos'], dict):
                                 # New format: dict with image_id as key
                                 for image_id in game['logos'].keys():
-                                    if image_id not in seen_image_ids:
+                                    if image_id not in seen_image_ids and isinstance(image_id, str):
                                         seen_image_ids.add(image_id)
                                         urls.append(normalize_igdb_url(image_id))
+                            elif isinstance(game['logos'], str):
+                                # Handle case where logos is a string representation of a dict
+                                try:
+                                    import ast
+                                    logos_dict = ast.literal_eval(game['logos'])
+                                    if isinstance(logos_dict, dict):
+                                        for image_id in logos_dict.keys():
+                                            if image_id not in seen_image_ids and isinstance(image_id, str):
+                                                seen_image_ids.add(image_id)
+                                                urls.append(normalize_igdb_url(image_id))
+                                except Exception as e:
+                                    print(f"🔧 DEBUG: Failed to parse logos string in similarity search: {e}")
                             elif isinstance(game['logos'], list):
                                 # Old format: list of objects or strings
                                 for logo in game['logos']:
