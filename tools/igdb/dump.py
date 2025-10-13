@@ -970,8 +970,9 @@ class IGDBDumper:
         artworks_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork}
         
         # Create separate lookup for logos (artwork_type = 7 only) and fanart (all other types)
-        logos_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') == 7}
-        fanart_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') != 7}
+        # Keep full artwork data including height and width
+        logos_lookup = {artwork['id']: artwork for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') == 7}
+        fanart_lookup = {artwork['id']: artwork for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') != 7 and artwork.get('width', 0) > artwork.get('height', 0)}
         
         # Create videos lookup by game ID
         videos_lookup = {}
@@ -1015,7 +1016,7 @@ class IGDBDumper:
                         developers_by_game[game_id] = []
                     developers_by_game[game_id].append(company_id)
         
-        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} total artworks ({len(fanart_lookup)} fanart, {len(logos_lookup)} logos type 7), {len(videos_lookup)} games with videos, {len(companies_lookup)} companies, {len(genres_lookup)} genres")
+        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} total artworks ({len(fanart_lookup)} fanart landscape, {len(logos_lookup)} logos type 7), {len(videos_lookup)} games with videos, {len(companies_lookup)} companies, {len(genres_lookup)} genres")
         print(f"📊 Created reverse mappings: {len(publishers_by_game)} games with publishers, {len(developers_by_game)} games with developers")
         
         # Build consolidated games dictionary
@@ -1059,13 +1060,25 @@ class IGDBDumper:
                 # Process each artwork and separate logos from fanart
                 for artwork_id in game_entry['artworks']:
                     if artwork_id in logos_lookup:
-                        # This is a logo - add to logos list
-                        resolved_logos.append(logos_lookup[artwork_id])
+                        # This is a logo - add full logo data to logos list
+                        logo_data = logos_lookup[artwork_id]
+                        resolved_logos.append({
+                            'image_id': logo_data['image_id'],
+                            'width': logo_data.get('width'),
+                            'height': logo_data.get('height'),
+                            'artwork_type': logo_data.get('artwork_type')
+                        })
                     elif artwork_id in fanart_lookup:
-                        # This is fanart - add to artworks list
-                        resolved_artworks.append(fanart_lookup[artwork_id])
+                        # This is fanart (landscape only) - add full fanart data to artworks list
+                        fanart_data = fanart_lookup[artwork_id]
+                        resolved_artworks.append({
+                            'image_id': fanart_data['image_id'],
+                            'width': fanart_data.get('width'),
+                            'height': fanart_data.get('height'),
+                            'artwork_type': fanart_data.get('artwork_type')
+                        })
                     elif artwork_id in artworks_lookup:
-                        # Fallback: if not in specific lookups, add to artworks
+                        # Fallback: if not in specific lookups, add to artworks (just image_id)
                         resolved_artworks.append(artworks_lookup[artwork_id])
                     else:
                         # Keep original ID if not found in lookup
