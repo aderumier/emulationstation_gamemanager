@@ -9315,9 +9315,6 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                                     urls.append(normalize_igdb_url(image_id))
                                                 else:
                                                     print(f"🔧 DEBUG: Skipping invalid image_id: {image_id} (type: {type(image_id)})")
-                                        else:
-                                            print(f"🔧 DEBUG: IGDB artworks is not a dict, it's: {type(game['artworks'])}")
-                                            print(f"🔧 DEBUG: This means the database still has old format data!")
                                         elif isinstance(game['artworks'], str):
                                             # Handle case where artworks is a string representation of a dict
                                             print(f"🔧 DEBUG: IGDB artworks is a string, trying to parse as dict")
@@ -9334,6 +9331,9 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                                             print(f"🔧 DEBUG: Skipping invalid parsed image_id: {image_id} (type: {type(image_id)})")
                                             except Exception as e:
                                                 print(f"🔧 DEBUG: Failed to parse artworks string: {e}")
+                                        else:
+                                            print(f"🔧 DEBUG: IGDB artworks is not a dict or string, it's: {type(game['artworks'])}")
+                                            print(f"🔧 DEBUG: This means the database still has old format data!")
                                 else:  # marquee
                                     # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
