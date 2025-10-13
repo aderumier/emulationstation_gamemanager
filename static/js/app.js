@@ -8915,6 +8915,11 @@ class GameCollectionManager {
                                     <i class="bi bi-image"></i>
                                 </button>
                                 ` : ''}
+                                ${field === 'marquee' ? `
+                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                    <i class="bi bi-badge-ad"></i>
+                                </button>
+                                ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
@@ -8940,6 +8945,11 @@ class GameCollectionManager {
                                 ${field === 'fanart' ? `
                                 <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-image"></i>
+                                </button>
+                                ` : ''}
+                                ${field === 'marquee' ? `
+                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                    <i class="bi bi-badge-ad"></i>
                                 </button>
                                 ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -19470,6 +19480,181 @@ class GameCollectionManager {
             this.showAlert('Error downloading fanart', 'error');
         }
     }
+
+    // Marquee Search Functions
+    async openMarqueeSearchModal(game) {
+        const modal = new bootstrap.Modal(document.getElementById('marqueeSearchModal'));
+        
+        // Pre-fill the game name
+        document.getElementById('marqueeGameName').value = game.name || '';
+        
+        // Set the current system for the search
+        this.currentMarqueeSearchGame = game;
+        this.currentMarqueeSearchSystem = this.currentSystem;
+        
+        // Populate marquee scrapers dropdown
+        await this.populateMarqueeScrapersDropdown();
+        
+        // Clear previous results
+        document.getElementById('marqueeSearchResults').style.display = 'none';
+        document.getElementById('marqueeResultsContainer').innerHTML = '';
+        
+        // Show the modal
+        modal.show();
+    }
+
+    async populateMarqueeScrapersDropdown() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            const dropdown = document.getElementById('marqueeScraper');
+            dropdown.innerHTML = '<option value="all">All Scrapers</option>';
+            
+            if (config.scrappers_config) {
+                Object.keys(config.scrappers_config).forEach(scraperName => {
+                    const scraperConfig = config.scrappers_config[scraperName];
+                    if (scraperConfig.image_type_mappings && scraperConfig.image_type_mappings.marquee) {
+                        const option = document.createElement('option');
+                        option.value = scraperName;
+                        option.textContent = scraperName.charAt(0).toUpperCase() + scraperName.slice(1);
+                        dropdown.appendChild(option);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error populating marquee scrapers dropdown:', error);
+        }
+    }
+
+    async performMarqueeSearch() {
+        const gameName = document.getElementById('marqueeGameName').value.trim();
+        const selectedScraper = document.getElementById('marqueeScraper').value;
+        const directMatch = document.getElementById('marqueeDirectMatch').checked;
+        
+        if (!gameName) {
+            this.showAlert('Please enter a game name', 'warning');
+            return;
+        }
+        
+        // Show loading
+        document.getElementById('marqueeSearchLoading').style.display = 'block';
+        document.getElementById('marqueeSearchResults').style.display = 'none';
+        
+        try {
+            const response = await fetch('/api/marquee-search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: this.currentMarqueeSearchSystem,
+                    scraper: selectedScraper,
+                    direct_match: directMatch
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide loading
+            document.getElementById('marqueeSearchLoading').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displayMarqueeSearchResults(result.results);
+            } else {
+                this.showAlert(`Error searching marquee: ${result.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            document.getElementById('marqueeSearchLoading').style.display = 'none';
+            this.showAlert('Error searching marquee', 'error');
+        }
+    }
+
+    displayMarqueeSearchResults(results) {
+        const container = document.getElementById('marqueeResultsContainer');
+        container.innerHTML = '';
+        
+        if (!results || results.length === 0) {
+            container.innerHTML = '<div class="col-12"><div class="alert alert-info">No marquee found.</div></div>';
+            document.getElementById('marqueeSearchResults').style.display = 'block';
+            return;
+        }
+        
+        results.forEach(result => {
+            if (result.marquee_urls && result.marquee_urls.length > 0) {
+                result.marquee_urls.forEach(url => {
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'col-md-4 col-lg-3 mb-3';
+                    resultCard.innerHTML = `
+                        <div class="card h-100">
+                            <div class="card-img-top-container" style="height: 200px; overflow: hidden; background-color: #f8f9fa;">
+                                <img src="${url}" class="card-img-top" style="object-fit: contain; height: 100%; width: 100%;" 
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                <div class="d-flex align-items-center justify-content-center h-100" style="display: none;">
+                                    <div class="text-muted text-center">
+                                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                                        <div class="small">Image not available</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <h6 class="card-title">${result.game_name || 'Unknown Game'}</h6>
+                                <p class="card-text small text-muted flex-grow-1">
+                                    <strong>Scraper:</strong> ${result.scraper || 'Unknown'}<br>
+                                    <strong>System:</strong> ${result.platform || 'Unknown'}<br>
+                                    <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
+                                </p>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleMarqueeImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentMarqueeSearchGame).replace(/"/g, '&quot;')})">
+                                        <i class="bi bi-download me-1"></i>Download This Marquee
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(resultCard);
+                });
+            }
+        });
+
+        document.getElementById('marqueeSearchResults').style.display = 'block';
+    }
+
+    async downloadSingleMarqueeImage(marqueeUrl, marqueeResult, game) {
+        try {
+            const response = await fetch('/api/download-multiscraper-media', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    game_name: game.name,
+                    system_name: this.currentMarqueeSearchSystem,
+                    media_type: 'marquee',
+                    media_url: marqueeUrl
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showAlert('Marquee downloaded successfully!', 'success');
+                
+                // Close the marquee search modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('marqueeSearchModal'));
+                modal.hide();
+                
+                // Refresh the media preview
+                this.showMediaPreview(game);
+            } else {
+                this.showAlert(`Error downloading marquee: ${result.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            this.showAlert('Error downloading marquee', 'error');
+        }
+    }
 }
 
 // Handle Steam image loading with fallback
@@ -19605,6 +19790,20 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             if (window.gameManager) {
                 window.gameManager.performFanartSearch();
+            }
+        });
+    }
+});
+
+// Marquee Search Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+    // Marquee search form submission
+    const marqueeSearchForm = document.getElementById('marqueeSearchForm');
+    if (marqueeSearchForm) {
+        marqueeSearchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (window.gameManager) {
+                window.gameManager.performMarqueeSearch();
             }
         });
     }
