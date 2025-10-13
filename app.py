@@ -3274,9 +3274,9 @@ current_system_platform = None
 
 # Global metadata cache for faster lookups (consolidated per DatabaseID)
 # global_metadata_cache[DatabaseID] = {
-#   'game': <Game element>,
-#   'images': [<GameImage elements>],
-#   'alternate_names': [<GameAlternateName elements>]
+#   'game': <Game dictionary>,
+#   'images': [<GameImage dictionaries>],
+#   'alternate_names': [<GameAlternateName dictionaries>]
 # }
 global_metadata_cache = {}
 global_metadata_cache_loaded = False
@@ -3292,6 +3292,13 @@ global_steam_service_loaded = False
 # Global IGDB service instance
 global_igdb_service = None
 global_igdb_service_loaded = False
+
+# Global LaunchBox partitioned indexes
+global_launchbox_partition_index = None
+global_launchbox_partition_index_no_parens = None
+global_launchbox_indexes_loaded = False
+
+
 
 def get_mobygames_game_data(game, system_name, service=None):
     """Get MobyGames game data by ID or name - common function for scrapper and manual scrap"""
@@ -3665,6 +3672,141 @@ def load_igdb_service():
         print(f"❌ Failed to load IGDB service: {e}")
         global_igdb_service_loaded = True  # Mark as loaded to prevent retries
         return None
+
+def load_launchbox_partitioned_indexes():
+    """Load LaunchBox partitioned indexes from cache or create them"""
+    global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded, global_metadata_cache, global_metadata_cache_loaded
+    
+    if global_launchbox_indexes_loaded:
+        return global_launchbox_partition_index, global_launchbox_partition_index_no_parens
+    
+    try:
+        import os
+        import pickle
+        from game_utils import normalize_game_name
+        
+        # Check if cache files exist
+        cache_dir = 'var/cache'
+        index_file = os.path.join(cache_dir, 'launchbox_partition_index.pkl')
+        index_no_parens_file = os.path.join(cache_dir, 'launchbox_partition_index_no_parens.pkl')
+        
+        if os.path.exists(index_file) and os.path.exists(index_no_parens_file):
+            # Load from cache
+            with open(index_file, 'rb') as f:
+                global_launchbox_partition_index = pickle.load(f)
+            with open(index_no_parens_file, 'rb') as f:
+                global_launchbox_partition_index_no_parens = pickle.load(f)
+            
+            print("✅ LaunchBox partitioned indexes loaded from cache")
+            global_launchbox_indexes_loaded = True
+            return global_launchbox_partition_index, global_launchbox_partition_index_no_parens
+        
+        # Create indexes from global metadata cache
+        print("🔄 Creating LaunchBox partitioned indexes...")
+        
+        # Load the global metadata cache directly (not the derived view)
+        if not global_metadata_cache_loaded:
+            print("❌ Global metadata cache not loaded yet")
+            global_launchbox_indexes_loaded = True
+            return None, None
+        
+        if not global_metadata_cache:
+            print("❌ No global metadata cache available")
+            global_launchbox_indexes_loaded = True
+            return None, None
+        
+        print(f"🔧 DEBUG: Global metadata cache has {len(global_metadata_cache)} entries")
+        
+        # Initialize indexes
+        global_launchbox_partition_index = {}  # dict[systemid][normalized_name] = launchboxid
+        global_launchbox_partition_index_no_parens = {}  # dict[systemid][normalized_name_without_parens] = launchboxid
+        
+        # Process all games from global cache
+        processed_count = 0
+        skipped_count = 0
+        total_names_processed = 0
+        
+        for db_id, entry in global_metadata_cache.items():
+            game_elem = entry.get('game')
+            if game_elem is None:
+                skipped_count += 1
+                continue
+            
+            # Get game name and platform
+            game_name = None
+            platform = None
+            
+            # Handle different game_elem formats
+            if hasattr(game_elem, 'tag'):  # XML element
+                for child in game_elem:
+                    if child.tag == 'Name' and child.text:
+                        game_name = child.text.strip()
+                    elif child.tag == 'Platform' and child.text:
+                        platform = child.text.strip()
+            elif isinstance(game_elem, dict):  # Dictionary format
+                game_name = game_elem.get('Name', '')
+                platform = game_elem.get('Platform', '')
+            
+            if not game_name or not platform:
+                skipped_count += 1
+                continue
+            
+            processed_count += 1
+            
+            # Get alternate names
+            alternate_names = entry.get('alternate_names', [])
+            
+            # Collect all names (main + alternates)
+            all_names = [game_name]
+            for alt_name_elem in alternate_names:
+                if hasattr(alt_name_elem, 'text') and alt_name_elem.text:
+                    all_names.append(alt_name_elem.text.strip())
+                elif isinstance(alt_name_elem, dict) and alt_name_elem.get('Name'):
+                    all_names.append(alt_name_elem['Name'].strip())
+            
+            # Process all names (main + alternates)
+            for name in all_names:
+                if not name:
+                    continue
+                
+                total_names_processed += 1
+                
+                # Normalize game name with parentheses
+                normalized_with_parens = normalize_game_name(name, remove_paranthesis=False, remove_articles=False)
+                if normalized_with_parens:
+                    if platform not in global_launchbox_partition_index:
+                        global_launchbox_partition_index[platform] = {}
+                    global_launchbox_partition_index[platform][normalized_with_parens] = db_id
+                
+                # Normalize game name without parentheses
+                normalized_no_parens = normalize_game_name(name, remove_paranthesis=True, remove_articles=True)
+                if normalized_no_parens:
+                    if platform not in global_launchbox_partition_index_no_parens:
+                        global_launchbox_partition_index_no_parens[platform] = {}
+                    global_launchbox_partition_index_no_parens[platform][normalized_no_parens] = db_id
+        
+        # Save to cache files
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(index_file, 'wb') as f:
+            pickle.dump(global_launchbox_partition_index, f)
+        with open(index_no_parens_file, 'wb') as f:
+            pickle.dump(global_launchbox_partition_index_no_parens, f)
+        
+        print(f"✅ LaunchBox partitioned indexes created and saved to cache")
+        print(f"   - Processed {processed_count} games, skipped {skipped_count} games")
+        print(f"   - Total names processed: {total_names_processed} (including alternate names)")
+        print(f"   - With parentheses: {sum(len(platform_index) for platform_index in global_launchbox_partition_index.values())} entries")
+        print(f"   - Without parentheses: {sum(len(platform_index) for platform_index in global_launchbox_partition_index_no_parens.values())} entries")
+        print(f"   - Platforms: {len(global_launchbox_partition_index)} platforms")
+        
+        global_launchbox_indexes_loaded = True
+        return global_launchbox_partition_index, global_launchbox_partition_index_no_parens
+        
+    except Exception as e:
+        print(f"❌ Failed to load LaunchBox partitioned indexes: {e}")
+        global_launchbox_indexes_loaded = True
+        return None, None
+
 
 def _save_global_cache_to_file(cache_data):
     """Save global cache to file for worker processes to load quickly"""
@@ -6749,10 +6891,13 @@ def flush_launchbox_caches():
     print("🧹 Flushing all LaunchBox-related caches...")
     
     # Clear in-memory caches
-    global global_metadata_cache_loaded, global_metadata_cache, _launchbox_platforms_cache
+    global global_metadata_cache_loaded, global_metadata_cache, _launchbox_platforms_cache, global_launchbox_indexes_loaded, global_launchbox_partition_index, global_launchbox_partition_index_no_parens
     global_metadata_cache_loaded = False
     global_metadata_cache = {}
     _launchbox_platforms_cache = None
+    global_launchbox_indexes_loaded = False
+    global_launchbox_partition_index = None
+    global_launchbox_partition_index_no_parens = None
     
     # Note: MobyGames partitioned index cache is not related to LaunchBox and should not be removed
     
@@ -7109,6 +7254,32 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
     if not metadata_games:
         return None, 0
     
+    # Use global partitioned indexes
+    partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
+    if not partition_index or not partition_index_no_parens or target_platform not in partition_index:
+        print(f"🔧 DEBUG: Global partitioned indexes not available for platform '{target_platform}'")
+        return None, 0
+    
+    from game_utils import normalize_game_name
+    
+    # Try exact match with parentheses first
+    normalized_with_parens = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
+    if normalized_with_parens and normalized_with_parens in partition_index[target_platform]:
+        launchboxid = partition_index[target_platform][normalized_with_parens]
+        # Find the game in metadata_games
+        for game in metadata_games:
+            if str(game.get('DatabaseID', '')) == str(launchboxid):
+                return game, 1.0
+    
+    # Try exact match without parentheses
+    normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+    if normalized_no_parens and normalized_no_parens in partition_index_no_parens[target_platform]:
+        launchboxid = partition_index_no_parens[target_platform][normalized_no_parens]
+        # Find the game in metadata_games
+        for game in metadata_games:
+            if str(game.get('DatabaseID', '')) == str(launchboxid):
+                return game, 1.0
+    
     # If we have a launchboxid, try to find the exact match first via cache
     if existing_launchboxid:
         print(f"🔧 DEBUG: Looking up existing launchboxid: {existing_launchboxid}")
@@ -7263,7 +7434,7 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
     
     return best_match, best_score
 def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mapping_config=None):
-    """Get top N matches for a game name using partitioned index and Jaro-Winkler similarity"""
+    """Get top N matches for a game name using global partitioned indexes and Jaro-Winkler similarity"""
     print(f"🔍 DEBUG: get_top_matches called for '{game_name}' (platform: {target_platform}, top_n: {top_n})")
     
     if not metadata_games:
@@ -7277,100 +7448,62 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
         print(f"🔍 DEBUG: Normalized name is empty, returning empty list")
         return []
     
-    # Build partitioned similarity index if not exists
-    if not hasattr(get_top_matches, '_similarity_index') or get_top_matches._metadata_games is not metadata_games:
-        print(f"DEBUG: Building partitioned similarity index for {len(metadata_games)} games...")
-        get_top_matches._similarity_index = {}
-        get_top_matches._metadata_games = metadata_games
-    
-        main_count = 0
-        alt_count = 0
-        for game in metadata_games:
-            # Index main name
-            main_name = game.get('Name', '')
-            if main_name:
-                normalized_main = normalize_game_name(main_name, remove_paranthesis=True, remove_articles=True)
-                if normalized_main:
-                    first_char = normalized_main[0] if normalized_main else 'other'
-                    if first_char not in get_top_matches._similarity_index:
-                        get_top_matches._similarity_index[first_char] = []
-                    get_top_matches._similarity_index[first_char].append({
-                        'name': main_name,
-                        'normalized': normalized_main,
-                        'type': 'main',
-                        'game': game
-                    })
-                    main_count += 1
-            
-            # Index alternate names
-            alternate_names = game.get('AlternateNames', [])
-            for alt_name in alternate_names:
-                normalized_alt = normalize_game_name(alt_name, remove_paranthesis=True, remove_articles=True)
-                if normalized_alt:
-                    first_char = normalized_alt[0] if normalized_alt else 'other'
-                    if first_char not in get_top_matches._similarity_index:
-                        get_top_matches._similarity_index[first_char] = []
-                    get_top_matches._similarity_index[first_char].append({
-                        'name': alt_name,
-                        'normalized': normalized_alt,
-                        'type': 'alternate',
-                        'game': game
-                    })
-                    alt_count += 1
-        
-        print(f"🔍 DEBUG: Indexed {main_count} main names and {alt_count} alternate names")
-        
-        # Log partition distribution
-        total_entries = sum(len(items) for items in get_top_matches._similarity_index.values())
-        print(f"🔍 DEBUG: Built partitioned similarity index with {total_entries} entries")
-        print(f"🔍 DEBUG: Partition distribution:")
-        for char, items in sorted(get_top_matches._similarity_index.items()):
-            print(f"🔍 DEBUG:   '{char}': {len(items)} items")
-    
-    # Get the first character to search in the right partition
-    first_char = normalized_name[0]
-    print(f"🔍 DEBUG: Searching in partition '{first_char}'")
-    
     matches = []
     
-    # Search only in the matching partition
-    if first_char in get_top_matches._similarity_index:
-        partition_items = get_top_matches._similarity_index[first_char]
-        print(f"🔍 DEBUG: Found {len(partition_items)} items in partition '{first_char}'")
-        
-        for i, item in enumerate(partition_items):
+    # Use global partitioned indexes
+    partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
+    if not partition_index_no_parens or target_platform not in partition_index_no_parens:
+        print(f"🔍 DEBUG: Global partitioned indexes not available for platform '{target_platform}'")
+        return []
+    
+    print(f"🔍 DEBUG: Using global partitioned indexes for platform '{target_platform}'")
+    
+    # Get the first character to search in the right partition
+    first_char = normalized_name[0] if normalized_name else 'other'
+    print(f"🔍 DEBUG: Searching in partition '{first_char}'")
+    
+    # Search through all games in the platform partition
+    platform_partition = partition_index_no_parens[target_platform]
+    print(f"🔍 DEBUG: Platform partition has {len(platform_partition)} entries")
+    
+    for normalized_game_name, launchboxid in platform_partition.items():
+        # Only search games that start with the same character (partition optimization)
+        if normalized_game_name.startswith(first_char):
             # Calculate similarity using configured algorithm
             from game_utils import calculate_similarity
-            similarity = calculate_similarity(normalized_name, item['normalized'])
-            print(f"🔍 DEBUG: Item {i+1}: '{item['name']}' -> similarity: {similarity:.4f}")
-        
-            # Get box image URL for this game
-            database_id = item['game'].get('DatabaseID', '')
-            box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
-            print(f"🔍 DEBUG: Game '{item['name']}' (ID: {database_id}) -> box_image_url: {box_image_url}")
-        
-            # Create match info
-            match_info = {
-                'game': item['game'],
-                'score': similarity,
-                'match_type': item['type'],
-                'matched_name': item['name'],
-                'database_id': database_id,
-                'name': item['game'].get('Name', ''),
-                'overview': item['game'].get('Overview', ''),
-                'developer': item['game'].get('Developer', ''),
-                'publisher': item['game'].get('Publisher', ''),
-                'box_image_url': box_image_url
-            }
+            similarity = calculate_similarity(normalized_name, normalized_game_name)
             
-            # Add mapped fields dynamically based on mapping configuration
-            if mapping_config:
-                for launchbox_field, gamelist_field in mapping_config.items():
-                    match_info[gamelist_field] = item['game'].get(launchbox_field, '')
-        
-            matches.append(match_info)
-    else:
-        print(f"🔍 DEBUG: No partition found for character '{first_char}'")
+            # Only consider good matches
+            if similarity >= 0.7:
+                # Find the game in metadata_games
+                for game in metadata_games:
+                    if str(game.get('DatabaseID', '')) == str(launchboxid):
+                        # Get box image URL for this game
+                        database_id = game.get('DatabaseID', '')
+                        box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
+                        
+                        # Create match info
+                        match_info = {
+                            'game': game,
+                            'score': similarity,
+                            'match_type': 'main',
+                            'matched_name': game.get('Name', ''),
+                            'database_id': database_id,
+                            'name': game.get('Name', ''),
+                            'overview': game.get('Overview', ''),
+                            'developer': game.get('Developer', ''),
+                            'publisher': game.get('Publisher', ''),
+                            'box_image_url': box_image_url
+                        }
+                        
+                        # Add mapped fields dynamically based on mapping configuration
+                        if mapping_config:
+                            for launchbox_field, gamelist_field in mapping_config.items():
+                                match_info[gamelist_field] = game.get(launchbox_field, '')
+                        
+                        matches.append(match_info)
+                        print(f"🔍 DEBUG: Found match: '{game.get('Name', '')}' -> similarity: {similarity:.4f}")
+                        break
     
     print(f"🔍 DEBUG: Found {len(matches)} total matches before deduplication")
     
@@ -8529,6 +8662,583 @@ def download_multiscraper_media_endpoint():
         
     except Exception as e:
         print(f"Error downloading multiscraper media: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/fanart-search', methods=['POST'])
+@login_required
+def fanart_search_endpoint():
+    """Search for fanart images by game name similarity across scrapers"""
+    global global_metadata_cache, global_metadata_cache_loaded
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name')
+        system_name = data.get('system_name')
+        selected_scraper = data.get('scraper', 'all')  # Default to 'all' if not specified
+        direct_match = data.get('direct_match', True)  # Default to True (direct match)
+        
+        if not all([game_name, system_name]):
+            return jsonify({'error': 'Game name and system name are required'}), 400
+        
+        print(f"🔧 DEBUG: Fanart search for game: {game_name}, system: {system_name}, scraper: {selected_scraper}, direct_match: {direct_match}")
+        
+        # Get scrapers that have fanart mapped
+        scrapers_config = load_scrappers_config()
+        print(f"🔧 DEBUG: Scrapers config: {type(scrapers_config)}")
+        print(f"🔧 DEBUG: Scrapers config keys: {list(scrapers_config.keys()) if scrapers_config else 'None'}")
+        
+        fanart_scrapers = {}
+        for scraper_name, scraper_config in scrapers_config.items():
+            # Skip if specific scraper is selected and this isn't it
+            if selected_scraper != 'all' and selected_scraper != scraper_name:
+                continue
+                
+            print(f"🔧 DEBUG: Checking scraper: {scraper_name}")
+            print(f"🔧 DEBUG: Scraper config type: {type(scraper_config)}")
+            print(f"🔧 DEBUG: Scraper config keys: {list(scraper_config.keys()) if isinstance(scraper_config, dict) else 'Not a dict'}")
+            
+            image_mappings = scraper_config.get('image_type_mappings', {})
+            print(f"🔧 DEBUG: Image mappings for {scraper_name}: {image_mappings}")
+            print(f"🔧 DEBUG: 'fanart' in image_mappings: {'fanart' in image_mappings}")
+            
+            if 'fanart' in image_mappings:
+                fanart_scrapers[scraper_name] = scraper_config
+                print(f"🔧 DEBUG: Added {scraper_name} to fanart scrapers")
+            else:
+                print(f"🔧 DEBUG: {scraper_name} does not have fanart mapping")
+        
+        print(f"🔧 DEBUG: Found fanart scrapers: {list(fanart_scrapers.keys())}")
+        print(f"🔧 DEBUG: Fanart scrapers count: {len(fanart_scrapers)}")
+        
+        # Search for fanart using each scraper - reuse existing search functions
+        all_fanart_results = []
+        
+        for scraper_name, scraper_config in fanart_scrapers.items():
+            try:
+                print(f"🔧 DEBUG: Searching {scraper_name} for fanart...")
+                
+                if scraper_name == 'igdb':
+                    # Use existing IGDB search function
+                    igdb_service = load_igdb_service()
+                    if igdb_service:
+                        print(f"🔧 DEBUG: Searching IGDB for '{game_name}' using direct match: {direct_match}")
+                        
+                        if direct_match:
+                            # For direct match, use the same logic as IGDB scraping task
+                            from game_utils import normalize_game_name
+                            normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+                            print(f"🔧 DEBUG: IGDB direct match - normalized name: '{normalized_name}'")
+                            
+                            results = []
+                            
+                            # Search across all platforms using the same logic as scraping task
+                            for platform_id in igdb_service.platform_index.keys():
+                                if normalized_name and platform_id in igdb_service.platform_index:
+                                    platform_data = igdb_service.platform_index[platform_id]
+                                    first_char = normalized_name[0].lower()
+                                    
+                                    if first_char in platform_data:
+                                        partition_games = platform_data[first_char]
+                                        if normalized_name in partition_games:
+                                            # Direct match found!
+                                            game_id = partition_games[normalized_name]
+                                            print(f"✅ IGDB Direct match found for '{game_name}' (normalized: '{normalized_name}') -> ID: {game_id} on platform {platform_id}")
+                                            
+                                            # Get the full game data from igdb_db dictionary
+                                            if game_id in igdb_service.igdb_data:
+                                                game_data = igdb_service.igdb_data[game_id].copy()
+                                                game_data['_similarity_score'] = 1.0  # Exact match
+                                                results.append(game_data)
+                                                print(f"🔧 DEBUG: IGDB direct match - found game: '{game_data.get('name', '')}' (ID: {game_id})")
+                                            else:
+                                                print(f"🔧 DEBUG: IGDB direct match - game ID {game_id} not found in igdb_db")
+                                            
+                                            # Stop at first platform with exact match
+                                            break
+                                        else:
+                                            print(f"❌ IGDB No direct match found for '{game_name}' (normalized: '{normalized_name}') in platform {platform_id}")
+                                    else:
+                                        print(f"❌ IGDB No games found for first character '{first_char}' in platform {platform_id}")
+                                else:
+                                    print(f"❌ IGDB Platform {platform_id} not found in index or empty normalized name")
+                            
+                            print(f"🔧 DEBUG: IGDB direct match - found {len(results)} exact matches")
+                        else:
+                            # For similarity search, search across all platforms and filter by similarity
+                            results = []
+                            for platform_id in igdb_service.platform_index.keys():
+                                platform_results = igdb_service.search_games_by_name(game_name, platform_id, limit=50)
+                                # Filter for high similarity matches (>90%) and log what we're filtering
+                                for result in platform_results:
+                                    similarity = result.get('_similarity_score', 0)
+                                    if similarity > 0.9:
+                                        results.append(result)
+                                        print(f"🔧 DEBUG: IGDB similarity match: '{result.get('name', '')}' (ID: {result.get('id', '')}) with similarity {similarity:.2f}")
+                                    else:
+                                        print(f"🔧 DEBUG: IGDB filtered out: '{result.get('name', '')}' (ID: {result.get('id', '')}) with similarity {similarity:.2f} (too low)")
+                            
+                            # Sort by similarity score and take top 50
+                            results.sort(key=lambda x: x.get('_similarity_score', 0), reverse=True)
+                            results = results[:50]
+                            print(f"🔧 DEBUG: Found {len(results)} similar matches (>90%) across all platforms")
+                        
+                        for game in results:
+                            print(f"🔧 DEBUG: Processing IGDB game: '{game.get('name', '')}' (ID: {game.get('id', '')})")
+                            print(f"🔧 DEBUG: Game keys: {list(game.keys())}")
+                            print(f"🔧 DEBUG: Has artworks: {'artworks' in game}")
+                            if 'artworks' in game:
+                                print(f"🔧 DEBUG: Artworks value: {game['artworks']}")
+                            
+                            # Check if game has artworks (fanart)
+                            if 'artworks' in game and game['artworks']:
+                                artworks = game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]
+                                fanart_urls = []
+                                
+                                # Convert IGDB artwork IDs to full URLs
+                                for artwork in artworks:
+                                    artwork_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{artwork}.jpg"
+                                    fanart_urls.append(artwork_url)
+                                
+                                # Get platform name for display
+                                platform_name = 'Unknown'
+                                if 'platform' in game and game['platform']:
+                                    platform_name = game['platform'].get('name', 'Unknown')
+                                
+                                all_fanart_results.append({
+                                    'scraper': 'igdb',
+                                    'game_name': game.get('name', ''),
+                                    'game_id': game.get('id', ''),
+                                    'similarity_score': game.get('_similarity_score', 0.0),
+                                    'fanart_urls': fanart_urls,
+                                    'region': 'Unknown',
+                                    'platform': platform_name
+                                })
+                                print(f"🔧 DEBUG: Found IGDB fanart for '{game.get('name', '')}' - {len(fanart_urls)} images, similarity: {game.get('_similarity_score', 0.0):.2f}")
+                            else:
+                                print(f"🔧 DEBUG: IGDB game '{game.get('name', '')}' has no artworks/fanart")
+                    else:
+                        print(f"🔧 DEBUG: IGDB service not available")
+                
+                elif scraper_name == 'steam':
+                    # Use existing Steam search function
+                    steam_service = load_steam_service()
+                    if steam_service:
+                        if direct_match:
+                            # For direct match, search for exact matches using search_steam_apps
+                            results = steam_service.search_steam_apps(game_name, limit=50)
+                            # Add similarity score of 1.0 for exact matches
+                            for result in results:
+                                result['similarity_score'] = 1.0
+                        else:
+                            # For similarity search, use find_similarity_matches with higher limit
+                            results = steam_service.find_similarity_matches(game_name, [], limit=50)
+                        
+                        print(f"🔧 DEBUG: Steam search found {len(results)} results")
+                        
+                        for game in results:
+                            # Only include results with similarity score > 85%
+                            similarity_score = game.get('similarity_score', 0.0)
+                            if similarity_score > 0.85:
+                                # Generate hero URL from Steam app ID
+                                steam_id = game.get('appid')
+                                if steam_id:
+                                    hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
+                                    all_fanart_results.append({
+                                        'scraper': 'steam',
+                                        'game_name': game.get('name', ''),
+                                        'game_id': steam_id,
+                                        'similarity_score': similarity_score,
+                                        'fanart_urls': [hero_url],
+                                        'region': 'Unknown'
+                                    })
+                                    print(f"🔧 DEBUG: Found Steam fanart for '{game.get('name', '')}' - similarity: {similarity_score:.3f}")
+                            else:
+                                print(f"🔧 DEBUG: Skipped Steam game '{game.get('name', '')}' - similarity too low: {similarity_score:.3f}")
+                    else:
+                        print(f"🔧 DEBUG: Steam service not available")
+                
+                elif scraper_name == 'steamgriddb':
+                    # Use existing SteamGridDB search function
+                    from steamgrid_service import SteamGridService
+                    sgdb_service = SteamGridService()
+                    
+                    # Check if API key is available
+                    api_key = sgdb_service.get_api_key()
+                    print(f"🔧 DEBUG: SteamGridDB API key check: {'Found' if api_key else 'Not found'}")
+                    if api_key:
+                        print(f"🔧 DEBUG: SteamGridDB API key: {api_key[:8]}...{api_key[-4:] if len(api_key) > 12 else '***'}")
+                    if not api_key:
+                        print(f"🔧 DEBUG: SteamGridDB API key not configured")
+                        continue
+                    
+                    # Get SteamGridDB games by name with multiple variations
+                    games = []
+                    
+                    # Search with original name
+                    original_games = run_async_safely(sgdb_service.get_steamgrid_id_by_name(game_name, api_key=api_key, limit=50))
+                    games.extend(original_games)
+                    
+                    # Search with cleaned name (remove parentheses)
+                    import re
+                    cleaned_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+                    if cleaned_name != game_name:
+                        cleaned_games = run_async_safely(sgdb_service.get_steamgrid_id_by_name(cleaned_name, api_key=api_key, limit=50))
+                        games.extend(cleaned_games)
+                    
+                    # Remove duplicates based on game ID
+                    seen_ids = set()
+                    unique_games = []
+                    for game in games:
+                        game_id = game.get('id')
+                        if game_id and game_id not in seen_ids:
+                            seen_ids.add(game_id)
+                            unique_games.append(game)
+                    
+                    games = unique_games
+                    print(f"🔧 DEBUG: SteamGridDB found {len(games)} unique games after deduplication")
+                    
+                    for game in games:
+                        steamgrid_id = game.get('id')
+                        if steamgrid_id:
+                            # Get media for this game
+                            media = run_async_safely(sgdb_service.get_steamgrid_media(steamgrid_id, ['heroes'], api_key=api_key))
+                            
+                            if media and 'heroes' in media and media['heroes']:
+                                # Add each hero image as a separate result
+                                for hero in media['heroes']:
+                                    all_fanart_results.append({
+                                        'scraper': 'steamgriddb',
+                                        'game_name': game.get('name', ''),
+                                        'game_id': steamgrid_id,
+                                        'similarity_score': 1.0,  # SteamGridDB doesn't provide similarity scores
+                                        'fanart_urls': [hero.get('url', '')],
+                                        'region': 'Unknown'
+                                    })
+                                print(f"🔧 DEBUG: Found SteamGridDB fanart for '{game.get('name', '')}' - {len(media['heroes'])} images")
+                
+                elif scraper_name == 'screenscraper':
+                    # Use existing ScreenScraper search function
+                    from screenscraper_service import ScreenScraperService
+                    from credential_manager import credential_manager
+                    config = load_config()
+                    screenscraper_creds = credential_manager.get_screenscraper_credentials()
+                    scrappers_config = load_scrappers_config()
+                    systems_config = load_systems_config()
+                    
+                    ss_service = ScreenScraperService(config, screenscraper_creds, scrappers_config, systems_config)
+                    results = run_async_safely(ss_service.search_games_by_name(game_name, system_name, limit=10, search_all_systems=True))
+                    
+                    # Collect all game IDs for parallel processing
+                    game_ids_to_fetch = []
+                    for game in results:
+                        game_id = game.get('jeu_id')
+                        if game_id:
+                            game_ids_to_fetch.append((game_id, game))
+                            print(f"🔧 DEBUG: Will fetch ScreenScraper game: '{game.get('name', '')}' (ID: {game_id})")
+                        else:
+                            print(f"🔧 DEBUG: ScreenScraper game has no ID")
+                    
+                    if game_ids_to_fetch:
+                        # Fetch all game data in parallel
+                        import asyncio
+                        async def fetch_all_game_data():
+                            tasks = []
+                            for game_id, game in game_ids_to_fetch:
+                                task = ss_service.get_game_by_id(game_id, system_name)
+                                tasks.append((task, game))
+                            
+                            # Execute all tasks in parallel
+                            results_data = await asyncio.gather(*[task for task, _ in tasks], return_exceptions=True)
+                            
+                            # Process results
+                            for i, (result_data, original_game) in enumerate(zip(results_data, [game for _, game in game_ids_to_fetch])):
+                                if isinstance(result_data, Exception):
+                                    print(f"🔧 DEBUG: Error fetching game data for '{original_game.get('name', '')}': {result_data}")
+                                    continue
+                                
+                                full_game_data = result_data
+                                if full_game_data:
+                                    print(f"🔧 DEBUG: Full game data keys for '{original_game.get('name', '')}': {list(full_game_data.keys())}")
+                                    
+                                    # Check if game has fanart in the medias array
+                                    if 'medias' in full_game_data and full_game_data['medias']:
+                                        medias = full_game_data['medias']
+                                        if isinstance(medias, list):
+                                            fanart_urls = []
+                                            
+                                            # Look for media items with type "fanart"
+                                            for media in medias:
+                                                if isinstance(media, dict) and media.get('type') == 'fanart':
+                                                    if 'url' in media:
+                                                        fanart_urls.append(media['url'])
+                                                    print(f"🔧 DEBUG: Found fanart media: {media}")
+                                            
+                                            if fanart_urls:
+                                                all_fanart_results.append({
+                                                    'scraper': 'screenscraper',
+                                                    'game_name': original_game.get('name', ''),
+                                                    'game_id': original_game.get('jeu_id', ''),
+                                                    'similarity_score': original_game.get('_similarity_score', 0.0),
+                                                    'fanart_urls': fanart_urls,
+                                                    'region': 'Unknown',
+                                                    'platform': system_name
+                                                })
+                                                print(f"🔧 DEBUG: Found ScreenScraper fanart for '{original_game.get('name', '')}' - {len(fanart_urls)} images")
+                                            else:
+                                                print(f"🔧 DEBUG: ScreenScraper game '{original_game.get('name', '')}' has medias but no fanart type")
+                                        else:
+                                            print(f"🔧 DEBUG: ScreenScraper game '{original_game.get('name', '')}' medias is not a list")
+                                    else:
+                                        print(f"🔧 DEBUG: ScreenScraper game '{original_game.get('name', '')}' has no medias in full data")
+                                else:
+                                    print(f"🔧 DEBUG: Could not fetch full game data for ScreenScraper game ID {original_game.get('jeu_id', '')}")
+                        
+                        # Execute parallel fetch
+                        run_async_safely(fetch_all_game_data())
+                
+                elif scraper_name == 'launchbox':
+                    # Use global LaunchBox partitioned indexes for fast search (no parens only)
+                    all_launchbox_results = []
+                    
+                    # Load global partitioned indexes
+                    partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
+                    if not partition_index_no_parens:
+                        print("🔧 DEBUG: LaunchBox partitioned index (no parens) not available")
+                        continue
+                    
+                    print(f"🔧 DEBUG: Searching LaunchBox for '{game_name}' using direct match: {direct_match} (no parens index only)")
+                    
+                    # Load global metadata cache to get full game data (use raw cache, not derived view)
+                    if not global_metadata_cache_loaded:
+                        print("🔧 DEBUG: Global metadata cache not loaded yet")
+                        continue
+                    
+                    if not global_metadata_cache:
+                        print("🔧 DEBUG: Global metadata cache not available")
+                        continue
+                    
+                    print(f"🔧 DEBUG: Global metadata cache type: {type(global_metadata_cache)}")
+                    print(f"🔧 DEBUG: Global metadata cache keys count: {len(global_metadata_cache) if isinstance(global_metadata_cache, dict) else 'Not a dict'}")
+                    if isinstance(global_metadata_cache, dict) and global_metadata_cache:
+                        sample_keys = list(global_metadata_cache.keys())[:5]
+                        print(f"🔧 DEBUG: Sample global metadata cache keys: {sample_keys}")
+                        print(f"🔧 DEBUG: Sample key types: {[type(k) for k in sample_keys]}")
+                    
+                    # Normalize search query (no parens only)
+                    from game_utils import normalize_game_name, calculate_similarity
+                    
+                    normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+                    print(f"🔧 DEBUG: Normalized without parentheses: '{normalized_no_parens}'")
+                    
+                    # Search through all platforms using no parens index only
+                    for platform_name in partition_index_no_parens.keys():
+                        try:
+                            if direct_match:
+                                # Use exact match with no parens normalization only
+                                launchboxid = None
+                                
+                                if normalized_no_parens and platform_name in partition_index_no_parens:
+                                    launchboxid = partition_index_no_parens[platform_name].get(normalized_no_parens)
+                                
+                                if launchboxid:
+                                    # Convert to string for lookup in global metadata cache (cache uses string keys)
+                                    launchboxid_str = str(launchboxid)
+                                    print(f"🔧 DEBUG: Found game match in LaunchBox - ID: {launchboxid_str} (type: {type(launchboxid_str)}), Platform: {platform_name}")
+                                    
+                                    # Get full game data from global cache using string ID
+                                    print(f"🔧 DEBUG: Checking if launchboxid {launchboxid_str} exists in global_metadata_cache...")
+                                    
+                                    found_entry = None
+                                    if launchboxid_str in global_metadata_cache:
+                                        found_entry = global_metadata_cache[launchboxid_str]
+                                        print(f"🔧 DEBUG: Found entry in global_metadata_cache for ID {launchboxid_str}")
+                                    else:
+                                        print(f"🔧 DEBUG: launchboxid {launchboxid_str} NOT found in global_metadata_cache")
+                                    
+                                    if found_entry:
+                                        entry = found_entry
+                                        print(f"🔧 DEBUG: Entry keys: {list(entry.keys())}")
+                                        game_elem = entry.get('game')
+                                        if game_elem:
+                                            print(f"🔧 DEBUG: Found game element for ID {launchboxid}")
+                                            print(f"🔧 DEBUG: Game element type: {type(game_elem)}")
+                                        else:
+                                            print(f"🔧 DEBUG: No game element found for ID {launchboxid}")
+                                    
+                                    if found_entry and game_elem:
+                                        # Extract game data - handle both XML element and dictionary formats
+                                        game_data = {}
+                                        if hasattr(game_elem, 'tag'):  # XML element
+                                            for child in game_elem:
+                                                if child.text:
+                                                    game_data[child.tag] = child.text.strip()
+                                        elif isinstance(game_elem, dict):  # Dictionary format
+                                            game_data = game_elem
+                                        
+                                        game_name_found = game_data.get('Name', '')
+                                        print(f"🔧 DEBUG: Processing game: '{game_name_found}' (ID: {launchboxid})")
+                                        print(f"🔧 DEBUG: Game data structure: {game_data}")
+                                        
+                                        # Check if this game has fanart using the images field and scrappers.json mapping
+                                        fanart_urls = []
+                                        
+                                        # Get fanart mapping from scrappers.json
+                                        fanart_mappings = scraper_config.get('image_type_mappings', {}).get('fanart', [])
+                                        print(f"🔧 DEBUG: Fanart mappings from scrappers.json: {fanart_mappings}")
+                                        
+                                        # Get images from the cache entry
+                                        images = entry.get('images', [])
+                                        print(f"🔧 DEBUG: Found {len(images)} images for '{game_name_found}'")
+                                        
+                                        # Look for fanart images using the mapped field names
+                                        for image_data in images:
+                                            if isinstance(image_data, dict):
+                                                # Get the image type and filename from the dictionary
+                                                image_type = image_data.get('Type', '')
+                                                filename = image_data.get('FileName', '')
+                                                
+                                                print(f"🔧 DEBUG: Image type: '{image_type}', Filename: '{filename[:50]}...' if len(filename) > 50 else '{filename}'")
+                                                
+                                                # Check if this image type matches any fanart mapping
+                                                if image_type in fanart_mappings and filename:
+                                                    # Construct complete URL by prepending LaunchBox base URL
+                                                    base_url = 'https://images.launchbox-app.com/'
+                                                    full_url = base_url + filename
+                                                    fanart_urls.append(full_url)
+                                                    print(f"🔧 DEBUG: Added fanart URL for '{game_name_found}' - type: '{image_type}', URL: '{full_url}'")
+                                        
+                                        print(f"🔧 DEBUG: Total fanart URLs found for '{game_name_found}': {len(fanart_urls)}")
+                                        
+                                        # Only include games that have fanart
+                                        if fanart_urls:
+                                            all_launchbox_results.append({
+                                                'scraper': 'launchbox',
+                                                'game_name': game_name_found,
+                                                'game_id': launchboxid,
+                                                'similarity_score': 1.0,
+                                                'fanart_urls': fanart_urls,
+                                                'region': 'Unknown',
+                                                'platform': platform_name
+                                            })
+                                            print(f"🔧 DEBUG: Added LaunchBox fanart result for '{game_name_found}' - {len(fanart_urls)} images")
+                                        else:
+                                            print(f"🔧 DEBUG: No fanart found for '{game_name_found}' (ID: {launchboxid})")
+                            else:
+                                # Use similarity search with no parens normalization
+                                print(f"🔧 DEBUG: Performing similarity search for '{game_name}' on platform '{platform_name}'")
+                                
+                                if platform_name in partition_index_no_parens:
+                                    platform_games = partition_index_no_parens[platform_name]
+                                    
+                                    # Calculate similarity for all games in this platform
+                                    similarity_results = []
+                                    for normalized_name, launchboxid in platform_games.items():
+                                        similarity = calculate_similarity(normalized_no_parens, normalized_name)
+                                        if similarity > 0.9:  # Only consider matches with >90% similarity
+                                            similarity_results.append((similarity, launchboxid, normalized_name))
+                                    
+                                    # Sort by similarity score (highest first) and take top 5 per platform
+                                    similarity_results.sort(key=lambda x: x[0], reverse=True)
+                                    top_matches = similarity_results[:5]
+                                    
+                                    print(f"🔧 DEBUG: Found {len(top_matches)} similar games on platform '{platform_name}'")
+                                    
+                                    for similarity_score, launchboxid, matched_name in top_matches:
+                                        # Convert to string for lookup in global metadata cache
+                                        launchboxid_str = str(launchboxid)
+                                        print(f"🔧 DEBUG: Similarity match - Score: {similarity_score:.2f}, ID: {launchboxid_str}, Name: '{matched_name}', Platform: {platform_name}")
+                                        
+                                        # Get full game data from global cache
+                                        found_entry = None
+                                        if launchboxid_str in global_metadata_cache:
+                                            found_entry = global_metadata_cache[launchboxid_str]
+                                            print(f"🔧 DEBUG: Found entry in global_metadata_cache for similarity match ID {launchboxid_str}")
+                                        else:
+                                            print(f"🔧 DEBUG: launchboxid {launchboxid_str} NOT found in global_metadata_cache for similarity match")
+                                        
+                                        if found_entry:
+                                            entry = found_entry
+                                            game_elem = entry.get('game')
+                                            
+                                            if game_elem:
+                                                # Extract game data - handle dictionary format
+                                                game_data = {}
+                                                if isinstance(game_elem, dict):
+                                                    game_data = game_elem
+                                                
+                                                game_name_found = game_data.get('Name', '')
+                                                print(f"🔧 DEBUG: Processing similarity match game: '{game_name_found}' (ID: {launchboxid_str}, Score: {similarity_score:.2f})")
+                                                
+                                                # Check if this game has fanart using the images field and scrappers.json mapping
+                                                fanart_urls = []
+                                                
+                                                # Get fanart mapping from scrappers.json
+                                                fanart_mappings = scraper_config.get('image_type_mappings', {}).get('fanart', [])
+                                                
+                                                # Get images from the cache entry
+                                                images = entry.get('images', [])
+                                                
+                                                # Look for fanart images using the mapped field names
+                                                for image_data in images:
+                                                    if isinstance(image_data, dict):
+                                                        # Get the image type and filename from the dictionary
+                                                        image_type = image_data.get('Type', '')
+                                                        filename = image_data.get('FileName', '')
+                                                        
+                                                        # Check if this image type matches any fanart mapping
+                                                        if image_type in fanart_mappings and filename:
+                                                            # Construct complete URL by prepending LaunchBox base URL
+                                                            base_url = 'https://images.launchbox-app.com/'
+                                                            full_url = base_url + filename
+                                                            fanart_urls.append(full_url)
+                                                            print(f"🔧 DEBUG: Added similarity match fanart URL for '{game_name_found}' - type: '{image_type}', URL: '{full_url}'")
+                                                
+                                                # Only include games that have fanart
+                                                if fanart_urls:
+                                                    all_launchbox_results.append({
+                                                        'scraper': 'launchbox',
+                                                        'game_name': game_name_found,
+                                                        'game_id': launchboxid_str,
+                                                        'similarity_score': similarity_score,
+                                                        'fanart_urls': fanart_urls,
+                                                        'region': 'Unknown',
+                                                        'platform': platform_name
+                                                    })
+                                                    print(f"🔧 DEBUG: Added LaunchBox similarity match fanart result for '{game_name_found}' - {len(fanart_urls)} images, score: {similarity_score:.2f}")
+                                                else:
+                                                    print(f"🔧 DEBUG: No fanart found for similarity match '{game_name_found}' (ID: {launchboxid_str})")
+                                
+                        except Exception as e:
+                            print(f"🔧 DEBUG: Error searching LaunchBox platform {platform_name}: {e}")
+                            continue
+                    
+                    # Sort all results by similarity score and take top 10
+                    all_launchbox_results.sort(key=lambda x: x['similarity_score'], reverse=True)
+                    all_fanart_results.extend(all_launchbox_results[:10])
+                    print(f"🔧 DEBUG: Added {len(all_launchbox_results[:10])} LaunchBox fanart results (total found: {len(all_launchbox_results)})")
+                    continue
+                
+            except Exception as e:
+                print(f"🔧 DEBUG: Error searching {scraper_name}: {e}")
+                import traceback
+                print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
+                continue
+        
+        # Sort results by similarity score (highest first)
+        all_fanart_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+        
+        print(f"🔧 DEBUG: Found {len(all_fanart_results)} fanart results")
+        
+        return jsonify({
+            'success': True,
+            'results': all_fanart_results,
+            'total_found': len(all_fanart_results)
+        })
+        
+    except Exception as e:
+        print(f"Error in fanart search: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 def run_async_safely(coro):
@@ -10253,26 +10963,6 @@ def cache_statistics_endpoint():
     except Exception as e:
         return jsonify({'error': f'Failed to get cache statistics: {str(e)}'}), 500
 
-@app.route('/api/cache/reload', methods=['POST'])
-@login_required
-def reload_cache_endpoint():
-    """Reload the metadata cache"""
-    global global_metadata_cache_loaded, global_metadata_cache
-    
-    try:
-        # Clear the cache
-        global_metadata_cache_loaded = False
-        global_metadata_cache = {}
-        
-        # Reload the cache
-        result = load_metadata_cache()
-        
-        return jsonify({
-            'message': 'Cache reloaded successfully',
-            'statistics': get_cache_statistics()
-        })
-    except Exception as e:
-        return jsonify({'error': f'Failed to reload cache: {str(e)}'}), 500
 
 @app.route('/api/cache/metadata-info')
 @login_required
@@ -10576,9 +11266,13 @@ def update_metadata_endpoint():
             # Clear all LaunchBox-related caches since metadata was updated
             flush_launchbox_caches()
             
+            # Regenerate LaunchBox partitioned indexes with new metadata
+            print("🔄 Regenerating LaunchBox partitioned indexes after metadata update...")
+            load_launchbox_partitioned_indexes()
+            
             return jsonify({
                 'success': True,
-                'message': 'Metadata.xml updated successfully',
+                'message': 'Metadata.xml updated successfully and LaunchBox partitioned indexes regenerated',
                 'backup_created': os.path.exists(backup_path) if 'backup_path' in locals() else False
             })
             
@@ -23256,6 +23950,26 @@ if __name__ == '__main__':
     
     igdb_thread = threading.Thread(target=load_igdb_background, daemon=True)
     igdb_thread.start()
+    
+    # Start LaunchBox partitioned indexes loading in a separate thread
+    def load_launchbox_indexes_background():
+        # Wait for global metadata cache to be loaded first
+        import time
+        global global_metadata_cache_loaded
+        max_wait = 30  # Wait up to 30 seconds
+        wait_time = 0
+        while not global_metadata_cache_loaded and wait_time < max_wait:
+            time.sleep(1)
+            wait_time += 1
+        
+        if global_metadata_cache_loaded:
+            load_launchbox_partitioned_indexes()
+        else:
+            print("❌ Timeout waiting for global metadata cache to load")
+    
+    launchbox_indexes_thread = threading.Thread(target=load_launchbox_indexes_background, daemon=True)
+    launchbox_indexes_thread.start()
+    
     
     # Use a more robust approach with proper signal handling
     import sys

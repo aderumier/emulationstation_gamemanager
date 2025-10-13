@@ -1583,6 +1583,10 @@ class GameCollectionManager {
         }
 
         document.getElementById('saveGameChanges').addEventListener('click', async () => await this.saveGameChangesFromModal());
+        
+        // Add event listeners for favorite and kidgame fields
+        document.getElementById('editFavorite').addEventListener('click', () => this.toggleFavorite());
+        document.getElementById('editKidgame').addEventListener('click', () => this.toggleKidgame());
         document.getElementById('manualScrapBtn').addEventListener('click', async () => {
             // Save changes first before opening manual scrap modal
             await this.saveGameChangesFromModal();
@@ -3499,9 +3503,20 @@ class GameCollectionManager {
         document.getElementById('editSteamgridid').value = '';
         document.getElementById('editYoutubeurl').value = '';
         
-        // Clear boolean fields
-        this.updateFavoriteStar(false);
-        document.getElementById('editKidgame').checked = false;
+        // Clear favorite and kidgame fields
+        const favoriteIcon = document.getElementById('editFavorite');
+        favoriteIcon.className = 'bi bi-star text-muted';
+        favoriteIcon.style.fontSize = '1.5rem';
+        favoriteIcon.style.cursor = 'pointer';
+        favoriteIcon.style.transition = 'all 0.2s ease';
+        favoriteIcon.title = 'Click to add to favorites';
+        
+        const kidgameIcon = document.getElementById('editKidgame');
+        kidgameIcon.className = 'bi bi-emoji-smile text-muted';
+        kidgameIcon.style.fontSize = '1.5rem';
+        kidgameIcon.style.cursor = 'pointer';
+        kidgameIcon.style.transition = 'all 0.2s ease';
+        kidgameIcon.title = 'Click to mark as kid game';
         
         // Now populate with game data
         document.getElementById('editName').value = game.name || '';
@@ -3537,9 +3552,22 @@ class GameCollectionManager {
         document.getElementById('editMobygamesid').value = game.mobygamesid || '';
         document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
-        // Handle boolean fields
-        this.updateFavoriteStar(game.favorite === true || game.favorite === 'true');
-        document.getElementById('editKidgame').checked = game.kidgame === true || game.kidgame === 'true';
+        // Populate favorite and kidgame fields
+        if (game.favorite === true || game.favorite === 'true') {
+            favoriteIcon.className = 'bi bi-star-fill text-warning';
+            favoriteIcon.style.fontSize = '1.5rem';
+            favoriteIcon.style.cursor = 'pointer';
+            favoriteIcon.style.transition = 'all 0.2s ease';
+            favoriteIcon.title = 'Click to remove from favorites';
+        }
+        // Set kidgame smiley icon state
+        if (game.kidgame === true || game.kidgame === 'true') {
+            kidgameIcon.className = 'bi bi-emoji-smile-fill text-success';
+            kidgameIcon.style.fontSize = '1.5rem';
+            kidgameIcon.style.cursor = 'pointer';
+            kidgameIcon.style.transition = 'all 0.2s ease';
+            kidgameIcon.title = 'Click to remove kid game mark';
+        }
         
         // Populate the media tab with the same media display as the preview panel
         await this.showEditGameMedia(game);
@@ -3555,9 +3583,6 @@ class GameCollectionManager {
         
         // Initialize Find Best Match button for edit modal
         this.initializeEditModalFindBestMatch();
-        
-        // Initialize favorite star click handler
-        this.initializeFavoriteStar();
         
         // Initialize IGDB search button for edit modal
         this.initializeEditModalIgdbSearch();
@@ -4863,9 +4888,12 @@ class GameCollectionManager {
         game.mobygamesid = document.getElementById('editMobygamesid').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
         
-        // Handle boolean fields
-        game.favorite = this.isFavoriteStarActive();
-        game.kidgame = document.getElementById('editKidgame').checked;
+        // Handle favorite field (star icon)
+        const favoriteIcon = document.getElementById('editFavorite');
+        game.favorite = favoriteIcon.classList.contains('bi-star-fill');
+        
+        // Handle kidgame field (smiley icon)
+        game.kidgame = this.isKidgameActive();
 
         // Detect which fields changed
         const changedFields = [];
@@ -7096,6 +7124,10 @@ class GameCollectionManager {
             currentId = result.existing_steamid || 'None';
             bestMatch = result.best_match;
             allMatches = result.all_matches || [];
+        } else if (databaseType === 'igdb') {
+            currentId = result.existing_igdbid || 'None';
+            bestMatch = result.best_match;
+            allMatches = result.all_matches || [];
         }
         
         // Game name cell
@@ -7144,6 +7176,9 @@ class GameCollectionManager {
                     option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
                 } else if (databaseType === 'steam') {
                     option.value = match.appid;
+                    option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
+                } else if (databaseType === 'igdb') {
+                    option.value = match.id;
                     option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
                 }
                 
@@ -7352,7 +7387,7 @@ class GameCollectionManager {
             this.showAlert(`Error saving Steam ID: ${error.message}`, 'danger');
         }
     }
-    
+
     async applyIgdbMatch(gamePath, igdbId) {
         try {
             // Find the game in the grid using ROM path
@@ -7404,14 +7439,10 @@ class GameCollectionManager {
             if (databaseType === 'launchbox') {
                 scoreA = a.top_matches && a.top_matches.length > 0 ? a.top_matches[0].score : 0;
                 scoreB = b.top_matches && b.top_matches.length > 0 ? b.top_matches[0].score : 0;
-            } else if (databaseType === 'mobygames' || databaseType === 'steam') {
+            } else if (databaseType === 'mobygames' || databaseType === 'steam' || databaseType === 'igdb') {
                 // Use best_match for consistency
                 scoreA = (a.best_match && a.best_match.similarity_score) ? a.best_match.similarity_score : 0;
                 scoreB = (b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0;
-            } else if (databaseType === 'igdb') {
-                // Use match_data for IGDB
-                scoreA = (a.match_data && a.match_data.similarity_score) ? a.match_data.similarity_score : 0;
-                scoreB = (b.match_data && b.match_data.similarity_score) ? b.match_data.similarity_score : 0;
             }
             
             return scoreB - scoreA; // Sort descending (highest first)
@@ -7514,7 +7545,7 @@ class GameCollectionManager {
                 publisher = match.publisher || 'Unknown Publisher';
                 id = match.game_id;
             } else if (databaseType === 'igdb') {
-                score = match.similarity_score ? (match.similarity_score * 100).toFixed(1) : '0.0';
+                score = (match.similarity_score * 100).toFixed(1);
                 name = match.name;
                 publisher = match.publisher || 'Unknown Publisher';
                 id = match.id;
@@ -8851,6 +8882,11 @@ class GameCollectionManager {
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
+                                ${field === 'fanart' ? `
+                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                    <i class="bi bi-image"></i>
+                                </button>
+                                ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
@@ -8873,6 +8909,11 @@ class GameCollectionManager {
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
+                                ${field === 'fanart' ? `
+                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                    <i class="bi bi-image"></i>
+                                </button>
+                                ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
@@ -8953,6 +8994,11 @@ class GameCollectionManager {
                     <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                         <small class="text-center flex-grow-1">${field}</small>
                         <div class="d-flex gap-1">
+                            ${field === 'fanart' ? `
+                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-image"></i>
+                            </button>
+                            ` : ''}
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
@@ -19154,42 +19200,233 @@ class GameCollectionManager {
             this.showAlert('Error saving configuration', 'error');
         }
     }
-    
-    initializeFavoriteStar() {
-        const favoriteStar = document.getElementById('editFavorite');
-        if (favoriteStar) {
-            favoriteStar.addEventListener('click', () => {
-                const isCurrentlyActive = this.isFavoriteStarActive();
-                this.updateFavoriteStar(!isCurrentlyActive);
-            });
+
+    // Favorite and Kidgame Functions
+    toggleFavorite() {
+        const favoriteIcon = document.getElementById('editFavorite');
+        if (favoriteIcon.classList.contains('bi-star-fill')) {
+            // Currently favorite, remove it
+            favoriteIcon.className = 'bi bi-star text-muted';
+            favoriteIcon.style.fontSize = '1.5rem';
+            favoriteIcon.style.cursor = 'pointer';
+            favoriteIcon.style.transition = 'all 0.2s ease';
+            favoriteIcon.title = 'Click to add to favorites';
+        } else {
+            // Not favorite, make it favorite
+            favoriteIcon.className = 'bi bi-star-fill text-warning';
+            favoriteIcon.style.fontSize = '1.5rem';
+            favoriteIcon.style.cursor = 'pointer';
+            favoriteIcon.style.transition = 'all 0.2s ease';
+            favoriteIcon.title = 'Click to remove from favorites';
         }
     }
-    
-    updateFavoriteStar(isActive) {
-        const favoriteStar = document.getElementById('editFavorite');
-        if (favoriteStar) {
-            if (isActive) {
-                favoriteStar.className = 'bi bi-star-fill text-warning';
-                favoriteStar.style.fontSize = '1.5rem';
-                favoriteStar.style.cursor = 'pointer';
-                favoriteStar.style.transition = 'all 0.2s ease';
-                favoriteStar.title = 'Click to remove from favorites';
-            } else {
-                favoriteStar.className = 'bi bi-star text-muted';
-                favoriteStar.style.fontSize = '1.5rem';
-                favoriteStar.style.cursor = 'pointer';
-                favoriteStar.style.transition = 'all 0.2s ease';
-                favoriteStar.title = 'Click to add to favorites';
-            }
-        }
-    }
-    
+
     isFavoriteStarActive() {
         const favoriteStar = document.getElementById('editFavorite');
         if (favoriteStar) {
             return favoriteStar.classList.contains('bi-star-fill');
         }
         return false;
+    }
+
+    toggleKidgame() {
+        const kidgameIcon = document.getElementById('editKidgame');
+        if (kidgameIcon.classList.contains('bi-emoji-smile-fill')) {
+            // Currently kid game, remove it
+            kidgameIcon.className = 'bi bi-emoji-smile text-muted';
+            kidgameIcon.style.fontSize = '1.5rem';
+            kidgameIcon.style.cursor = 'pointer';
+            kidgameIcon.style.transition = 'all 0.2s ease';
+            kidgameIcon.title = 'Click to mark as kid game';
+        } else {
+            // Not kid game, make it kid game
+            kidgameIcon.className = 'bi bi-emoji-smile-fill text-success';
+            kidgameIcon.style.fontSize = '1.5rem';
+            kidgameIcon.style.cursor = 'pointer';
+            kidgameIcon.style.transition = 'all 0.2s ease';
+            kidgameIcon.title = 'Click to remove kid game mark';
+        }
+    }
+
+    isKidgameActive() {
+        const kidgameIcon = document.getElementById('editKidgame');
+        if (kidgameIcon) {
+            return kidgameIcon.classList.contains('bi-emoji-smile-fill');
+        }
+        return false;
+    }
+
+
+    // Fanart Search Functions
+    async openFanartSearchModal(game) {
+        const modal = new bootstrap.Modal(document.getElementById('fanartSearchModal'));
+        
+        // Pre-fill the game name
+        document.getElementById('fanartGameName').value = game.name || '';
+        
+        // Set the current system for the search
+        this.currentFanartSearchGame = game;
+        this.currentFanartSearchSystem = this.currentSystem;
+        
+        // Populate fanart scrapers dropdown
+        await this.populateFanartScrapersDropdown();
+        
+        // Show the modal
+        modal.show();
+    }
+
+    async populateFanartScrapersDropdown() {
+        try {
+            const response = await fetch('/api/config');
+            const data = await response.json();
+            
+            if (data) {
+                const select = document.getElementById('fanartScraper');
+                // Clear existing options except "All Scrapers"
+                select.innerHTML = '<option value="all">All Scrapers</option>';
+                
+                // Add scrapers that have fanart mapping
+                Object.keys(data).forEach(scraperName => {
+                    const scraperConfig = data[scraperName];
+                    // Check if this is a scraper config (has image_type_mappings)
+                    if (scraperConfig && typeof scraperConfig === 'object' && scraperConfig.image_type_mappings) {
+                        const imageMappings = scraperConfig.image_type_mappings || {};
+                        
+                        if ('fanart' in imageMappings) {
+                            const option = document.createElement('option');
+                            option.value = scraperName;
+                            option.textContent = scraperName.charAt(0).toUpperCase() + scraperName.slice(1);
+                            select.appendChild(option);
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error loading fanart scrapers:', error);
+        }
+    }
+
+    async performFanartSearch() {
+        const gameName = document.getElementById('fanartGameName').value.trim();
+        const scraper = document.getElementById('fanartScraper').value;
+        const directMatch = document.getElementById('fanartDirectMatch').checked;
+        
+        if (!gameName) {
+            this.showAlert('Please enter a game name', 'warning');
+            return;
+        }
+
+        // Show loading state
+        document.getElementById('fanartSearchLoading').style.display = 'block';
+        document.getElementById('fanartSearchResults').style.display = 'none';
+
+        try {
+            const response = await fetch('/api/fanart-search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: this.currentFanartSearchSystem,
+                    scraper: scraper,
+                    direct_match: directMatch
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.displayFanartSearchResults(result.results);
+            } else {
+                this.showAlert(`Error searching fanart: ${result.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            this.showAlert('Error searching fanart', 'error');
+        } finally {
+            document.getElementById('fanartSearchLoading').style.display = 'none';
+        }
+    }
+
+    displayFanartSearchResults(results) {
+        const container = document.getElementById('fanartResultsContainer');
+        container.innerHTML = '';
+
+        if (results.length === 0) {
+            container.innerHTML = '<div class="col-12"><p class="text-muted">No fanart found.</p></div>';
+            document.getElementById('fanartSearchResults').style.display = 'block';
+            return;
+        }
+
+        results.forEach(result => {
+            // Create a separate card for each fanart image
+            if (result.fanart_urls && result.fanart_urls.length > 0) {
+                result.fanart_urls.forEach((url, index) => {
+                    const resultCard = document.createElement('div');
+                    resultCard.className = 'col-md-4 mb-3';
+                    
+                    resultCard.innerHTML = `
+                        <div class="card">
+                            <div class="card-body">
+                                <img src="${url}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: cover;" 
+                                     alt="Fanart" onerror="this.style.display='none'">
+                                <h6 class="card-title">${result.game_name}</h6>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <strong>Scraper:</strong> ${result.scraper}<br>
+                                        <strong>System:</strong> ${result.platform || 'Unknown'}<br>
+                                        <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
+                                    </small>
+                                </p>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleFanartImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentFanartSearchGame).replace(/"/g, '&quot;')})">
+                                        <i class="bi bi-download me-1"></i>Download This Fanart
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(resultCard);
+                });
+            }
+        });
+
+        document.getElementById('fanartSearchResults').style.display = 'block';
+    }
+
+    async downloadSingleFanartImage(fanartUrl, fanartResult, game) {
+        try {
+            const response = await fetch('/api/download-multiscraper-media', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    game_name: game.name,
+                    system_name: this.currentFanartSearchSystem,
+                    media_type: 'fanart',
+                    media_url: fanartUrl
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showAlert('Fanart downloaded successfully!', 'success');
+                
+                // Close the fanart search modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('fanartSearchModal'));
+                modal.hide();
+                
+                // Refresh the media preview
+                this.showMediaPreview(game);
+            } else {
+                this.showAlert(`Error downloading fanart: ${result.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            this.showAlert('Error downloading fanart', 'error');
+        }
     }
 }
 
@@ -19316,6 +19553,20 @@ function handleSteamImageError(imgElement) {
     // Replace the image with placeholder
     imgElement.parentNode.replaceChild(placeholder, imgElement);
 }
+
+// Fanart Search Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+    // Fanart search form submission
+    const fanartSearchForm = document.getElementById('fanartSearchForm');
+    if (fanartSearchForm) {
+        fanartSearchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (window.gameManager) {
+                window.gameManager.performFanartSearch();
+            }
+        });
+    }
+});
 
 // Initialize the game manager when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

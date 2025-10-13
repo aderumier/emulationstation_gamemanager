@@ -950,11 +950,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                         <div class="mb-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" id="editKidgame" style="transform: scale(1.2);">
-                                                <label class="form-check-label" for="editKidgame">
-                                                    <i class="bi bi-emoji-smile text-success me-1"></i>Kid Game
-                                                </label>
+                                            <div class="d-flex align-items-center">
+                                                <span class="me-2">Kid Game:</span>
+                                                <i class="bi bi-emoji-smile text-muted" id="editKidgame" style="font-size: 1.5rem; cursor: pointer; transition: all 0.2s ease;" title="Click to toggle kid game"></i>
                                             </div>
                                         </div>
                                     </div>
@@ -4037,6 +4035,69 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" id="closeMoveMediasBtn" style="display: none;" data-bs-dismiss="modal">
                         <i class="bi bi-x-circle me-2"></i>Close
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fanart Search Modal -->
+    <div class="modal fade" id="fanartSearchModal" tabindex="-1" aria-labelledby="fanartSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fanartSearchModalLabel">
+                        <i class="bi bi-image me-2"></i>Fanart Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="fanartSearchForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="fanartGameName" class="form-label">Game Name</label>
+                                <input type="text" class="form-control" id="fanartGameName" placeholder="Enter game name">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="fanartScraper" class="form-label">Scraper</label>
+                                <select class="form-select" id="fanartScraper">
+                                    <option value="all">All Scrapers</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="submit" class="btn btn-primary d-block w-100">
+                                    <i class="bi bi-search me-1"></i>Search
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fanartDirectMatch" checked>
+                                    <label class="form-check-label" for="fanartDirectMatch">
+                                        Direct Match
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <div id="fanartSearchResults" class="mt-4" style="display: none;">
+                        <h6>Search Results</h6>
+                        <div id="fanartResultsContainer" class="row">
+                            <!-- Results will be displayed here -->
+                        </div>
+                    </div>
+                    
+                    <div id="fanartSearchLoading" class="text-center mt-4" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Searching...</span>
+                        </div>
+                        <p class="mt-2">Searching for fanart...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>

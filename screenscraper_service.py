@@ -428,7 +428,7 @@ class ScreenScraperService:
         print(f"Found ScreenScraper system ID {screenscraper_system_id} for {system_name}")
         return screenscraper_system_id
     
-    async def search_games_by_name(self, game_name: str, system_name: str, limit: int = 10) -> List[Dict]:
+    async def search_games_by_name(self, game_name: str, system_name: str, limit: int = 10, search_all_systems: bool = False) -> List[Dict]:
         """
         Search for games by name using ScreenScraper API jeuRecherche.php endpoint.
         
@@ -436,21 +436,24 @@ class ScreenScraperService:
             game_name: The game name to search for
             system_name: The system name
             limit: Maximum number of results to return
+            search_all_systems: If True, search across all systems (no systemeid parameter)
             
         Returns:
             List of dictionaries with game data
         """
-        print(f"Searching ScreenScraper for game name: {game_name}, System: {system_name}")
+        print(f"Searching ScreenScraper for game name: {game_name}, System: {system_name}, All systems: {search_all_systems}")
         
         if not all([self.devid, self.devpassword, self.ssid, self.sspassword]):
             print("ScreenScraper credentials not configured")
             return []
         
-        # Get ScreenScraper system ID
-        systemeid = self.get_system_id(system_name)
-        if not systemeid:
-            print(f"No ScreenScraper system ID found for {system_name}")
-            return []
+        # Get ScreenScraper system ID (only if not searching all systems)
+        systemeid = None
+        if not search_all_systems:
+            systemeid = self.get_system_id(system_name)
+            if not systemeid:
+                print(f"No ScreenScraper system ID found for {system_name}")
+                return []
         
         # Clean the game name by removing text between parentheses (including parentheses)
         import re
@@ -467,9 +470,12 @@ class ScreenScraperService:
             'output': 'json',  # Use JSON for easier parsing
             'ssid': self.ssid,
             'sspassword': self.sspassword,
-            'systemeid': systemeid,
             'recherche': cleaned_game_name
         }
+        
+        # Only add systemeid if not searching all systems
+        if systemeid:
+            params['systemeid'] = systemeid
         
         # Only try once - no retries
         for attempt in range(1):
