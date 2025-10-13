@@ -8809,13 +8809,16 @@ def fanart_search_endpoint():
                             
                             # Check if game has artworks (fanart)
                             if 'artworks' in game and game['artworks']:
-                                artworks = game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]
                                 fanart_urls = []
                                 
                                 # Convert IGDB artwork IDs to full URLs
-                                for artwork in artworks:
-                                    artwork_url = normalize_igdb_url(artwork)
-                                    fanart_urls.append(artwork_url)
+                                if isinstance(game['artworks'], dict):
+                                    # New format: dict with image_id as key
+                                    for image_id in game['artworks'].keys():
+                                        artwork_url = normalize_igdb_url(image_id)
+                                        fanart_urls.append(artwork_url)
+                                else:
+                                    print(f"❌ ERROR: Unexpected artworks format: {type(game['artworks'])}")
                                 
                                 # Get platform name for display
                                 platform_name = 'Unknown'
