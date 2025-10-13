@@ -1240,7 +1240,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <strong>Searching for:</strong> <span id="steamSearchGameName"></span>
+                        <label for="steamSearchGameNameInput" class="form-label"><strong>Search for:</strong></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="steamSearchGameNameInput" placeholder="Enter game name to search">
+                            <button type="button" class="btn btn-outline-success" id="steamSearchButton">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center">

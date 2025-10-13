@@ -5797,6 +5797,47 @@ class GameCollectionManager {
         }
     }
     
+    async performSteamSearch() {
+        try {
+            const gameName = document.getElementById('steamSearchGameNameInput').value.trim();
+            if (!gameName) {
+                this.showSteamSearchError('Please enter a game name to search');
+                return;
+            }
+            
+            // Show spinner
+            document.getElementById('steamSearchSpinner').style.display = 'inline-block';
+            
+            console.log('🔧 DEBUG: Making Steam search request for:', gameName);
+            const response = await fetch('/api/steam/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: this.currentSteamSearchSystem || '',
+                    limit: 10
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('steamSearchSpinner').style.display = 'none';
+            
+            if (response.ok && result.success) {
+                this.displaySteamSearchResults(result.games);
+            } else {
+                this.showSteamSearchError(result.error || 'Failed to search Steam database');
+            }
+            
+        } catch (error) {
+            document.getElementById('steamSearchSpinner').style.display = 'none';
+            this.showSteamSearchError('Error searching Steam database: ' + error.message);
+        }
+    }
+    
     async performLaunchboxSearch() {
         try {
             const gameName = document.getElementById('gameEditOriginalGameNameInput').value.trim();
@@ -6192,8 +6233,8 @@ class GameCollectionManager {
     }
     
     async showSteamSearchModal(gameName, systemName) {
-        // Set the game name in the modal
-        document.getElementById('steamSearchGameName').textContent = gameName;
+        // Set the game name in the modal input field
+        document.getElementById('steamSearchGameNameInput').value = gameName;
         
         // Store system name for use in results display
         this.currentSteamSearchSystem = systemName;
@@ -6214,39 +6255,6 @@ class GameCollectionManager {
             focus: true
         });
         modal.show();
-        
-        // Show spinner
-        document.getElementById('steamSearchSpinner').style.display = 'inline-block';
-        
-        try {
-            // Search for games in Steam
-            const response = await fetch('/api/steam/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    game_name: gameName,
-                    system_name: systemName,
-                    limit: 10
-                })
-            });
-            
-            const result = await response.json();
-            
-            // Hide spinner
-            document.getElementById('steamSearchSpinner').style.display = 'none';
-            
-            if (response.ok && result.success) {
-                this.displaySteamSearchResults(result.games);
-            } else {
-                this.showSteamSearchError(result.error || 'Failed to search Steam games');
-            }
-            
-        } catch (error) {
-            document.getElementById('steamSearchSpinner').style.display = 'none';
-            this.showSteamSearchError('Error searching Steam games: ' + error.message);
-        }
     }
     
     displaySteamSearchResults(games) {
@@ -6585,6 +6593,95 @@ class GameCollectionManager {
         this.loadSteamgridImagesAsync(games);
     }
     
+    displaySteamSearchResults(games) {
+        const resultsContainer = document.getElementById('steamSearchResults');
+        
+        if (!games || games.length === 0) {
+            resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in Steam database.</div></div>';
+            return;
+        }
+        
+        let html = '';
+        games.forEach((game, index) => {
+            // Create placeholder image HTML (will be replaced when actual image loads)
+            const imageHtml = `
+                <div class="mb-2 text-center">
+                    <div id="steam-image-${game.appid}" class="d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa; border-radius: 0.375rem;">
+                        <div class="text-muted">
+                            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                            <div class="small">Loading Steam art...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        ${imageHtml}
+                        <div class="card-body">
+                            <h6 class="card-title">${game.name}</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">App ID: ${game.appid}</small>
+                                <small class="badge bg-success">Steam</small>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">Steam</small>
+                                <small class="text-muted">${game.type || 'Game'}</small>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="button" class="btn btn-success btn-sm w-100" onclick="gameManager.selectSteamGame(${game.appid}, '${game.name.replace(/'/g, "\\'")}')">
+                                <i class="bi bi-check-circle me-1"></i>Select This Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+        
+        // Load Steam images asynchronously for each game
+        this.loadSteamImagesAsync(games);
+    }
+    
+    async loadSteamImagesAsync(games) {
+        // Load Steam images for each game in parallel
+        const imagePromises = games.map(game => this.loadSteamImageForGame(game.appid));
+        
+        // Wait for all images to load (or fail)
+        await Promise.allSettled(imagePromises);
+    }
+    
+    async loadSteamImageForGame(appId) {
+        try {
+            const response = await fetch('/api/steam/header-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    app_id: appId
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.image_url) {
+                    const imageContainer = document.getElementById(`steam-image-${appId}`);
+                    if (imageContainer) {
+                        imageContainer.innerHTML = `
+                            <img src="${result.image_url}" class="img-fluid rounded" style="max-height: 200px; object-fit: cover;" alt="Steam header">
+                        `;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Failed to load Steam image for app ${appId}:`, error);
+        }
+    }
+    
     async loadSteamgridImagesAsync(games) {
         // Load grid images for each game in parallel
         const imagePromises = games.map(game => this.loadSteamgridImageForGame(game.id));
@@ -6646,6 +6743,12 @@ class GameCollectionManager {
     
     showSteamgridSearchError(message) {
         const errorContainer = document.getElementById('steamgridSearchError');
+        errorContainer.textContent = message;
+        errorContainer.style.display = 'block';
+    }
+    
+    showSteamSearchError(message) {
+        const errorContainer = document.getElementById('steamSearchError');
         errorContainer.textContent = message;
         errorContainer.style.display = 'block';
     }
@@ -17554,6 +17657,20 @@ class GameCollectionManager {
             steamgridSearchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     this.performSteamgridSearch();
+                }
+            });
+        }
+        
+        // Steam Search Modal
+        const steamSearchButton = document.getElementById('steamSearchButton');
+        const steamSearchInput = document.getElementById('steamSearchGameNameInput');
+        if (steamSearchButton && steamSearchInput) {
+            steamSearchButton.addEventListener('click', () => {
+                this.performSteamSearch();
+            });
+            steamSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performSteamSearch();
                 }
             });
         }
