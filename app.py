@@ -9492,7 +9492,7 @@ def marquee_search_endpoint():
                         continue
                     
                     # Normalize the game name (remove parentheses)
-                    normalized_name = normalize_game_name(game_name, remove_parentheses=True)
+                    normalized_name = normalize_game_name(game_name, remove_paranthesis=True)
                     print(f"🔧 DEBUG: Normalized without parentheses: '{normalized_name}'")
                     
                     all_launchbox_results = []
