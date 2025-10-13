@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 IMAGE_NAME="emulationstation_gamemanager"
-VERSION="2.3.3"
+VERSION="2.6.0"
 DOCKERHUB_USERNAME="aderumier"
 
 # Colors for output
