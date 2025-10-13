@@ -1080,13 +1080,7 @@ class IGDBDumper:
                             'w': fanart_data.get('width'),
                             'h': fanart_data.get('height')
                         }
-                    elif artwork_id in artworks_lookup:
-                        # Fallback: if not in specific lookups, add to artworks (just image_id as key)
-                        image_id = artworks_lookup[artwork_id]
-                        resolved_artworks[image_id] = {}
-                    else:
-                        # Keep original ID if not found in lookup
-                        resolved_artworks[artwork_id] = {}
+                    # Note: No fallback for artworks_lookup - only include filtered fanart and logos
                 
                 # Update the game entry with separated media
                 game_entry['artworks'] = resolved_artworks
