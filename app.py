@@ -9277,6 +9277,10 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 print(f"🔧 DEBUG: IGDB game has logos: {'logos' in game}")
                                 if 'logos' in game:
                                     print(f"🔧 DEBUG: IGDB logos value: {game['logos']}")
+                                if 'artworks' in game:
+                                    print(f"🔧 DEBUG: IGDB artworks value: {game['artworks']}")
+                                    if isinstance(game['artworks'], list) and game['artworks']:
+                                        print(f"🔧 DEBUG: IGDB first artwork: {game['artworks'][0]}")
                                 urls = []
                                 if media_type == 'fanart':
                                     # For fanart, use artworks
