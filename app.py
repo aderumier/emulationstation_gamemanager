@@ -11266,6 +11266,10 @@ def update_metadata_endpoint():
             # Clear all LaunchBox-related caches since metadata was updated
             flush_launchbox_caches()
             
+            # Reload the global metadata cache with new metadata
+            print("🔄 Reloading global metadata cache with new metadata...")
+            load_metadata_cache()
+            
             # Regenerate LaunchBox partitioned indexes with new metadata
             print("🔄 Regenerating LaunchBox partitioned indexes after metadata update...")
             load_launchbox_partitioned_indexes()
