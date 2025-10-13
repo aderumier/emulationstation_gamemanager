@@ -8680,68 +8680,8 @@ def download_multiscraper_media_endpoint():
         print(f"Error downloading multiscraper media: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
-@app.route('/api/fanart-search', methods=['POST'])
-@login_required
-def fanart_search_endpoint():
-    """Search for fanart images by game name similarity across scrapers"""
-    global global_metadata_cache, global_metadata_cache_loaded
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        game_name = data.get('game_name')
-        system_name = data.get('system_name')
-        selected_scraper = data.get('scraper', 'all')  # Default to 'all' if not specified
-        direct_match = data.get('direct_match', True)  # Default to True (direct match)
-        
-        if not all([game_name, system_name]):
-            return jsonify({'error': 'Game name and system name are required'}), 400
-        
-        print(f"🔧 DEBUG: Fanart search for game: {game_name}, system: {system_name}, scraper: {selected_scraper}, direct_match: {direct_match}")
-        
-        # Get scrapers that have fanart mapped
-        scrapers_config = load_scrappers_config()
-        print(f"🔧 DEBUG: Scrapers config: {type(scrapers_config)}")
-        print(f"🔧 DEBUG: Scrapers config keys: {list(scrapers_config.keys()) if scrapers_config else 'None'}")
-        
-        fanart_scrapers = {}
-        for scraper_name, scraper_config in scrapers_config.items():
-            # Skip if specific scraper is selected and this isn't it
-            if selected_scraper != 'all' and selected_scraper != scraper_name:
-                continue
-                
-            print(f"🔧 DEBUG: Checking scraper: {scraper_name}")
-            print(f"🔧 DEBUG: Scraper config type: {type(scraper_config)}")
-            print(f"🔧 DEBUG: Scraper config keys: {list(scraper_config.keys()) if isinstance(scraper_config, dict) else 'Not a dict'}")
-            
-            image_mappings = scraper_config.get('image_type_mappings', {})
-            print(f"🔧 DEBUG: Image mappings for {scraper_name}: {image_mappings}")
-            print(f"🔧 DEBUG: 'fanart' in image_mappings: {'fanart' in image_mappings}")
-            
-            if 'fanart' in image_mappings:
-                fanart_scrapers[scraper_name] = scraper_config
-                print(f"🔧 DEBUG: Added {scraper_name} to fanart scrapers")
-            else:
-                print(f"🔧 DEBUG: {scraper_name} does not have fanart mapping")
-        
-        print(f"🔧 DEBUG: Found fanart scrapers: {list(fanart_scrapers.keys())}")
-        print(f"🔧 DEBUG: Fanart scrapers count: {len(fanart_scrapers)}")
-        
-        # Search for fanart using each scraper - reuse existing search functions
-        all_fanart_results = []
-        
-        for scraper_name, scraper_config in fanart_scrapers.items():
-            try:
-                print(f"🔧 DEBUG: Searching {scraper_name} for fanart...")
-                
-                if scraper_name == 'igdb':
-                    # Use existing IGDB search function
-                    igdb_service = load_igdb_service()
-                    if igdb_service:
-                        print(f"🔧 DEBUG: Searching IGDB for '{game_name}' using direct match: {direct_match}")
-                        
-                        if direct_match:
+
+def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type):
                             # For direct match, use the same logic as IGDB scraping task
                             from game_utils import normalize_game_name
                             normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
@@ -9629,6 +9569,72 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
         return results
 
     return results
+
+@app.route('/api/fanart-search', methods=['POST'])
+@login_required
+def fanart_search_endpoint():
+    """Search for fanart images by game name similarity across scrapers"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name')
+        system_name = data.get('system_name')
+        selected_scraper = data.get('scraper', 'all')  # Default to 'all' if not specified
+        direct_match = data.get('direct_match', True)  # Default to True (direct match)
+        
+        if not all([game_name, system_name]):
+            return jsonify({'error': 'Game name and system name are required'}), 400
+        
+        print(f"🔧 DEBUG: Fanart search for game: {game_name}, system: {system_name}, scraper: {selected_scraper}, direct_match: {direct_match}")
+        
+        # Get scrapers that have fanart mapped
+        scrapers_config = load_scrappers_config()
+        fanart_scrapers = {}
+        for scraper_name, scraper_config in scrapers_config.items():
+            # Skip if specific scraper is selected and this isn't it
+            if selected_scraper != 'all' and selected_scraper != scraper_name:
+                continue
+                
+            image_mappings = scraper_config.get('image_type_mappings', {})
+            if 'fanart' in image_mappings:
+                fanart_scrapers[scraper_name] = scraper_config
+        
+        print(f"🔧 DEBUG: Found fanart scrapers: {list(fanart_scrapers.keys())}")
+        
+        # Search for fanart using each scraper - use unified search function
+        all_fanart_results = []
+        
+        for scraper_name, scraper_config in fanart_scrapers.items():
+            try:
+                print(f"🔧 DEBUG: Searching {scraper_name} for fanart...")
+                
+                # Use the unified search function
+                results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, 'fanart')
+                all_fanart_results.extend(results)
+                print(f"🔧 DEBUG: Found {len(results)} fanart results from {scraper_name}")
+                
+            except Exception as e:
+                print(f"🔧 DEBUG: Error searching {scraper_name}: {e}")
+                import traceback
+                print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
+                continue
+        
+        # Sort results by similarity score (highest first)
+        all_fanart_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+        
+        print(f"🔧 DEBUG: Found {len(all_fanart_results)} fanart results")
+        
+        return jsonify({
+            'success': True,
+            'results': all_fanart_results,
+            'total_found': len(all_fanart_results)
+        })
+        
+    except Exception as e:
+        print(f"Error in fanart search: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/marquee-search', methods=['POST'])
 @login_required
