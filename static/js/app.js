@@ -6255,6 +6255,20 @@ class GameCollectionManager {
             focus: true
         });
         modal.show();
+        
+        // Focus on the input field
+        document.getElementById('steamSearchGameNameInput').focus();
+        
+        // Show spinner
+        document.getElementById('steamSearchSpinner').style.display = 'inline-block';
+        
+        try {
+            // Perform initial search
+            await this.performSteamSearch();
+        } catch (error) {
+            document.getElementById('steamSearchSpinner').style.display = 'none';
+            this.showSteamSearchError('Error searching Steam games: ' + error.message);
+        }
     }
     
     displaySteamSearchResults(games) {
