@@ -9482,95 +9482,190 @@ def marquee_search_endpoint():
                                         print(f"🔧 DEBUG: Found ScreenScraper marquee for '{original_game.get('name', '')}' - {len(marquee_urls)} images")
                 
                 elif scraper_name == 'launchbox':
-                    # Use LaunchBox for marquee search
-                    print(f"🔧 DEBUG: Searching LaunchBox for '{game_name}' using direct match: {direct_match} (no parens index only)")
-                    
-                    # Use only the no-parens partitioned index for LaunchBox
-                    partition_index = global_launchbox_partition_index_no_parens
-                    if not partition_index:
-                        print("🔧 DEBUG: LaunchBox no-parens partitioned index not loaded")
-                        continue
-                    
-                    # Normalize the game name (remove parentheses)
-                    normalized_name = normalize_game_name(game_name, remove_paranthesis=True)
-                    print(f"🔧 DEBUG: Normalized without parentheses: '{normalized_name}'")
-                    
+                    # Use global LaunchBox partitioned indexes for fast search (no parens only)
                     all_launchbox_results = []
                     
-                    # Search in all platforms
-                    for platform_name, platform_data in partition_index.items():
-                        if normalized_name in platform_data:
-                            launchboxid = platform_data[normalized_name]
-                            print(f"🔧 DEBUG: Found game match in LaunchBox - ID: {launchboxid}, Platform: {platform_name}")
-                            
-                            # Check if this game exists in global metadata cache
-                            print(f"🔧 DEBUG: Checking if launchboxid {launchboxid} exists in global_metadata_cache...")
-                            if str(launchboxid) in global_metadata_cache['games_cache']:
-                                print(f"🔧 DEBUG: Found entry in global_metadata_cache for ID {launchboxid}")
-                                found_entry = global_metadata_cache['games_cache'][str(launchboxid)]
-                                print(f"🔧 DEBUG: Entry keys: {list(found_entry.keys())}")
+                    # Load global partitioned indexes
+                    partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
+                    if not partition_index_no_parens:
+                        print("🔧 DEBUG: LaunchBox partitioned index (no parens) not available")
+                        continue
+                    
+                    print(f"🔧 DEBUG: Searching LaunchBox for '{game_name}' using direct match: {direct_match} (no parens index only)")
+                    
+                    # Load global metadata cache to get full game data (use raw cache, not derived view)
+                    if not global_metadata_cache_loaded:
+                        print("🔧 DEBUG: Global metadata cache not loaded yet")
+                        continue
+                    
+                    if not global_metadata_cache:
+                        print("🔧 DEBUG: Global metadata cache not available")
+                        continue
+                    
+                    print(f"🔧 DEBUG: Global metadata cache type: {type(global_metadata_cache)}")
+                    print(f"🔧 DEBUG: Global metadata cache keys count: {len(global_metadata_cache) if isinstance(global_metadata_cache, dict) else 'Not a dict'}")
+                    if isinstance(global_metadata_cache, dict) and global_metadata_cache:
+                        sample_keys = list(global_metadata_cache.keys())[:5]
+                        print(f"🔧 DEBUG: Sample global metadata cache keys: {sample_keys}")
+                        print(f"🔧 DEBUG: Sample key types: {[type(k) for k in sample_keys]}")
+                    
+                    # Normalize search query (no parens only)
+                    from game_utils import normalize_game_name, calculate_similarity
+                    
+                    normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+                    print(f"🔧 DEBUG: Normalized without parentheses: '{normalized_no_parens}'")
+                    
+                    # Search through all platforms using no parens index only
+                    for platform_name in partition_index_no_parens.keys():
+                        try:
+                            if direct_match:
+                                # Use exact match with no parens normalization only
+                                launchboxid = None
                                 
-                                # Get game data
-                                if 'game' in found_entry:
-                                    print(f"🔧 DEBUG: Found game element for ID {launchboxid}")
-                                    game_elem = found_entry['game']
+                                if normalized_no_parens and platform_name in partition_index_no_parens:
+                                    launchboxid = partition_index_no_parens[platform_name].get(normalized_no_parens)
+                                
+                                if launchboxid:
+                                    # Convert to string for lookup in global metadata cache (cache uses string keys)
+                                    launchboxid_str = str(launchboxid)
+                                    print(f"🔧 DEBUG: Found game match in LaunchBox - ID: {launchboxid_str} (type: {type(launchboxid_str)}), Platform: {platform_name}")
                                     
-                                    # Handle both XML element and dictionary formats
-                                    if hasattr(game_elem, 'text'):
-                                        # XML element format
-                                        game_name_elem = game_elem.find('Name')
-                                        game_name_text = game_name_elem.text if game_name_elem is not None else 'Unknown'
+                                    # Get full game data from global cache using string ID
+                                    print(f"🔧 DEBUG: Checking if launchboxid {launchboxid_str} exists in global_metadata_cache...")
+                                    
+                                    found_entry = None
+                                    if launchboxid_str in global_metadata_cache:
+                                        found_entry = global_metadata_cache[launchboxid_str]
+                                        print(f"🔧 DEBUG: Found entry in global_metadata_cache for ID {launchboxid_str}")
                                     else:
-                                        # Dictionary format
-                                        game_name_text = game_elem.get('Name', 'Unknown')
+                                        print(f"🔧 DEBUG: launchboxid {launchboxid_str} NOT found in global_metadata_cache")
                                     
-                                    # Get marquee images from the images cache
-                                    marquee_urls = []
-                                    if 'images' in found_entry and found_entry['images']:
-                                        for image in found_entry['images']:
-                                            # Check if this image matches marquee mapping
-                                            if hasattr(image, 'get'):
-                                                # Dictionary format
-                                                image_type = image.get('Type', '')
-                                            else:
-                                                # XML element format
-                                                image_type_elem = image.find('Type')
-                                                image_type = image_type_elem.text if image_type_elem is not None else ''
-                                            
-                                            # Check against marquee mappings
-                                            marquee_mappings = scraper_config.get('image_type_mappings', {}).get('marquee', [])
-                                            if image_type in marquee_mappings:
-                                                if hasattr(image, 'get'):
-                                                    # Dictionary format
-                                                    image_url = image.get('FileName', '')
-                                                else:
-                                                    # XML element format
-                                                    image_url_elem = image.find('FileName')
-                                                    image_url = image_url_elem.text if image_url_elem is not None else ''
-                                                
-                                                if image_url:
-                                                    # Prepend the LaunchBox images domain
-                                                    full_url = f"https://images.launchbox-app.com/{image_url}"
-                                                    marquee_urls.append(full_url)
+                                    if found_entry:
+                                        entry = found_entry
+                                        print(f"🔧 DEBUG: Entry keys: {list(entry.keys())}")
+                                        game_elem = entry.get('game')
+                                        if game_elem:
+                                            print(f"🔧 DEBUG: Found game element for ID {launchboxid}")
+                                            print(f"🔧 DEBUG: Game element type: {type(game_elem)}")
+                                        else:
+                                            print(f"🔧 DEBUG: No game element found for ID {launchboxid}")
                                     
-                                    if marquee_urls:
-                                        # Calculate similarity score
-                                        similarity_score = calculate_similarity(game_name, game_name_text)
+                                    if found_entry and game_elem:
+                                        # Extract game data - handle both XML element and dictionary formats
+                                        game_data = {}
+                                        if hasattr(game_elem, 'tag'):  # XML element
+                                            for child in game_elem:
+                                                if child.text:
+                                                    game_data[child.tag] = child.text.strip()
+                                        elif isinstance(game_elem, dict):  # Dictionary format
+                                            game_data = game_elem
                                         
-                                        all_launchbox_results.append({
-                                            'scraper': 'launchbox',
-                                            'game_name': game_name_text,
-                                            'game_id': launchboxid,
-                                            'similarity_score': similarity_score,
-                                            'marquee_urls': marquee_urls,
-                                            'region': 'Unknown',
-                                            'platform': platform_name
-                                        })
-                                        print(f"🔧 DEBUG: Found LaunchBox marquee for '{game_name_text}' - {len(marquee_urls)} images, similarity: {similarity_score:.3f}")
-                                    else:
-                                        print(f"🔧 DEBUG: No marquee images found for LaunchBox game '{game_name_text}'")
+                                        game_name_found = game_data.get('Name', '')
+                                        print(f"🔧 DEBUG: Processing game: '{game_name_found}' (ID: {launchboxid})")
+                                        print(f"🔧 DEBUG: Game data structure: {game_data}")
+                                        
+                                        # Check if this game has marquee using the images field and scrappers.json mapping
+                                        marquee_urls = []
+                                        
+                                        # Get marquee mapping from scrappers.json
+                                        marquee_mappings = scraper_config.get('image_type_mappings', {}).get('marquee', [])
+                                        print(f"🔧 DEBUG: Marquee mappings from scrappers.json: {marquee_mappings}")
+                                        
+                                        # Get images from the cache entry
+                                        images = entry.get('images', [])
+                                        print(f"🔧 DEBUG: Found {len(images)} images for '{game_name_found}'")
+                                        
+                                        # Look for marquee images using the mapped field names
+                                        for image_data in images:
+                                            if isinstance(image_data, dict):
+                                                # Get the image type and filename from the dictionary
+                                                image_type = image_data.get('Type', '')
+                                                filename = image_data.get('FileName', '')
+                                                
+                                                print(f"🔧 DEBUG: Checking image type '{image_type}' against marquee mappings: {marquee_mappings}")
+                                                
+                                                # Check if this image type matches any of the marquee mappings
+                                                if image_type in marquee_mappings and filename:
+                                                    # Prepend the LaunchBox images domain
+                                                    full_url = f"https://images.launchbox-app.com/{filename}"
+                                                    marquee_urls.append(full_url)
+                                                    print(f"🔧 DEBUG: Found marquee image: {full_url}")
+                                        
+                                        if marquee_urls:
+                                            all_launchbox_results.append({
+                                                'scraper': 'launchbox',
+                                                'game_name': game_name_found,
+                                                'game_id': launchboxid,
+                                                'similarity_score': 1.0,  # Direct match
+                                                'marquee_urls': marquee_urls,
+                                                'region': 'Unknown',
+                                                'platform': platform_name
+                                            })
+                                            print(f"🔧 DEBUG: Found LaunchBox marquee for '{game_name_found}' - {len(marquee_urls)} images")
+                                        else:
+                                            print(f"🔧 DEBUG: No marquee images found for LaunchBox game '{game_name_found}'")
                             else:
-                                print(f"🔧 DEBUG: launchboxid {launchboxid} NOT found in global_metadata_cache")
+                                # Similarity search - find games with high similarity
+                                platform_games = partition_index_no_parens.get(platform_name, {})
+                                if platform_games:
+                                    # Calculate similarity for all games in this platform
+                                    similarity_results = []
+                                    for normalized_name, launchboxid in platform_games.items():
+                                        similarity = calculate_similarity(normalized_no_parens, normalized_name)
+                                        if similarity > 0.9:  # Only consider matches with >90% similarity
+                                            similarity_results.append((similarity, launchboxid, normalized_name))
+                                    
+                                    # Sort by similarity and process top matches
+                                    similarity_results.sort(key=lambda x: x[0], reverse=True)
+                                    
+                                    for similarity, launchboxid, normalized_name in similarity_results[:5]:  # Top 5 per platform
+                                        launchboxid_str = str(launchboxid)
+                                        
+                                        if launchboxid_str in global_metadata_cache:
+                                            found_entry = global_metadata_cache[launchboxid_str]
+                                            entry = found_entry
+                                            game_elem = entry.get('game')
+                                            
+                                            if game_elem:
+                                                # Extract game data
+                                                game_data = {}
+                                                if hasattr(game_elem, 'tag'):  # XML element
+                                                    for child in game_elem:
+                                                        if child.text:
+                                                            game_data[child.tag] = child.text.strip()
+                                                elif isinstance(game_elem, dict):  # Dictionary format
+                                                    game_data = game_elem
+                                                
+                                                game_name_found = game_data.get('Name', '')
+                                                
+                                                # Get marquee images
+                                                marquee_urls = []
+                                                marquee_mappings = scraper_config.get('image_type_mappings', {}).get('marquee', [])
+                                                images = entry.get('images', [])
+                                                
+                                                for image_data in images:
+                                                    if isinstance(image_data, dict):
+                                                        image_type = image_data.get('Type', '')
+                                                        filename = image_data.get('FileName', '')
+                                                        
+                                                        if image_type in marquee_mappings and filename:
+                                                            full_url = f"https://images.launchbox-app.com/{filename}"
+                                                            marquee_urls.append(full_url)
+                                                
+                                                if marquee_urls:
+                                                    all_launchbox_results.append({
+                                                        'scraper': 'launchbox',
+                                                        'game_name': game_name_found,
+                                                        'game_id': launchboxid,
+                                                        'similarity_score': similarity,
+                                                        'marquee_urls': marquee_urls,
+                                                        'region': 'Unknown',
+                                                        'platform': platform_name
+                                                    })
+                                                    print(f"🔧 DEBUG: Found LaunchBox marquee for '{game_name_found}' - {len(marquee_urls)} images, similarity: {similarity:.3f}")
+                        except Exception as e:
+                            print(f"🔧 DEBUG: Error searching LaunchBox platform {platform_name}: {e}")
+                            continue
                     
                     # Sort all results by similarity score and take top 10
                     all_launchbox_results.sort(key=lambda x: x['similarity_score'], reverse=True)
