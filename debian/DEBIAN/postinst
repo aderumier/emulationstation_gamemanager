@@ -108,6 +108,13 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     mkdir -p /opt/gamemanager/var/cache
     mkdir -p /opt/gamemanager/roms
     
+    # Clear cache directory on upgrade to ensure clean state
+    echo "Clearing cache directory for clean upgrade..."
+    if [ -d "/opt/gamemanager/var/cache" ]; then
+        rm -rf /opt/gamemanager/var/cache/*
+        echo "✅ Cache directory cleared"
+    fi
+    
     # Clean up old double-nested pyrate_limiter structure if it exists
     if [ -d "/opt/gamemanager/pyrate_limiter/pyrate_limiter" ]; then
         echo "Cleaning up old double-nested pyrate_limiter structure..."
