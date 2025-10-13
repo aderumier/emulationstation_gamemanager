@@ -9241,6 +9241,290 @@ def fanart_search_endpoint():
         print(f"Error in fanart search: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, media_type):
+    """Common helper to search media by scraper for a given media_type ('fanart'|'marquee').
+    Returns a list of standardized result dicts.
+    """
+    results = []
+
+    try:
+        if scraper_name == 'igdb':
+            igdb_service = load_igdb_service()
+            if not igdb_service:
+                return results
+
+            from game_utils import normalize_game_name
+            if direct_match:
+                normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+                # platform_index structure: { platform_id -> { first_char -> { normalized_name -> id } } }
+                for platform_id, platform_data in igdb_service.platform_index.items():
+                    if not normalized_name:
+                        continue
+                    first_char = normalized_name[0].lower()
+                    if first_char in platform_data:
+                        partition_games = platform_data[first_char]
+                        if normalized_name in partition_games:
+                            game_id = partition_games[normalized_name]
+                            if game_id in igdb_service.igdb_data:
+                                game = igdb_service.igdb_data[game_id]
+                                urls = []
+                                if 'artworks' in game and game['artworks']:
+                                    for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
+                                        image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
+                                        if image_id:
+                                            if media_type == 'fanart':
+                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg")
+                                            else:  # marquee
+                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_logo_med/{image_id}.jpg")
+                                if urls:
+                                    platform_name = 'Unknown'
+                                    if 'platform' in game and game['platform']:
+                                        platform_name = game['platform'].get('name', 'Unknown')
+                                    results.append({
+                                        'scraper': 'igdb',
+                                        'game_name': game.get('name', ''),
+                                        'game_id': game.get('id', ''),
+                                        'similarity_score': 1.0,
+                                        f'{media_type}_urls': urls,
+                                        'region': 'Unknown',
+                                        'platform': platform_name
+                                    })
+                            break
+            else:
+                # Similarity search across all platforms
+                from game_utils import calculate_similarity
+                similar_games = []
+                for platform_id, platform_data in igdb_service.platform_index.items():
+                    # Flatten normalized_name -> id
+                    flat = []
+                    for _, names_map in platform_data.items():
+                        flat.extend(list(names_map.items()))
+                    for normalized_name, gid in flat:
+                        if gid in igdb_service.igdb_data:
+                            game = igdb_service.igdb_data[gid]
+                            similarity = calculate_similarity(game_name, game.get('name', ''))
+                            if similarity > 0.9:
+                                game = game.copy()
+                                game['_similarity_score'] = similarity
+                                similar_games.append(game)
+                similar_games.sort(key=lambda x: x.get('_similarity_score', 0), reverse=True)
+                for game in similar_games[:50]:
+                    urls = []
+                    if 'artworks' in game and game['artworks']:
+                        for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
+                            image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
+                            if image_id:
+                                if media_type == 'fanart':
+                                    urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg")
+                                else:
+                                    urls.append(f"https://images.igdb.com/igdb/image/upload/t_logo_med/{image_id}.jpg")
+                    if urls:
+                        platform_name = 'Unknown'
+                        if 'platform' in game and game['platform']:
+                            platform_name = game['platform'].get('name', 'Unknown')
+                        results.append({
+                            'scraper': 'igdb',
+                            'game_name': game.get('name', ''),
+                            'game_id': game.get('id', ''),
+                            'similarity_score': game.get('_similarity_score', 0.0),
+                            f'{media_type}_urls': urls,
+                            'region': 'Unknown',
+                            'platform': platform_name
+                        })
+
+        elif scraper_name == 'steam':
+            steam_service = load_steam_service()
+            if not steam_service:
+                return results
+            if direct_match:
+                games = steam_service.search_steam_apps(game_name, limit=50)
+                for g in games:
+                    g['similarity_score'] = 1.0
+            else:
+                games = steam_service.find_similarity_matches(game_name, [], limit=50)
+            for g in games:
+                similarity_score = g.get('similarity_score', 0.0)
+                if similarity_score > 0.85:
+                    steam_id = g.get('appid')
+                    if steam_id:
+                        if media_type == 'fanart':
+                            url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
+                        else:
+                            url = f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/logo.png"
+                        results.append({
+                            'scraper': 'steam',
+                            'game_name': g.get('name', ''),
+                            'game_id': steam_id,
+                            'similarity_score': similarity_score,
+                            f'{media_type}_urls': [url],
+                            'region': 'Unknown'
+                        })
+
+        elif scraper_name == 'steamgriddb':
+            from steamgrid_service import SteamGridService
+            sgdb_service = SteamGridService()
+            api_key = sgdb_service.get_api_key()
+            if not api_key:
+                return results
+            games = run_async_safely(sgdb_service.get_steamgrid_id_by_name(game_name, api_key=api_key, limit=50))
+            # dedupe
+            seen = set()
+            unique_games = []
+            for g in games:
+                gid = g.get('id')
+                if gid and gid not in seen:
+                    seen.add(gid)
+                    unique_games.append(g)
+            media_key = 'heroes' if media_type == 'fanart' else 'logos'
+            for g in unique_games:
+                gid = g.get('id')
+                if not gid:
+                    continue
+                media = run_async_safely(sgdb_service.get_steamgrid_media(gid, [media_key], api_key=api_key))
+                if media and media_key in media and media[media_key]:
+                    for item in media[media_key]:
+                        url = item.get('url', '')
+                        if url:
+                            results.append({
+                                'scraper': 'steamgriddb',
+                                'game_name': g.get('name', ''),
+                                'game_id': gid,
+                                'similarity_score': 1.0,
+                                f'{media_type}_urls': [url],
+                                'region': 'Unknown'
+                            })
+
+        elif scraper_name == 'screenscraper':
+            from screenscraper_service import ScreenScraperService
+            from credential_manager import credential_manager
+            config = load_config()
+            screenscraper_creds = credential_manager.get_screenscraper_credentials()
+            scrappers_config = load_scrappers_config()
+            systems_config = load_systems_config()
+            ss_service = ScreenScraperService(config, screenscraper_creds, scrappers_config, systems_config)
+            search_results = run_async_safely(ss_service.search_games_by_name(game_name, system_name, limit=10, search_all_systems=True))
+            to_fetch = []
+            for g in search_results:
+                gid = g.get('jeu_id')
+                if gid:
+                    to_fetch.append((gid, g))
+            if to_fetch:
+                import asyncio
+                async def fetch_all():
+                    tasks = [ss_service.get_game_by_id(gid, system_name) for gid, _ in to_fetch]
+                    return await asyncio.gather(*tasks, return_exceptions=True)
+                full_data = run_async_safely(fetch_all())
+                for i, (_, og) in enumerate(to_fetch):
+                    if i >= len(full_data):
+                        continue
+                    fd = full_data[i]
+                    if isinstance(fd, Exception) or not fd:
+                        continue
+                    urls = []
+                    if 'medias' in fd and fd['medias']:
+                        for media in fd['medias']:
+                            if not isinstance(media, dict):
+                                continue
+                            if media_type == 'fanart' and media.get('type') == 'fanart' and media.get('url'):
+                                urls.append(media['url'])
+                            if media_type == 'marquee' and media.get('type') == 'wheel' and media.get('url'):
+                                urls.append(media['url'])
+                    if urls:
+                        results.append({
+                            'scraper': 'screenscraper',
+                            'game_name': og.get('name', ''),
+                            'game_id': og.get('jeu_id', ''),
+                            'similarity_score': og.get('_similarity_score', 0.0),
+                            f'{media_type}_urls': urls,
+                            'region': 'Unknown',
+                            'platform': system_name
+                        })
+
+        elif scraper_name == 'launchbox':
+            # Use partitioned index (no parens) and global cache
+            all_lb = []
+            partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
+            if not partition_index_no_parens:
+                return results
+            from game_utils import normalize_game_name, calculate_similarity
+            normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+            global global_metadata_cache, global_metadata_cache_loaded
+            if not global_metadata_cache_loaded or not global_metadata_cache:
+                return results
+            for platform_name in partition_index_no_parens.keys():
+                try:
+                    if direct_match:
+                        launchboxid = None
+                        if normalized_no_parens and platform_name in partition_index_no_parens:
+                            launchboxid = partition_index_no_parens[platform_name].get(normalized_no_parens)
+                        if launchboxid:
+                            launchboxid_str = str(launchboxid)
+                            entry = global_metadata_cache.get(launchboxid_str)
+                            game_elem = entry.get('game') if entry else None
+                            if entry and game_elem:
+                                # Extract images via mapping
+                                image_mappings = scraper_config.get('image_type_mappings', {}).get(media_type, [])
+                                images = entry.get('images', [])
+                                urls = []
+                                for img in images:
+                                    if not isinstance(img, dict):
+                                        continue
+                                    if img.get('Type', '') in image_mappings and img.get('FileName', ''):
+                                        urls.append(f"https://images.launchbox-app.com/{img['FileName']}")
+                                if urls:
+                                    all_lb.append({
+                                        'scraper': 'launchbox',
+                                        'game_name': (game_elem.get('Name') if isinstance(game_elem, dict) else ''),
+                                        'game_id': launchboxid,
+                                        'similarity_score': 1.0,
+                                        f'{media_type}_urls': urls,
+                                        'region': 'Unknown',
+                                        'platform': platform_name
+                                    })
+                    else:
+                        platform_games = partition_index_no_parens.get(platform_name, {})
+                        if platform_games:
+                            sim_list = []
+                            for norm_name, lbid in platform_games.items():
+                                sim = calculate_similarity(normalized_no_parens, norm_name)
+                                if sim > 0.9:
+                                    sim_list.append((sim, lbid, norm_name))
+                            sim_list.sort(key=lambda x: x[0], reverse=True)
+                            for sim, lbid, norm in sim_list[:5]:
+                                entry = global_metadata_cache.get(str(lbid))
+                                if not entry:
+                                    continue
+                                game_elem = entry.get('game')
+                                image_mappings = scraper_config.get('image_type_mappings', {}).get(media_type, [])
+                                images = entry.get('images', [])
+                                urls = []
+                                for img in images:
+                                    if not isinstance(img, dict):
+                                        continue
+                                    if img.get('Type', '') in image_mappings and img.get('FileName', ''):
+                                        urls.append(f"https://images.launchbox-app.com/{img['FileName']}")
+                                if urls:
+                                    all_lb.append({
+                                        'scraper': 'launchbox',
+                                        'game_name': (game_elem.get('Name') if isinstance(game_elem, dict) else ''),
+                                        'game_id': lbid,
+                                        'similarity_score': sim,
+                                        f'{media_type}_urls': urls,
+                                        'region': 'Unknown',
+                                        'platform': platform_name
+                                    })
+                except Exception:
+                    continue
+            results.extend(all_lb)
+
+    except Exception as e:
+        print(f"🔧 DEBUG: Error in search_media_by_scraper for {scraper_name}: {e}")
+        import traceback
+        print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
+        return results
+
+    return results
+
 @app.route('/api/marquee-search', methods=['POST'])
 @login_required
 def marquee_search_endpoint():
@@ -9286,393 +9570,14 @@ def marquee_search_endpoint():
         if scraper != 'all' and scraper in marquee_scrapers:
             marquee_scrapers = {scraper: marquee_scrapers[scraper]}
         
-        # Search for marquee using each scraper - reuse existing search functions
+        # Search for marquee using each scraper - via common helper
         all_marquee_results = []
-        
+
         for scraper_name, scraper_config in marquee_scrapers.items():
             try:
                 print(f"🔧 DEBUG: Searching {scraper_name} for marquee...")
-                
-                if scraper_name == 'igdb':
-                    # Use existing IGDB search function
-                    igdb_service = load_igdb_service()
-                    if igdb_service:
-                        print(f"🔧 DEBUG: Searching IGDB for '{game_name}' using direct match: {direct_match}")
-                        
-                        if direct_match:
-                            # Direct match using normalized name lookup
-                            normalized_name = normalize_game_name(game_name)
-                            print(f"🔧 DEBUG: Normalized name: '{normalized_name}'")
-                            
-                            # Search in all platforms for direct match
-                            for platform_id, platform_data in igdb_service.platform_index.items():
-                                if normalized_name in platform_data:
-                                    game_id = platform_data[normalized_name]
-                                    if game_id in igdb_service.igdb_data:
-                                        game = igdb_service.igdb_data[game_id]
-                                        
-                                        # Get marquee images (logos)
-                                        marquee_urls = []
-                                        if 'artworks' in game and game['artworks']:
-                                            for artwork in game['artworks']:
-                                                if artwork.get('image_id'):
-                                                    logo_url = f"https://images.igdb.com/igdb/image/upload/t_logo_med/{artwork['image_id']}.jpg"
-                                                    marquee_urls.append(logo_url)
-                                        
-                                        if marquee_urls:
-                                            # Get platform name for display
-                                            platform_name = 'Unknown'
-                                            if 'platform' in game and game['platform']:
-                                                platform_name = game['platform'].get('name', 'Unknown')
-                                            
-                                            all_marquee_results.append({
-                                                'scraper': 'igdb',
-                                                'game_name': game.get('name', ''),
-                                                'game_id': game.get('id', ''),
-                                                'similarity_score': 1.0,  # Direct match
-                                                'marquee_urls': marquee_urls,
-                                                'region': 'Unknown',
-                                                'platform': platform_name
-                                            })
-                                            print(f"🔧 DEBUG: Found IGDB marquee for '{game.get('name', '')}' - {len(marquee_urls)} images")
-                        else:
-                            # Similarity search across all platforms
-                            all_platform_games = []
-                            for platform_id, platform_data in igdb_service.platform_index.items():
-                                for normalized_game_name, game_id in platform_data.items():
-                                    if game_id in igdb_service.igdb_data:
-                                        game = igdb_service.igdb_data[game_id]
-                                        similarity = calculate_similarity(game_name, game.get('name', ''))
-                                        if similarity > 0.9:  # High similarity threshold
-                                            game['_similarity_score'] = similarity
-                                            all_platform_games.append(game)
-                            
-                            # Sort by similarity and take top 50
-                            all_platform_games.sort(key=lambda x: x.get('_similarity_score', 0), reverse=True)
-                            top_games = all_platform_games[:50]
-                            
-                            for game in top_games:
-                                # Get marquee images (logos)
-                                marquee_urls = []
-                                if 'artworks' in game and game['artworks']:
-                                    for artwork in game['artworks']:
-                                        if artwork.get('image_id'):
-                                            logo_url = f"https://images.igdb.com/igdb/image/upload/t_logo_med/{artwork['image_id']}.jpg"
-                                            marquee_urls.append(logo_url)
-                                
-                                if marquee_urls:
-                                    # Get platform name for display
-                                    platform_name = 'Unknown'
-                                    if 'platform' in game and game['platform']:
-                                        platform_name = game['platform'].get('name', 'Unknown')
-                                    
-                                    all_marquee_results.append({
-                                        'scraper': 'igdb',
-                                        'game_name': game.get('name', ''),
-                                        'game_id': game.get('id', ''),
-                                        'similarity_score': game.get('_similarity_score', 0.0),
-                                        'marquee_urls': marquee_urls,
-                                        'region': 'Unknown',
-                                        'platform': platform_name
-                                    })
-                                    print(f"🔧 DEBUG: Found IGDB marquee for '{game.get('name', '')}' - {len(marquee_urls)} images, similarity: {game.get('_similarity_score', 0.0):.2f}")
-                
-                elif scraper_name == 'steam':
-                    # Use Steam service for marquee search
-                    steam_service = SteamService()
-                    if steam_service:
-                        if direct_match:
-                            # Direct match
-                            games = steam_service.search_steam_apps(game_name, limit=50)
-                            for game in games:
-                                game['similarity_score'] = 1.0  # Direct match
-                        else:
-                            # Similarity search
-                            games = steam_service.find_similarity_matches(game_name, limit=50)
-                        
-                        # Filter by similarity > 85%
-                        filtered_games = [game for game in games if game.get('similarity_score', 0) > 0.85]
-                        
-                        for game in filtered_games:
-                            similarity_score = game.get('similarity_score', 0)
-                            if similarity_score > 0.85:
-                                # Generate logo URL from Steam app ID
-                                steam_id = game.get('appid')
-                                if steam_id:
-                                    logo_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/logo.png"
-                                    all_marquee_results.append({
-                                        'scraper': 'steam',
-                                        'game_name': game.get('name', ''),
-                                        'game_id': steam_id,
-                                        'similarity_score': similarity_score,
-                                        'marquee_urls': [logo_url],
-                                        'region': 'Unknown'
-                                    })
-                                    print(f"🔧 DEBUG: Found Steam marquee for '{game.get('name', '')}' - similarity: {similarity_score:.3f}")
-                
-                elif scraper_name == 'steamgriddb':
-                    # Use SteamGridDB service for marquee search
-                    sgdb_service = SteamGridService()
-                    api_key = sgdb_service.get_api_key()
-                    
-                    if api_key:
-                        # Search for games
-                        games = run_async_safely(sgdb_service.get_steamgrid_id_by_name(game_name, limit=50, api_key=api_key))
-                        
-                        for game in games:
-                            steamgrid_id = game.get('id')
-                            if steamgrid_id:
-                                # Get marquee images (logos)
-                                media = run_async_safely(sgdb_service.get_steamgrid_media(steamgrid_id, ['logos'], api_key=api_key))
-                                
-                                if media and 'logos' in media and media['logos']:
-                                    # Add each logo image as a separate result
-                                    for logo in media['logos']:
-                                        all_marquee_results.append({
-                                            'scraper': 'steamgriddb',
-                                            'game_name': game.get('name', ''),
-                                            'game_id': steamgrid_id,
-                                            'similarity_score': 1.0,  # SteamGridDB doesn't provide similarity scores
-                                            'marquee_urls': [logo.get('url', '')],
-                                            'region': 'Unknown'
-                                        })
-                                    print(f"🔧 DEBUG: Found SteamGridDB marquee for '{game.get('name', '')}' - {len(media['logos'])} images")
-                
-                elif scraper_name == 'screenscraper':
-                    # Use ScreenScraper service for marquee search
-                    ss_service = ScreenScraperService()
-                    
-                    # Search for games (search all systems for marquee)
-                    results = run_async_safely(ss_service.search_games_by_name(game_name, system_name, limit=10, search_all_systems=True))
-                    
-                    if results:
-                        # Fetch full game data for each result to get marquee
-                        game_tasks = []
-                        for game in results:
-                            game_id = game.get('jeu_id')
-                            if game_id:
-                                game_tasks.append(ss_service.get_game_by_id(game_id))
-                        
-                        if game_tasks:
-                            full_games = run_async_safely(asyncio.gather(*game_tasks))
-                            
-                            for i, original_game in enumerate(results):
-                                if i < len(full_games):
-                                    full_game = full_games[i]
-                                    
-                                    # Get marquee images (wheel)
-                                    marquee_urls = []
-                                    if 'medias' in full_game and full_game['medias']:
-                                        for media in full_game['medias']:
-                                            if media.get('type') == 'wheel':  # ScreenScraper uses 'wheel' for marquee
-                                                if 'url' in media:
-                                                    marquee_urls.append(media['url'])
-                                                    print(f"🔧 DEBUG: Found marquee media: {media}")
-                                    
-                                    if marquee_urls:
-                                        all_marquee_results.append({
-                                            'scraper': 'screenscraper',
-                                            'game_name': original_game.get('name', ''),
-                                            'game_id': original_game.get('jeu_id', ''),
-                                            'similarity_score': original_game.get('_similarity_score', 0.0),
-                                            'marquee_urls': marquee_urls,
-                                            'region': 'Unknown',
-                                            'platform': system_name
-                                        })
-                                        print(f"🔧 DEBUG: Found ScreenScraper marquee for '{original_game.get('name', '')}' - {len(marquee_urls)} images")
-                
-                elif scraper_name == 'launchbox':
-                    # Use global LaunchBox partitioned indexes for fast search (no parens only)
-                    all_launchbox_results = []
-                    
-                    # Load global partitioned indexes
-                    partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
-                    if not partition_index_no_parens:
-                        print("🔧 DEBUG: LaunchBox partitioned index (no parens) not available")
-                        continue
-                    
-                    print(f"🔧 DEBUG: Searching LaunchBox for '{game_name}' using direct match: {direct_match} (no parens index only)")
-                    
-                    # Load global metadata cache to get full game data (use raw cache, not derived view)
-                    if not global_metadata_cache_loaded:
-                        print("🔧 DEBUG: Global metadata cache not loaded yet")
-                        continue
-                    
-                    if not global_metadata_cache:
-                        print("🔧 DEBUG: Global metadata cache not available")
-                        continue
-                    
-                    print(f"🔧 DEBUG: Global metadata cache type: {type(global_metadata_cache)}")
-                    print(f"🔧 DEBUG: Global metadata cache keys count: {len(global_metadata_cache) if isinstance(global_metadata_cache, dict) else 'Not a dict'}")
-                    if isinstance(global_metadata_cache, dict) and global_metadata_cache:
-                        sample_keys = list(global_metadata_cache.keys())[:5]
-                        print(f"🔧 DEBUG: Sample global metadata cache keys: {sample_keys}")
-                        print(f"🔧 DEBUG: Sample key types: {[type(k) for k in sample_keys]}")
-                    
-                    # Normalize search query (no parens only)
-                    from game_utils import normalize_game_name, calculate_similarity
-                    
-                    normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
-                    print(f"🔧 DEBUG: Normalized without parentheses: '{normalized_no_parens}'")
-                    
-                    # Search through all platforms using no parens index only
-                    for platform_name in partition_index_no_parens.keys():
-                        try:
-                            if direct_match:
-                                # Use exact match with no parens normalization only
-                                launchboxid = None
-                                
-                                if normalized_no_parens and platform_name in partition_index_no_parens:
-                                    launchboxid = partition_index_no_parens[platform_name].get(normalized_no_parens)
-                                
-                                if launchboxid:
-                                    # Convert to string for lookup in global metadata cache (cache uses string keys)
-                                    launchboxid_str = str(launchboxid)
-                                    print(f"🔧 DEBUG: Found game match in LaunchBox - ID: {launchboxid_str} (type: {type(launchboxid_str)}), Platform: {platform_name}")
-                                    
-                                    # Get full game data from global cache using string ID
-                                    print(f"🔧 DEBUG: Checking if launchboxid {launchboxid_str} exists in global_metadata_cache...")
-                                    
-                                    found_entry = None
-                                    if launchboxid_str in global_metadata_cache:
-                                        found_entry = global_metadata_cache[launchboxid_str]
-                                        print(f"🔧 DEBUG: Found entry in global_metadata_cache for ID {launchboxid_str}")
-                                    else:
-                                        print(f"🔧 DEBUG: launchboxid {launchboxid_str} NOT found in global_metadata_cache")
-                                    
-                                    if found_entry:
-                                        entry = found_entry
-                                        print(f"🔧 DEBUG: Entry keys: {list(entry.keys())}")
-                                        game_elem = entry.get('game')
-                                        if game_elem:
-                                            print(f"🔧 DEBUG: Found game element for ID {launchboxid}")
-                                            print(f"🔧 DEBUG: Game element type: {type(game_elem)}")
-                                        else:
-                                            print(f"🔧 DEBUG: No game element found for ID {launchboxid}")
-                                    
-                                    if found_entry and game_elem:
-                                        # Extract game data - handle both XML element and dictionary formats
-                                        game_data = {}
-                                        if hasattr(game_elem, 'tag'):  # XML element
-                                            for child in game_elem:
-                                                if child.text:
-                                                    game_data[child.tag] = child.text.strip()
-                                        elif isinstance(game_elem, dict):  # Dictionary format
-                                            game_data = game_elem
-                                        
-                                        game_name_found = game_data.get('Name', '')
-                                        print(f"🔧 DEBUG: Processing game: '{game_name_found}' (ID: {launchboxid})")
-                                        print(f"🔧 DEBUG: Game data structure: {game_data}")
-                                        
-                                        # Check if this game has marquee using the images field and scrappers.json mapping
-                                        marquee_urls = []
-                                        
-                                        # Get marquee mapping from scrappers.json
-                                        marquee_mappings = scraper_config.get('image_type_mappings', {}).get('marquee', [])
-                                        print(f"🔧 DEBUG: Marquee mappings from scrappers.json: {marquee_mappings}")
-                                        
-                                        # Get images from the cache entry
-                                        images = entry.get('images', [])
-                                        print(f"🔧 DEBUG: Found {len(images)} images for '{game_name_found}'")
-                                        
-                                        # Look for marquee images using the mapped field names
-                                        for image_data in images:
-                                            if isinstance(image_data, dict):
-                                                # Get the image type and filename from the dictionary
-                                                image_type = image_data.get('Type', '')
-                                                filename = image_data.get('FileName', '')
-                                                
-                                                print(f"🔧 DEBUG: Checking image type '{image_type}' against marquee mappings: {marquee_mappings}")
-                                                
-                                                # Check if this image type matches any of the marquee mappings
-                                                if image_type in marquee_mappings and filename:
-                                                    # Prepend the LaunchBox images domain
-                                                    full_url = f"https://images.launchbox-app.com/{filename}"
-                                                    marquee_urls.append(full_url)
-                                                    print(f"🔧 DEBUG: Found marquee image: {full_url}")
-                                        
-                                        if marquee_urls:
-                                            all_launchbox_results.append({
-                                                'scraper': 'launchbox',
-                                                'game_name': game_name_found,
-                                                'game_id': launchboxid,
-                                                'similarity_score': 1.0,  # Direct match
-                                                'marquee_urls': marquee_urls,
-                                                'region': 'Unknown',
-                                                'platform': platform_name
-                                            })
-                                            print(f"🔧 DEBUG: Found LaunchBox marquee for '{game_name_found}' - {len(marquee_urls)} images")
-                                        else:
-                                            print(f"🔧 DEBUG: No marquee images found for LaunchBox game '{game_name_found}'")
-                            else:
-                                # Similarity search - find games with high similarity
-                                platform_games = partition_index_no_parens.get(platform_name, {})
-                                if platform_games:
-                                    # Calculate similarity for all games in this platform
-                                    similarity_results = []
-                                    for normalized_name, launchboxid in platform_games.items():
-                                        similarity = calculate_similarity(normalized_no_parens, normalized_name)
-                                        if similarity > 0.9:  # Only consider matches with >90% similarity
-                                            similarity_results.append((similarity, launchboxid, normalized_name))
-                                    
-                                    # Sort by similarity and process top matches
-                                    similarity_results.sort(key=lambda x: x[0], reverse=True)
-                                    
-                                    for similarity, launchboxid, normalized_name in similarity_results[:5]:  # Top 5 per platform
-                                        launchboxid_str = str(launchboxid)
-                                        
-                                        if launchboxid_str in global_metadata_cache:
-                                            found_entry = global_metadata_cache[launchboxid_str]
-                                            entry = found_entry
-                                            game_elem = entry.get('game')
-                                            
-                                            if game_elem:
-                                                # Extract game data
-                                                game_data = {}
-                                                if hasattr(game_elem, 'tag'):  # XML element
-                                                    for child in game_elem:
-                                                        if child.text:
-                                                            game_data[child.tag] = child.text.strip()
-                                                elif isinstance(game_elem, dict):  # Dictionary format
-                                                    game_data = game_elem
-                                                
-                                                game_name_found = game_data.get('Name', '')
-                                                
-                                                # Get marquee images
-                                                marquee_urls = []
-                                                marquee_mappings = scraper_config.get('image_type_mappings', {}).get('marquee', [])
-                                                images = entry.get('images', [])
-                                                
-                                                for image_data in images:
-                                                    if isinstance(image_data, dict):
-                                                        image_type = image_data.get('Type', '')
-                                                        filename = image_data.get('FileName', '')
-                                                        
-                                                        if image_type in marquee_mappings and filename:
-                                                            full_url = f"https://images.launchbox-app.com/{filename}"
-                                                            marquee_urls.append(full_url)
-                                                
-                                                if marquee_urls:
-                                                    all_launchbox_results.append({
-                                                        'scraper': 'launchbox',
-                                                        'game_name': game_name_found,
-                                                        'game_id': launchboxid,
-                                                        'similarity_score': similarity,
-                                                        'marquee_urls': marquee_urls,
-                                                        'region': 'Unknown',
-                                                        'platform': platform_name
-                                                    })
-                                                    print(f"🔧 DEBUG: Found LaunchBox marquee for '{game_name_found}' - {len(marquee_urls)} images, similarity: {similarity:.3f}")
-                        except Exception as e:
-                            print(f"🔧 DEBUG: Error searching LaunchBox platform {platform_name}: {e}")
-                            continue
-                    
-                    # Sort all results by similarity score and take top 10
-                    all_launchbox_results.sort(key=lambda x: x['similarity_score'], reverse=True)
-                    all_marquee_results.extend(all_launchbox_results[:10])
-                    print(f"🔧 DEBUG: Added {len(all_launchbox_results[:10])} LaunchBox marquee results (total found: {len(all_launchbox_results)})")
-                    continue
-                
+                scraper_results = search_media_by_scraper(scraper_name, scraper_config, game_name, system_name, direct_match, 'marquee')
+                all_marquee_results.extend(scraper_results)
             except Exception as e:
                 print(f"🔧 DEBUG: Error searching {scraper_name}: {e}")
                 import traceback
