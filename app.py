@@ -8798,7 +8798,7 @@ def fanart_search_endpoint():
                                 
                                 # Convert IGDB artwork IDs to full URLs
                                 for artwork in artworks:
-                                    artwork_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{artwork}.jpg"
+                                    artwork_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{artwork}.png"
                                     fanart_urls.append(artwork_url)
                                 
                                 # Get platform name for display
@@ -9288,7 +9288,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                         for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
                                             image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
                                             if image_id:
-                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg")
+                                                urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.png")
                                 else:  # marquee
                                     # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
@@ -9339,7 +9339,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                             for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
                                 image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
                                 if image_id:
-                                    urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg")
+                                    urls.append(f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.png")
                     else:  # marquee
                         # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
@@ -13197,7 +13197,7 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
         def normalize_igdb_url(image_id: str) -> str:
             if not image_id:
                 return ""
-            # Construct IGDB image URL using local image ID
+            # Construct IGDB image URL using local image ID - always use .png
             return f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.png"
 
         def add_media(mapped_field: str, image_id: str):
@@ -20924,7 +20924,7 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 cover_id = igdb_game['cover']
                 cover_data = {
                     'image_id': cover_id,
-                    'url': f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.jpg"
+                    'url': f"https://images.igdb.com/igdb/image/upload/t_cover_big/{cover_id}.png"
                 }
                 
                 # Use the same download function as manual scraping
@@ -20955,7 +20955,7 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 artwork_id = igdb_game['artworks'][0] if isinstance(igdb_game['artworks'], list) else igdb_game['artworks']
                 artwork_data = {
                     'image_id': artwork_id,
-                    'url': f"https://images.igdb.com/igdb/image/upload/t_1080p/{artwork_id}.jpg"
+                    'url': f"https://images.igdb.com/igdb/image/upload/t_1080p/{artwork_id}.png"
                 }
                 
                 # Use the same download function as manual scraping
@@ -20986,7 +20986,7 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                 screenshot_id = igdb_game['screenshots'][0] if isinstance(igdb_game['screenshots'], list) else igdb_game['screenshots']
                 screenshot_data = {
                     'image_id': screenshot_id,
-                    'url': f"https://images.igdb.com/igdb/image/upload/t_720p/{screenshot_id}.jpg"
+                    'url': f"https://images.igdb.com/igdb/image/upload/t_720p/{screenshot_id}.png"
                 }
                 
                 # Use the same download function as manual scraping
