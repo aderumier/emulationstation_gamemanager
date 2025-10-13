@@ -9251,11 +9251,15 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
         if scraper_name == 'igdb':
             igdb_service = load_igdb_service()
             if not igdb_service:
+                print(f"🔧 DEBUG: IGDB service not available")
                 return results
+            print(f"🔧 DEBUG: IGDB service loaded, searching for '{game_name}' with direct_match={direct_match}")
 
             from game_utils import normalize_game_name
             if direct_match:
                 normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+                print(f"🔧 DEBUG: IGDB normalized name: '{normalized_name}'")
+                print(f"🔧 DEBUG: IGDB platform_index keys: {list(igdb_service.platform_index.keys())}")
                 # platform_index structure: { platform_id -> { first_char -> { normalized_name -> id } } }
                 for platform_id, platform_data in igdb_service.platform_index.items():
                     if not normalized_name:
@@ -9263,10 +9267,16 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                     first_char = normalized_name[0].lower()
                     if first_char in platform_data:
                         partition_games = platform_data[first_char]
+                        print(f"🔧 DEBUG: IGDB platform {platform_id}, first_char '{first_char}', partition_games keys: {list(partition_games.keys())[:5]}...")
                         if normalized_name in partition_games:
                             game_id = partition_games[normalized_name]
+                            print(f"🔧 DEBUG: IGDB found game_id {game_id} for normalized name '{normalized_name}'")
                             if game_id in igdb_service.igdb_data:
                                 game = igdb_service.igdb_data[game_id]
+                                print(f"🔧 DEBUG: IGDB game data keys: {list(game.keys())}")
+                                print(f"🔧 DEBUG: IGDB game has logos: {'logos' in game}")
+                                if 'logos' in game:
+                                    print(f"🔧 DEBUG: IGDB logos value: {game['logos']}")
                                 urls = []
                                 if media_type == 'fanart':
                                     # For fanart, use artworks
@@ -9295,6 +9305,9 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                         'region': 'Unknown',
                                         'platform': platform_name
                                     })
+                                    print(f"🔧 DEBUG: IGDB added {len(urls)} {media_type} URLs for game '{game.get('name', '')}'")
+                                else:
+                                    print(f"🔧 DEBUG: IGDB game '{game.get('name', '')}' found but no {media_type} URLs generated")
                             break
             else:
                 # Similarity search across all platforms
