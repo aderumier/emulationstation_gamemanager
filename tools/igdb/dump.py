@@ -970,9 +970,9 @@ class IGDBDumper:
         artworks_lookup = {artwork['id']: artwork['image_id'] for artwork in artworks if 'id' in artwork and 'image_id' in artwork}
         
         # Create separate lookup for logos (artwork_type = 7 only) and fanart (all other types)
-        # Keep full artwork data including height and width
+        # Keep full artwork data including height and width, but only if dimensions are available
         logos_lookup = {artwork['id']: artwork for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') == 7}
-        fanart_lookup = {artwork['id']: artwork for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') != 7 and artwork.get('width', 0) > artwork.get('height', 0) and (artwork.get('width', 0) / max(artwork.get('height', 1), 1)) > 1.5}
+        fanart_lookup = {artwork['id']: artwork for artwork in artworks if 'id' in artwork and 'image_id' in artwork and artwork.get('artwork_type') != 7 and artwork.get('width') is not None and artwork.get('height') is not None and artwork.get('width', 0) > 0 and artwork.get('height', 0) > 0 and artwork.get('width', 0) > artwork.get('height', 0) and (artwork.get('width', 0) / max(artwork.get('height', 1), 1)) > 1.5}
         
         # Create videos lookup by game ID
         videos_lookup = {}
@@ -1016,7 +1016,7 @@ class IGDBDumper:
                         developers_by_game[game_id] = []
                     developers_by_game[game_id].append(company_id)
         
-        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} total artworks ({len(fanart_lookup)} fanart landscape >3:2 ratio, {len(logos_lookup)} logos type 7), {len(videos_lookup)} games with videos, {len(companies_lookup)} companies, {len(genres_lookup)} genres")
+        print(f"📊 Created lookups: {len(covers_lookup)} covers, {len(screenshots_lookup)} screenshots, {len(artworks_lookup)} total artworks ({len(fanart_lookup)} fanart landscape >3:2 ratio with dimensions, {len(logos_lookup)} logos type 7), {len(videos_lookup)} games with videos, {len(companies_lookup)} companies, {len(genres_lookup)} genres")
         print(f"📊 Created reverse mappings: {len(publishers_by_game)} games with publishers, {len(developers_by_game)} games with developers")
         
         # Build consolidated games dictionary
