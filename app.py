@@ -9298,6 +9298,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                     if isinstance(game['artworks'], dict) and game['artworks']:
                                         first_artwork_id = next(iter(game['artworks'].keys()))
                                         print(f"🔧 DEBUG: IGDB first artwork: {first_artwork_id}")
+                                print(f"🔧 DEBUG: About to process {media_type} for game {game.get('name', 'Unknown')}")
                                 urls = []
                                 seen_image_ids = set()  # Track seen image IDs to avoid duplicates
                                 
