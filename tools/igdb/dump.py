@@ -1060,22 +1060,20 @@ class IGDBDumper:
                 # Process each artwork and separate logos from fanart
                 for artwork_id in game_entry['artworks']:
                     if artwork_id in logos_lookup:
-                        # This is a logo - add full logo data to logos list
+                        # This is a logo - add optimized logo data to logos list
                         logo_data = logos_lookup[artwork_id]
                         resolved_logos.append({
-                            'image_id': logo_data['image_id'],
-                            'width': logo_data.get('width'),
-                            'height': logo_data.get('height'),
-                            'artwork_type': logo_data.get('artwork_type')
+                            'id': logo_data['image_id'],
+                            'w': logo_data.get('width'),
+                            'h': logo_data.get('height')
                         })
                     elif artwork_id in fanart_lookup:
-                        # This is fanart (landscape only) - add full fanart data to artworks list
+                        # This is fanart (landscape only) - add optimized fanart data to artworks list
                         fanart_data = fanart_lookup[artwork_id]
                         resolved_artworks.append({
-                            'image_id': fanart_data['image_id'],
-                            'width': fanart_data.get('width'),
-                            'height': fanart_data.get('height'),
-                            'artwork_type': fanart_data.get('artwork_type')
+                            'id': fanart_data['image_id'],
+                            'w': fanart_data.get('width'),
+                            'h': fanart_data.get('height')
                         })
                     elif artwork_id in artworks_lookup:
                         # Fallback: if not in specific lookups, add to artworks (just image_id)

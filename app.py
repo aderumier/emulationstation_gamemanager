@@ -9302,15 +9302,19 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                     # For fanart, use artworks
                                     if 'artworks' in game and game['artworks']:
                                         for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
-                                            image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
-                                            if image_id:
-                                                urls.append(normalize_igdb_url(image_id))
+                                            if isinstance(artwork, dict):
+                                                image_id = artwork.get('id') or artwork.get('image_id')  # Support both new and old format
+                                                if image_id:
+                                                    urls.append(normalize_igdb_url(image_id))
+                                            else:
+                                                # Fallback for old format (simple string)
+                                                urls.append(normalize_igdb_url(artwork))
                                 else:  # marquee
                                     # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
                                         for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
                                             if isinstance(logo, dict):
-                                                image_id = logo.get('image_id')
+                                                image_id = logo.get('id') or logo.get('image_id')  # Support both new and old format
                                                 if image_id:
                                                     urls.append(normalize_igdb_url(image_id))
                                             else:
@@ -9357,15 +9361,19 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         # For fanart, use artworks
                         if 'artworks' in game and game['artworks']:
                             for artwork in (game['artworks'] if isinstance(game['artworks'], list) else [game['artworks']]):
-                                image_id = artwork.get('image_id') if isinstance(artwork, dict) else artwork
-                                if image_id:
-                                    urls.append(normalize_igdb_url(image_id))
+                                if isinstance(artwork, dict):
+                                    image_id = artwork.get('id') or artwork.get('image_id')  # Support both new and old format
+                                    if image_id:
+                                        urls.append(normalize_igdb_url(image_id))
+                                else:
+                                    # Fallback for old format (simple string)
+                                    urls.append(normalize_igdb_url(artwork))
                     else:  # marquee
                         # For marquee, use logos field (not artworks)
                                     if 'logos' in game and game['logos']:
                                         for logo in (game['logos'] if isinstance(game['logos'], list) else [game['logos']]):
                                             if isinstance(logo, dict):
-                                                image_id = logo.get('image_id')
+                                                image_id = logo.get('id') or logo.get('image_id')  # Support both new and old format
                                                 if image_id:
                                                     urls.append(normalize_igdb_url(image_id))
                                             else:
