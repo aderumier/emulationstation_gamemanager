@@ -11234,6 +11234,12 @@ def regenerate_indexes_endpoint():
         global_launchbox_partition_index_no_parens = None
         global_launchbox_indexes_loaded = False
         
+        # Ensure global metadata cache is loaded before regenerating indexes
+        global global_metadata_cache_loaded
+        if not global_metadata_cache_loaded:
+            print("🔄 Loading global metadata cache before regenerating partitioned indexes...")
+            load_metadata_cache()
+        
         # Regenerate the indexes
         print("🔄 Forcing regeneration of LaunchBox partitioned indexes...")
         load_launchbox_partitioned_indexes()
