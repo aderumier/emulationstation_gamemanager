@@ -1179,65 +1179,11 @@ client_systems = {}  # {client_sid: system_name}
 system_clients = {}  # {system_name: set(client_sids)}
 system_clients_lock = threading.Lock()  # Thread safety for system_clients operations
 
-# Single scraping worker process (producer-consumer)
-_worker_process = None
-_worker_task_queue = None
-_worker_result_queue = None
-_worker_manager = None
-_worker_cancel_map = None  # dict-like shared across processes: {task_id: True}
+# Task management
 _igdb_cancel_maps = {}  # dict of {task_id: cancel_map} for IGDB tasks
 _cleanup_in_progress = False  # Flag to prevent multiple cleanup attempts
 
-def _ensure_worker_started():
-    """Start the single scraping worker process and the result listener thread."""
-    import multiprocessing as _mp
-    global _worker_process, _worker_task_queue, _worker_result_queue
-    if _worker_process is not None and _worker_process.is_alive():
-        return _worker_process
-    _worker_task_queue = _mp.Queue()
-    _worker_result_queue = _mp.Queue()
-    # shared manager for cancellation flags
-    try:
-        global _worker_manager, _worker_cancel_map
-        _worker_manager = _mp.Manager()
-        _worker_cancel_map = _worker_manager.dict()
-    except Exception:
-        _worker_manager = None
-        _worker_cancel_map = None
-    _worker_process = _mp.Process(target=_scraping_worker_main, args=(_worker_task_queue, _worker_result_queue, _worker_cancel_map))
-    _worker_process.daemon = True
-    _worker_process.start()
-    threading.Thread(target=_scraping_result_listener, args=(_worker_result_queue,), daemon=True).start()
-    print(f"✅ Started scraping worker process (PID={_worker_process.pid})")
-    return _worker_process
 
-def _scraping_worker_main(task_q, result_q, cancel_map):
-    """Worker loop: sequentially process scraping tasks from the queue."""
-    try:
-        from queue import Empty as _QueueEmpty
-    except Exception:
-        class _QueueEmpty(Exception):
-            pass
-    try:
-        while True:
-            try:
-                task = task_q.get(timeout=1.0)
-            except _QueueEmpty:
-                time.sleep(0.05)
-                continue
-            if task is None:
-                break
-            try:
-                if task.get('type') != 'scraping':
-                    result_q.put({'task_id': task.get('task_id'), 'ok': False, 'error': 'Unsupported task type'})
-                    continue
-                # stream: the worker subroutine will emit incremental progress via result_q
-                r = _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map)
-                result_q.put({'task_id': task.get('task_id'), 'ok': r.get('success', False), 'data': r})
-            except Exception as e:
-                result_q.put({'task_id': task.get('task_id'), 'ok': False, 'error': str(e)})
-    except KeyboardInterrupt:
-        pass
 def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_partial_match_modal=False, force_download=False, selected_fields=None, overwrite_text_fields=False):
     """Simplified LaunchBox scraper that runs in main thread using global cache"""
     try:
@@ -1265,15 +1211,16 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
             return {'success': False, 'error': f'Gamelist not found: {gamelist_path}'}
         
         # Parse games from gamelist
-        games = parse_gamelist_xml(gamelist_path)
-        if not games:
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
             return {'success': False, 'error': 'No games found in gamelist'}
         
-        print(f"🔧 DEBUG: Found {len(games)} games in gamelist")
+        print(f"🔧 DEBUG: Found {len(all_games)} games in gamelist")
         
-        # Filter games if selection is provided
+        # Filter games if selection is provided (but keep original list for saving)
+        games = all_games
         if selected_games:
-            games = [g for g in games if g.get('path', '') in selected_games]
+            games = [g for g in all_games if g.get('path', '') in selected_games]
             print(f"🔧 DEBUG: Filtered to {len(games)} selected games")
         
         # Process games
@@ -1307,11 +1254,16 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 # Get game data from cache
                 best_match = get_cached_game_data(launchboxid)
                 if best_match:
-                    # Update game data
-                    updated = update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields, selected_fields)
-                    if updated:
-                        stats['updated_games'] += 1
-                        matched_rom_paths.append(game_data.get('path', ''))
+                    # Update game data in the original all_games list
+                    # Find the corresponding game in all_games by path
+                    game_path = game_data.get('path', '')
+                    for j, original_game in enumerate(all_games):
+                        if original_game.get('path', '') == game_path:
+                            updated = update_game_data_from_launchbox(original_game, best_match, mapping_config, overwrite_text_fields, selected_fields)
+                            if updated:
+                                stats['updated_games'] += 1
+                                matched_rom_paths.append(game_path)
+                            break
             else:
                 print(f"🔧 DEBUG: No match found for: {game_name}")
             
@@ -1319,7 +1271,7 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         
         # Save updated gamelist
         if stats['updated_games'] > 0:
-            save_gamelist_xml(gamelist_path, games)
+            save_gamelist_xml(gamelist_path, all_games)
             print(f"✅ Updated {stats['updated_games']} games in gamelist")
         
         return {
@@ -1421,241 +1373,6 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
         print(f"❌ ERROR updating game data: {e}")
         return False
 
-def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
-    """Logic executed inside worker process to perform scraping."""
-    system_name = task['system_name']
-    selected_games = task.get('selected_games')
-    enable_partial_match_modal = task.get('enable_partial_match_modal', False)
-    force_download = task.get('force_download', False)
-    selected_fields = task.get('selected_fields', None)
-    overwrite_text_fields = task.get('overwrite_text_fields', False)
-    
-    # Debug logging for parameter verification
-    print(f"🔧 DEBUG: Worker received task - selected_games: {len(selected_games) if selected_games else 0}, force_download: {force_download}, overwrite_text_fields: {overwrite_text_fields}")
-
-    mapping_config, system_platform_mapping = load_launchbox_config()
-    current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
-    
-    # Get gamelist path from var/gamelists
-    gamelist_path = get_gamelist_path(system_name)
-    if not os.path.exists(gamelist_path):
-        return {'success': False, 'error': f'Gamelist not found at {gamelist_path}'}
-    # early cancellation
-    if cancel_map and cancel_map.get(task.get('task_id')):
-        result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': '🛑 Task stopped by user (before start)'} )
-        return {'success': False, 'error': 'Task stopped by user', 'stopped': True}
-    all_games = parse_gamelist_xml(gamelist_path)
-    if not all_games:
-        return {'success': False, 'error': 'No games found in gamelist.xml'}
-    # Select games to process without losing the full list used for saving
-    games = all_games
-    if selected_games and len(selected_games) > 0:
-        games = [g for g in all_games if g.get('path') in selected_games]
-        print(f"🔧 DEBUG: Filtered to {len(games)} games from {len(selected_games)} selected games")
-    else:
-        print(f"🔧 DEBUG: Processing all {len(all_games)} games (no selection)")
-
-    stats = {'total_games': len(games), 'processed_games': 0, 'matched_games': 0, 'updated_games': 0}
-    # Announce totals and initialize progress bar in main process
-    result_q.put({
-        'type': 'progress',
-        'task_id': task.get('task_id'),
-        'message': f"Parsed gamelist.xml, found {len(all_games)} games",
-        'current_step': 0,
-        'total_steps': len(games),
-        'progress_percentage': 0,
-        'stats': stats,
-    })
-    result_q.put({
-        'type': 'progress',
-        'task_id': task.get('task_id'),
-        'message': f"Processing {len(games)} selected game(s)...",
-        'current_step': 0,
-        'total_steps': len(games),
-        'progress_percentage': 0,
-        'stats': stats,
-    })
-    try:
-        print(f"🔧 DEBUG: Loading platform-specific metadata cache for '{current_system_platform}'...")
-        
-        # Load from platform-specific cache file (generated from global cache)
-        platform_cache = _load_platform_cache_from_file(current_system_platform)
-        if platform_cache is not None:
-            print(f"🔧 DEBUG: Using cached platform data for {current_system_platform}")
-        else:
-            print(f"❌ ERROR: No platform cache file found for {current_system_platform}")
-            print(f"❌ ERROR: Platform cache files should be generated from the global cache")
-            return {
-                'success': False,
-                'error': f'No platform cache available for {current_system_platform}. Please ensure the global cache is loaded and platform cache files are generated.'
-            }
-        
-        print(f"🔧 DEBUG: Loaded {len(platform_cache)} games for platform '{current_system_platform}'")
-        
-        if not platform_cache:
-            error_msg = f'No metadata for platform {current_system_platform}'
-            print(f"❌ ERROR: {error_msg}")
-            return {'success': False, 'error': error_msg}
-            
-    except Exception as e:
-        error_msg = f'Error loading platform metadata: {str(e)}'
-        print(f"❌ ERROR: {error_msg}")
-        import traceback
-        traceback.print_exc()
-        return {'success': False, 'error': error_msg}
-
-    original_games = all_games.copy()
-    matched_rom_paths = []
-    for i, game_data in enumerate(games):
-        # cooperative cancellation point
-        if cancel_map and cancel_map.get(task.get('task_id')):
-            # save partial work before exiting
-            try:
-                result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': 'Saving partial gamelist.xml before stopping...'})
-                try:
-                    backup_path = f"{gamelist_path}.backup.{int(time.time())}"
-                    shutil.copy2(gamelist_path, backup_path)
-                    # Clean up old backups, keeping only the last 10
-                    cleanup_old_backups(gamelist_path, max_backups=10)
-                except Exception:
-                    pass
-                write_gamelist_xml(original_games, gamelist_path)
-            except Exception as _e:
-                result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠️  Failed to save partial gamelist: {_e}"})
-            result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"🛑 Task stopped by user after processing {stats['processed_games']} game(s)"})
-            return {'success': False, 'error': 'Task stopped by user', 'stopped': True, 'stats': stats, 'gamelist_path': gamelist_path, 'rom_paths': matched_rom_paths, 'force_download': force_download, 'system_name': system_name}
-        result = process_single_game_worker((game_data, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), selected_fields, overwrite_text_fields))
-        stats['processed_games'] += 1
-        # compute progress
-        try:
-            pct = int((stats['processed_games'] / stats['total_games']) * 100) if stats['total_games'] else 0
-        except Exception:
-            pct = 0
-        # stream per game progress
-        try:
-            game_name = result.get('game_name', 'Unknown')
-            status = result.get('status')
-            if status == 'matched':
-                matched_name = result.get('matched_name', '')
-                # Determine match source for logging using match_source directly
-                match_source = (result.get('match_source') or 'main').lower()
-                try:
-                    print(f"DEBUG: Match source for '{game_name}' → '{matched_name}': {match_source}")
-                except Exception:
-                    pass
-                via = 'launchboxid' if match_source == 'launchboxid' else ('alternatename' if match_source == 'alternate' else 'name')
-                result_q.put({
-                    'type': 'progress',
-                    'task_id': task.get('task_id'),
-                    'message': f"✓ {game_name} → {matched_name} (perfect via {via})",
-                    'current_step': stats['processed_games'],
-                    'total_steps': stats['total_games'],
-                    'progress_percentage': pct,
-                    'stats': stats
-                })
-            elif status == 'partial_match':
-                score = result.get('score', 0.0)
-                matched_name = result.get('matched_name', 'Unknown')
-                result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠ {game_name} → {matched_name} (partial match, score: {score:.2f})", 'current_step': stats['processed_games'], 'total_steps': stats['total_games'], 'progress_percentage': pct, 'stats': stats})
-                
-                # Send partial match request back to main process via result queue
-                if enable_partial_match_modal and result.get('partial_match_request'):
-                    partial_match_request = result['partial_match_request'].copy()
-                    partial_match_request['system_name'] = system_name
-                    partial_match_request['task_id'] = task.get('task_id')
-                    result_q.put({
-                        'type': 'partial_match_request',
-                        'task_id': task.get('task_id'),
-                        'partial_match_request': partial_match_request
-                    })
-                    print(f"DEBUG: Sent partial match request to main process: {game_name} (score: {score:.2f})")
-            elif status == 'no_match':
-                result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"· {game_name} - no match", 'current_step': stats['processed_games'], 'total_steps': stats['total_games'], 'progress_percentage': pct, 'stats': stats})
-            elif status == 'skipped':
-                result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"· {game_name} - skipped", 'current_step': stats['processed_games'], 'total_steps': stats['total_games'], 'progress_percentage': pct, 'stats': stats})
-        except Exception:
-            pass
-        # collect rom path for image download - add ALL selected games, regardless of match status
-        rp = result.get('game_path')
-        if rp:
-            matched_rom_paths.append(rp)
-            print(f"🔧 DEBUG: Added ROM path to matched_rom_paths: {rp}")
-        else:
-            # If no game_path in result, use the original game path from selected games
-            # This ensures ALL selected games are included for image download
-            original_game_path = None
-            for og in original_games:
-                if og.get('name') == result.get('game_name'):
-                    original_game_path = og.get('path')
-                    break
-            if original_game_path:
-                matched_rom_paths.append(original_game_path)
-                print(f"🔧 DEBUG: Added original ROM path to matched_rom_paths: {original_game_path}")
-        
-        if result['status'] == 'matched':
-            stats['matched_games'] += 1
-            original_name = result.get('original_name', result['game_name'])
-            for j, og in enumerate(original_games):
-                # Match by ROM path for reliability (this is the primary method)
-                if result.get('game_path') and og.get('path') == result.get('game_path'):
-                    original_games[j] = result['game_data'].copy()
-                    stats['updated_games'] += 1
-                    break
-                # Only use name matching as fallback if no path was provided
-                elif not result.get('game_path') and og.get('name') == original_name:
-                    original_games[j] = result['game_data'].copy()
-                    stats['updated_games'] += 1
-                    break
-    # Compute diff of removed games (by ROM path) before saving
-    try:
-        # Final list that will effectively be written (write_gamelist_xml dedupes by path)
-        try:
-            final_games_to_write = _dedupe_games_by_path(original_games)
-        except Exception:
-            final_games_to_write = original_games
-        original_paths = set(((g.get('path') or '').strip() for g in all_games if g.get('path')))
-        final_paths = set(((g.get('path') or '').strip() for g in final_games_to_write if g.get('path')))
-        removed_paths = [p for p in original_paths if p and p not in final_paths]
-        # Map for friendly names
-        path_to_name = {}
-        for g in all_games:
-            p = (g.get('path') or '').strip()
-            if p and p not in path_to_name:
-                path_to_name[p] = g.get('name') or 'Unknown'
-        if removed_paths:
-            stats['removed_games'] = len(removed_paths)
-            preview = removed_paths[:20]
-            details_lines = [f"   - {path_to_name.get(p, 'Unknown')} ({p})" for p in preview]
-            more = len(removed_paths) - len(preview)
-            extra_line = f"   … and {more} more" if more > 0 else ""
-            msg = "\n".join([f"🧾 Removed {len(removed_paths)} game(s) from final gamelist", *details_lines] + ([extra_line] if extra_line else []))
-            result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': msg, 'current_step': stats['processed_games'], 'total_steps': stats['total_games'], 'progress_percentage': pct, 'stats': stats})
-    except Exception:
-        pass
-
-    try:
-        backup_path = f"{gamelist_path}.backup.{int(time.time())}"
-        shutil.copy2(gamelist_path, backup_path)
-        # Clean up old backups, keeping only the last 10
-        cleanup_old_backups(gamelist_path, max_backups=10)
-    except Exception:
-        pass
-    try:
-        write_gamelist_xml(all_games, gamelist_path)
-    except Exception as e:
-        return {'success': False, 'error': f'Error saving gamelist: {e}'}
-    # Final 100% update before finishing
-    result_q.put({
-        'type': 'progress',
-        'task_id': task.get('task_id'),
-        'message': "Saving updated gamelist.xml...",
-        'current_step': stats['processed_games'],
-        'total_steps': stats['total_games'],
-        'progress_percentage': 100,
-        'stats': stats,
-    })
-    print(f"🔧 DEBUG: Scraping worker returning - matched_rom_paths: {len(matched_rom_paths)} paths")
-    return {'success': True, 'stats': stats, 'gamelist_path': gamelist_path, 'rom_paths': matched_rom_paths, 'force_download': force_download, 'system_name': system_name}
 
 def _scraping_result_listener(result_q):
     """Receive results from worker and finalize tasks and notify clients."""
@@ -1768,288 +1485,6 @@ def reset_task_stop_event():
     global task_stop_event
     task_stop_event.clear()
 
-def process_single_game_worker(args):
-    """Worker function to process a single game in multiprocessing context"""
-    try:
-        game_data, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, selected_fields, overwrite_text_fields = args
-        
-        print(f"🔧 DEBUG: process_single_game_worker - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)})")
-        
-        game_name = game_data.get('name', '')
-        if not game_name:
-            return {
-                'index': i,
-                'game_name': 'Unknown',
-                'game_path': game_data.get('path', ''),  # Include ROM file path for reliable identification
-                'status': 'skipped',
-                'reason': 'No name',
-                'updated': False,
-                'changes': [],
-                'best_match': None,
-                'score': 0.0,
-                'match_type': '',
-                'matched_name': '',
-                'match_source': '',
-                'partial_match_request': None
-            }
-        
-        # CRITICAL: Preserve the original game name before any changes
-        # This is needed to find the game in original_games later
-        original_game_name = game_name
-        
-        # Find best match in Launchbox metadata using old functions
-        existing_launchboxid = game_data.get('launchboxid', '')
-        print(f"🔧 DEBUG: Game '{game_name}' - existing_launchboxid: '{existing_launchboxid}' (type: {type(existing_launchboxid)})")
-        
-        # Use the find_best_match function with platform cache
-        best_match, score = find_best_match(
-            game_name, 
-            list(platform_cache.values()), 
-            current_system_platform, 
-            existing_launchboxid=existing_launchboxid,
-            platform_cache=platform_cache,
-            mapping_config=mapping_config
-        )
-        
-        if best_match:
-            print(f"🔧 DEBUG: Found game: {best_match.get('Name', 'Unknown')} (score: {score})")
-        else:
-            print(f"🔧 DEBUG: No match found for '{game_name}' in platform '{current_system_platform}'")
-        
-        # Generate detailed progress message
-        game_name_clean = game_name
-        
-        if best_match and score >= 1.0:  # Only accept perfect matches (score >= 1.0)
-            # Update game data with Launchbox information
-            updated = False
-            changes = []
-            # If the original gamelist name (sans parentheses) exactly matches one of the
-            # LaunchBox AlternateNames, treat as alternate-name match ONLY if not a DBID-based match
-            try:
-                import re as _re
-                original_clean = _re.sub(r'\s*\([^)]*\)', '', original_game_name).strip()
-                alt_list = best_match.get('AlternateNames', []) or []
-                exact_alt = next((a for a in alt_list if a and a.lower() == original_clean.lower()), None)
-                # Do not override when the source is launchboxid
-                if exact_alt and best_match.get('_match_type') != 'launchboxid':
-                    best_match['_match_type'] = 'alternate'
-                    # Preserve the exact alt spelling from metadata
-                    best_match['_matched_name'] = exact_alt
-            except Exception:
-                pass
-            
-            # CRITICAL: Always update launchboxid when we have a perfect match, regardless of match type
-            if best_match.get('DatabaseID'):
-                old_launchboxid = game_data.get('launchboxid', '')
-                new_launchboxid = best_match.get('DatabaseID')
-                # Always update launchboxid for perfect matches, even if it's the same value
-                # This ensures the field is properly set in the gamelist
-                game_data['launchboxid'] = new_launchboxid
-                
-                # Debug logging for launchboxid updates
-                print(f"DEBUG: Worker processing '{game_name_clean}' - Old launchboxid: '{old_launchboxid}', New: '{new_launchboxid}', Match type: {best_match.get('_match_type', 'main')}")
-                
-                if old_launchboxid != new_launchboxid:
-                    updated = True
-                    changes.append(f"launchboxid: '{old_launchboxid}' → '{new_launchboxid}'")
-                else:
-                    # Even if the value is the same, we need to ensure it's properly set
-                    # This handles cases where the field might be missing or None
-                    if old_launchboxid != new_launchboxid or old_launchboxid == '' or old_launchboxid is None:
-                        updated = True
-                        changes.append(f"launchboxid: '{old_launchboxid or 'None'}' → '{new_launchboxid}'")
-            
-            for launchbox_field, gamelist_field in mapping_config.items():
-                # Skip field if not in selected fields (except launchboxid which is always processed)
-                # Filter based on selected_fields
-                if launchbox_field not in selected_fields and launchbox_field != 'launchboxid':
-                    continue
-                    
-                if launchbox_field in best_match and best_match[launchbox_field]:
-                    old_value = game_data.get(gamelist_field, '')
-                    new_value = best_match[launchbox_field]
-                    
-                    # Special handling for name field: use alternate name directly when matching via alternate name
-                    if launchbox_field == 'Name' and gamelist_field == 'name':
-                        # Extract parentheses text from both original game name and ROM filename
-                        import re
-                        rom_path = game_data.get('path', '')
-                        rom_filename = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else ''
-                        
-                        # Find parentheses text at the end of the original game name
-                        original_parentheses_match = re.search(r'\s*\([^)]*\)\s*$', original_game_name)
-                        original_parentheses_text = original_parentheses_match.group(0).strip() if original_parentheses_match else ''
-                        
-                        # Find parentheses text at the end of the ROM filename
-                        rom_parentheses_match = re.search(r'\s*\([^)]*\)\s*$', rom_filename)
-                        rom_parentheses_text = rom_parentheses_match.group(0).strip() if rom_parentheses_match else ''
-                        
-                        # Combine parentheses text, prioritizing original name, then adding ROM filename if not already present
-                        combined_parentheses = original_parentheses_text
-                        if rom_parentheses_text and rom_parentheses_text not in original_parentheses_text:
-                            combined_parentheses = f"{original_parentheses_text} {rom_parentheses_text}".strip()
-                        
-                        # Check if this was an alternate name match
-                        match_source = best_match.get('_match_type', 'main')
-                        if match_source == 'alternate':
-                            # Use the exact alternate name that was matched, not the main name
-                            alternate_name = best_match.get('_matched_name', old_value)
-                            # Append combined parentheses text if it exists
-                            if combined_parentheses and combined_parentheses not in alternate_name:
-                                new_value = f"{alternate_name} {combined_parentheses}"
-                            else:
-                                new_value = alternate_name
-                        else:
-                            # For main name matches, append combined parentheses text
-                            if combined_parentheses and combined_parentheses not in new_value:
-                                new_value = f"{new_value} {combined_parentheses}"
-                    
-                    # Check if we should update this field based on overwrite_text_fields setting
-                    should_update = False
-                    if overwrite_text_fields:
-                        # If overwrite is enabled, update if we have a new value and it's different from current
-                        should_update = bool(new_value) and (old_value != new_value)
-                        print(f"🔧 DEBUG: overwrite_text_fields=True - update if different: '{old_value}' vs '{new_value}' -> should_update: {should_update}")
-                    else:
-                        # If overwrite is disabled, only update if old value is empty
-                        should_update = (old_value == '' or old_value is None) and new_value
-                        print(f"🔧 DEBUG: overwrite_text_fields=False - checking if empty: '{old_value}' -> should_update: {should_update}")
-                    
-                    if should_update:
-                        # Special validation for VideoURL field - only accept YouTube URLs
-                        if launchbox_field == 'VideoURL' and gamelist_field == 'youtubeurl':
-                            if 'youtube' not in new_value.lower():
-                                print(f"🔧 DEBUG: Skipping VideoURL - not a YouTube URL: '{new_value}'")
-                                continue  # Skip this field update
-                            else:
-                                print(f"🔧 DEBUG: VideoURL validated as YouTube URL: '{new_value}'")
-                        
-                        game_data[gamelist_field] = new_value
-                        updated = True
-                        changes.append(f"{gamelist_field}: '{old_value}' → '{new_value}'")
-                        print(f"🔧 DEBUG: Updated {gamelist_field}: '{old_value}' → '{new_value}'")
-                    else:
-                        print(f"🔧 DEBUG: Skipped {gamelist_field}: '{old_value}' (overwrite={overwrite_text_fields})")
-            
-            # Since we only accept perfect matches (score >= 1.0), all matches will be perfect
-            match_type = "🎯 PERFECT MATCH"
-            score_display = f"{score:.2f}"
-            
-            # Check if this was an alternate name match
-            match_source = best_match.get('_match_type', 'main')
-            matched_name = best_match.get('_matched_name', best_match.get('Name', 'Unknown'))
-            
-            if match_source == 'alternate':
-                match_type = "🎯 PERFECT MATCH (via alternate name)"
-            elif existing_launchboxid and best_match.get('DatabaseID') == existing_launchboxid:
-                match_type = "🎯 PERFECT MATCH (via launchboxid)"
-            
-            # Download LaunchBox images for this game (regardless of whether other fields were updated)
-            if best_match.get('DatabaseID'):
-                # Note: Image download is handled separately to avoid multiprocessing issues
-                pass
-            
-            return {
-                'index': i,
-                'game_name': game_name_clean,
-                'original_name': original_game_name,  # CRITICAL: Preserve original name
-                'game_path': game_data.get('path', ''),  # Include ROM file path for reliable identification
-                'status': 'matched',
-                'updated': updated,
-                'changes': changes,
-                'best_match': best_match,
-                'score': score,
-                'match_type': match_type,
-                'matched_name': matched_name,
-                'match_source': match_source,
-                'partial_match_request': None,
-                'game_data': game_data
-            }
-        else:
-            # Handle partial matches
-            if best_match:
-                best_match_name = best_match.get('Name', 'Unknown')
-                matched_name = best_match.get('_matched_name', best_match_name)
-                match_source = best_match.get('_match_type', 'main')
-                
-                # Build the base message
-                if score >= 0.9:
-                    match_type = f"✗ Best match: '{matched_name}' (score: {score:.2f} - close but not perfect)"
-                elif score >= 0.7:
-                    match_type = f"✗ Best match: '{matched_name}' (score: {score:.2f} - partial match)"
-                elif score >= 0.5:
-                    match_type = f"✗ Best match: '{matched_name}' (score: {score:.2f} - weak match)"
-                else:
-                    match_type = f"✗ Best match: '{matched_name}' (score: {score:.2f} - no similarity)"
-                
-                # If partial match modal is enabled, add to queue for user review
-                partial_match_request = None
-                if enable_partial_match_modal:
-                    # Get top matches for the modal using old function
-                    top_matches = get_top_matches(game_name_clean, list(platform_cache.values()), current_system_platform, top_n=20, mapping_config=mapping_config)
-                    partial_match_request = {
-                        'game_name': game_name_clean,
-                        'game_data': game_data,
-                        'top_matches': top_matches,
-                        'best_match': best_match,
-                        'score': score,
-                        'match_source': match_source,
-                        'matched_name': matched_name,
-                        'system_name': 'unknown'  # Will be set by main process
-                    }
-                
-                return {
-                    'index': i,
-                    'game_name': game_name_clean,
-                    'original_name': original_game_name,  # CRITICAL: Preserve original name
-                    'game_path': game_data.get('path', ''),  # Include ROM file path for reliable identification
-                    'status': 'partial_match',
-                    'updated': False,
-                    'changes': [],
-                    'best_match': best_match,
-                    'score': score,
-                    'match_type': match_type,
-                    'matched_name': matched_name,
-                    'match_source': match_source,
-                    'partial_match_request': partial_match_request,
-                    'game_data': game_data
-                }
-            else:
-                return {
-                    'index': i,
-                    'game_name': game_name_clean,
-                    'original_name': original_game_name,  # CRITICAL: Preserve original name
-                    'game_path': game_data.get('path', ''),  # Include ROM file path for reliable identification
-                    'status': 'no_match',
-                    'updated': False,
-                    'changes': [],
-                    'best_match': None,
-                    'score': 0.0,
-                    'match_type': "✗ No matches found in metadata",
-                    'matched_name': '',
-                    'match_source': '',
-                    'partial_match_request': None,
-                    'game_data': game_data
-                }
-                
-    except Exception as e:
-        return {
-            'index': i,
-            'game_name': game_data.get('name', 'Unknown'),
-            'original_name': original_game_name,  # CRITICAL: Preserve original name
-            'game_path': game_data.get('path', ''),  # Include ROM file path for reliable identification
-            'status': 'error',
-            'error': str(e),
-            'updated': False,
-            'changes': [],
-            'best_match': None,
-            'score': 0.0,
-            'match_type': f"✗ Error: {e}",
-            'matched_name': '',
-            'match_source': '',
-            'partial_match_request': None,
-            'game_data': game_data
-        }
 
 
 # Task management system with file-based logging
@@ -2736,37 +2171,6 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_image_download_task, args=(system_name, data))
             thread.daemon = True
             thread.start()
-    elif task_type == 'scraping':
-        # Start scraping task via single worker process (sequential)
-        system_name = task_data.get('system_name')
-        method = task_data.get('method', 'GET')
-        data = task_data.get('data', {})
-        if system_name:
-            # Use the existing queued task instead of creating a new one
-            task_id = next_task.get('task_id')
-            if task_id and task_id in tasks:
-                task = tasks[task_id]
-                current_task_id = task.id
-                task.start()
-            else:
-                # Fallback: create new task if existing one not found
-                task = create_task('scraping', task_data)
-                current_task_id = task.id
-                task.start()
-            # Ensure worker is running and enqueue the task
-            _ensure_worker_started()
-            # Build payload for worker
-            payload = {
-                'type': 'scraping',
-                'task_id': task.id,
-                'system_name': system_name,
-                'selected_games': task_data.get('selected_games'),
-                'enable_partial_match_modal': task_data.get('enable_partial_match_modal', False),
-                'force_download': task_data.get('force_download', False),
-                'selected_fields': task_data.get('selected_fields'),
-                'overwrite_text_fields': task_data.get('overwrite_text_fields', False),
-            }
-            _worker_task_queue.put(payload)
     elif task_type == 'rom_scan':
         # Start ROM scan task
         system_name = task_data.get('system_name')
@@ -7342,191 +6746,6 @@ def normalize_igdb_url(image_id: str, media_type: str = 'default') -> str:
     # Construct IGDB image URL using local image ID - always use .png
     return f"https://images.igdb.com/igdb/image/upload/{template}/{image_id}.png"
 
-def find_best_match(game_name, metadata_games, target_platform, existing_launchboxid=None, platform_cache=None, mapping_config=None):
-    """Find the best matching game in Launchbox metadata"""
-    if not metadata_games:
-        return None, 0
-    
-    # Use global partitioned indexes
-    partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
-    if not partition_index or not partition_index_no_parens or target_platform not in partition_index:
-        print(f"🔧 DEBUG: Global partitioned indexes not available for platform '{target_platform}'")
-        return None, 0
-    
-    from game_utils import normalize_game_name
-    
-    # Try exact match with parentheses first
-    normalized_with_parens = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
-    if normalized_with_parens and normalized_with_parens in partition_index[target_platform]:
-        launchboxid = partition_index[target_platform][normalized_with_parens]
-        # Find the game in metadata_games
-        for game in metadata_games:
-            if str(game.get('DatabaseID', '')) == str(launchboxid):
-                return game, 1.0
-    
-    # Try exact match without parentheses
-    normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
-    if normalized_no_parens and normalized_no_parens in partition_index_no_parens[target_platform]:
-        launchboxid = partition_index_no_parens[target_platform][normalized_no_parens]
-        # Find the game in metadata_games
-        for game in metadata_games:
-            if str(game.get('DatabaseID', '')) == str(launchboxid):
-                return game, 1.0
-    
-    # If we have a launchboxid, try to find the exact match first via cache
-    if existing_launchboxid:
-        print(f"🔧 DEBUG: Looking up existing launchboxid: {existing_launchboxid}")
-        try:
-            # Use platform-specific cache if provided
-            if platform_cache:
-                # Convert existing_launchboxid to string for cache lookup
-                launchboxid_str = str(existing_launchboxid)
-                # Look up the game directly in platform_cache
-                cache_entry = platform_cache.get(launchboxid_str)
-                if cache_entry:
-                    # With flattened structure, game data is directly in cache_entry
-                    game_elem = cache_entry
-                    alt_names_elements = cache_entry.get('alternate_names', [])
-                else:
-                    game_elem = None
-                    alt_names_elements = []
-            else:
-                # No platform cache available, cannot lookup by launchboxid
-                print(f"🔧 DEBUG: No platform cache available for launchboxid lookup")
-                game_elem = None
-                alt_names_elements = []
-            
-            if game_elem is not None:
-                print(f"🔧 DEBUG: Found game with launchboxid {existing_launchboxid}: {game_elem.get('Name', 'Unknown') if hasattr(game_elem, 'get') else 'XML Element'}")
-                # Build a minimal game dict consistent with metadata_games entries
-                game_data = {}
-                
-                # Get the fields to load from mapping configuration
-                fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
-                if mapping_config:
-                    # Add all LaunchBox fields from the mapping configuration
-                    fields_to_load.update(mapping_config.keys())
-                
-                # Handle dictionary-based game data (new format)
-                for field_name, field_value in game_elem.items():
-                    if field_name in fields_to_load and field_value:
-                        game_data[field_name] = str(field_value).strip()
-                
-                # Attach alternate names from cache (platform check not required for unique DBIDs)
-                alt_names = []
-                for alt_elem in alt_names_elements:
-                    # Handle dictionary-based alternate name data (new format)
-                    alt_name = alt_elem.get('AlternateName', '')
-                    if alt_name:
-                        alt_names.append(str(alt_name).strip())
-                game_data['AlternateNames'] = alt_names
-                # Annotate match info for downstream logic
-                game_data['_match_type'] = 'launchboxid'
-                game_data['_matched_name'] = game_data.get('Name', '')
-                print(f"🔧 DEBUG: Returning launchboxid match: {game_data.get('Name', 'Unknown')} (ID: {existing_launchboxid})")
-                return game_data, 1.0
-        except Exception as e:
-            # Fall back to scanning metadata_games on any issue
-            print(f"🔧 DEBUG: Error looking up launchboxid {existing_launchboxid}: {e}")
-            pass
-    
-    # Create indexed lookups for O(1) exact matches instead of O(n) linear searches
-    # Apply the same normalization as used later in the function
-    
-    normalized_search = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
-    
-    # Fallback version removes parentheses and brackets after normalization (including nested)
-    
-    normalized_search_no_parens = normalize_game_name(game_name)
-    
-    # Build two unified indexes on first call or when metadata_games changes (cached for subsequent calls)
-    if not hasattr(find_best_match, '_unified_index') or find_best_match._metadata_games is not metadata_games:
-        print(f"DEBUG: Building unified indexes for {len(metadata_games)} games...")
-        find_best_match._unified_index = {}  # With parentheses and articles
-        find_best_match._unified_index_no_parens = {}  # Without parentheses
-        find_best_match._metadata_games = metadata_games
-        
-        # Build two simplified unified indexes for both main names and alternate names
-        main_name_count = 0
-        alt_name_count = 0
-        for i, game in enumerate(metadata_games):
-            # Index main name with both normalization methods
-            name = game.get('Name', '')
-            if name:
-                # Index with parentheses and articles
-                name_with_parens = normalize_game_name(name, remove_paranthesis=False, remove_articles=False)
-                if name_with_parens:
-                    find_best_match._unified_index[name_with_parens] = name
-                
-                # Index without parentheses
-                name_no_parens = normalize_game_name(name, remove_paranthesis=True, remove_articles=True)
-                if name_no_parens:
-                    find_best_match._unified_index_no_parens[name_no_parens] = name
-                
-                main_name_count += 1
-            
-            # Index alternate names with both normalization methods
-            alternate_names = game.get('AlternateNames', [])
-            for alt_name in alternate_names:
-                # Index with parentheses and articles
-                alt_name_with_parens = normalize_game_name(alt_name, remove_paranthesis=False, remove_articles=False)
-                if alt_name_with_parens:
-                    find_best_match._unified_index[alt_name_with_parens] = alt_name
-                
-                # Index without parentheses
-                alt_name_no_parens = normalize_game_name(alt_name, remove_paranthesis=True, remove_articles=True)
-                if alt_name_no_parens:
-                    find_best_match._unified_index_no_parens[alt_name_no_parens] = alt_name
-                
-                alt_name_count += 1
-        
-        print(f"DEBUG: Indexed {main_name_count} main names and {alt_name_count} alternate names")
-        print(f"DEBUG: With parentheses index: {len(find_best_match._unified_index)} entries")
-        print(f"DEBUG: No parentheses index: {len(find_best_match._unified_index_no_parens)} entries")
-    
-
-    # If no match found with no_parens version, try with parentheses and articles index
-    if normalized_search in find_best_match._unified_index:
-        matched_name = find_best_match._unified_index[normalized_search]
-        # Find the game that contains this name (main or alternate)
-        for game in metadata_games:
-            if game.get('Name', '') == matched_name:
-                game['_match_type'] = 'main'
-                game['_matched_name'] = matched_name
-                return game, 1.0
-            # Check if it's an alternate name
-            for alt_name in game.get('AlternateNames', []):
-                if alt_name == matched_name:
-                    game['_match_type'] = 'alternate'
-                    game['_matched_name'] = matched_name
-                    print(f"DEBUG: Found alternate name match for '{game_name}' → '{matched_name}' (via with_parens index)")
-                    return game, 1.0
-
-
-    # Try exact match using simplified unified indexes (O(1) lookup)
-    # First try with normalized search (with parentheses removed) using no_parens index
-    if normalized_search_no_parens in find_best_match._unified_index_no_parens:
-        matched_name = find_best_match._unified_index_no_parens[normalized_search_no_parens]
-        # Find the game that contains this name (main or alternate)
-        for game in metadata_games:
-            if game.get('Name', '') == matched_name:
-                game['_match_type'] = 'main'
-                game['_matched_name'] = matched_name
-                return game, 1.0
-            # Check if it's an alternate name
-            for alt_name in game.get('AlternateNames', []):
-                if alt_name == matched_name:
-                    game['_match_type'] = 'alternate'
-                    game['_matched_name'] = matched_name
-                    print(f"DEBUG: Found alternate name match for '{game_name}' → '{matched_name}' (via no_parens index)")
-                    return game, 1.0
-    
-    
-    # No similarity matching - only exact matches are accepted
-    best_match = None
-    best_score = 0
-    
-    return best_match, best_score
 def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mapping_config=None):
     """Get top N matches for a game name using global partitioned indexes and Jaro-Winkler similarity"""
     print(f"🔍 DEBUG: get_top_matches called for '{game_name}' (platform: {target_platform}, top_n: {top_n})")
@@ -7566,7 +6785,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
             # Calculate similarity using configured algorithm
             from game_utils import calculate_similarity
             similarity = calculate_similarity(normalized_name, normalized_game_name)
-            
+        
             # Only consider good matches
             if similarity >= 0.7:
                 # Find the game in metadata_games
@@ -7686,58 +6905,6 @@ def write_gamelist_xml(games, file_path):
     except Exception as e:
         print(f"Error writing gamelist.xml: {e}")
 
-@app.route('/api/scrap-launchbox', methods=['POST'])
-@login_required
-def scrap_launchbox():
-    """Start Launchbox scraping process"""
-    global current_task_id
-    
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-            
-        system_name = data.get('system')
-        selected_games = data.get('selectedGames', [])
-        force_download = data.get('force_download', False)  # Add force download option
-        enable_partial_match_modal = data.get('enable_partial_match_modal', False)  # Add partial match modal option
-        selected_fields = data.get('selected_fields', None)
-        overwrite_text_fields = data.get('overwrite_text_fields', False)
-        
-        if not system_name:
-            return jsonify({'error': 'System name required'}), 400
-        
-        # Add task to queue instead of starting directly
-        task = add_task_to_queue('scraping', {
-            'system_name': system_name,
-            'selected_games': selected_games,
-            'force_download': force_download,
-            'enable_partial_match_modal': enable_partial_match_modal
-        })
-        
-        # Enqueue scraping in single worker process (sequential)
-        _ensure_worker_started()
-        payload = {
-            'type': 'scraping',
-            'task_id': task.id,
-            'system_name': system_name,
-            'selected_games': selected_games,
-            'enable_partial_match_modal': enable_partial_match_modal,
-            'force_download': force_download,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields
-        }
-        _worker_task_queue.put(payload)
-        
-        return jsonify({
-            'success': True,
-            'message': 'Scraping started',
-            'system': system_name
-        })
-        
-    except Exception as e:
-        print(f"Error in scrap_launchbox endpoint: {e}")
-        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/scrap-launchbox/<system_name>', methods=['GET', 'POST'])
 @login_required
@@ -13999,12 +13166,6 @@ def stop_task_endpoint(task_id):
 
         # Set the global stop event to signal all running tasks
         task_stop_event.set()
-        # Also signal the worker process cooperatively via shared cancel map
-        try:
-            if '_worker_cancel_map' in globals() and _worker_cancel_map is not None:
-                _worker_cancel_map[task_id] = True
-        except Exception as _e:
-            print(f"Warning: could not set worker cancel flag: {_e}")
         
         # For Steam tasks, set the cancellation event
         if task.type == 'steam_scraping':
@@ -23973,7 +23134,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread.start()
 def cleanup_on_exit():
     """Clean up resources when the application exits"""
-    global _cleanup_in_progress, _worker_process
+    global _cleanup_in_progress
     
     # Prevent multiple cleanup attempts
     if _cleanup_in_progress:
@@ -23983,34 +23144,7 @@ def cleanup_on_exit():
     _cleanup_in_progress = True
     print("🔄 Cleaning up resources...")
     
-    # Terminate worker process if it exists
-    if _worker_process is not None and _worker_process.is_alive():
-        print(f"🔄 Terminating worker process (PID: {_worker_process.pid})...")
-        try:
-            # Double-check that the process still exists before calling terminate
-            if _worker_process is not None:
-                _worker_process.terminate()
-                _worker_process.join(timeout=3)  # Wait up to 3 seconds
-                if _worker_process is not None and _worker_process.is_alive():
-                    print("⚠️  Worker process didn't terminate gracefully, forcing...")
-                    _worker_process.kill()
-                    _worker_process.join(timeout=2)
-                    if _worker_process is not None and _worker_process.is_alive():
-                        print("⚠️  Worker process still alive after kill, continuing...")
-        except Exception as e:
-            print(f"⚠️  Error terminating worker process: {e}")
-        finally:
-            # Clear the process reference after cleanup
-            _worker_process = None
     
-    # Clean up multiprocessing manager
-    global _worker_manager
-    if _worker_manager is not None:
-        try:
-            print("🔄 Shutting down multiprocessing manager...")
-            _worker_manager.shutdown()
-        except Exception as e:
-            print(f"⚠️  Error shutting down manager: {e}")
     
     # Clean up temporary files
     try:
@@ -24073,11 +23207,6 @@ if __name__ == '__main__':
     # Load existing tasks from log files
     load_existing_tasks_from_logs()
     
-    # Ensure worker started for producer-consumer model
-    try:
-        _ensure_worker_started()
-    except Exception as e:
-        print(f"Failed to start scraping worker: {e}")
     
     # Start cache loading in a separate thread
     def load_cache_background():
