@@ -1295,30 +1295,21 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     try:
         print(f"🔧 DEBUG: Loading platform-specific metadata cache for '{current_system_platform}'...")
         
-        # Try to load from platform-specific cache file first (much faster)
-        platform_cache, metadata_games = _load_platform_cache_from_file(current_system_platform)
-        if platform_cache is not None and metadata_games is not None:
+        # Load from platform-specific cache file (generated from global cache)
+        platform_cache = _load_platform_cache_from_file(current_system_platform)
+        if platform_cache is not None:
             print(f"🔧 DEBUG: Using cached platform data for {current_system_platform}")
         else:
-            print(f"🔧 DEBUG: No platform cache file found, loading platform-specific cache directly...")
-            # Fallback to direct loading if no cache file
-            cache_result = load_platform_metadata_cache(
-                current_system_platform, 
-                use_global_cache=False,
-                mapping_config=mapping_config
-            )
-            # Convert the result to the format expected by the worker
-            metadata_games = cache_result.get('games_cache', {})
-            platform_cache = {}
-            for db_id, game_data in metadata_games.items():
-                platform_cache[db_id] = {
-                    'game': game_data,
-                    'alternate_names': cache_result.get('alternate_names_cache', {}).get(db_id, [])
-                }
+            print(f"❌ ERROR: No platform cache file found for {current_system_platform}")
+            print(f"❌ ERROR: Platform cache files should be generated from the global cache")
+            return {
+                'success': False,
+                'error': f'No platform cache available for {current_system_platform}. Please ensure the global cache is loaded and platform cache files are generated.'
+            }
         
-        print(f"🔧 DEBUG: Loaded {len(metadata_games)} games for platform '{current_system_platform}'")
+        print(f"🔧 DEBUG: Loaded {len(platform_cache)} games for platform '{current_system_platform}'")
         
-        if not metadata_games:
+        if not platform_cache:
             error_msg = f'No metadata for platform {current_system_platform}'
             print(f"❌ ERROR: {error_msg}")
             return {'success': False, 'error': error_msg}
@@ -1350,7 +1341,7 @@ def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
                 result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"⚠️  Failed to save partial gamelist: {_e}"})
             result_q.put({'type': 'progress', 'task_id': task.get('task_id'), 'message': f"🛑 Task stopped by user after processing {stats['processed_games']} game(s)"})
             return {'success': False, 'error': 'Task stopped by user', 'stopped': True, 'stats': stats, 'gamelist_path': gamelist_path, 'rom_paths': matched_rom_paths, 'force_download': force_download, 'system_name': system_name}
-        result = process_single_game_worker((game_data, metadata_games, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), selected_fields, overwrite_text_fields))
+        result = process_single_game_worker((game_data, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, len(games), selected_fields, overwrite_text_fields))
         stats['processed_games'] += 1
         # compute progress
         try:
@@ -1597,7 +1588,7 @@ def reset_task_stop_event():
 def process_single_game_worker(args):
     """Worker function to process a single game in multiprocessing context"""
     try:
-        game_data, metadata_games, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, selected_fields, overwrite_text_fields = args
+        game_data, platform_cache, current_system_platform, mapping_config, enable_partial_match_modal, i, total_games, selected_fields, overwrite_text_fields = args
         
         print(f"🔧 DEBUG: process_single_game_worker - overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)})")
         
@@ -1627,13 +1618,10 @@ def process_single_game_worker(args):
         existing_launchboxid = game_data.get('launchboxid', '')
         print(f"🔧 DEBUG: Game '{game_name}' - existing_launchboxid: '{existing_launchboxid}' (type: {type(existing_launchboxid)})")
         
-        # Convert metadata_games dictionary to list for find_best_match
-        metadata_games_list = list(metadata_games.values())
-        
-        # Use the old find_best_match function
+        # Use the find_best_match function with platform cache
         best_match, score = find_best_match(
             game_name, 
-            metadata_games_list, 
+            list(platform_cache.values()), 
             current_system_platform, 
             existing_launchboxid=existing_launchboxid,
             platform_cache=platform_cache,
@@ -1815,7 +1803,7 @@ def process_single_game_worker(args):
                 partial_match_request = None
                 if enable_partial_match_modal:
                     # Get top matches for the modal using old function
-                    top_matches = get_top_matches(game_name_clean, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
+                    top_matches = get_top_matches(game_name_clean, list(platform_cache.values()), current_system_platform, top_n=20, mapping_config=mapping_config)
                     partial_match_request = {
                         'game_name': game_name_clean,
                         'game_data': game_data,
@@ -3739,25 +3727,9 @@ def load_launchbox_partitioned_indexes():
         total_names_processed = 0
         
         for db_id, entry in global_metadata_cache.items():
-            game_elem = entry.get('game')
-            if game_elem is None:
-                skipped_count += 1
-                continue
-            
-            # Get game name and platform
-            game_name = None
-            platform = None
-            
-            # Handle different game_elem formats
-            if hasattr(game_elem, 'tag'):  # XML element
-                for child in game_elem:
-                    if child.tag == 'Name' and child.text:
-                        game_name = child.text.strip()
-                    elif child.tag == 'Platform' and child.text:
-                        platform = child.text.strip()
-            elif isinstance(game_elem, dict):  # Dictionary format
-                game_name = game_elem.get('Name', '')
-                platform = game_elem.get('Platform', '')
+            # Get game name and platform from flattened structure
+            game_name = entry.get('Name', '')
+            platform = entry.get('Platform', '')
             
             if not game_name or not platform:
                 skipped_count += 1
@@ -3765,37 +3737,65 @@ def load_launchbox_partitioned_indexes():
             
             processed_count += 1
             
-            # Get alternate names
+            # Process main game name
+            total_names_processed += 1
+            
+            # Normalize game name with parentheses
+            normalized_with_parens = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
+            if normalized_with_parens:
+                if platform not in global_launchbox_partition_index:
+                    global_launchbox_partition_index[platform] = {}
+                global_launchbox_partition_index[platform][normalized_with_parens] = db_id
+            
+            # Normalize game name without parentheses
+            normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+            if normalized_no_parens:
+                if platform not in global_launchbox_partition_index_no_parens:
+                    global_launchbox_partition_index_no_parens[platform] = {}
+                global_launchbox_partition_index_no_parens[platform][normalized_no_parens] = db_id
+        
+        # Process alternate names separately
+        # Alternate names reference games by DatabaseID, so we need to process them after all main games
+        print("🔄 Processing alternate names...")
+        alternate_names_processed = 0
+        
+        for db_id, entry in global_metadata_cache.items():
             alternate_names = entry.get('alternate_names', [])
+            if not alternate_names:
+                continue
+                
+            # Get the main game's platform from flattened structure
+            platform = entry.get('Platform', '')
+            if not platform:
+                continue
             
-            # Collect all names (main + alternates)
-            all_names = [game_name]
-            for alt_name_elem in alternate_names:
-                if hasattr(alt_name_elem, 'text') and alt_name_elem.text:
-                    all_names.append(alt_name_elem.text.strip())
-                elif isinstance(alt_name_elem, dict) and alt_name_elem.get('Name'):
-                    all_names.append(alt_name_elem['Name'].strip())
-            
-            # Process all names (main + alternates)
-            for name in all_names:
-                if not name:
+            # Process each alternate name (now just strings)
+            for alt_name in alternate_names:
+                if not alt_name or not isinstance(alt_name, str):
                     continue
                 
+                alt_name = alt_name.strip()
+                if not alt_name:
+                    continue
+                
+                alternate_names_processed += 1
                 total_names_processed += 1
                 
-                # Normalize game name with parentheses
-                normalized_with_parens = normalize_game_name(name, remove_paranthesis=False, remove_articles=False)
+                # Normalize alternate name with parentheses
+                normalized_with_parens = normalize_game_name(alt_name, remove_paranthesis=False, remove_articles=False)
                 if normalized_with_parens:
                     if platform not in global_launchbox_partition_index:
                         global_launchbox_partition_index[platform] = {}
                     global_launchbox_partition_index[platform][normalized_with_parens] = db_id
                 
-                # Normalize game name without parentheses
-                normalized_no_parens = normalize_game_name(name, remove_paranthesis=True, remove_articles=True)
+                # Normalize alternate name without parentheses
+                normalized_no_parens = normalize_game_name(alt_name, remove_paranthesis=True, remove_articles=True)
                 if normalized_no_parens:
                     if platform not in global_launchbox_partition_index_no_parens:
                         global_launchbox_partition_index_no_parens[platform] = {}
                     global_launchbox_partition_index_no_parens[platform][normalized_no_parens] = db_id
+        
+        print(f"✅ Processed {alternate_names_processed} alternate names")
         
         # Save to cache files
         os.makedirs(cache_dir, exist_ok=True)
@@ -3855,7 +3855,7 @@ def _load_global_cache_from_file():
         print(f"WARNING: Failed to load global cache from file: {e}")
         return None
 
-def _save_platform_cache_to_file(platform_name, platform_cache, metadata_games):
+def _save_platform_cache_to_file(platform_name, platform_cache):
     """Save platform-specific cache to file for worker processes"""
     try:
         import pickle
@@ -3866,7 +3866,6 @@ def _save_platform_cache_to_file(platform_name, platform_cache, metadata_games):
         
         cache_data = {
             'platform_cache': platform_cache,
-            'metadata_games': metadata_games,
             'platform_name': platform_name
         }
         
@@ -3916,23 +3915,20 @@ def _create_platform_specific_cache_files():
             platform_alternate_names = {}
             
             for db_id, game_data in global_metadata_cache.items():
-                if 'game' in game_data and game_data['game']:
-                    game = game_data['game']
-                    if game.get('Platform') == platform:
-                        platform_games[db_id] = game
-                        platform_alternate_names[db_id] = game_data.get('alternate_names', [])
+                # With flattened structure, game data is directly in game_data
+                if game_data.get('Platform') == platform:
+                    platform_games[db_id] = game_data
+                    platform_alternate_names[db_id] = game_data.get('alternate_names', [])
             
             if platform_games:
-                # Create platform cache structure
+                # Create platform cache structure with flattened format
                 platform_cache = {}
                 for db_id, game in platform_games.items():
-                    platform_cache[db_id] = {
-                        'game': game,
-                        'alternate_names': platform_alternate_names.get(db_id, [])
-                    }
+                    # With flattened structure, game data is directly in the entry
+                    platform_cache[db_id] = game
                 
                 # Save platform-specific cache file
-                _save_platform_cache_to_file(platform, platform_cache, platform_games)
+                _save_platform_cache_to_file(platform, platform_cache)
                 print(f"DEBUG: Created platform cache for {platform} with {len(platform_games)} games")
         
         except Exception as e:
@@ -3952,10 +3948,10 @@ def _load_platform_cache_from_file(platform_name):
             cache_data = pickle.load(f)
         
         print(f"DEBUG: Loaded platform cache for {platform_name} from {cache_file}")
-        return cache_data.get('platform_cache', {}), cache_data.get('metadata_games', {})
+        return cache_data.get('platform_cache', {})
     except Exception as e:
         print(f"WARNING: Failed to load platform cache for {platform_name}: {e}")
-        return None, None
+        return None
 
 def load_metadata_cache():
     """Load and cache all metadata from Metadata.xml for faster lookups"""
@@ -3965,7 +3961,7 @@ def load_metadata_cache():
         # Return a derived view for any legacy callers
         return {
             'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
-            'games_cache': {k: v.get('game') for k, v in global_metadata_cache.items()},
+            'games_cache': {k: {key: val for key, val in v.items() if key != 'images' and key != 'alternate_names'} for k, v in global_metadata_cache.items()},
             'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in global_metadata_cache.items()}
         }
     
@@ -3982,13 +3978,13 @@ def load_metadata_cache():
             
             global_metadata_cache_loaded = True
             
-            # Generate LaunchBox platforms cache from consolidated cache
+            # Generate LaunchBox platforms cache from flattened cache
             platforms = set()
             for game_id, game_data in global_metadata_cache.items():
-                if 'game' in game_data and game_data['game']:
-                    platform = game_data['game'].get('Platform', 'Unknown')
-                    if platform and platform.strip():
-                        platforms.add(platform.strip())
+                # With flattened structure, platform is directly in game_data
+                platform = game_data.get('Platform', 'Unknown')
+                if platform and platform.strip():
+                    platforms.add(platform.strip())
             
             _launchbox_platforms_cache = sorted(list(platforms))
             
@@ -4006,7 +4002,7 @@ def load_metadata_cache():
             
             return {
                 'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
-                'games_cache': {k: v.get('game') for k, v in global_metadata_cache.items()},
+                'games_cache': {k: {key: val for key, val in v.items() if key != 'images' and key != 'alternate_names'} for k, v in global_metadata_cache.items()},
                 'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in global_metadata_cache.items()}
             }
         
@@ -4088,19 +4084,49 @@ def load_metadata_cache():
         print(f"DEBUG: Found {games_count} Game entries in Metadata.xml")
         print(f"DEBUG: Found {alternate_names_count} GameAlternateName entries in Metadata.xml")
         
+        # Transform consolidated cache to the new flattened structure
+        flattened_cache = {}
+        for db_id, entry in consolidated.items():
+            game_data = entry.get('game', {})
+            images = entry.get('images', [])
+            alternate_names_data = entry.get('alternate_names', [])
+            
+            # Create flattened entry
+            flattened_entry = {
+                'Name': game_data.get('Name', ''),
+                'Platform': game_data.get('Platform', ''),
+                'DatabaseID': db_id,
+                'images': images,
+                'alternate_names': []
+            }
+            
+            # Add other game fields
+            for key, value in game_data.items():
+                if key not in ['Name', 'Platform', 'DatabaseID']:
+                    flattened_entry[key] = value
+            
+            # Process alternate names - extract just the name strings
+            for alt_name_data in alternate_names_data:
+                if isinstance(alt_name_data, dict):
+                    alt_name = alt_name_data.get('AlternateName') or alt_name_data.get('Name')
+                    if alt_name:
+                        flattened_entry['alternate_names'].append(alt_name)
+            
+            flattened_cache[db_id] = flattened_entry
+        
         # Update global consolidated cache (make a copy to avoid clearing it later)
-        global_metadata_cache = consolidated.copy()
+        global_metadata_cache = flattened_cache.copy()
         global_metadata_cache_loaded = True
         
         # Save cache to file for worker processes to use
-        _save_global_cache_to_file(consolidated)
+        _save_global_cache_to_file(flattened_cache)
         print(f"✅ Saved LaunchBox global metadata cache to var/cache/launchbox_global_metadata_cache.pkl")
         
         # Generate LaunchBox platforms cache from consolidated cache
         platforms = set()
         for entry in consolidated.values():
-            game_data = entry.get('game', {})
-            platform = game_data.get('Platform')
+            # With flattened structure, game data is directly in entry
+            platform = entry.get('Platform')
             if platform:
                 platforms.add(platform.strip())
         
@@ -4130,7 +4156,7 @@ def load_metadata_cache():
         
         return {
             'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
-            'games_cache': {k: v.get('game') for k, v in global_metadata_cache.items()},
+            'games_cache': {k: {key: val for key, val in v.items() if key != 'images' and key != 'alternate_names'} for k, v in global_metadata_cache.items()},
             'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in global_metadata_cache.items()}
         }
         
@@ -4152,13 +4178,8 @@ def get_cached_game_data(database_id):
         load_metadata_cache()
     
     entry = global_metadata_cache.get(database_id) or {}
-    game_data = {
-        'game': entry.get('game'),
-        'alternate_names': entry.get('alternate_names', []),
-        'images': entry.get('images', [])
-    }
-    
-    return game_data
+    # Return the entry directly since it's now flattened
+    return entry
 
 def get_cached_games_by_platform(platform):
     """Get all cached games for a specific platform"""
@@ -4167,156 +4188,13 @@ def get_cached_games_by_platform(platform):
     
     platform_games = []
     for db_id, entry in global_metadata_cache.items():
-        game = entry.get('game')
-        if game is None:
-            continue
-        game_platform = game.find('Platform')
-        if game_platform is not None and game_platform.text == platform:
-            platform_games.append(game)
+        # With flattened structure, game data is directly in entry
+        game_platform = entry.get('Platform')
+        if game_platform == platform:
+            platform_games.append(entry)
     
     return platform_games
 
-def load_platform_metadata_cache(platform, use_global_cache=False, mapping_config=None):
-    """Load only games and alternate names cache for a specific platform (no images)"""
-    try:
-        print(f"DEBUG: Loading platform-specific metadata cache for {platform}...")
-        start_time = time.time()
-        
-        # Use global cache only if explicitly requested (for non-worker processes)
-        if use_global_cache and global_metadata_cache_loaded and global_metadata_cache:
-            print(f"DEBUG: Using global cache to build platform-specific cache for {platform}...")
-            platform_cache = {}
-            
-            # Filter global cache for this platform
-            for db_id, entry in global_metadata_cache.items():
-                game_elem = entry.get('game')
-                if game_elem is None:
-                    continue
-                
-                # Check if this game is for the target platform
-                game_platform = game_elem.get('Platform')
-                if game_platform == platform:
-                    platform_cache[db_id] = {
-                        'game': game_elem,
-                        'alternate_names': entry.get('alternate_names', [])
-                    }
-            
-            platform_games_count = len(platform_cache)
-            platform_alt_names_count = sum(len(entry.get('alternate_names', [])) for entry in platform_cache.values())
-            
-            print(f"DEBUG: Found {platform_games_count} games for platform {platform} from global cache")
-            print(f"DEBUG: Found {platform_alt_names_count} alternate names for platform {platform} from global cache")
-            
-            load_time = time.time() - start_time
-            print(f"DEBUG: Platform-specific metadata cache loaded in {load_time:.2f} seconds from global cache")
-            
-            return {
-                'games_cache': {k: v.get('game') for k, v in platform_cache.items()},
-                'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in platform_cache.items()}
-            }
-        
-        # Default behavior: parse XML file directly (for worker processes)
-        print(f"DEBUG: Parsing XML file for platform {platform}...")
-        
-        metadata_path = get_launchbox_metadata_path()
-        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
-        
-        if not os.path.exists(metadata_path):
-            print(f"DEBUG: Metadata.xml not found at {metadata_path}")
-            return {
-                'games_cache': {},
-                'alternate_names_cache': {}
-            }
-        
-        # Parse the Metadata.xml
-        tree = ET.parse(metadata_path)
-        root = tree.getroot()
-        
-        # Initialize platform-specific cache
-        platform_cache = {}
-        
-        # Load games for the specific platform
-        all_games = root.findall('.//Game')
-        print(f"DEBUG: Found {len(all_games)} total Game entries in Metadata.xml")
-        
-        platform_games_count = 0
-        for game in all_games:
-            db_id = game.find('DatabaseID')
-            game_platform = game.find('Platform')
-            
-            if (db_id is not None and db_id.text and 
-                game_platform is not None and game_platform.text == platform):
-                db_id_text = db_id.text
-                entry = platform_cache.setdefault(db_id_text, {'game': None, 'alternate_names': []})
-                entry['game'] = game
-                platform_games_count += 1
-        
-        # Load alternate names for games in this platform
-        all_alternate_names = root.findall('.//GameAlternateName')
-        print(f"DEBUG: Found {len(all_alternate_names)} total GameAlternateName entries in Metadata.xml")
-        
-        platform_alt_names_count = 0
-        for alt_name in all_alternate_names:
-            db_id = alt_name.find('DatabaseID')
-            if db_id is not None and db_id.text:
-                db_id_text = db_id.text
-                # Only add if we have a game for this platform
-                if db_id_text in platform_cache:
-                    entry = platform_cache[db_id_text]
-                    entry['alternate_names'].append(alt_name)
-                    platform_alt_names_count += 1
-        
-        load_time = time.time() - start_time
-        
-        print(f"DEBUG: Platform-specific metadata cache loaded in {load_time:.2f} seconds")
-        print(f"DEBUG: Found {platform_games_count} games for platform {platform}")
-        print(f"DEBUG: Found {platform_alt_names_count} alternate names for platform {platform}")
-        print(f"DEBUG: Cached {sum(1 for e in platform_cache.values() if e.get('alternate_names'))} games with alternate names")
-        
-        # Convert XML elements to dictionaries for pickling
-        metadata_games = {}
-        platform_cache_dict = {}
-        
-        for db_id, entry in platform_cache.items():
-            game_elem = entry.get('game')
-            if game_elem is not None:
-                # Convert XML element to dictionary
-                game_data = {}
-                for child in game_elem:
-                    if child.text:
-                        game_data[child.tag] = child.text.strip()
-                metadata_games[db_id] = game_data
-                
-                # Convert alternate names to dictionaries
-                alt_names_dict = []
-                for alt_elem in entry.get('alternate_names', []):
-                    alt_data = {}
-                    for child in alt_elem:
-                        if child.text:
-                            alt_data[child.tag] = child.text.strip()
-                    alt_names_dict.append(alt_data)
-                
-                platform_cache_dict[db_id] = {
-                    'game': game_data,
-                    'alternate_names': alt_names_dict
-                }
-        
-        # Save platform-specific cache to file for future worker processes
-        _save_platform_cache_to_file(platform, platform_cache_dict, metadata_games)
-        
-        return {
-            'games_cache': metadata_games,
-            'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in platform_cache_dict.items()}
-        }
-        
-    except Exception as e:
-        print(f"ERROR: Failed to load platform metadata cache: {e}")
-        import traceback
-        traceback.print_exc()
-        return {
-            'games_cache': {},
-            'alternate_names_cache': {}
-        }
 
 def get_cache_statistics():
     """Get statistics about the current metadata cache"""
@@ -7191,73 +7069,6 @@ def load_launchbox_config():
     return mapping_config, system_platform_mapping
 
 
-def parse_launchbox_metadata(metadata_path, target_platform, skip_global_cache=False):
-    """Parse Launchbox Metadata.xml file using cached data"""
-    global platform_metadata_cache
-    
-    # Check if we need to re-parse (system changed)
-    if target_platform in platform_metadata_cache:
-        print(f"Using cached metadata for platform: {target_platform}")
-        return platform_metadata_cache[target_platform]
-    
-    print(f"Building metadata for platform: {target_platform} from cache...")
-    
-    try:
-        # Use the comprehensive cache instead of parsing XML (unless skipped for worker processes)
-        if not skip_global_cache and not global_metadata_cache_loaded:
-            load_metadata_cache()
-        
-        games = []
-        
-        # Build games list from consolidated cache for the target platform
-        for db_id, entry in global_metadata_cache.items():
-            game_elem = entry.get('game')
-            if game_elem is None:
-                continue
-            game_data = {}
-            
-            # Parse basic game fields from cached element
-            # Get the fields to load from mapping configuration
-            fields_to_load = set(['Name', 'Platform', 'DatabaseID'])  # Always load these core fields
-            mapping_config = scrappers_config.get('launchbox', {}).get('mapping', {})
-            if mapping_config:
-                # Add all LaunchBox fields from the mapping configuration
-                fields_to_load.update(mapping_config.keys())
-            
-            # Handle dictionary format
-            for tag, text in game_elem.items():
-                if isinstance(text, str) and tag in fields_to_load:
-                    game_data[tag] = text.strip()
-            
-            # Only include games for the current platform
-            if game_data.get('Platform') == target_platform:
-                # Link alternate names to this game from cache
-                alt_names = []
-                for alt_elem in entry.get('alternate_names', []) or []:
-                    # Handle dictionary format
-                    alt_name_text = alt_elem.get('AlternateName')
-                    if alt_name_text:
-                        alt_names.append(alt_name_text.strip())
-                game_data['AlternateNames'] = alt_names
-                if alt_names:
-                    print(f"DEBUG: Game '{game_data.get('Name')}' has alternate names: {alt_names}")
-                games.append(game_data)
-        
-        # Cache the results
-        platform_metadata_cache[target_platform] = games
-        print(f"Cached {len(games)} games for platform: {target_platform}")
-        
-        # Log alternate names statistics
-        total_alternate_names = sum(len(game.get('AlternateNames', [])) for game in games)
-        print(f"Found {total_alternate_names} alternate names across {len(games)} games")
-        
-        return games
-        
-    except Exception as e:
-        print(f"Error building metadata from cache: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
 
 from game_utils import normalize_game_name
 
@@ -7319,7 +7130,8 @@ def find_best_match(game_name, metadata_games, target_platform, existing_launchb
                 # Look up the game directly in platform_cache
                 cache_entry = platform_cache.get(launchboxid_str)
                 if cache_entry:
-                    game_elem = cache_entry.get('game')
+                    # With flattened structure, game data is directly in cache_entry
+                    game_elem = cache_entry
                     alt_names_elements = cache_entry.get('alternate_names', [])
                 else:
                     game_elem = None
@@ -9022,7 +8834,10 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
             normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
             global global_metadata_cache, global_metadata_cache_loaded
             if not global_metadata_cache_loaded or not global_metadata_cache:
-                return results
+                # Load the global cache if not already loaded
+                load_metadata_cache()
+                if not global_metadata_cache_loaded or not global_metadata_cache:
+                    return results
             for platform_name in partition_index_no_parens.keys():
                 try:
                     if direct_match:
@@ -9039,8 +8854,8 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         if launchboxid:
                             launchboxid_str = str(launchboxid)
                             entry = global_metadata_cache.get(launchboxid_str)
-                            game_elem = entry.get('game') if entry else None
-                            if entry and game_elem:
+                            # Entry is now flattened, no need to get 'game' sub-dictionary
+                            if entry:
                                 # Extract images via mapping
                                 image_mappings = scraper_config.get('image_type_mappings', {}).get(media_type, [])
                                 images = entry.get('images', [])
@@ -9053,7 +8868,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 if urls:
                                     all_lb.append({
                                         'scraper': 'launchbox',
-                                        'game_name': (game_elem.get('Name') if isinstance(game_elem, dict) else ''),
+                                        'game_name': entry.get('Name', ''),
                                         'game_id': launchboxid,
                                         'similarity_score': 1.0,
                                         f'{media_type}_urls': urls,
@@ -9073,7 +8888,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 entry = global_metadata_cache.get(str(lbid))
                                 if not entry:
                                     continue
-                                game_elem = entry.get('game')
+                                # Entry is now flattened, no need to get 'game' sub-dictionary
                                 image_mappings = scraper_config.get('image_type_mappings', {}).get(media_type, [])
                                 images = entry.get('images', [])
                                 urls = []
@@ -9085,7 +8900,7 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                 if urls:
                                     all_lb.append({
                                         'scraper': 'launchbox',
-                                        'game_name': (game_elem.get('Name') if isinstance(game_elem, dict) else ''),
+                                        'game_name': entry.get('Name', ''),
                                         'game_id': lbid,
                                         'similarity_score': sim,
                                         f'{media_type}_urls': urls,
@@ -9821,14 +9636,36 @@ def get_top_matches_endpoint():
         mapping_config, system_platform_mapping = load_launchbox_config()
         target_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
         
-        # Load Launchbox metadata
-        metadata_path = get_launchbox_metadata_path()
-        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        # Load global metadata cache
+        global global_metadata_cache, global_metadata_cache_loaded
+        if not global_metadata_cache_loaded or not global_metadata_cache:
+            load_metadata_cache()
         
-        if not os.path.exists(metadata_path):
-            return jsonify({'error': 'Metadata.xml not found'}), 404
+        print(f"🔧 DEBUG: global_metadata_cache_loaded: {global_metadata_cache_loaded}")
+        print(f"🔧 DEBUG: global_metadata_cache length: {len(global_metadata_cache) if global_metadata_cache else 0}")
+        print(f"🔧 DEBUG: target_platform: '{target_platform}'")
         
-        metadata_games = parse_launchbox_metadata(metadata_path, target_platform)
+        if not global_metadata_cache:
+            return jsonify({'error': 'No metadata cache available'}), 404
+        
+        # Convert global cache to the format expected by get_top_matches
+        # The function expects a list of game dictionaries
+        metadata_games = []
+        for game_id, entry in global_metadata_cache.items():
+            if entry.get('Platform') == target_platform:
+                # Convert flattened entry back to the format expected by get_top_matches
+                game_dict = {
+                    'DatabaseID': game_id,
+                    'Name': entry.get('Name', ''),
+                    'Platform': entry.get('Platform', ''),
+                    # Add other fields as needed
+                }
+                # Add other fields from the entry
+                for key, value in entry.items():
+                    if key not in ['Name', 'Platform', 'DatabaseID', 'images', 'alternate_names']:
+                        game_dict[key] = value
+                metadata_games.append(game_dict)
+        
         if not metadata_games:
             return jsonify({'error': 'No metadata found for current platform'}), 404
         
@@ -10997,7 +10834,7 @@ def metadata_info_endpoint():
             # Get current cache data derived from consolidated cache
             cache_data = {
                 'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
-                'games_cache': {k: v.get('game') for k, v in global_metadata_cache.items()},
+                'games_cache': {k: {key: val for key, val in v.items() if key != 'images' and key != 'alternate_names'} for k, v in global_metadata_cache.items()},
                 'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in global_metadata_cache.items()}
             }
         
@@ -11227,6 +11064,15 @@ def regenerate_indexes_endpoint():
         if os.path.exists(index_no_parens_file):
             os.remove(index_no_parens_file)
             deleted_files.append('launchbox_partition_index_no_parens.pkl')
+        
+        # Also delete platform cache files to force regeneration with new structure
+        if os.path.exists(cache_dir):
+            for filename in os.listdir(cache_dir):
+                if filename.startswith('launchbox_platform_') and filename.endswith('_cache.pkl'):
+                    file_path = os.path.join(cache_dir, filename)
+                    os.remove(file_path)
+                    deleted_files.append(filename)
+                    print(f"✅ Removed platform cache: {filename}")
         
         # Reset the global indexes to force reload
         global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded
@@ -13498,21 +13344,33 @@ async def scrape_mobygames_manual(game, system_name, system_config, target_media
 async def scrape_launchbox_manual(game, system_name, target_media_type=None):
     """Scrape LaunchBox data for manual scrap (returns data without writing files)"""
     try:
+        # Ensure global cache is loaded
+        global global_metadata_cache, global_metadata_cache_loaded
+        if not global_metadata_cache_loaded or not global_metadata_cache:
+            print(f"🔧 DEBUG: LaunchBox manual scrap - loading global cache...")
+            load_metadata_cache()
+        
         launchbox_id = game.get('launchboxid')
         if not launchbox_id:
             return None
         
         # Get LaunchBox game data from cache
         # Try both str and int keys since cache keys may be stringified
+        print(f"🔧 DEBUG: LaunchBox manual scrap - looking for launchbox_id: {launchbox_id}")
+        print(f"🔧 DEBUG: LaunchBox manual scrap - global_metadata_cache_loaded: {global_metadata_cache_loaded}")
+        print(f"🔧 DEBUG: LaunchBox manual scrap - global_metadata_cache length: {len(global_metadata_cache) if global_metadata_cache else 0}")
+        
         game_metadata = global_metadata_cache.get(launchbox_id)
         if not game_metadata:
             game_metadata = global_metadata_cache.get(str(launchbox_id)) or global_metadata_cache.get(int(launchbox_id))
         if not game_metadata:
+            print(f"🔧 DEBUG: LaunchBox manual scrap - no game metadata found for ID: {launchbox_id}")
             return None
         
-        game_elem = game_metadata.get('game')
-        if not game_elem:
-            return None
+        print(f"🔧 DEBUG: LaunchBox manual scrap - found game metadata for ID: {launchbox_id}")
+        
+        # With flattened structure, game data is directly in game_metadata, not under 'game' key
+        game_elem = game_metadata
         
         # Get mapping configuration
         config = load_config()
