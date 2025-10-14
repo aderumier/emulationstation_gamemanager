@@ -1210,6 +1210,9 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         mapping_config, system_platform_mapping = load_launchbox_config()
         current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
         
+        print(f"🔧 DEBUG: Mapping config: {mapping_config}")
+        print(f"🔧 DEBUG: Selected fields: {selected_fields}")
+        
         print(f"🔧 DEBUG: Using platform: {current_system_platform}")
         
         # Get gamelist path
@@ -1380,6 +1383,7 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
         updated = False
         
         # Update text fields
+        print(f"🔧 DEBUG: Processing {len(mapping_config)} mapping entries: {list(mapping_config.items())}")
         for launchbox_field, gamelist_field in mapping_config.items():
             if launchbox_field in best_match and best_match[launchbox_field]:
                 old_value = game_data.get(gamelist_field, '')
