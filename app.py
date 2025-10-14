@@ -2624,9 +2624,19 @@ def run_image_download_task(system_name, data):
                 })
                 continue
             
-            # EARLY OPTIMIZATION: Check if any fields need downloads before starting
-            if not force_download:
-                # Check which fields need images based on current gamelist data
+            # Determine which fields to download
+            if force_download:
+                # Force download: download all selected media fields regardless of current state
+                fields_to_download = list(image_config.get('image_type_mappings', {}).keys())
+                
+                # Filter to only include selected media fields
+                if selected_fields is not None and len(selected_fields) > 0:
+                    fields_to_download = [field for field in fields_to_download if field in selected_fields]
+                elif selected_fields is not None and len(selected_fields) == 0:
+                    # If selected_fields is explicitly empty, don't download any media
+                    fields_to_download = []
+            else:
+                # Normal mode: only download fields that are empty
                 fields_to_download = []
                 for field_name in image_config.get('image_type_mappings', {}).keys():
                     current_value = game.get(field_name)
@@ -2640,17 +2650,26 @@ def run_image_download_task(system_name, data):
                 elif selected_fields is not None and len(selected_fields) == 0:
                     # If selected_fields is explicitly empty, don't download any media
                     fields_to_download = []
-                
-                if not fields_to_download:
-                    skipped_count += 1
-                    current_step = i + 1
-                    progress_percent = int((current_step / len(games_to_process)) * 100)
-                    if selected_fields is not None and len(selected_fields) == 0:
-                        task.update_progress(f"⏭️  Skipping {game_name} - no media fields selected", progress_percentage=progress_percent, current_step=current_step)
+            
+            # Skip if no fields to download
+            if not fields_to_download:
+                skipped_count += 1
+                current_step = i + 1
+                progress_percent = int((current_step / len(games_to_process)) * 100)
+                if selected_fields is not None and len(selected_fields) == 0:
+                    task.update_progress(f"⏭️  Skipping {game_name} - no media fields selected", progress_percentage=progress_percent, current_step=current_step)
+                    results.append({
+                        'game': game_name,
+                        'status': 'skipped',
+                        'reason': 'No media fields selected'
+                    })
+                else:
+                    if force_download:
+                        task.update_progress(f"⏭️  Skipping {game_name} - no media fields selected for force download", progress_percentage=progress_percent, current_step=current_step)
                         results.append({
                             'game': game_name,
                             'status': 'skipped',
-                            'reason': 'No media fields selected'
+                            'reason': 'No media fields selected for force download'
                         })
                     else:
                         task.update_progress(f"⏭️  Skipping {game_name} - all media fields already populated", progress_percentage=progress_percent, current_step=current_step)
@@ -2659,7 +2678,7 @@ def run_image_download_task(system_name, data):
                             'status': 'skipped',
                             'reason': 'All media fields already populated'
                         })
-                    continue
+                continue
             
             # Add game task to the list
             game_tasks.append({

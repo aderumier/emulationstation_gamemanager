@@ -3137,5 +3137,12 @@
             ".chd",
             ".cdi"
         ]
+    },
+    "dos": {
+        "launchbox": "MS-DOS",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "extensions": []
     }
 }
