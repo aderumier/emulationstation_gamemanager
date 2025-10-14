@@ -1255,32 +1255,38 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 progress_percent = int(((i + 1) / len(games)) * 100)
                 task.update_progress(f"🔍 Processing {game_name} ({i+1}/{len(games)})", progress_percentage=progress_percent, current_step=i+1, total_steps=len(games))
             
-            # Check if game already has a LaunchBox ID and skip if no fields need updating
+            # Check if game already has a LaunchBox ID
             existing_launchboxid = game_data.get('launchboxid')
-            if existing_launchboxid and not overwrite_text_fields:
-                # Check if any selected fields are missing or need updating
-                needs_update = False
-                if selected_fields:
-                    # If specific fields are selected, check if any are missing
-                    for field in selected_fields:
-                        if not game_data.get(field):
-                            needs_update = True
-                            break
-                else:
-                    # If no specific fields selected, assume we want to update all fields
-                    needs_update = True
+            if existing_launchboxid:
+                # Use existing LaunchBox ID directly - look up in global cache
+                launchboxid = existing_launchboxid
+                print(f"🔧 DEBUG: Using existing LaunchBox ID: {launchboxid}")
                 
-                if not needs_update:
-                    print(f"🔧 DEBUG: Skipping {game_name} - already has LaunchBox ID {existing_launchboxid} and no fields need updating")
-                    stats['processed_games'] += 1
-                    continue
-            
-            # Find LaunchBox ID using direct lookup
-            launchboxid = find_launchboxid_from_partionned_index_directmatch(
-                game_name, 
-                current_system_platform, 
-                existing_launchboxid=existing_launchboxid
-            )
+                # Check if we need to update fields
+                if not overwrite_text_fields:
+                    # Check if any selected fields are missing or need updating
+                    needs_update = False
+                    if selected_fields:
+                        # If specific fields are selected, check if any are missing
+                        for field in selected_fields:
+                            if not game_data.get(field):
+                                needs_update = True
+                                break
+                    else:
+                        # If no specific fields selected, assume we want to update all fields
+                        needs_update = True
+                    
+                    if not needs_update:
+                        print(f"🔧 DEBUG: Skipping {game_name} - already has LaunchBox ID {launchboxid} and no fields need updating")
+                        stats['processed_games'] += 1
+                        continue
+            else:
+                # No existing LaunchBox ID - find one using name lookup
+                launchboxid = find_launchboxid_from_partionned_index_directmatch(
+                    game_name, 
+                    current_system_platform, 
+                    existing_launchboxid=None
+                )
             
             if launchboxid:
                 stats['matched_games'] += 1
@@ -1345,10 +1351,7 @@ def find_launchboxid_from_partionned_index_directmatch(game_name, target_platfor
         if not partition_index or not partition_index_no_parens:
             return None
         
-        # If existing launchboxid provided, use it directly (prioritize existing IDs)
-        if existing_launchboxid:
-            print(f"🔧 DEBUG: Using existing LaunchBox ID {existing_launchboxid}")
-            return existing_launchboxid
+        # Note: existing_launchboxid is now handled in the main loop, not here
         
         # Check if target platform exists in indexes
         if target_platform not in partition_index or target_platform not in partition_index_no_parens:
