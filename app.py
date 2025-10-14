@@ -1287,10 +1287,12 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                     # Update game data in the original all_games list
                     # Find the corresponding game in all_games by path
                     game_path = game_data.get('path', '')
+                    # Extract ROM filename for parentheses preservation
+                    rom_filename = os.path.splitext(os.path.basename(game_path))[0] if game_path else ''
                     for j, original_game in enumerate(all_games):
                         if original_game.get('path', '') == game_path:
-                            print(f"🔧 DEBUG: Calling update_game_data_from_launchbox with overwrite_text_fields={overwrite_text_fields}, selected_fields={selected_fields}")
-                            updated = update_game_data_from_launchbox(original_game, best_match, mapping_config, overwrite_text_fields, selected_fields)
+                            print(f"🔧 DEBUG: Calling update_game_data_from_launchbox with overwrite_text_fields={overwrite_text_fields}, selected_fields={selected_fields}, rom_filename={rom_filename}")
+                            updated = update_game_data_from_launchbox(original_game, best_match, mapping_config, overwrite_text_fields, selected_fields, rom_filename)
                             print(f"🔧 DEBUG: update_game_data_from_launchbox returned: {updated}")
                             if updated:
                                 stats['updated_games'] += 1
@@ -1369,7 +1371,7 @@ def find_launchboxid_from_partionned_index_directmatch(game_name, target_platfor
         print(f"❌ ERROR in find_launchboxid_from_partionned_index_directmatch: {e}")
         return None
 
-def update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields=False, selected_fields=None):
+def update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields=False, selected_fields=None, rom_filename=None):
     """Update game data with LaunchBox information"""
     try:
         updated = False
@@ -1380,6 +1382,18 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
             if launchbox_field in best_match and best_match[launchbox_field]:
                 old_value = game_data.get(gamelist_field, '')
                 new_value = best_match[launchbox_field]
+                
+                # Special handling for name field - preserve parentheses content from ROM filename
+                if launchbox_field == 'Name' and rom_filename:
+                    # Extract parentheses content from ROM filename
+                    import re
+                    parens_match = re.search(r'\(([^)]+)\)', rom_filename)
+                    if parens_match:
+                        parens_content = parens_match.group(0)  # Includes parentheses: "(USA)"
+                        # Add parentheses content to the name if not already present
+                        if parens_content not in new_value:
+                            new_value = f"{new_value} {parens_content}"
+                        print(f"🔧 DEBUG: Added parentheses from ROM filename: '{best_match[launchbox_field]}' -> '{new_value}'")
                 
                 # Check if we should update this field
                 should_update = False
