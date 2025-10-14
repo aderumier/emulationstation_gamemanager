@@ -2471,7 +2471,8 @@ def run_launchbox_scraper_task(system_name, task_id, selected_games, selected_fi
             add_task_to_queue('image_download', {
                 'system_name': system_name,
                 'rom_paths': rom_paths,
-                'force_download': force_download
+                'force_download': force_download,
+                'selected_fields': selected_fields
             })
             
             # Mark task as completed
