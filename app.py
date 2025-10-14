@@ -2637,13 +2637,8 @@ def run_image_download_task(system_name, data):
             
             # Determine which fields to download
             if force_download:
-                # Force download: download selected media fields that are not empty
-                fields_to_download = []
-                for field_name in image_config.get('image_type_mappings', {}).keys():
-                    current_value = game.get(field_name)
-                    # Only download if field is not empty (force_download should not overwrite existing content)
-                    if not current_value or (isinstance(current_value, str) and current_value.strip() == ''):
-                        fields_to_download.append(field_name)
+                # Force download: download all selected media fields regardless of current state
+                fields_to_download = list(image_config.get('image_type_mappings', {}).keys())
                 
                 # Filter to only include selected media fields
                 print(f"🔧 DEBUG: [MAIN TASK FORCE] selected_fields: {selected_fields}")
