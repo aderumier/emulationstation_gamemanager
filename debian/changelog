@@ -1,3 +1,19 @@
+gamemanager (2.6.1) stable; urgency=medium
+
+  * Simplify LaunchBox scraper architecture - remove worker-based system
+  * Move LaunchBox scraping to main thread with background task execution
+  * Remove platform-specific cache files (launchbox_platform_*.pkl)
+  * Use global cache directly instead of platform-specific cache files
+  * Simplify find_best_match_simplified to find_launchboxid_from_partionned_index_directmatch
+  * Remove similarity scoring, use only direct lookups for better performance
+  * Fix critical bug where selecting subset of games removed unselected games from gamelist.xml
+  * Fix JavaScript cache statistics field names to match new API response format
+  * Update cache statistics endpoint to display LaunchBox-specific metrics
+  * Remove old worker system functions and endpoints
+  * Improve code clarity and reduce complexity
+  * Fix AttributeError issues with cache structure changes
+  * Remove redundant platform cache generation code (~126 lines removed)
+
 gamemanager (2.4.5) stable; urgency=medium
 
   * Add IGDB database dump tool with stop/resume functionality
