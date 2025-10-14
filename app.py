@@ -1244,10 +1244,14 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         print(f"🔧 DEBUG: Starting simplified LaunchBox scraper for system: {system_name}")
         
         # Ensure global cache is loaded
-        global global_metadata_cache_loaded
+        global global_metadata_cache_loaded, global_metadata_cache
         if not global_metadata_cache_loaded:
             print("🔄 Loading global metadata cache...")
             load_metadata_cache()
+        
+        print(f"🔧 DEBUG: Global cache loaded: {global_metadata_cache_loaded}")
+        print(f"🔧 DEBUG: Global cache type: {type(global_metadata_cache)}")
+        print(f"🔧 DEBUG: Global cache length: {len(global_metadata_cache) if global_metadata_cache else 0}")
         
         # Get system configuration
         mapping_config, system_platform_mapping = load_launchbox_config()
@@ -1334,10 +1338,17 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
 def find_best_match_simplified(game_name, target_platform, existing_launchboxid=None, mapping_config=None):
     """Simplified find_best_match that uses global cache directly"""
     try:
+        print(f"🔧 DEBUG: find_best_match_simplified called with game_name: {game_name}, target_platform: {target_platform}")
+        
         # Load partitioned indexes if not already loaded
         global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded
         if not global_launchbox_indexes_loaded:
+            print("🔄 Loading LaunchBox partitioned indexes...")
             load_launchbox_partitioned_indexes()
+        
+        print(f"🔧 DEBUG: Partition indexes loaded: {global_launchbox_indexes_loaded}")
+        print(f"🔧 DEBUG: Partition index type: {type(global_launchbox_partition_index)}")
+        print(f"🔧 DEBUG: Partition index no parens type: {type(global_launchbox_partition_index_no_parens)}")
         
         partition_index = global_launchbox_partition_index
         partition_index_no_parens = global_launchbox_partition_index_no_parens
@@ -7794,7 +7805,7 @@ def scrap_launchbox_simple(system_name):
             'success': True,
             'message': 'LaunchBox scraping task queued',
             'system': system_name,
-            'task_id': task.get('task_id')
+            'task_id': task.id
         })
         
     except Exception as e:
