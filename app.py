@@ -7009,21 +7009,21 @@ def find_best_matches_endpoint():
             return jsonify({'error': 'Metadata.xml not found'}), 404
         
         # Load global metadata cache and filter by platform
-        global_cache = load_metadata_cache()
-        all_games_cache = global_cache['games_cache']
-        all_alternate_names_cache = global_cache['alternate_names_cache']
+        global global_metadata_cache, global_metadata_cache_loaded
+        if not global_metadata_cache_loaded:
+            load_metadata_cache()
         
-        # Filter games by platform from global cache
+        # Filter games by platform from global cache (now flattened structure)
         platform_games = {}
         platform_alternate_names = {}
         
-        for db_id, game_elem in all_games_cache.items():
+        for db_id, game_elem in global_metadata_cache.items():
             if game_elem is not None:
                 # Check if this game belongs to the target platform
                 game_platform = game_elem.get('Platform')
                 if game_platform and game_platform.strip() == current_system_platform:
-                        platform_games[db_id] = game_elem
-                        platform_alternate_names[db_id] = all_alternate_names_cache.get(db_id, [])
+                    platform_games[db_id] = game_elem
+                    platform_alternate_names[db_id] = game_elem.get('alternate_names', [])
         
         if not platform_games:
             return jsonify({'error': f'No metadata for platform {current_system_platform}'}), 404
@@ -7044,12 +7044,10 @@ def find_best_matches_endpoint():
                     if isinstance(text, str) and tag in fields_to_load:
                         game_data[tag] = text.strip()
                 
-                # Add alternate names
+                # Add alternate names (now stored as list of strings in flattened cache)
                 alt_names = []
-                for alt_elem in platform_alternate_names.get(db_id, []):
-                    # Handle dictionary format
-                    alt_name_text = alt_elem.get('AlternateName')
-                    if alt_name_text:
+                for alt_name_text in platform_alternate_names.get(db_id, []):
+                    if alt_name_text and isinstance(alt_name_text, str):
                         alt_names.append(alt_name_text.strip())
                 game_data['AlternateNames'] = alt_names
                 
