@@ -1238,6 +1238,202 @@ def _scraping_worker_main(task_q, result_q, cancel_map):
                 result_q.put({'task_id': task.get('task_id'), 'ok': False, 'error': str(e)})
     except KeyboardInterrupt:
         pass
+def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_partial_match_modal=False, force_download=False, selected_fields=None, overwrite_text_fields=False):
+    """Simplified LaunchBox scraper that runs in main thread using global cache"""
+    try:
+        print(f"🔧 DEBUG: Starting simplified LaunchBox scraper for system: {system_name}")
+        
+        # Ensure global cache is loaded
+        global global_metadata_cache_loaded
+        if not global_metadata_cache_loaded:
+            print("🔄 Loading global metadata cache...")
+            load_metadata_cache()
+        
+        # Get system configuration
+        mapping_config, system_platform_mapping = load_launchbox_config()
+        current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
+        
+        print(f"🔧 DEBUG: Using platform: {current_system_platform}")
+        
+        # Get gamelist path
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return {'success': False, 'error': f'Gamelist not found: {gamelist_path}'}
+        
+        # Parse games from gamelist
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return {'success': False, 'error': 'No games found in gamelist'}
+        
+        print(f"🔧 DEBUG: Found {len(games)} games in gamelist")
+        
+        # Filter games if selection is provided
+        if selected_games:
+            games = [g for g in games if g.get('path', '') in selected_games]
+            print(f"🔧 DEBUG: Filtered to {len(games)} selected games")
+        
+        # Process games
+        stats = {
+            'total_games': len(games),
+            'processed_games': 0,
+            'matched_games': 0,
+            'updated_games': 0
+        }
+        
+        matched_rom_paths = []
+        
+        for i, game_data in enumerate(games):
+            game_name = game_data.get('name', '')
+            if not game_name:
+                continue
+            
+            print(f"🔧 DEBUG: Processing game {i+1}/{len(games)}: {game_name}")
+            
+            # Find best match using global cache
+            best_match, score = find_best_match_simplified(
+                game_name, 
+                current_system_platform, 
+                existing_launchboxid=game_data.get('launchboxid'),
+                mapping_config=mapping_config
+            )
+            
+            if best_match:
+                stats['matched_games'] += 1
+                print(f"🔧 DEBUG: Found match: {best_match.get('Name', 'Unknown')} (score: {score})")
+                
+                # Update game data
+                updated = update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields, selected_fields)
+                if updated:
+                    stats['updated_games'] += 1
+                    matched_rom_paths.append(game_data.get('path', ''))
+            else:
+                print(f"🔧 DEBUG: No match found for: {game_name}")
+            
+            stats['processed_games'] += 1
+        
+        # Save updated gamelist
+        if stats['updated_games'] > 0:
+            save_gamelist_xml(games, gamelist_path)
+            print(f"✅ Updated {stats['updated_games']} games in gamelist")
+        
+        return {
+            'success': True,
+            'stats': stats,
+            'gamelist_path': gamelist_path,
+            'rom_paths': matched_rom_paths,
+            'system_name': system_name
+        }
+        
+    except Exception as e:
+        error_msg = f'Error in simplified LaunchBox scraper: {str(e)}'
+        print(f"❌ ERROR: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': error_msg}
+
+def find_best_match_simplified(game_name, target_platform, existing_launchboxid=None, mapping_config=None):
+    """Simplified find_best_match that uses global cache directly"""
+    try:
+        # Load partitioned indexes if not already loaded
+        global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded
+        if not global_launchbox_indexes_loaded:
+            load_launchbox_partitioned_indexes()
+        
+        partition_index = global_launchbox_partition_index
+        partition_index_no_parens = global_launchbox_partition_index_no_parens
+        
+        if not partition_index or not partition_index_no_parens:
+            return None, 0
+        
+        # Check if target platform exists in indexes
+        if target_platform not in partition_index or target_platform not in partition_index_no_parens:
+            return None, 0
+        
+        # Direct match with parentheses
+        normalized_with_parens = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
+        if normalized_with_parens and normalized_with_parens in partition_index[target_platform]:
+            launchboxid = partition_index[target_platform][normalized_with_parens]
+            game_data = get_cached_game_data(launchboxid)
+            print(f"🔧 DEBUG: Found game data for ID {launchboxid}: {type(game_data)} - {game_data}")
+            if game_data and isinstance(game_data, dict):
+                return game_data, 1.0
+        
+        # Direct match without parentheses
+        normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+        if normalized_no_parens and normalized_no_parens in partition_index_no_parens[target_platform]:
+            launchboxid = partition_index_no_parens[target_platform][normalized_no_parens]
+            game_data = get_cached_game_data(launchboxid)
+            print(f"🔧 DEBUG: Found game data for ID {launchboxid}: {type(game_data)} - {game_data}")
+            if game_data and isinstance(game_data, dict):
+                return game_data, 1.0
+        
+        # If existing launchboxid provided, use it directly
+        if existing_launchboxid:
+            game_data = get_cached_game_data(existing_launchboxid)
+            print(f"🔧 DEBUG: Found existing game data for ID {existing_launchboxid}: {type(game_data)} - {game_data}")
+            if game_data and isinstance(game_data, dict) and game_data.get('Platform') == target_platform:
+                return game_data, 1.0
+        
+        # Similarity search
+        best_match = None
+        best_score = 0
+        
+        # Get all games for the platform from global cache
+        global global_metadata_cache
+        for game_id, game_data in global_metadata_cache.items():
+            if game_data.get('Platform') == target_platform:
+                name = game_data.get('Name', '')
+                if name:
+                    from game_utils import calculate_similarity
+                    similarity = calculate_similarity(game_name, name)
+                    if similarity > best_score and similarity >= 0.7:
+                        best_score = similarity
+                        best_match = game_data
+        
+        return best_match, best_score
+        
+    except Exception as e:
+        print(f"❌ ERROR in find_best_match_simplified: {e}")
+        return None, 0
+
+def update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields=False, selected_fields=None):
+    """Update game data with LaunchBox information"""
+    try:
+        updated = False
+        
+        # Update text fields
+        for launchbox_field, gamelist_field in mapping_config.items():
+            if launchbox_field in best_match and best_match[launchbox_field]:
+                old_value = game_data.get(gamelist_field, '')
+                new_value = best_match[launchbox_field]
+                
+                # Check if we should update this field
+                should_update = False
+                if selected_fields:
+                    should_update = gamelist_field in selected_fields
+                else:
+                    should_update = overwrite_text_fields or not old_value
+                
+                if should_update and old_value != new_value:
+                    game_data[gamelist_field] = new_value
+                    updated = True
+                    print(f"🔧 DEBUG: Updated {gamelist_field}: '{old_value}' -> '{new_value}'")
+        
+        # Update launchboxid
+        if 'DatabaseID' in best_match:
+            old_launchboxid = game_data.get('launchboxid', '')
+            new_launchboxid = best_match['DatabaseID']
+            if old_launchboxid != new_launchboxid:
+                game_data['launchboxid'] = new_launchboxid
+                updated = True
+                print(f"🔧 DEBUG: Updated launchboxid: '{old_launchboxid}' -> '{new_launchboxid}'")
+        
+        return updated
+        
+    except Exception as e:
+        print(f"❌ ERROR updating game data: {e}")
+        return False
+
 def _run_scraping_task_worker_in_subprocess(task, result_q, cancel_map):
     """Logic executed inside worker process to perform scraping."""
     system_name = task['system_name']
@@ -7488,87 +7684,70 @@ def scrap_launchbox():
 @app.route('/api/scrap-launchbox/<system_name>', methods=['GET', 'POST'])
 @login_required
 def scrap_launchbox_simple(system_name):
-    """Start Launchbox scraping process with system name in URL (for easier testing)"""
-    global current_task_id, scraping_in_progress, scraping_progress, scraping_stats
-    
+    """Start simplified LaunchBox scraping process that runs in main thread using global cache"""
     try:
         if not system_name:
             return jsonify({'error': 'System name required'}), 400
         
-        # Get selected games and partial match modal setting from POST body if available
+        # Get parameters from POST body if available
         selected_games = None
         enable_partial_match_modal = False
-        force_download = False  # Default force download to False
+        force_download = False
         selected_fields = None
-        overwrite_text_fields = False  # Default overwrite text fields to False
+        overwrite_text_fields = False
         
         if request.method == 'POST':
             try:
                 data = request.get_json()
                 if data:
-                    if 'selected_games' in data:
-                        selected_games = data['selected_games']
-                        scraping_progress.append(f"Processing {len(selected_games)} selected games")
-                    else:
-                        scraping_progress.append("Processing all games")
-                    
-                    if 'enable_partial_match_modal' in data:
-                        enable_partial_match_modal = data['enable_partial_match_modal']
-                        print(f"DEBUG: Received enable_partial_match_modal: {enable_partial_match_modal} (type: {type(enable_partial_match_modal)})")
-                        if enable_partial_match_modal:
-                            scraping_progress.append("Partial match modal enabled - will show modal for non-perfect matches")
-                        else:
-                            scraping_progress.append("Partial match modal disabled - only perfect matches will be applied")
-                    
-                    if 'force_download' in data:
-                        force_download = data['force_download']
-                        if force_download:
-                            scraping_progress.append("Force download enabled - will overwrite existing media fields")
-                        else:
-                            scraping_progress.append("Force download disabled - will only update empty media fields")
-                    
-                    if 'selected_fields' in data:
-                        selected_fields = data['selected_fields']
-                        if selected_fields:
-                            scraping_progress.append(f"Field selection enabled - will only scrape: {', '.join(selected_fields)}")
-                        else:
-                            scraping_progress.append("No fields selected - will scrape all fields")
-                    
-                    if 'overwrite_text_fields' in data:
-                        overwrite_text_fields = data['overwrite_text_fields']
-                        print(f"🔧 DEBUG: Received overwrite_text_fields: {overwrite_text_fields} (type: {type(overwrite_text_fields)})")
-                        if overwrite_text_fields:
-                            scraping_progress.append("Overwrite text fields enabled - will overwrite existing text fields")
-                        else:
-                            scraping_progress.append("Overwrite text fields disabled - will only update empty text fields")
-                    else:
-                        print(f"🔧 DEBUG: overwrite_text_fields not found in request data. Available keys: {list(data.keys())}")
+                    selected_games = data.get('selected_games')
+                    enable_partial_match_modal = data.get('enable_partial_match_modal', False)
+                    force_download = data.get('force_download', False)
+                    selected_fields = data.get('selected_fields')
+                    overwrite_text_fields = data.get('overwrite_text_fields', False)
             except Exception as e:
-                scraping_progress.append(f"Error parsing POST data: {e}")
-                pass  # Ignore JSON parsing errors
+                print(f"Error parsing POST data: {e}")
+                return jsonify({'error': f'Invalid JSON data: {str(e)}'}), 400
         
-        # Add task to queue instead of starting directly
-        task = add_task_to_queue('scraping', {
-            'system_name': system_name,
-            'selected_games': selected_games,
-            'enable_partial_match_modal': enable_partial_match_modal,
-            'force_download': force_download,
-            'selected_fields': selected_fields,
-            'overwrite_text_fields': overwrite_text_fields
-        })
+        # Run the simplified scraper directly in the main thread
+        print(f"🔧 DEBUG: Starting simplified LaunchBox scraper for {system_name}")
+        result = _run_launchbox_scraper_simplified(
+            system_name=system_name,
+            selected_games=selected_games,
+            enable_partial_match_modal=enable_partial_match_modal,
+            force_download=force_download,
+            selected_fields=selected_fields,
+            overwrite_text_fields=overwrite_text_fields
+        )
         
-        # The task will be processed by process_next_queued_task() automatically
-        
-        return jsonify({
-            'success': True,
-            'message': 'Scraping started',
-            'system': system_name
-        })
+        if result['success']:
+            # Create image download task if there are matched games
+            if result.get('rom_paths'):
+                print(f"🔧 DEBUG: Creating image download task for {len(result['rom_paths'])} games")
+                add_task_to_queue('image_download', {
+                    'system_name': system_name,
+                    'rom_paths': result['rom_paths'],
+                    'force_download': force_download
+                })
+            
+            return jsonify({
+                'success': True,
+                'message': 'LaunchBox scraping completed',
+                'system': system_name,
+                'stats': result.get('stats', {}),
+                'rom_paths': result.get('rom_paths', [])
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Unknown error'),
+                'system': system_name
+            }), 500
         
     except Exception as e:
-        if current_task_id and current_task_id in tasks:
-            tasks[current_task_id].complete(False, str(e))
         print(f"Error in scrap_launchbox_simple endpoint: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/scrap-launchbox-progress')
