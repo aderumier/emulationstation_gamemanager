@@ -1274,8 +1274,20 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 print(f"🔧 DEBUG: Found LaunchBox ID: {launchboxid}")
                 
                 # Get game data from cache
+                print(f"🔧 DEBUG: Looking up LaunchBox ID '{launchboxid}' (type: {type(launchboxid)}) in global cache")
+                print(f"🔧 DEBUG: Global cache has {len(global_metadata_cache)} entries")
+                print(f"🔧 DEBUG: Sample cache keys: {list(global_metadata_cache.keys())[:5]}")
                 best_match = get_cached_game_data(launchboxid)
                 print(f"🔧 DEBUG: get_cached_game_data returned: {type(best_match)}, data: {best_match}")
+                
+                # If not found, try with different type conversion
+                if not best_match:
+                    print(f"🔧 DEBUG: Trying alternative lookup with different type conversion...")
+                    # Try as string if it was int, or as int if it was string
+                    alt_launchboxid = str(launchboxid) if isinstance(launchboxid, int) else int(launchboxid) if launchboxid.isdigit() else launchboxid
+                    print(f"🔧 DEBUG: Trying alternative ID: '{alt_launchboxid}' (type: {type(alt_launchboxid)})")
+                    best_match = get_cached_game_data(alt_launchboxid)
+                    print(f"🔧 DEBUG: Alternative lookup returned: {type(best_match)}, data: {best_match}")
                 if best_match:
                     # Update game data in the original all_games list
                     # Find the corresponding game in all_games by path
