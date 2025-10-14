@@ -3859,21 +3859,26 @@ def get_cache_statistics():
     if not global_metadata_cache_loaded:
         return {
             'status': 'not_loaded',
-            'games_with_images': 0,
             'total_games': 0,
-            'games_with_alternate_names': 0
+            'memory_usage_mb': 0
         }
     
-    # Count total images across all games
-    total_images = sum(len(entry.get('images', [])) for entry in global_metadata_cache.values())
+    # Calculate memory usage of the global cache
+    import sys
+    memory_usage_bytes = sys.getsizeof(global_metadata_cache)
+    # Add memory usage of all values in the cache
+    for entry in global_metadata_cache.values():
+        memory_usage_bytes += sys.getsizeof(entry)
+        if isinstance(entry, dict):
+            for key, value in entry.items():
+                memory_usage_bytes += sys.getsizeof(key) + sys.getsizeof(value)
+    
+    memory_usage_mb = round(memory_usage_bytes / (1024 * 1024), 2)
     
     return {
         'status': 'loaded',
-        'games_with_images': sum(1 for entry in global_metadata_cache.values() if entry.get('images')),
         'total_games': len(global_metadata_cache),
-        'games_with_alternate_names': sum(1 for entry in global_metadata_cache.values() if entry.get('alternate_names')),
-        'total_images': total_images,
-        'total_database_ids': len(global_metadata_cache)
+        'memory_usage_mb': memory_usage_mb
     }
 def parse_gamelist_xml(file_path):
     """Parse gamelist.xml file and return list of games"""
@@ -10175,11 +10180,8 @@ def cache_statistics_endpoint():
             return jsonify({
                 'status': 'loading',
                 'message': 'Cache is currently loading in background...',
-                'total_database_ids': 0,
                 'total_games': 0,
-                'total_images': 0,
-                'games_with_images': 0,
-                'games_with_alternate_names': 0
+                'memory_usage_mb': 0
             })
         
         stats = get_cache_statistics()
