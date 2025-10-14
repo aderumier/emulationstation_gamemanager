@@ -1392,13 +1392,14 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                 # Check if we should update this field
                 should_update = False
                 if selected_fields:
-                    # Only update if field is in selected_fields AND (overwrite is enabled OR field is empty)
-                    should_update = gamelist_field in selected_fields and (overwrite_text_fields or not old_value)
-                    print(f"🔧 DEBUG: Field {gamelist_field}: selected={gamelist_field in selected_fields}, overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
+                    # Check if the LaunchBox field (not gamelist field) is in selected_fields
+                    # selected_fields contains LaunchBox field names like "Name", "Developer", etc.
+                    should_update = launchbox_field in selected_fields and (overwrite_text_fields or not old_value)
+                    print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: selected={launchbox_field in selected_fields}, overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
                 else:
                     # Update all fields based on overwrite setting or empty field check
                     should_update = overwrite_text_fields or not old_value
-                    print(f"🔧 DEBUG: Field {gamelist_field}: overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
+                    print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
                 
                 if should_update and old_value != new_value:
                     game_data[gamelist_field] = new_value
