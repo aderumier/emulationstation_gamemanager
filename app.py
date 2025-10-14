@@ -9348,8 +9348,8 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
     
     # Filter fields_to_download to only include selected media fields
     if selected_fields is not None and len(selected_fields) > 0:
-        selected_media_fields = [field for field in selected_fields if field in field_to_launchbox_types.keys()]
-        fields_to_download = [field for field in fields_to_download if field in selected_media_fields]
+        # Only download fields that are in the selected_fields list
+        fields_to_download = [field for field in fields_to_download if field in selected_fields]
     elif selected_fields is not None and len(selected_fields) == 0:
         # If selected_fields is explicitly empty, don't download any media
         fields_to_download = []
