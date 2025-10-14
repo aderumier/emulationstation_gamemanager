@@ -1261,25 +1261,6 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 # Use existing LaunchBox ID directly - look up in global cache
                 launchboxid = existing_launchboxid
                 print(f"🔧 DEBUG: Using existing LaunchBox ID: {launchboxid}")
-                
-                # Check if we need to update fields
-                if not overwrite_text_fields:
-                    # Check if any selected fields are missing or need updating
-                    needs_update = False
-                    if selected_fields:
-                        # If specific fields are selected, check if any are missing
-                        for field in selected_fields:
-                            if not game_data.get(field):
-                                needs_update = True
-                                break
-                    else:
-                        # If no specific fields selected, assume we want to update all fields
-                        needs_update = True
-                    
-                    if not needs_update:
-                        print(f"🔧 DEBUG: Skipping {game_name} - already has LaunchBox ID {launchboxid} and no fields need updating")
-                        stats['processed_games'] += 1
-                        continue
             else:
                 # No existing LaunchBox ID - find one using name lookup
                 launchboxid = find_launchboxid_from_partionned_index_directmatch(
