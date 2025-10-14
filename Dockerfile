@@ -54,11 +54,11 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-COPY gamemanager_2.6.0-1_all.deb .
+COPY gamemanager_2.6.1-1_all.deb .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_2.6.0-1_all.deb / && \
-    rm gamemanager_2.6.0-1_all.deb
+RUN dpkg-deb -x gamemanager_2.6.1-1_all.deb / && \
+    rm gamemanager_2.6.1-1_all.deb
 
 # Python packages are installed via system packages above
 
