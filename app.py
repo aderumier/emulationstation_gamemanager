@@ -3690,7 +3690,19 @@ def load_launchbox_partitioned_indexes():
         index_file = os.path.join(cache_dir, 'launchbox_partition_index.pkl')
         index_no_parens_file = os.path.join(cache_dir, 'launchbox_partition_index_no_parens.pkl')
         
+        # Check if we should force regeneration (if cache files are older than metadata)
+        force_regeneration = False
         if os.path.exists(index_file) and os.path.exists(index_no_parens_file):
+            # Check if metadata cache is newer than index files
+            metadata_cache_file = os.path.join(cache_dir, 'launchbox_global_metadata_cache.pkl')
+            if os.path.exists(metadata_cache_file):
+                metadata_mtime = os.path.getmtime(metadata_cache_file)
+                index_mtime = min(os.path.getmtime(index_file), os.path.getmtime(index_no_parens_file))
+                if metadata_mtime > index_mtime:
+                    print("🔄 Metadata cache is newer than partitioned indexes, forcing regeneration...")
+                    force_regeneration = True
+        
+        if not force_regeneration and os.path.exists(index_file) and os.path.exists(index_no_parens_file):
             # Load from cache
             with open(index_file, 'rb') as f:
                 global_launchbox_partition_index = pickle.load(f)
@@ -9019,29 +9031,10 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         if normalized_no_parens and platform_name in partition_index_no_parens:
                             launchboxid = partition_index_no_parens[platform_name].get(normalized_no_parens)
                         
-                        # If not found in partitioned index, try alternate names cache
+                        # If not found in partitioned index, the indexes might be outdated
                         if not launchboxid:
-                            print(f"🔧 DEBUG: Not found in partitioned index, searching alternate names for '{normalized_no_parens}'")
-                            for db_id, entry in global_metadata_cache.items():
-                                if entry and entry.get('alternate_names'):
-                                    alt_names = entry.get('alternate_names', [])
-                                    for alt_name in alt_names:
-                                        if isinstance(alt_name, dict):
-                                            alt_name_text = alt_name.get('Name', '')
-                                        else:
-                                            alt_name_text = str(alt_name)
-                                        
-                                        # Normalize alternate name and compare
-                                        normalized_alt_name = normalize_game_name(alt_name_text, remove_paranthesis=True, remove_articles=True)
-                                        if normalized_alt_name == normalized_no_parens:
-                                            # Found match in alternate names, get the game data to check platform
-                                            game_elem = entry.get('game')
-                                            if game_elem and isinstance(game_elem, dict) and game_elem.get('Platform') == platform_name:
-                                                launchboxid = int(db_id)
-                                                print(f"🔧 DEBUG: Found match in alternate names: '{alt_name_text}' -> ID {launchboxid} on platform {platform_name}")
-                                                break
-                                    if launchboxid:
-                                        break
+                            print(f"🔧 DEBUG: Not found in partitioned index for '{normalized_no_parens}' on platform '{platform_name}'")
+                            print(f"🔧 DEBUG: This might indicate the partitioned indexes need regeneration")
                         
                         if launchboxid:
                             launchboxid_str = str(launchboxid)
@@ -11214,6 +11207,48 @@ def refresh_steam_cache_endpoint():
         
     except Exception as e:
         return jsonify({'error': f'Failed to refresh Steam cache: {str(e)}'}), 500
+
+@app.route('/api/cache/regenerate-indexes', methods=['POST'])
+@login_required
+def regenerate_indexes_endpoint():
+    """Force regeneration of LaunchBox partitioned indexes"""
+    try:
+        import os
+        
+        # Delete existing index cache files to force regeneration
+        cache_dir = 'var/cache'
+        index_file = os.path.join(cache_dir, 'launchbox_partition_index.pkl')
+        index_no_parens_file = os.path.join(cache_dir, 'launchbox_partition_index_no_parens.pkl')
+        
+        deleted_files = []
+        if os.path.exists(index_file):
+            os.remove(index_file)
+            deleted_files.append('launchbox_partition_index.pkl')
+        if os.path.exists(index_no_parens_file):
+            os.remove(index_no_parens_file)
+            deleted_files.append('launchbox_partition_index_no_parens.pkl')
+        
+        # Reset the global indexes to force reload
+        global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded
+        global_launchbox_partition_index = None
+        global_launchbox_partition_index_no_parens = None
+        global_launchbox_indexes_loaded = False
+        
+        # Regenerate the indexes
+        print("🔄 Forcing regeneration of LaunchBox partitioned indexes...")
+        load_launchbox_partitioned_indexes()
+        
+        return jsonify({
+            'success': True,
+            'message': 'LaunchBox partitioned indexes regenerated successfully',
+            'deleted_files': deleted_files
+        })
+        
+    except Exception as e:
+        print(f"❌ Error regenerating indexes: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to regenerate indexes: {str(e)}'}), 500
 
 @app.route('/api/cache/update-metadata', methods=['POST'])
 @login_required
