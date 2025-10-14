@@ -2198,7 +2198,6 @@ def process_next_queued_task():
     elif task_type == 'image_download':
         # Start image download task
         system_name = task_data.get('system_name')
-        data = task_data.get('data', {})
         if system_name:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2212,7 +2211,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start image download in background thread
-            thread = threading.Thread(target=run_image_download_task, args=(system_name, data))
+            thread = threading.Thread(target=run_image_download_task, args=(system_name, task_data))
             thread.daemon = True
             thread.start()
     elif task_type == 'rom_scan':
