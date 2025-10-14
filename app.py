@@ -9015,8 +9015,34 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                 try:
                     if direct_match:
                         launchboxid = None
+                        # First try partitioned index (main names)
                         if normalized_no_parens and platform_name in partition_index_no_parens:
                             launchboxid = partition_index_no_parens[platform_name].get(normalized_no_parens)
+                        
+                        # If not found in partitioned index, try alternate names cache
+                        if not launchboxid:
+                            print(f"🔧 DEBUG: Not found in partitioned index, searching alternate names for '{normalized_no_parens}'")
+                            for db_id, entry in global_metadata_cache.items():
+                                if entry and entry.get('alternate_names'):
+                                    alt_names = entry.get('alternate_names', [])
+                                    for alt_name in alt_names:
+                                        if isinstance(alt_name, dict):
+                                            alt_name_text = alt_name.get('Name', '')
+                                        else:
+                                            alt_name_text = str(alt_name)
+                                        
+                                        # Normalize alternate name and compare
+                                        normalized_alt_name = normalize_game_name(alt_name_text, remove_paranthesis=True, remove_articles=True)
+                                        if normalized_alt_name == normalized_no_parens:
+                                            # Found match in alternate names, get the game data to check platform
+                                            game_elem = entry.get('game')
+                                            if game_elem and isinstance(game_elem, dict) and game_elem.get('Platform') == platform_name:
+                                                launchboxid = int(db_id)
+                                                print(f"🔧 DEBUG: Found match in alternate names: '{alt_name_text}' -> ID {launchboxid} on platform {platform_name}")
+                                                break
+                                    if launchboxid:
+                                        break
+                        
                         if launchboxid:
                             launchboxid_str = str(launchboxid)
                             entry = global_metadata_cache.get(launchboxid_str)
