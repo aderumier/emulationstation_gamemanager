@@ -3513,103 +3513,8 @@ def _load_global_cache_from_file():
         print(f"WARNING: Failed to load global cache from file: {e}")
         return None
 
-def _save_platform_cache_to_file(platform_name, platform_cache):
-    """Save platform-specific cache to file for worker processes"""
-    try:
-        import pickle
-        import os
-        
-        cache_file = os.path.join('var', 'cache', f'launchbox_platform_{platform_name.replace(" ", "_").replace("/", "_")}_cache.pkl')
-        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-        
-        cache_data = {
-            'platform_cache': platform_cache,
-            'platform_name': platform_name
-        }
-        
-        with open(cache_file, 'wb') as f:
-            pickle.dump(cache_data, f)
-        
-        print(f"DEBUG: Saved platform cache for {platform_name} to {cache_file}")
-    except Exception as e:
-        print(f"WARNING: Failed to save platform cache for {platform_name}: {e}")
 
-def _create_platform_specific_cache_files():
-    """Create platform-specific cache files for worker processes"""
-    global global_metadata_cache, _launchbox_platforms_cache
-    
-    if not global_metadata_cache or not _launchbox_platforms_cache:
-        return
-    
-    # Check if platform cache files already exist
-    import os
-    cache_dir = 'var/cache'
-    existing_cache_files = 0
-    total_platforms = len(_launchbox_platforms_cache)
-    
-    for platform in _launchbox_platforms_cache:
-        safe_platform_name = platform.replace(" ", "_").replace("/", "_")
-        cache_file = os.path.join(cache_dir, f'launchbox_platform_{safe_platform_name}_cache.pkl')
-        if os.path.exists(cache_file):
-            existing_cache_files += 1
-    
-    # If all platform cache files exist, skip creation
-    if existing_cache_files == total_platforms:
-        print(f"✅ All {total_platforms} LaunchBox platform cache files already exist, skipping creation")
-        return
-    
-    print(f"🔄 Creating LaunchBox platform-specific cache files for worker processes... ({existing_cache_files}/{total_platforms} already exist)")
-    
-    for platform in _launchbox_platforms_cache:
-        try:
-            # Check if this specific platform cache file already exists
-            safe_platform_name = platform.replace(" ", "_").replace("/", "_")
-            cache_file = os.path.join(cache_dir, f'launchbox_platform_{safe_platform_name}_cache.pkl')
-            if os.path.exists(cache_file):
-                continue  # Skip this platform, cache file already exists
-            
-            # Filter games for this platform
-            platform_games = {}
-            platform_alternate_names = {}
-            
-            for db_id, game_data in global_metadata_cache.items():
-                # With flattened structure, game data is directly in game_data
-                if game_data.get('Platform') == platform:
-                    platform_games[db_id] = game_data
-                    platform_alternate_names[db_id] = game_data.get('alternate_names', [])
-            
-            if platform_games:
-                # Create platform cache structure with flattened format
-                platform_cache = {}
-                for db_id, game in platform_games.items():
-                    # With flattened structure, game data is directly in the entry
-                    platform_cache[db_id] = game
-                
-                # Save platform-specific cache file
-                _save_platform_cache_to_file(platform, platform_cache)
-                print(f"DEBUG: Created platform cache for {platform} with {len(platform_games)} games")
-        
-        except Exception as e:
-            print(f"WARNING: Failed to create platform cache for {platform}: {e}")
 
-def _load_platform_cache_from_file(platform_name):
-    """Load platform-specific cache from file (for worker processes)"""
-    try:
-        import pickle
-        import os
-        
-        cache_file = os.path.join('var', 'cache', f'launchbox_platform_{platform_name.replace(" ", "_").replace("/", "_")}_cache.pkl')
-        if not os.path.exists(cache_file):
-            return None, None
-        
-        with open(cache_file, 'rb') as f:
-            cache_data = pickle.load(f)
-        
-        print(f"DEBUG: Loaded platform cache for {platform_name} from {cache_file}")
-        return cache_data.get('platform_cache', {})
-    except Exception as e:
-        print(f"WARNING: Failed to load platform cache for {platform_name}: {e}")
-        return None
 
 def load_metadata_cache():
     """Load and cache all metadata from Metadata.xml for faster lookups"""
@@ -3646,9 +3551,6 @@ def load_metadata_cache():
             
             _launchbox_platforms_cache = sorted(list(platforms))
             
-            # Create platform-specific cache files for worker processes
-            print("🔄 Creating LaunchBox platform-specific cache files for worker processes...")
-            _create_platform_specific_cache_files()
             
             end_time = time.time()
             print(f"✅ LaunchBox metadata cache loaded successfully in {end_time - start_time:.2f} seconds!")
@@ -3791,9 +3693,6 @@ def load_metadata_cache():
         _launchbox_platforms_cache = sorted(list(platforms))
         print(f"DEBUG: Cached {len(_launchbox_platforms_cache)} unique LaunchBox platforms")
         
-        # Create platform-specific cache files for worker processes
-        print("🔄 Creating LaunchBox platform-specific cache files for worker processes...")
-        _create_platform_specific_cache_files()
         
         load_time = time.time() - start_time
         
@@ -10211,42 +10110,32 @@ def metadata_info_endpoint():
         file_stat = os.stat(metadata_path)
         modification_time = time.ctime(file_stat.st_mtime)
         
-        # Ensure cache is loaded before getting statistics
+        # Get simplified cache statistics using the new structure
         if not global_metadata_cache_loaded:
             print(f"DEBUG: Loading metadata cache...")
-            cache_data = load_metadata_cache()
+            load_metadata_cache()
             print(f"DEBUG: Cache loaded. global_metadata_cache_loaded: {global_metadata_cache_loaded}")
-        else:
-            # Get current cache data derived from consolidated cache
-            cache_data = {
-                'gameimage_cache': {k: v.get('images', []) for k, v in global_metadata_cache.items()},
-                'games_cache': {k: {key: val for key, val in v.items() if key != 'images' and key != 'alternate_names'} for k, v in global_metadata_cache.items()},
-                'alternate_names_cache': {k: v.get('alternate_names', []) for k, v in global_metadata_cache.items()}
-            }
         
-        # Get cache statistics from cache data
-        games_count = len(cache_data['games_cache']) if cache_data['games_cache'] else 0
-        alt_names_count = len(cache_data['alternate_names_cache']) if cache_data['alternate_names_cache'] else 0
+        # Get basic cache statistics
+        basic_stats = get_cache_statistics()
         
-        # Count total individual images across all games (not just games with images)
-        if cache_data['gameimage_cache']:
-            game_images_count = sum(len(images) for images in cache_data['gameimage_cache'].values())
-        else:
-            game_images_count = 0
+        # Add LaunchBox-specific statistics
+        games_with_images = sum(1 for entry in global_metadata_cache.values() if entry.get('images'))
+        games_with_alternate_names = sum(1 for entry in global_metadata_cache.values() if entry.get('alternate_names'))
+        total_images = sum(len(entry.get('images', [])) for entry in global_metadata_cache.values())
         
-        print(f"DEBUG: Cache stats - games: {games_count}, alt_names: {alt_names_count}, images: {game_images_count}")
-        print(f"DEBUG: Cache data keys: {list(cache_data.keys())}")
-        print(f"DEBUG: Games cache type: {type(cache_data['games_cache'])}, length: {len(cache_data['games_cache']) if cache_data['games_cache'] else 'None'}")
+        cache_stats = {
+            **basic_stats,  # Include basic stats (status, total_games, memory_usage_mb)
+            'games_with_images': games_with_images,
+            'games_with_alternate_names': games_with_alternate_names,
+            'total_images': total_images
+        }
         
         return jsonify({
             'success': True,
             'metadata_date': modification_time,
             'file_size': file_stat.st_size,
-            'cache_stats': {
-                'games_count': games_count,
-                'alt_names_count': alt_names_count,
-                'game_images_count': game_images_count
-            }
+            'cache_stats': cache_stats
         })
         
     except Exception as e:
