@@ -2530,9 +2530,11 @@ def run_image_download_task(system_name, data):
         print(f"🔧 DEBUG: [TASK START] data parameter: {data}")
         game_name = data.get('game_name') if data else None
         selected_games = data.get('selected_games') if data else None
+        rom_paths = data.get('rom_paths') if data else None
         force_download = data.get('force_download', False) if data else False
         selected_fields = data.get('selected_fields', None) if data else None
         print(f"🔧 DEBUG: [TASK START] extracted selected_fields: {selected_fields}")
+        print(f"🔧 DEBUG: [TASK START] extracted rom_paths: {rom_paths}")
         
         # Load gamelist
         gamelist_path = get_gamelist_path(system_name)
@@ -2547,7 +2549,14 @@ def run_image_download_task(system_name, data):
         
         # Filter games based on parameters
         games_to_process = games
-        if selected_games and len(selected_games) > 0:
+        if rom_paths and len(rom_paths) > 0:
+            # Filter to only selected games by ROM file path (more reliable than game names)
+            games_to_process = [g for g in games if g.get('path') in rom_paths]
+            if not games_to_process:
+                task.complete(False, f'None of the selected ROM files found in gamelist')
+                return
+            task.update_progress(f"🎯 Processing {len(games_to_process)} selected games out of {len(games)} total games")
+        elif selected_games and len(selected_games) > 0:
             # Filter to only selected games by ROM file path (more reliable than game names)
             games_to_process = [g for g in games if g.get('path') in selected_games]
             if not games_to_process:
@@ -2628,21 +2637,26 @@ def run_image_download_task(system_name, data):
             
             # Determine which fields to download
             if force_download:
-                # Force download: download all selected media fields regardless of current state
-                fields_to_download = list(image_config.get('image_type_mappings', {}).keys())
+                # Force download: download selected media fields that are not empty
+                fields_to_download = []
+                for field_name in image_config.get('image_type_mappings', {}).keys():
+                    current_value = game.get(field_name)
+                    # Only download if field is not empty (force_download should not overwrite existing content)
+                    if not current_value or (isinstance(current_value, str) and current_value.strip() == ''):
+                        fields_to_download.append(field_name)
                 
                 # Filter to only include selected media fields
-                print(f"🔧 DEBUG: [MAIN TASK] selected_fields: {selected_fields}")
-                print(f"🔧 DEBUG: [MAIN TASK] fields_to_download before filtering: {fields_to_download}")
+                print(f"🔧 DEBUG: [MAIN TASK FORCE] selected_fields: {selected_fields}")
+                print(f"🔧 DEBUG: [MAIN TASK FORCE] fields_to_download before filtering: {fields_to_download}")
                 if selected_fields is not None and len(selected_fields) > 0:
                     fields_to_download = [field for field in fields_to_download if field in selected_fields]
-                    print(f"🔧 DEBUG: [MAIN TASK] fields_to_download after filtering: {fields_to_download}")
+                    print(f"🔧 DEBUG: [MAIN TASK FORCE] fields_to_download after filtering: {fields_to_download}")
                 elif selected_fields is not None and len(selected_fields) == 0:
                     # If selected_fields is explicitly empty, don't download any media
                     fields_to_download = []
-                    print(f"🔧 DEBUG: [MAIN TASK] selected_fields is empty, no downloads")
+                    print(f"🔧 DEBUG: [MAIN TASK FORCE] selected_fields is empty, no downloads")
                 else:
-                    print(f"🔧 DEBUG: [MAIN TASK] selected_fields is None, using all fields")
+                    print(f"🔧 DEBUG: [MAIN TASK FORCE] selected_fields is None, using all fields")
             else:
                 # Normal mode: only download fields that are empty
                 fields_to_download = []
