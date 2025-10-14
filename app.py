@@ -1293,23 +1293,25 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
             
             print(f"🔧 DEBUG: Processing game {i+1}/{len(games)}: {game_name}")
             
-            # Find best match using global cache
-            best_match, score = find_best_match_simplified(
+            # Find LaunchBox ID using direct lookup
+            launchboxid = find_launchboxid_from_partionned_index_directmatch(
                 game_name, 
                 current_system_platform, 
-                existing_launchboxid=game_data.get('launchboxid'),
-                mapping_config=mapping_config
+                existing_launchboxid=game_data.get('launchboxid')
             )
             
-            if best_match:
+            if launchboxid:
                 stats['matched_games'] += 1
-                print(f"🔧 DEBUG: Found match: {best_match.get('Name', 'Unknown')} (score: {score})")
+                print(f"🔧 DEBUG: Found LaunchBox ID: {launchboxid}")
                 
-                # Update game data
-                updated = update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields, selected_fields)
-                if updated:
-                    stats['updated_games'] += 1
-                    matched_rom_paths.append(game_data.get('path', ''))
+                # Get game data from cache
+                best_match = get_cached_game_data(launchboxid)
+                if best_match:
+                    # Update game data
+                    updated = update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields, selected_fields)
+                    if updated:
+                        stats['updated_games'] += 1
+                        matched_rom_paths.append(game_data.get('path', ''))
             else:
                 print(f"🔧 DEBUG: No match found for: {game_name}")
             
@@ -1335,10 +1337,10 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         traceback.print_exc()
         return {'success': False, 'error': error_msg}
 
-def find_best_match_simplified(game_name, target_platform, existing_launchboxid=None, mapping_config=None):
-    """Simplified find_best_match that uses global cache directly"""
+def find_launchboxid_from_partionned_index_directmatch(game_name, target_platform, existing_launchboxid=None):
+    """Find LaunchBox ID using direct lookup in partitioned indexes only"""
     try:
-        print(f"🔧 DEBUG: find_best_match_simplified called with game_name: {game_name}, target_platform: {target_platform}")
+        print(f"🔧 DEBUG: find_launchboxid_from_partionned_index_directmatch called with game_name: {game_name}, target_platform: {target_platform}")
         
         # Load partitioned indexes if not already loaded
         global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded
@@ -1346,66 +1348,40 @@ def find_best_match_simplified(game_name, target_platform, existing_launchboxid=
             print("🔄 Loading LaunchBox partitioned indexes...")
             load_launchbox_partitioned_indexes()
         
-        print(f"🔧 DEBUG: Partition indexes loaded: {global_launchbox_indexes_loaded}")
-        print(f"🔧 DEBUG: Partition index type: {type(global_launchbox_partition_index)}")
-        print(f"🔧 DEBUG: Partition index no parens type: {type(global_launchbox_partition_index_no_parens)}")
-        
         partition_index = global_launchbox_partition_index
         partition_index_no_parens = global_launchbox_partition_index_no_parens
         
         if not partition_index or not partition_index_no_parens:
-            return None, 0
+            return None
         
         # Check if target platform exists in indexes
         if target_platform not in partition_index or target_platform not in partition_index_no_parens:
-            return None, 0
+            return None
         
         # Direct match with parentheses
         normalized_with_parens = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
         if normalized_with_parens and normalized_with_parens in partition_index[target_platform]:
             launchboxid = partition_index[target_platform][normalized_with_parens]
-            game_data = get_cached_game_data(launchboxid)
-            print(f"🔧 DEBUG: Found game data for ID {launchboxid}: {type(game_data)} - {game_data}")
-            if game_data and isinstance(game_data, dict):
-                return game_data, 1.0
+            print(f"🔧 DEBUG: Found LaunchBox ID {launchboxid} with parentheses match")
+            return launchboxid
         
         # Direct match without parentheses
         normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
         if normalized_no_parens and normalized_no_parens in partition_index_no_parens[target_platform]:
             launchboxid = partition_index_no_parens[target_platform][normalized_no_parens]
-            game_data = get_cached_game_data(launchboxid)
-            print(f"🔧 DEBUG: Found game data for ID {launchboxid}: {type(game_data)} - {game_data}")
-            if game_data and isinstance(game_data, dict):
-                return game_data, 1.0
+            print(f"🔧 DEBUG: Found LaunchBox ID {launchboxid} without parentheses match")
+            return launchboxid
         
         # If existing launchboxid provided, use it directly
         if existing_launchboxid:
-            game_data = get_cached_game_data(existing_launchboxid)
-            print(f"🔧 DEBUG: Found existing game data for ID {existing_launchboxid}: {type(game_data)} - {game_data}")
-            if game_data and isinstance(game_data, dict) and game_data.get('Platform') == target_platform:
-                return game_data, 1.0
+            print(f"🔧 DEBUG: Using existing LaunchBox ID {existing_launchboxid}")
+            return existing_launchboxid
         
-        # Similarity search
-        best_match = None
-        best_score = 0
-        
-        # Get all games for the platform from global cache
-        global global_metadata_cache
-        for game_id, game_data in global_metadata_cache.items():
-            if game_data.get('Platform') == target_platform:
-                name = game_data.get('Name', '')
-                if name:
-                    from game_utils import calculate_similarity
-                    similarity = calculate_similarity(game_name, name)
-                    if similarity > best_score and similarity >= 0.7:
-                        best_score = similarity
-                        best_match = game_data
-        
-        return best_match, best_score
+        return None
         
     except Exception as e:
-        print(f"❌ ERROR in find_best_match_simplified: {e}")
-        return None, 0
+        print(f"❌ ERROR in find_launchboxid_from_partionned_index_directmatch: {e}")
+        return None
 
 def update_game_data_from_launchbox(game_data, best_match, mapping_config, overwrite_text_fields=False, selected_fields=None):
     """Update game data with LaunchBox information"""
