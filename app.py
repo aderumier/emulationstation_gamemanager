@@ -2631,11 +2631,17 @@ def run_image_download_task(system_name, data):
                 fields_to_download = list(image_config.get('image_type_mappings', {}).keys())
                 
                 # Filter to only include selected media fields
+                print(f"🔧 DEBUG: [MAIN TASK] selected_fields: {selected_fields}")
+                print(f"🔧 DEBUG: [MAIN TASK] fields_to_download before filtering: {fields_to_download}")
                 if selected_fields is not None and len(selected_fields) > 0:
                     fields_to_download = [field for field in fields_to_download if field in selected_fields]
+                    print(f"🔧 DEBUG: [MAIN TASK] fields_to_download after filtering: {fields_to_download}")
                 elif selected_fields is not None and len(selected_fields) == 0:
                     # If selected_fields is explicitly empty, don't download any media
                     fields_to_download = []
+                    print(f"🔧 DEBUG: [MAIN TASK] selected_fields is empty, no downloads")
+                else:
+                    print(f"🔧 DEBUG: [MAIN TASK] selected_fields is None, using all fields")
             else:
                 # Normal mode: only download fields that are empty
                 fields_to_download = []
@@ -2646,11 +2652,17 @@ def run_image_download_task(system_name, data):
                         fields_to_download.append(field_name)
                 
                 # Filter fields_to_download to only include selected media fields
+                print(f"🔧 DEBUG: [MAIN TASK NORMAL] selected_fields: {selected_fields}")
+                print(f"🔧 DEBUG: [MAIN TASK NORMAL] fields_to_download before filtering: {fields_to_download}")
                 if selected_fields is not None and len(selected_fields) > 0:
                     fields_to_download = [field for field in fields_to_download if field in selected_fields]
+                    print(f"🔧 DEBUG: [MAIN TASK NORMAL] fields_to_download after filtering: {fields_to_download}")
                 elif selected_fields is not None and len(selected_fields) == 0:
                     # If selected_fields is explicitly empty, don't download any media
                     fields_to_download = []
+                    print(f"🔧 DEBUG: [MAIN TASK NORMAL] selected_fields is empty, no downloads")
+                else:
+                    print(f"🔧 DEBUG: [MAIN TASK NORMAL] selected_fields is None, using all fields")
             
             # Skip if no fields to download
             if not fields_to_download:
@@ -9347,12 +9359,18 @@ async def get_game_images_from_launchbox_async(game_launchbox_id, image_config, 
         field_to_launchbox_types[gamelist_field] = launchbox_types
     
     # Filter fields_to_download to only include selected media fields
+    print(f"🔧 DEBUG: selected_fields: {selected_fields}")
+    print(f"🔧 DEBUG: fields_to_download before filtering: {fields_to_download}")
     if selected_fields is not None and len(selected_fields) > 0:
         # Only download fields that are in the selected_fields list
         fields_to_download = [field for field in fields_to_download if field in selected_fields]
+        print(f"🔧 DEBUG: fields_to_download after filtering: {fields_to_download}")
     elif selected_fields is not None and len(selected_fields) == 0:
         # If selected_fields is explicitly empty, don't download any media
         fields_to_download = []
+        print(f"🔧 DEBUG: selected_fields is empty, no downloads")
+    else:
+        print(f"🔧 DEBUG: selected_fields is None, using all fields")
     
     try:
         # Get GameImage entries from consolidated cache (already loaded)
