@@ -2528,10 +2528,12 @@ def run_image_download_task(system_name, data):
         task = tasks[current_task_id]
         
         # Extract parameters from data
+        print(f"🔧 DEBUG: [TASK START] data parameter: {data}")
         game_name = data.get('game_name') if data else None
         selected_games = data.get('selected_games') if data else None
         force_download = data.get('force_download', False) if data else False
         selected_fields = data.get('selected_fields', None) if data else None
+        print(f"🔧 DEBUG: [TASK START] extracted selected_fields: {selected_fields}")
         
         # Load gamelist
         gamelist_path = get_gamelist_path(system_name)
