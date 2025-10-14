@@ -2456,14 +2456,14 @@ def run_launchbox_scraper_task(system_name, task_id, selected_games, selected_fi
         )
         
         if result['success']:
-            # Create image download task if there are matched games
-            if result.get('rom_paths'):
-                print(f"🔧 DEBUG: Creating image download task for {len(result['rom_paths'])} games")
-                add_task_to_queue('image_download', {
-                    'system_name': system_name,
-                    'rom_paths': result['rom_paths'],
-                    'force_download': force_download
-                })
+            # Always create image download task after successful LaunchBox scraping
+            rom_paths = result.get('rom_paths', [])
+            print(f"🔧 DEBUG: Creating image download task for {len(rom_paths)} games")
+            add_task_to_queue('image_download', {
+                'system_name': system_name,
+                'rom_paths': rom_paths,
+                'force_download': force_download
+            })
             
             # Mark task as completed
             task.complete(True, result)
