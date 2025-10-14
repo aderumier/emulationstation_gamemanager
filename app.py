@@ -1275,16 +1275,20 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 
                 # Get game data from cache
                 best_match = get_cached_game_data(launchboxid)
+                print(f"🔧 DEBUG: get_cached_game_data returned: {type(best_match)}, data: {best_match}")
                 if best_match:
                     # Update game data in the original all_games list
                     # Find the corresponding game in all_games by path
                     game_path = game_data.get('path', '')
                     for j, original_game in enumerate(all_games):
                         if original_game.get('path', '') == game_path:
+                            print(f"🔧 DEBUG: Calling update_game_data_from_launchbox with overwrite_text_fields={overwrite_text_fields}, selected_fields={selected_fields}")
                             updated = update_game_data_from_launchbox(original_game, best_match, mapping_config, overwrite_text_fields, selected_fields)
+                            print(f"🔧 DEBUG: update_game_data_from_launchbox returned: {updated}")
                             if updated:
                                 stats['updated_games'] += 1
-                                matched_rom_paths.append(game_path)
+                            # Always add to matched_rom_paths if we found a LaunchBox ID (for image downloads)
+                            matched_rom_paths.append(game_path)
                             break
             else:
                 print(f"🔧 DEBUG: No match found for: {game_name}")
