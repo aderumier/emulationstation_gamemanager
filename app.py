@@ -1313,7 +1313,7 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         
         # Save updated gamelist
         if stats['updated_games'] > 0:
-            save_gamelist_xml(games, gamelist_path)
+            save_gamelist_xml(gamelist_path, games)
             print(f"✅ Updated {stats['updated_games']} games in gamelist")
         
         return {
@@ -2980,9 +2980,80 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_mobygames_task, args=(system_name, task.id, selected_games, selected_text_fields, selected_media_fields, overwrite_text_fields, overwrite_media_fields))
             thread.daemon = True
             thread.start()
+    elif task_type == 'launchbox_scraping':
+        # Start LaunchBox scraping task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        selected_fields = task_data.get('selected_fields', [])
+        overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        force_download = task_data.get('force_download', False)
+        enable_partial_match_modal = task_data.get('enable_partial_match_modal', False)
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('launchbox_scraping', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start LaunchBox scraping in background thread
+            thread = threading.Thread(target=run_launchbox_scraper_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, force_download, enable_partial_match_modal))
+            thread.daemon = True
+            thread.start()
     else:
         print(f"Unknown task type: {task_type}")
         return
+def run_launchbox_scraper_task(system_name, task_id, selected_games, selected_fields, overwrite_text_fields, force_download, enable_partial_match_modal):
+    """Run LaunchBox scraper task in background thread"""
+    global current_task_id
+    
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found")
+            return
+        
+        task = tasks[task_id]
+        
+        # Run the simplified LaunchBox scraper
+        result = _run_launchbox_scraper_simplified(
+            system_name=system_name,
+            selected_games=selected_games,
+            enable_partial_match_modal=enable_partial_match_modal,
+            force_download=force_download,
+            selected_fields=selected_fields,
+            overwrite_text_fields=overwrite_text_fields
+        )
+        
+        if result['success']:
+            # Create image download task if there are matched games
+            if result.get('rom_paths'):
+                print(f"🔧 DEBUG: Creating image download task for {len(result['rom_paths'])} games")
+                add_task_to_queue('image_download', {
+                    'system_name': system_name,
+                    'rom_paths': result['rom_paths'],
+                    'force_download': force_download
+                })
+            
+            # Mark task as completed
+            task.complete(True, result)
+        else:
+            # Mark task as failed
+            task.complete(False, result.get('error', 'Unknown error'))
+        
+        # Process next task in queue if any
+        process_next_queued_task()
+        
+    except Exception as e:
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+        print(f"Error in LaunchBox scraper task: {e}")
+        import traceback
+        traceback.print_exc()
+
 def run_media_scan_task(system_name):
     """Run media scan task in background thread"""
     global current_task_id
@@ -7709,40 +7780,22 @@ def scrap_launchbox_simple(system_name):
                 print(f"Error parsing POST data: {e}")
                 return jsonify({'error': f'Invalid JSON data: {str(e)}'}), 400
         
-        # Run the simplified scraper directly in the main thread
-        print(f"🔧 DEBUG: Starting simplified LaunchBox scraper for {system_name}")
-        result = _run_launchbox_scraper_simplified(
-            system_name=system_name,
-            selected_games=selected_games,
-            enable_partial_match_modal=enable_partial_match_modal,
-            force_download=force_download,
-            selected_fields=selected_fields,
-            overwrite_text_fields=overwrite_text_fields
-        )
+        # Add task to queue instead of running directly
+        task = add_task_to_queue('launchbox_scraping', {
+            'system_name': system_name,
+            'selected_games': selected_games,
+            'enable_partial_match_modal': enable_partial_match_modal,
+            'force_download': force_download,
+            'selected_fields': selected_fields,
+            'overwrite_text_fields': overwrite_text_fields
+        })
         
-        if result['success']:
-            # Create image download task if there are matched games
-            if result.get('rom_paths'):
-                print(f"🔧 DEBUG: Creating image download task for {len(result['rom_paths'])} games")
-                add_task_to_queue('image_download', {
-                    'system_name': system_name,
-                    'rom_paths': result['rom_paths'],
-                    'force_download': force_download
-                })
-            
-            return jsonify({
-                'success': True,
-                'message': 'LaunchBox scraping completed',
-                'system': system_name,
-                'stats': result.get('stats', {}),
-                'rom_paths': result.get('rom_paths', [])
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': result.get('error', 'Unknown error'),
-                'system': system_name
-            }), 500
+        return jsonify({
+            'success': True,
+            'message': 'LaunchBox scraping task queued',
+            'system': system_name,
+            'task_id': task.get('task_id')
+        })
         
     except Exception as e:
         print(f"Error in scrap_launchbox_simple endpoint: {e}")
