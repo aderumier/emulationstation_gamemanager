@@ -15458,9 +15458,9 @@ class GameCollectionManager {
                     
                     // Update cache statistics
                     if (data.cache_stats) {
-                        document.getElementById('cacheGamesCount').textContent = data.cache_stats.games_count.toLocaleString();
-                        document.getElementById('cacheAltNamesCount').textContent = data.cache_stats.alt_names_count.toLocaleString();
-                        document.getElementById('cacheGameImagesCount').textContent = data.cache_stats.game_images_count.toLocaleString();
+                        document.getElementById('cacheGamesCount').textContent = data.cache_stats.total_games.toLocaleString();
+                        document.getElementById('cacheAltNamesCount').textContent = data.cache_stats.games_with_alternate_names.toLocaleString();
+                        document.getElementById('cacheGameImagesCount').textContent = data.cache_stats.total_images.toLocaleString();
                     } else {
                     }
                 } else {
