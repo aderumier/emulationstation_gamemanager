@@ -1255,11 +1255,31 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 progress_percent = int(((i + 1) / len(games)) * 100)
                 task.update_progress(f"🔍 Processing {game_name} ({i+1}/{len(games)})", progress_percentage=progress_percent, current_step=i+1, total_steps=len(games))
             
+            # Check if game already has a LaunchBox ID and skip if no fields need updating
+            existing_launchboxid = game_data.get('launchboxid')
+            if existing_launchboxid and not force_download:
+                # Check if any selected fields are missing or need updating
+                needs_update = False
+                if selected_fields:
+                    # If specific fields are selected, check if any are missing
+                    for field in selected_fields:
+                        if not game_data.get(field):
+                            needs_update = True
+                            break
+                else:
+                    # If no specific fields selected, assume we want to update all fields
+                    needs_update = True
+                
+                if not needs_update:
+                    print(f"🔧 DEBUG: Skipping {game_name} - already has LaunchBox ID {existing_launchboxid} and no fields need updating")
+                    stats['processed_games'] += 1
+                    continue
+            
             # Find LaunchBox ID using direct lookup
             launchboxid = find_launchboxid_from_partionned_index_directmatch(
                 game_name, 
                 current_system_platform, 
-                existing_launchboxid=game_data.get('launchboxid')
+                existing_launchboxid=existing_launchboxid
             )
             
             if launchboxid:
@@ -1325,6 +1345,11 @@ def find_launchboxid_from_partionned_index_directmatch(game_name, target_platfor
         if not partition_index or not partition_index_no_parens:
             return None
         
+        # If existing launchboxid provided, use it directly (prioritize existing IDs)
+        if existing_launchboxid:
+            print(f"🔧 DEBUG: Using existing LaunchBox ID {existing_launchboxid}")
+            return existing_launchboxid
+        
         # Check if target platform exists in indexes
         if target_platform not in partition_index or target_platform not in partition_index_no_parens:
             return None
@@ -1342,11 +1367,6 @@ def find_launchboxid_from_partionned_index_directmatch(game_name, target_platfor
             launchboxid = partition_index_no_parens[target_platform][normalized_no_parens]
             print(f"🔧 DEBUG: Found LaunchBox ID {launchboxid} without parentheses match")
             return launchboxid
-        
-        # If existing launchboxid provided, use it directly
-        if existing_launchboxid:
-            print(f"🔧 DEBUG: Using existing LaunchBox ID {existing_launchboxid}")
-            return existing_launchboxid
         
         return None
         
