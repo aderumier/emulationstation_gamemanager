@@ -1184,16 +1184,23 @@ _igdb_cancel_maps = {}  # dict of {task_id: cancel_map} for IGDB tasks
 _cleanup_in_progress = False  # Flag to prevent multiple cleanup attempts
 
 
-def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_partial_match_modal=False, force_download=False, selected_fields=None, overwrite_text_fields=False):
+def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_partial_match_modal=False, force_download=False, selected_fields=None, overwrite_text_fields=False, task=None):
     """Simplified LaunchBox scraper that runs in main thread using global cache"""
     try:
         print(f"🔧 DEBUG: Starting simplified LaunchBox scraper for system: {system_name}")
+        
+        if task:
+            task.update_progress(f"🚀 Starting LaunchBox scraping for {system_name}")
         
         # Ensure global cache is loaded
         global global_metadata_cache_loaded, global_metadata_cache
         if not global_metadata_cache_loaded:
             print("🔄 Loading global metadata cache...")
+            if task:
+                task.update_progress(f"📚 Loading LaunchBox metadata cache...")
             load_metadata_cache()
+            if task:
+                task.update_progress(f"✅ LaunchBox metadata cache loaded")
         
         print(f"🔧 DEBUG: Global cache loaded: {global_metadata_cache_loaded}")
         print(f"🔧 DEBUG: Global cache type: {type(global_metadata_cache)}")
@@ -1233,12 +1240,20 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         
         matched_rom_paths = []
         
+        if task:
+            task.update_progress(f"🎯 Processing {len(games)} games for LaunchBox metadata")
+        
         for i, game_data in enumerate(games):
             game_name = game_data.get('name', '')
             if not game_name:
                 continue
             
             print(f"🔧 DEBUG: Processing game {i+1}/{len(games)}: {game_name}")
+            
+            # Update progress
+            if task:
+                progress_percent = int(((i + 1) / len(games)) * 100)
+                task.update_progress(f"🔍 Processing {game_name} ({i+1}/{len(games)})", progress_percentage=progress_percent, current_step=i+1, total_steps=len(games))
             
             # Find LaunchBox ID using direct lookup
             launchboxid = find_launchboxid_from_partionned_index_directmatch(
@@ -1268,6 +1283,10 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 print(f"🔧 DEBUG: No match found for: {game_name}")
             
             stats['processed_games'] += 1
+        
+        # Update final progress
+        if task:
+            task.update_progress(f"✅ Processed {stats['processed_games']} games, matched {stats['matched_games']}, updated {stats['updated_games']}")
         
         # Save updated gamelist
         if stats['updated_games'] > 0:
@@ -2416,7 +2435,8 @@ def run_launchbox_scraper_task(system_name, task_id, selected_games, selected_fi
             enable_partial_match_modal=enable_partial_match_modal,
             force_download=force_download,
             selected_fields=selected_fields,
-            overwrite_text_fields=overwrite_text_fields
+            overwrite_text_fields=overwrite_text_fields,
+            task=task
         )
         
         if result['success']:
