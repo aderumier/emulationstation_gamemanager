@@ -1257,7 +1257,7 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
             
             # Check if game already has a LaunchBox ID and skip if no fields need updating
             existing_launchboxid = game_data.get('launchboxid')
-            if existing_launchboxid and not force_download:
+            if existing_launchboxid and not overwrite_text_fields:
                 # Check if any selected fields are missing or need updating
                 needs_update = False
                 if selected_fields:
