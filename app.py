@@ -1208,7 +1208,7 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         
         # Get system configuration
         mapping_config, system_platform_mapping = load_launchbox_config()
-        current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
+        current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', system_name)
         
         print(f"🔧 DEBUG: Mapping config: {mapping_config}")
         print(f"🔧 DEBUG: Selected fields: {selected_fields}")
@@ -6955,7 +6955,7 @@ def find_best_matches_endpoint():
         
         # Load LaunchBox metadata
         mapping_config, system_platform_mapping = load_launchbox_config()
-        current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
+        current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', system_name)
         
         print(f"🔍 DEBUG: Global Find Best Match - System: {system_name}, Platform: {current_system_platform}")
         
@@ -8975,7 +8975,7 @@ def get_top_matches_endpoint():
         
         # Load configuration to get platform mapping
         mapping_config, system_platform_mapping = load_launchbox_config()
-        target_platform = system_platform_mapping.get(system_name, {}).get('launchbox', 'Arcade')
+        target_platform = system_platform_mapping.get(system_name, {}).get('launchbox', system_name)
         
         # Load global metadata cache
         global global_metadata_cache, global_metadata_cache_loaded
