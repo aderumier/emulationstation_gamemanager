@@ -2304,6 +2304,9 @@ class GameCollectionManager {
         this.currentSystem = systemName;
         this.setCookie('selectedSystem', systemName);
         
+        // Update force import menu item state
+        this.updateForceImportMenuState();
+        
         // Leave previous system room if different
         if (this.socket && previousSystem && previousSystem !== systemName) {
             this.socket.emit('leave_system', { system: previousSystem });
@@ -16528,10 +16531,30 @@ class GameCollectionManager {
         } catch (error) {
         }
     }
+    
+    updateForceImportMenuState() {
+        const forceImportItem = document.getElementById('forceImportGamelistBtn');
+        if (forceImportItem) {
+            if (this.currentSystem) {
+                // Enable the menu item
+                forceImportItem.style.pointerEvents = 'auto';
+                forceImportItem.style.opacity = '1';
+                forceImportItem.classList.remove('disabled');
+            } else {
+                // Disable the menu item
+                forceImportItem.style.pointerEvents = 'none';
+                forceImportItem.style.opacity = '0.5';
+                forceImportItem.classList.add('disabled');
+            }
+        }
+    }
+    
     enableButtons() {
         document.getElementById('unifiedScanBtn').disabled = false;
         document.getElementById('saveGamelistBtn').disabled = false;
-        document.getElementById('forceImportGamelistBtn').disabled = false;
+        
+        // Update force import menu item state
+        this.updateForceImportMenuState();
 
         document.getElementById('scrapLaunchboxBtn').disabled = false; // Allow full collection scraping
         document.getElementById('scrapIgdbBtn').disabled = false; // Allow IGDB scraping
