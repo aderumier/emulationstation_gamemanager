@@ -222,14 +222,6 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     echo "Cleaning up temporary files..."
     rm -rf /tmp/gamemanager-upgrade
     
-    # Ensure disable_local_auth is always false for security
-    echo "Ensuring disable_local_auth is set to false for security..."
-    if [ -f /opt/gamemanager/var/config/config.json ]; then
-        # Use sed to replace disable_local_auth value to false
-        sed -i 's/"disable_local_auth":\s*true/"disable_local_auth": false/g' /opt/gamemanager/var/config/config.json
-        sed -i 's/"disable_local_auth":\s*"true"/"disable_local_auth": false/g' /opt/gamemanager/var/config/config.json
-        echo "✅ disable_local_auth set to false"
-    fi
     
     
 
