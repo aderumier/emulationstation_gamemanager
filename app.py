@@ -6894,7 +6894,13 @@ def write_gamelist_xml(games, file_path):
                 
                 # Handle boolean fields - convert to lowercase string
                 if field in ['favorite', 'kidgame']:
-                    value = 'true' if value else 'false'
+                    if value == 'true' or value is True:
+                        value = 'true'
+                    elif value == 'false' or value is False:
+                        value = 'false'
+                    else:
+                        # Keep empty string as empty (don't convert to 'false')
+                        value = ''
                 
                 # Add all fields from the game data
                 field_elem = ET.SubElement(game_elem, field)
@@ -7217,9 +7223,19 @@ def validate_remap_media_fields():
         # Save updated gamelist
         write_gamelist_xml(games, gamelist_path)
         
+        # Reload gamelist and refresh grid
+        try:
+            # Notify all connected clients about the gamelist update
+            notify_gamelist_updated(system_name, len(games))
+            print(f"✅ Media field remapping completed: {games_updated} games updated")
+        except Exception as e:
+            print(f"Warning: Could not notify clients of gamelist update: {e}")
+        
         return jsonify({
             'success': True,
-            'message': f'Successfully remapped {source_field} to {target_field} for {games_updated} games'
+            'message': f'Successfully remapped {source_field} to {target_field} for {games_updated} games',
+            'games_updated': games_updated,
+            'total_games': len(games)
         })
         
     except Exception as e:
@@ -7559,6 +7575,14 @@ def validate_move_medias():
         
         # Save updated gamelist
         write_gamelist_xml(games, gamelist_path)
+        
+        # Reload gamelist and refresh grid
+        try:
+            # Notify all connected clients about the gamelist update
+            notify_gamelist_updated(system_name, len(games))
+            print(f"✅ Media files move completed: {len(moved_files)} files moved, {len(cleared_fields)} fields cleared")
+        except Exception as e:
+            print(f"Warning: Could not notify clients of gamelist update: {e}")
         
         # Create comprehensive results
         results = {
@@ -9878,7 +9902,13 @@ def save_gamelist_xml(file_path, games):
             for field, value in game.items():
                 # Handle boolean fields - convert to lowercase string
                 if field in ['favorite', 'kidgame']:
-                    value = 'true' if value else 'false'
+                    if value == 'true' or value is True:
+                        value = 'true'
+                    elif value == 'false' or value is False:
+                        value = 'false'
+                    else:
+                        # Keep empty string as empty (don't convert to 'false')
+                        value = ''
                 
                 elem = ET.SubElement(game_elem, field)
                 elem.text = html.escape(str(value), quote=False) if value else ''
@@ -14475,7 +14505,7 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
                 'players': '',
                 'playcount': '0',
                 'lastplayed': '',
-                'favorite': 'false',
+                'favorite': '',
                 'hidden': 'true' if rom_file in hidden_roms else 'false'
             }
             existing_games.append(game_entry)
@@ -14938,7 +14968,7 @@ def scan_rom_files_confirm(system_name):
                 'players': '',
                 'playcount': '0',
                 'lastplayed': '',
-                'favorite': 'false',
+                'favorite': '',
                 'hidden': 'true' if should_hide else 'false'
             }
             valid_games.append(new_game)
