@@ -71,7 +71,9 @@
                 ".jpg",
                 ".jpeg"
             ],
-            "target_extension": ".png"
+            "target_extension": ".jpg",
+            "width": 1920,
+            "height": 620
         },
         "titleshot": {
             "directory": "titles",
