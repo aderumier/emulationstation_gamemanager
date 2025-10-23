@@ -9257,6 +9257,7 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                     # Use target_field parameter if available, otherwise fall back to media_type
                     field_to_check = target_field if target_field else media_type
                     from game_utils import should_process_field, convert_and_resize_image_replace
+                    config = load_config()
                     should_process, target_extension, target_width, target_height = should_process_field(field_to_check, config)
                     
                     if should_process:
@@ -17749,6 +17750,7 @@ def download_launchbox_media():
         # Convert and/or resize image in a single operation (optimized)
         # Check the target field name, not the source field name
         from game_utils import should_process_field, convert_and_resize_image_replace
+        config = load_config()
         should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
         
         if should_process:

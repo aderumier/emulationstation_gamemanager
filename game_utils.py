@@ -241,6 +241,14 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
                 # For other formats or no conversion, save with default settings
                 processed_img.save(output_path, quality=95, optimize=True)
             
+            # Delete the original file if we created a new one with different extension
+            if needs_conversion and output_path != file_path:
+                try:
+                    os.remove(file_path)
+                    print(f"🗑️ Removed original file: {os.path.basename(file_path)}")
+                except Exception as e:
+                    print(f"⚠️ Warning: Could not remove original file {file_path}: {e}")
+            
             # Determine status message
             if needs_conversion and needs_resize:
                 status = "converted_and_resized"
