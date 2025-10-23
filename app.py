@@ -3306,8 +3306,21 @@ def download_mobygames_media_from_url(page_url, target_path, is_cancelled_func=N
                         f.write(img_response.content)
                     
                     # Convert to target format using game_utils
-                    from game_utils import convert_and_resize_image_replace
-                    processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                    from game_utils import should_process_field, convert_and_resize_image_replace
+                    # Load config and get proper settings for this media type
+                    config = load_config()
+                    # Determine media type from target path or default to boxart
+                    media_type = 'boxart'  # Default for MobyGames downloads
+                    should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
+                                
+                                if should_process:
+                                    processed_path, process_status = convert_and_resize_image_replace(
+                                        temp_path, target_extension, target_width, target_height
+                                    )
+                                else:
+                                    # No processing needed, use temp_path as processed_path
+                                    processed_path = temp_path
+                                    process_status = "already_correct" 
                     success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
                     if success and processed_path != temp_path:
                         # Move the processed file to the target path
@@ -21715,8 +21728,19 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
                                     f.write(img_response.content)
                                 
                                 # Convert to target format using game_utils
-                                from game_utils import convert_and_resize_image_replace
-                                processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                                from game_utils import should_process_field, convert_and_resize_image_replace
+                                # Load config and get proper settings for this media type
+                                config = load_config()
+                                should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
+                                
+                                if should_process:
+                                    processed_path, process_status = convert_and_resize_image_replace(
+                                        temp_path, target_extension, target_width, target_height
+                                    )
+                                else:
+                                    # No processing needed, use temp_path as processed_path
+                                    processed_path = temp_path
+                                    process_status = "already_correct" 
                                 success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
                                 if success and processed_path != temp_path:
                                     # Move the processed file to the target path
@@ -21829,8 +21853,19 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                         f.write(img_response.content)
                                     
                                     # Convert to target format using game_utils
-                                    from game_utils import convert_and_resize_image_replace
-                                    processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                                    from game_utils import should_process_field, convert_and_resize_image_replace
+                                    # Load config and get proper settings for this media type
+                                    config = load_config()
+                                    should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
+                                
+                                if should_process:
+                                    processed_path, process_status = convert_and_resize_image_replace(
+                                        temp_path, target_extension, target_width, target_height
+                                    )
+                                else:
+                                    # No processing needed, use temp_path as processed_path
+                                    processed_path = temp_path
+                                    process_status = "already_correct" 
                                     success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
                                     if success and processed_path != temp_path:
                                         # Move the processed file to the target path
@@ -21916,8 +21951,19 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                     f.write(img_response.content)
                                 
                                 # Convert to target format using game_utils
-                                from game_utils import convert_and_resize_image_replace
-                                processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                                from game_utils import should_process_field, convert_and_resize_image_replace
+                                # Load config and get proper settings for this media type
+                                config = load_config()
+                                should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
+                                
+                                if should_process:
+                                    processed_path, process_status = convert_and_resize_image_replace(
+                                        temp_path, target_extension, target_width, target_height
+                                    )
+                                else:
+                                    # No processing needed, use temp_path as processed_path
+                                    processed_path = temp_path
+                                    process_status = "already_correct" 
                                 success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
                                 if success and processed_path != temp_path:
                                     # Move the processed file to the target path
