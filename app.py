@@ -2674,6 +2674,11 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     full_media_path, target_extension, target_width, target_height
                 )
                 
+                # Debug logging for file paths
+                task.log_message(f"🔧 DEBUG: Original: {full_media_path}")
+                task.log_message(f"🔧 DEBUG: Processed: {processed_path}")
+                task.log_message(f"🔧 DEBUG: Paths different: {processed_path != full_media_path}")
+                
                 if process_status in ["converted", "resized", "converted_and_resized"]:
                     # Get original image dimensions for logging
                     try:
@@ -2697,7 +2702,9 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     # Update gamelist if file was converted (extension changed)
                     if processed_path != full_media_path:
                         new_relative_path = f"./media/{os.path.relpath(processed_path, system_path)}"
+                        old_relative_path = game[field]
                         game[field] = new_relative_path
+                        task.log_message(f"📝 Updated gamelist: {old_relative_path} → {new_relative_path}")
                         converted_count += 1
                     else:
                         resized_count += 1
