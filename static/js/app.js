@@ -1526,7 +1526,8 @@ class GameCollectionManager {
         document.getElementById('forceImportGamelistBtn').addEventListener('click', () => this.showForceImportModal());
         document.getElementById('confirmForceImportBtn').addEventListener('click', () => this.confirmForceImport());
         document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
-
+        document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
+        
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
         document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
         document.getElementById('scrapSteamBtn').addEventListener('click', () => this.scrapSteam());
@@ -10362,6 +10363,16 @@ class GameCollectionManager {
         } else {
         }
 
+        // Add event listener for opening Resize Medias modal
+        const openResizeMediasModal = document.getElementById('openResizeMediasModal');
+        if (openResizeMediasModal) {
+            openResizeMediasModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openResizeMediasModal();
+            });
+        } else {
+        }
+
         // Add event listener for unified scraper config modal
         const openScraperConfigModal = document.getElementById('openScraperConfigModal');
         if (openScraperConfigModal) {
@@ -12260,6 +12271,201 @@ class GameCollectionManager {
         html += '</div>';
         errorContent.innerHTML = html;
         errorDiv.style.display = 'block';
+    }
+
+    // Resize Medias Methods
+    async openResizeMediasModal() {
+        try {
+            const modal = new bootstrap.Modal(document.getElementById('resizeMediasModal'));
+            modal.show();
+            
+            // Reset UI state
+            this.resetResizeMediasUI();
+            
+            // Load media fields from configuration
+            await this.loadResizeMediasFields();
+            
+        } catch (error) {
+            console.error('Error opening resize medias modal:', error);
+            this.showAlert('Error opening resize medias modal', 'danger');
+        }
+    }
+
+    async loadResizeMediasFields() {
+        try {
+            const response = await fetch('/api/remap-media-fields/target');
+            const data = await response.json();
+            const mediaFieldSelect = document.getElementById('resizeMediaFieldSelect');
+            
+            if (data.success && data.fields) {
+                mediaFieldSelect.innerHTML = '<option value="">Select media field...</option><option value="all">All Media Fields</option>';
+                data.fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    mediaFieldSelect.appendChild(option);
+                });
+            } else {
+                mediaFieldSelect.innerHTML = '<option value="">No media fields available</option>';
+            }
+        } catch (error) {
+            console.error('Error loading resize medias fields:', error);
+            this.showAlert('Error loading media fields', 'danger');
+        }
+    }
+
+    resetResizeMediasUI() {
+        // Hide progress and results
+        document.getElementById('resizeMediasProgress').style.display = 'none';
+        document.getElementById('resizeMediasResults').style.display = 'none';
+        
+        // Reset media field selection
+        const mediaFieldSelect = document.getElementById('resizeMediaFieldSelect');
+        if (mediaFieldSelect) {
+            mediaFieldSelect.value = '';
+        }
+        
+        // Reset button states
+        document.getElementById('startResizeMediasBtn').disabled = false;
+    }
+
+    async startResizeMedias() {
+        const mediaField = document.getElementById('resizeMediaFieldSelect').value;
+        
+        if (!mediaField) {
+            this.showAlert('Please select a media field', 'warning');
+            return;
+        }
+
+        try {
+            // Show progress
+            document.getElementById('resizeMediasProgress').style.display = 'block';
+            document.getElementById('resizeMediasResults').style.display = 'none';
+            document.getElementById('startResizeMediasBtn').disabled = true;
+
+            // Start the resize task
+            const response = await fetch('/api/resize-medias', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    media_field: mediaField,
+                    system_name: this.currentSystem
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Resize task started successfully', 'success');
+                
+                // Start monitoring the task
+                this.monitorResizeTask(data.task_id);
+            } else {
+                this.showAlert(data.error || 'Error starting resize task', 'danger');
+                this.resetResizeMediasUI();
+            }
+        } catch (error) {
+            console.error('Error starting resize medias:', error);
+            this.showAlert('Error starting resize task', 'danger');
+            this.resetResizeMediasUI();
+        }
+    }
+
+    async monitorResizeTask(taskId) {
+        const progressBar = document.querySelector('#resizeMediasProgress .progress-bar');
+        const statusText = document.getElementById('resizeMediasStatus');
+        const resultsDiv = document.getElementById('resizeMediasResults');
+        const resultsContent = document.getElementById('resizeMediasResultsContent');
+        
+        const checkStatus = async () => {
+            try {
+                const response = await fetch(`/api/tasks/${taskId}`);
+                const data = await response.json();
+                
+                if (data.status === 'completed') {
+                    // Task completed
+                    progressBar.style.width = '100%';
+                    statusText.textContent = 'Processing complete!';
+                    
+                    // Show results
+                    this.showResizeResults(data.results);
+                    resultsDiv.style.display = 'block';
+                    
+                    // Reset button
+                    document.getElementById('startResizeMediasBtn').disabled = false;
+                    
+                } else if (data.status === 'failed') {
+                    // Task failed
+                    this.showAlert('Resize task failed', 'danger');
+                    this.resetResizeMediasUI();
+                    
+                } else if (data.status === 'running') {
+                    // Task still running
+                    const progress = data.progress || 0;
+                    progressBar.style.width = `${progress}%`;
+                    statusText.textContent = data.message || 'Processing...';
+                    
+                    // Continue monitoring
+                    setTimeout(checkStatus, 1000);
+                }
+            } catch (error) {
+                console.error('Error monitoring resize task:', error);
+                this.showAlert('Error monitoring task', 'danger');
+                this.resetResizeMediasUI();
+            }
+        };
+        
+        checkStatus();
+    }
+
+    showResizeResults(results) {
+        const resultsContent = document.getElementById('resizeMediasResultsContent');
+        
+        let html = `
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h4 class="text-success">${results.converted_count || 0}</h4>
+                        <small class="text-muted">Converted</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h4 class="text-info">${results.resized_count || 0}</h4>
+                        <small class="text-muted">Resized</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h4 class="text-warning">${results.skipped_count || 0}</h4>
+                        <small class="text-muted">Skipped</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h4 class="text-danger">${results.failed_count || 0}</h4>
+                        <small class="text-muted">Failed</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        if (results.details && results.details.length > 0) {
+            html += '<div class="mt-3"><h6>Details:</h6><ul class="list-group">';
+            results.details.forEach(detail => {
+                html += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>${detail.game_name} - ${detail.filename}</span>
+                        <span class="badge bg-${detail.status === 'success' ? 'success' : 'danger'}">${detail.status}</span>
+                    </li>
+                `;
+            });
+            html += '</ul></div>';
+        }
+        
+        resultsContent.innerHTML = html;
     }
     
     showSystemsModalLoadingState() {

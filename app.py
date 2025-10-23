@@ -2452,6 +2452,26 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_launchbox_scraper_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, force_download, enable_partial_match_modal))
             thread.daemon = True
             thread.start()
+    elif task_type == 'resize_medias':
+        # Start resize medias task
+        system_name = next_task.get('system_name')
+        media_field = next_task.get('media_field')
+        if system_name and media_field:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('resize_medias', {'system_name': system_name, 'media_field': media_field})
+                current_task_id = task.id
+                task.start()
+            # Start resize medias in background thread
+            thread = threading.Thread(target=run_resize_medias_task, args=(system_name, media_field, task.id))
+            thread.daemon = True
+            thread.start()
     else:
         print(f"Unknown task type: {task_type}")
         return
@@ -2502,6 +2522,171 @@ def run_launchbox_scraper_task(system_name, task_id, selected_games, selected_fi
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
         print(f"Error in LaunchBox scraper task: {e}")
+        import traceback
+        traceback.print_exc()
+
+def run_resize_medias_task(system_name, media_field, task_id):
+    """Run resize medias task in background thread"""
+    global current_task_id
+    
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found")
+            return
+        
+        task = tasks[task_id]
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f"Gamelist not found: {gamelist_path}")
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            task.complete(False, "No games found in gamelist")
+            return
+        
+        # Load config
+        config = load_config()
+        media_fields = config.get('media_fields', {})
+        
+        # Determine which media fields to process
+        if media_field == 'all':
+            fields_to_process = list(media_fields.keys())
+        else:
+            fields_to_process = [media_field]
+        
+        # Filter games that have media files for the selected fields
+        games_with_media = []
+        for game in games:
+            for field in fields_to_process:
+                if field in game and game[field]:
+                    games_with_media.append((game, field))
+        
+        total_games = len(games_with_media)
+        if total_games == 0:
+            task.complete(True, "No media files found to process")
+            return
+        
+        task.update_progress(f"Found {total_games} media files to process")
+        
+        # Process each media file
+        converted_count = 0
+        resized_count = 0
+        skipped_count = 0
+        failed_count = 0
+        details = []
+        
+        for i, (game, field) in enumerate(games_with_media):
+            try:
+                # Update progress
+                progress = int((i / total_games) * 100)
+                task.update_progress(f"Processing {game.get('name', 'Unknown')} - {field} ({i+1}/{total_games})")
+                
+                # Get media path
+                media_path = game[field]
+                if not media_path or not media_path.startswith('./media/'):
+                    skipped_count += 1
+                    details.append({
+                        'game_name': game.get('name', 'Unknown'),
+                        'filename': media_path,
+                        'status': 'skipped',
+                        'reason': 'Invalid path'
+                    })
+                    continue
+                
+                # Convert to absolute path
+                system_path = os.path.join(ROMS_FOLDER, system_name)
+                full_media_path = os.path.join(system_path, media_path[2:])  # Remove './' prefix
+                
+                if not os.path.exists(full_media_path):
+                    skipped_count += 1
+                    details.append({
+                        'game_name': game.get('name', 'Unknown'),
+                        'filename': os.path.basename(full_media_path),
+                        'status': 'skipped',
+                        'reason': 'File not found'
+                    })
+                    continue
+                
+                # Check if processing is needed
+                from game_utils import should_process_field, convert_and_resize_image_replace
+                should_process, target_extension, target_width, target_height = should_process_field(field, config)
+                
+                if not should_process:
+                    skipped_count += 1
+                    details.append({
+                        'game_name': game.get('name', 'Unknown'),
+                        'filename': os.path.basename(full_media_path),
+                        'status': 'skipped',
+                        'reason': 'No processing needed'
+                    })
+                    continue
+                
+                # Process the image
+                processed_path, process_status = convert_and_resize_image_replace(
+                    full_media_path, target_extension, target_width, target_height
+                )
+                
+                if process_status in ["converted", "resized", "converted_and_resized"]:
+                    # Update gamelist if file was converted (extension changed)
+                    if processed_path != full_media_path:
+                        new_relative_path = f"./media/{os.path.relpath(processed_path, system_path)}"
+                        game[field] = new_relative_path
+                        converted_count += 1
+                    else:
+                        resized_count += 1
+                    
+                    details.append({
+                        'game_name': game.get('name', 'Unknown'),
+                        'filename': os.path.basename(processed_path),
+                        'status': 'success',
+                        'reason': process_status
+                    })
+                else:
+                    failed_count += 1
+                    details.append({
+                        'game_name': game.get('name', 'Unknown'),
+                        'filename': os.path.basename(full_media_path),
+                        'status': 'failed',
+                        'reason': process_status
+                    })
+                
+            except Exception as e:
+                failed_count += 1
+                details.append({
+                    'game_name': game.get('name', 'Unknown'),
+                    'filename': os.path.basename(full_media_path) if 'full_media_path' in locals() else 'Unknown',
+                    'status': 'failed',
+                    'reason': str(e)
+                })
+                print(f"Error processing {game.get('name', 'Unknown')} - {field}: {e}")
+        
+        # Save updated gamelist
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Notify clients
+        try:
+            notify_gamelist_updated(system_name, len(games))
+        except Exception as e:
+            print(f"Warning: Could not notify clients of gamelist update: {e}")
+        
+        # Complete task with results
+        results = {
+            'converted_count': converted_count,
+            'resized_count': resized_count,
+            'skipped_count': skipped_count,
+            'failed_count': failed_count,
+            'details': details
+        }
+        
+        task.complete(True, f"Processed {total_games} media files: {converted_count} converted, {resized_count} resized, {skipped_count} skipped, {failed_count} failed", results)
+        
+    except Exception as e:
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+        print(f"Error in resize medias task: {e}")
         import traceback
         traceback.print_exc()
 
@@ -7631,6 +7816,51 @@ def validate_move_medias():
         
     except Exception as e:
         print(f"Error validating move medias: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/resize-medias', methods=['POST'])
+@login_required
+def resize_medias_endpoint():
+    """Start a background task to resize all media files for a system"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        media_field = data.get('media_field')
+        system_name = data.get('system_name')
+        
+        if not all([media_field, system_name]):
+            return jsonify({'error': 'Media field and system name are required'}), 400
+        
+        # Add the resize task to the queue
+        task_id = f"resize_medias_{int(time.time())}"
+        task_queue.append({
+            'id': task_id,
+            'type': 'resize_medias',
+            'status': 'pending',
+            'system_name': system_name,
+            'media_field': media_field,
+            'created_at': time.time(),
+            'progress': 0,
+            'message': 'Task queued'
+        })
+        
+        print(f"DEBUG: Added resize medias task to queue. Position: {len(task_queue)}")
+        
+        # Process the task immediately if no other task is running
+        if not any(task.get('status') == 'running' for task in task_queue):
+            print("DEBUG: No task running, processing next queued task")
+            asyncio.create_task(process_next_queued_task())
+        
+        return jsonify({
+            'success': True,
+            'task_id': task_id,
+            'message': 'Resize medias task queued successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error starting resize medias task: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/multiscraper-search', methods=['POST'])
