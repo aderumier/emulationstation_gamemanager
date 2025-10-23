@@ -2454,18 +2454,18 @@ def process_next_queued_task():
             thread.start()
     elif task_type == 'resize_medias':
         # Start resize medias task
-        system_name = next_task.get('system_name')
-        media_field = next_task.get('media_field')
+        system_name = task_data.get('system_name')
+        media_field = task_data.get('media_field')
         if system_name and media_field:
             # Use the existing queued task instead of creating a new one
-            task_id = next_task.get('id')
+            task_id = next_task.get('task_id')
             if task_id and task_id in tasks:
                 task = tasks[task_id]
                 current_task_id = task.id
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
-                task = create_task('resize_medias', {'system_name': system_name, 'media_field': media_field})
+                task = create_task('resize_medias', task_data)
                 current_task_id = task.id
                 task.start()
             # Start resize medias in background thread
@@ -7833,29 +7833,15 @@ def resize_medias_endpoint():
         if not all([media_field, system_name]):
             return jsonify({'error': 'Media field and system name are required'}), 400
         
-        # Add the resize task to the queue
-        task_id = f"resize_medias_{int(time.time())}"
-        task_queue.append({
-            'id': task_id,
-            'type': 'resize_medias',
-            'status': 'pending',
+        # Add task to queue using the standard pattern
+        task = add_task_to_queue('resize_medias', {
             'system_name': system_name,
-            'media_field': media_field,
-            'created_at': time.time(),
-            'progress': 0,
-            'message': 'Task queued'
+            'media_field': media_field
         })
-        
-        print(f"DEBUG: Added resize medias task to queue. Position: {len(task_queue)}")
-        
-        # Process the task immediately if no other task is running
-        if not any(task.get('status') == 'running' for task in task_queue):
-            print("DEBUG: No task running, processing next queued task")
-            process_next_queued_task()
         
         return jsonify({
             'success': True,
-            'task_id': task_id,
+            'task_id': task.id,
             'message': 'Resize medias task queued successfully'
         })
         
