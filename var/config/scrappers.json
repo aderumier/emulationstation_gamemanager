@@ -92,16 +92,15 @@
                 "wheel"
             ],
             "boxart": [
-                "bezel-16-9",
-                "bezel-4-3-cocktail"
+                "box-2D",
+                "box-scan",
+                "flyer"
             ],
             "thumbnail": [
-                "box-3D"
+                "box3D"
             ],
             "boxback": [
-                "Box - Back",
-                "Fanart - Box - Back",
-                "Advertisement Flyer - Back"
+                "box-2D-back"
             ],
             "image": [
                 "ss"
@@ -119,8 +118,8 @@
                 "fanart"
             ],
             "cartridge": [
-                "support-2D",
-                "support-scan"
+                "support-scan",
+                "support-texture"
             ]
         }
     },
