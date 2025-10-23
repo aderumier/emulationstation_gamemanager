@@ -2701,7 +2701,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     
                     # Update gamelist if file was converted (extension changed)
                     if processed_path != full_media_path:
-                        new_relative_path = f"./media/{os.path.relpath(processed_path, system_path)}"
+                        new_relative_path = f"./{os.path.relpath(processed_path, system_path)}"
                         old_relative_path = game[field]
                         game[field] = new_relative_path
                         task.log_message(f"📝 Updated gamelist: {old_relative_path} → {new_relative_path}")
