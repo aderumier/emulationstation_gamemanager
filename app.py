@@ -2669,6 +2669,15 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     })
                     continue
                 
+                # Get original image dimensions BEFORE processing (in case original file gets deleted)
+                original_width, original_height = 0, 0
+                try:
+                    from PIL import Image
+                    with Image.open(full_media_path) as img:
+                        original_width, original_height = img.size
+                except Exception as e:
+                    task.log_message(f"⚠️ Could not read original image dimensions: {e}")
+                
                 # Process the image
                 processed_path, process_status = convert_and_resize_image_replace(
                     full_media_path, target_extension, target_width, target_height
@@ -2680,11 +2689,8 @@ def run_resize_medias_task(system_name, media_field, task_id):
                 task.log_message(f"🔧 DEBUG: Paths different: {processed_path != full_media_path}")
                 
                 if process_status in ["converted", "resized", "converted_and_resized"]:
-                    # Get original image dimensions for logging
+                    # Get new image dimensions for logging
                     try:
-                        from PIL import Image
-                        with Image.open(full_media_path) as img:
-                            original_width, original_height = img.size
                         with Image.open(processed_path) as img:
                             new_width, new_height = img.size
                         
