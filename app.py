@@ -21859,9 +21859,9 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                     should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
                                 
                                     if should_process:
-                                    processed_path, process_status = convert_and_resize_image_replace(
-                                        temp_path, target_extension, target_width, target_height
-                                    )
+                                        processed_path, process_status = convert_and_resize_image_replace(
+                                            temp_path, target_extension, target_width, target_height
+                                        )
                                 else:
                                     # No processing needed, use temp_path as processed_path
                                     processed_path = temp_path
