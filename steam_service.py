@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import logging
 from collections import namedtuple
-from game_utils import normalize_game_name, convert_image_replace, should_convert_field, needs_conversion
+from game_utils import normalize_game_name, should_process_field, convert_and_resize_image_replace
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
@@ -679,7 +679,6 @@ class SteamService:
                     f.write(response.content)
                 
                 # Convert image if needed using config-based target extension
-                from game_utils import should_convert_field, should_resize_field, resize_image_replace
                 import json
                 
                 # Load config to get target_extension and resize settings for this field

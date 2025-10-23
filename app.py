@@ -13559,9 +13559,6 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
                         rom_filename_without_extension = os.path.splitext(os.path.basename(rom_path))[0]
                     break
         
-        # Get target extension from media config
-        from game_utils import should_convert_field
-        should_convert, target_extension = should_convert_field(media_type, config)
         
         # Set headers to mimic a real browser
         headers = {

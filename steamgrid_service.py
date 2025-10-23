@@ -12,7 +12,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import logging
-from game_utils import normalize_game_name, convert_image_replace, should_convert_field, should_resize_field, resize_image_replace, needs_conversion
+from game_utils import normalize_game_name, should_process_field, convert_and_resize_image_replace
 
 logger = logging.getLogger(__name__)
 
