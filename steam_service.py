@@ -37,6 +37,7 @@ class SteamService:
         # Global partitioned similarity index: {first_char: [SteamItem]}
         # SteamItem is lightweight namedtuple, full app data stored separately
         self._global_similarity_index = {}
+        self._partitioned_index = {}  # Alias for _global_similarity_index
         
         # Track whether partitioned index was loaded from cache
         self._partitioned_index_loaded_from_cache = False
@@ -221,6 +222,9 @@ class SteamService:
             print(f"✅ Partitioned index built for Steam ({partition_count} partitions) in {end_time - start_time:.2f} seconds")
             logger.info(f"✅ Partitioned index built for Steam ({partition_count} partitions) in {end_time - start_time:.2f} seconds")
             
+            # Set the partitioned_index attribute (alias for _global_similarity_index)
+            self._partitioned_index = self._global_similarity_index
+            
             # Save the index to cache
             self._save_partitioned_index_to_cache()
             
@@ -284,6 +288,9 @@ class SteamService:
                     )
                     for item in steam_items
                 ]
+            
+            # Set the partitioned_index attribute (alias for _global_similarity_index)
+            self._partitioned_index = self._global_similarity_index
             
             total_partitions = len(self._global_similarity_index)
             print(f"✅ Loaded Steam partitioned index from cache ({total_partitions} partitions)")

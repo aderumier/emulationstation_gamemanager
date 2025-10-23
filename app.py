@@ -10448,9 +10448,23 @@ def refresh_steam_cache_endpoint():
         global global_steam_service
         if global_steam_service is not None:
             print("🔄 Updating global Steam service with new partitioned index...")
-            global_steam_service._partitioned_index = steam_service._partitioned_index
-            global_steam_service._partitioned_index_loaded_from_cache = True
-            print("✅ Global Steam service updated with new partitioned index")
+            try:
+                # Ensure the partitioned_index attribute exists (defensive programming)
+                if hasattr(steam_service, '_partitioned_index'):
+                    global_steam_service._partitioned_index = steam_service._partitioned_index
+                    global_steam_service._partitioned_index_loaded_from_cache = True
+                    print("✅ Global Steam service updated with new partitioned index")
+                else:
+                    print("⚠️ Warning: Steam service missing _partitioned_index attribute")
+            except AttributeError as e:
+                print(f"⚠️ Warning: Error updating global Steam service: {e}")
+                # Try to rebuild the partitioned index on the global service
+                try:
+                    global_steam_service._build_partitioned_index(apps)
+                    global_steam_service._save_partitioned_index_to_cache()
+                    print("✅ Rebuilt partitioned index on global Steam service")
+                except Exception as rebuild_error:
+                    print(f"❌ Failed to rebuild partitioned index: {rebuild_error}")
         
         return jsonify({
             'success': True,
