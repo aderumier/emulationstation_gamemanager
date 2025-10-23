@@ -2587,6 +2587,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
                 # Get media path
                 media_path = game[field]
                 if not media_path or not media_path.startswith('./media/'):
+                    task.log(f"⏭️ Skipped {game.get('name', 'Unknown')}: Invalid media path")
                     skipped_count += 1
                     details.append({
                         'game_name': game.get('name', 'Unknown'),
@@ -2601,6 +2602,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
                 full_media_path = os.path.join(system_path, media_path[2:])  # Remove './' prefix
                 
                 if not os.path.exists(full_media_path):
+                    task.log(f"⏭️ Skipped {os.path.basename(full_media_path)}: File not found")
                     skipped_count += 1
                     details.append({
                         'game_name': game.get('name', 'Unknown'),
@@ -2615,6 +2617,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
                 should_process, target_extension, target_width, target_height = should_process_field(field, config)
                 
                 if not should_process:
+                    task.log(f"⏭️ Skipped {os.path.basename(full_media_path)}: No processing needed")
                     skipped_count += 1
                     details.append({
                         'game_name': game.get('name', 'Unknown'),
@@ -2630,6 +2633,25 @@ def run_resize_medias_task(system_name, media_field, task_id):
                 )
                 
                 if process_status in ["converted", "resized", "converted_and_resized"]:
+                    # Get original image dimensions for logging
+                    try:
+                        from PIL import Image
+                        with Image.open(full_media_path) as img:
+                            original_width, original_height = img.size
+                        with Image.open(processed_path) as img:
+                            new_width, new_height = img.size
+                        
+                        # Log detailed conversion information
+                        if process_status == "converted":
+                            task.log(f"✅ Converted {os.path.basename(full_media_path)} to {os.path.basename(processed_path)}")
+                        elif process_status == "resized":
+                            task.log(f"✅ Resized from {original_width}x{original_height} to {new_width}x{new_height}")
+                        elif process_status == "converted_and_resized":
+                            task.log(f"✅ Converted and resized from {original_width}x{original_height} to {new_width}x{new_height}")
+                    except Exception as e:
+                        # Fallback logging if image dimensions can't be read
+                        task.log(f"✅ Processed {os.path.basename(full_media_path)}: {process_status}")
+                    
                     # Update gamelist if file was converted (extension changed)
                     if processed_path != full_media_path:
                         new_relative_path = f"./media/{os.path.relpath(processed_path, system_path)}"
@@ -2645,6 +2667,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
                         'reason': process_status
                     })
                 else:
+                    task.log(f"❌ Failed to process {os.path.basename(full_media_path)}: {process_status}")
                     failed_count += 1
                     details.append({
                         'game_name': game.get('name', 'Unknown'),
@@ -2654,6 +2677,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     })
                 
             except Exception as e:
+                task.log(f"❌ Error processing {game.get('name', 'Unknown')} - {field}: {e}")
                 failed_count += 1
                 details.append({
                     'game_name': game.get('name', 'Unknown'),
