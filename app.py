@@ -2627,6 +2627,40 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     })
                     continue
                 
+                # Check if image is already at target dimensions
+                try:
+                    from PIL import Image
+                    with Image.open(full_media_path) as img:
+                        current_width, current_height = img.size
+                    
+                    # Check if already at target size
+                    already_correct_size = True
+                    if target_width > 0 and current_width != target_width:
+                        already_correct_size = False
+                    if target_height > 0 and current_height != target_height:
+                        already_correct_size = False
+                    
+                    # Check if already correct extension
+                    current_ext = os.path.splitext(full_media_path)[1].lower()
+                    target_ext = target_extension.lower() if target_extension else current_ext
+                    already_correct_extension = (current_ext == target_ext)
+                    
+                    # Skip if already correct size and extension
+                    if already_correct_size and already_correct_extension:
+                        task.log_message(f"⏭️ Skipped {os.path.basename(full_media_path)}: Already correct size ({current_width}x{current_height}) and extension")
+                        skipped_count += 1
+                        details.append({
+                            'game_name': game.get('name', 'Unknown'),
+                            'filename': os.path.basename(full_media_path),
+                            'status': 'skipped',
+                            'reason': 'Already correct size and extension'
+                        })
+                        continue
+                        
+                except Exception as e:
+                    # If we can't read image dimensions, proceed with processing
+                    task.log_message(f"⚠️ Could not read image dimensions for {os.path.basename(full_media_path)}, proceeding with processing")
+                
                 # Process the image
                 processed_path, process_status = convert_and_resize_image_replace(
                     full_media_path, target_extension, target_width, target_height
