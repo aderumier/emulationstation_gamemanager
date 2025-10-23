@@ -7190,11 +7190,6 @@ def write_gamelist_xml(games, file_path):
                 field_elem = ET.SubElement(game_elem, field)
                 field_elem.text = str(value) if value else ''
                 
-                # Debug logging for launchboxid and fanart
-                if field == 'launchboxid':
-                    print(f"🔧 DEBUG: Writing launchboxid field: '{value}' (type: {type(value)}) as text: '{str(value)}'")
-                if field == 'fanart':
-                    print(f"🔧 DEBUG: Writing fanart field: '{value}' (type: {type(value)}) as text: '{str(value)}'")
         
         # Write to file with formatting
         tree = ET.ElementTree(root)
