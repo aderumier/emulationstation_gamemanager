@@ -12,6 +12,7 @@ steamgrid
 maps
 wheel
 wheel-hd
+box3D
 box-2D
 box-2D-side
 box-2D-back
