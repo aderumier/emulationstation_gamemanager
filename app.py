@@ -10832,42 +10832,24 @@ def upload_game_media(system_name):
         # Save the uploaded file
         file.save(file_path)
         
-        # Convert image if field has target_extension configured
-        from game_utils import should_convert_field, should_resize_field, convert_image_replace, resize_image_replace, needs_conversion
-        should_convert, target_extension = should_convert_field(media_field, config)
+        # Convert and/or resize image in a single operation (optimized)
+        from game_utils import should_process_field, convert_and_resize_image_replace
+        should_process, target_extension, target_width, target_height = should_process_field(media_field, config)
         
-        if should_convert and needs_conversion(file_path, target_extension):
-            new_path, status = convert_image_replace(file_path, target_extension)
-            if status == "converted":
-                # Conversion successful, update paths and filename
-                file_path = new_path
+        if should_process:
+            print(f"🔧 DEBUG: Processing uploaded image - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
+            processed_path, process_status = convert_and_resize_image_replace(
+                file_path, target_extension, target_width, target_height
+            )
+            print(f"🔧 DEBUG: Processing result - status: {process_status}")
+            if process_status in ["converted", "resized", "converted_and_resized"]:
+                file_path = processed_path
                 new_filename = os.path.basename(file_path)
-                print(f"✅ Converted uploaded image to {target_extension}: {new_filename}")
-            elif status == "already_target":
-                # File was already in target format, no conversion needed
-                print(f"✅ Uploaded image already {target_extension} format: {new_filename}")
-            else:
-                # Conversion failed
-                print(f"⚠️ Failed to convert uploaded image to {target_extension}, keeping original: {new_filename}")
-        elif should_convert:
-            # Field should be converted but file is already in target format
-            print(f"✅ Uploaded image already {target_extension} format: {new_filename}")
+                print(f"✅ Processed uploaded image: {process_status} - {new_filename}")
+            elif process_status == "failed":
+                print(f"⚠️ Warning: Failed to process uploaded image, keeping original: {os.path.basename(file_path)}")
         else:
-            # No conversion needed for this field
-            print(f"✅ No conversion needed for uploaded field: {media_field}")
-        
-        # Resize image if field has width/height configured
-        should_resize, target_width, target_height = should_resize_field(media_field, config)
-        if should_resize:
-            print(f"🔧 DEBUG: Attempting resize of uploaded image to {target_width}x{target_height}")
-            resized_path, resize_status = resize_image_replace(file_path, target_width, target_height)
-            print(f"🔧 DEBUG: Resize result - status: {resize_status}")
-            if resize_status == "resized":
-                print(f"✅ Resized uploaded image to {target_width}x{target_height}: {os.path.basename(file_path)}")
-            elif resize_status == "failed":
-                print(f"⚠️ Warning: Failed to resize uploaded image, keeping original: {os.path.basename(file_path)}")
-        else:
-            print(f"✅ No resize needed for uploaded field: {media_field}")
+            print(f"✅ No processing needed for uploaded field: {media_field}")
         
         # Update the game object in memory with relative path
         relative_path = f"./media/{media_directory}/{new_filename}"

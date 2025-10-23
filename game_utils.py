@@ -248,6 +248,159 @@ def should_resize_field(field_name: str, config: dict) -> tuple[bool, int, int]:
         print(f"Error checking field resize config: {e}")
         return False, 0, 0
 
+def should_process_field(field_name: str, config: dict) -> tuple[bool, str, int, int]:
+    """
+    Check if a media field should be converted and/or resized based on configuration.
+    
+    Args:
+        field_name: Name of the media field (e.g., 'thumbnail', 'boxart')
+        config: Configuration dictionary containing media_fields
+        
+    Returns:
+        Tuple of (should_process, target_extension, width, height) where:
+        - should_process: True if field needs any processing (convert or resize)
+        - target_extension: Target extension if conversion needed, empty string otherwise
+        - width: Target width (0 if not specified)
+        - height: Target height (0 if not specified)
+    """
+    try:
+        media_fields = config.get('media_fields', {})
+        field_config = media_fields.get(field_name)
+        
+        if not field_config:
+            return False, "", 0, 0
+        
+        target_extension = field_config.get('target_extension', '')
+        width = field_config.get('width', 0)
+        height = field_config.get('height', 0)
+        
+        # Process if either conversion or resize is needed
+        needs_conversion = bool(target_extension)
+        needs_resize = width > 0 or height > 0
+        
+        if needs_conversion or needs_resize:
+            return True, target_extension, width, height
+        
+        return False, "", 0, 0
+        
+    except Exception as e:
+        print(f"Error checking field processing config: {e}")
+        return False, "", 0, 0
+
+def convert_and_resize_image_replace(file_path: str, target_extension: str = None, target_width: int = 0, target_height: int = 0) -> tuple[str, str]:
+    """
+    Convert and/or resize an image file in a single operation and return the new file path and status.
+    The original file is replaced with the processed version.
+    
+    Args:
+        file_path: Path to the image file to process
+        target_extension: Target file extension (e.g., '.png', '.jpg') - None to keep original
+        target_width: Target width (0 to maintain aspect ratio)
+        target_height: Target height (0 to maintain aspect ratio)
+        
+    Returns:
+        Tuple of (new_file_path, status) where status is:
+        - "already_correct": File was already in correct format and size
+        - "converted": File was converted to target format
+        - "resized": File was resized
+        - "converted_and_resized": File was both converted and resized
+        - "failed": Processing failed
+    """
+    try:
+        from PIL import Image
+        import os
+        
+        # Determine if we need to change the file extension
+        current_extension = os.path.splitext(file_path)[1].lower()
+        needs_conversion = target_extension and current_extension != target_extension.lower()
+        
+        # Determine if we need to resize
+        needs_resize = target_width > 0 or target_height > 0
+        
+        # If neither conversion nor resize is needed, return early
+        if not needs_conversion and not needs_resize:
+            return file_path, "already_correct"
+        
+        # Open the image
+        with Image.open(file_path) as img:
+            original_width, original_height = img.size
+            processed_img = img
+            
+            # Resize if needed
+            if needs_resize:
+                # Calculate new dimensions
+                if target_width > 0 and target_height > 0:
+                    # Both width and height specified - resize to exact dimensions
+                    new_width, new_height = target_width, target_height
+                elif target_height > 0:
+                    # Only height specified - maintain aspect ratio
+                    aspect_ratio = original_width / original_height
+                    new_width = int(target_height * aspect_ratio)
+                    new_height = target_height
+                elif target_width > 0:
+                    # Only width specified - maintain aspect ratio
+                    aspect_ratio = original_height / original_width
+                    new_height = int(target_width * aspect_ratio)
+                    new_width = target_width
+                else:
+                    new_width, new_height = original_width, original_height
+                
+                # Check if resize is actually needed
+                if new_width != original_width or new_height != original_height:
+                    processed_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    resize_msg = f"resized from {original_width}x{original_height} to {new_width}x{new_height}"
+                else:
+                    resize_msg = "no resize needed (already correct size)"
+            else:
+                new_width, new_height = original_width, original_height
+                resize_msg = "no resize needed"
+            
+            # Determine the output file path
+            if needs_conversion:
+                # Create new path with target extension
+                base_path = os.path.splitext(file_path)[0]
+                output_path = base_path + target_extension
+            else:
+                # Keep the same path
+                output_path = file_path
+            
+            # Save the processed image
+            if target_extension and target_extension.lower() == '.jpg':
+                # For JPEG, convert to RGB if needed and save with quality settings
+                if processed_img.mode in ('RGBA', 'LA', 'P'):
+                    # Create white background for transparency
+                    rgb_img = Image.new('RGB', processed_img.size, (255, 255, 255))
+                    if processed_img.mode == 'P':
+                        processed_img = processed_img.convert('RGBA')
+                    rgb_img.paste(processed_img, mask=processed_img.split()[-1] if processed_img.mode == 'RGBA' else None)
+                    processed_img = rgb_img
+                processed_img.save(output_path, 'JPEG', quality=95, optimize=True)
+            elif target_extension and target_extension.lower() == '.png':
+                # For PNG, save with optimization
+                processed_img.save(output_path, 'PNG', optimize=True)
+            else:
+                # For other formats or no conversion, save with default settings
+                processed_img.save(output_path, quality=95, optimize=True)
+            
+            # Determine status message
+            if needs_conversion and needs_resize:
+                status = "converted_and_resized"
+                print(f"✅ Converted to {target_extension} and {resize_msg}")
+            elif needs_conversion:
+                status = "converted"
+                print(f"✅ Converted to {target_extension}")
+            elif needs_resize:
+                status = "resized"
+                print(f"✅ {resize_msg.capitalize()}")
+            else:
+                status = "already_correct"
+            
+            return output_path, status
+            
+    except Exception as e:
+        print(f"❌ Error processing image: {e}")
+        return file_path, "failed"
+
 def resize_image_replace(file_path: str, target_width: int = 0, target_height: int = 0) -> tuple[str, str]:
     """
     Resize an image file and return the new file path and status.
@@ -264,47 +417,8 @@ def resize_image_replace(file_path: str, target_width: int = 0, target_height: i
         - "resized": File was successfully resized
         - "failed": Resize failed
     """
-    try:
-        from PIL import Image
-        
-        # Open the image
-        with Image.open(file_path) as img:
-            original_width, original_height = img.size
-            
-            # Calculate new dimensions
-            if target_width > 0 and target_height > 0:
-                # Both width and height specified - resize to exact dimensions
-                new_width, new_height = target_width, target_height
-            elif target_height > 0:
-                # Only height specified - maintain aspect ratio
-                aspect_ratio = original_width / original_height
-                new_width = int(target_height * aspect_ratio)
-                new_height = target_height
-            elif target_width > 0:
-                # Only width specified - maintain aspect ratio
-                aspect_ratio = original_height / original_width
-                new_height = int(target_width * aspect_ratio)
-                new_width = target_width
-            else:
-                # No resize needed
-                return file_path, "already_correct"
-            
-            # Check if resize is actually needed
-            if new_width == original_width and new_height == original_height:
-                return file_path, "already_correct"
-            
-            # Resize the image
-            resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            
-            # Save the resized image (overwrite original)
-            resized_img.save(file_path, quality=95, optimize=True)
-            
-            print(f"✅ Resized image from {original_width}x{original_height} to {new_width}x{new_height}")
-            return file_path, "resized"
-            
-    except Exception as e:
-        print(f"❌ Error resizing image: {e}")
-        return file_path, "failed"
+    # Use the combined function for backward compatibility
+    return convert_and_resize_image_replace(file_path, None, target_width, target_height)
 
 def get_file_extension(file_path: str) -> str:
     """

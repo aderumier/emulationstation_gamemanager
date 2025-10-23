@@ -689,21 +689,21 @@ class SteamService:
                 except Exception as e:
                     config = {}
                 
-                # Convert image if needed
-                should_convert, target_extension = should_convert_field(target_field, config)
-                if should_convert and needs_conversion(file_path, target_extension):
-                    converted_path, status = convert_image_replace(file_path, target_extension)
-                    if converted_path and status in ['success', 'converted']:
-                        file_path = converted_path
+                # Convert and/or resize image in a single operation (optimized)
+                from game_utils import should_process_field, convert_and_resize_image_replace
+                should_process, target_extension, target_width, target_height = should_process_field(target_field, config)
                 
-                # Resize image if needed
-                should_resize, target_width, target_height = should_resize_field(target_field, config)
-                if should_resize:
-                    resized_path, resize_status = resize_image_replace(file_path, target_width, target_height)
-                    if resize_status == "resized":
-                        print(f"✅ Resized Steam {media_type} for {game_name} to {target_width}x{target_height}")
-                    elif resize_status == "failed":
-                        print(f"⚠️ Warning: Failed to resize Steam {media_type} for {game_name}")
+                if should_process:
+                    processed_path, process_status = convert_and_resize_image_replace(
+                        file_path, target_extension, target_width, target_height
+                    )
+                    if process_status in ["converted", "resized", "converted_and_resized"]:
+                        file_path = processed_path
+                        print(f"✅ Processed Steam {media_type} for {game_name}: {process_status}")
+                    elif process_status == "failed":
+                        print(f"⚠️ Warning: Failed to process Steam {media_type} for {game_name}")
+                else:
+                    print(f"✅ No processing needed for Steam {media_type} field: {target_field}")
                 
                 # Store relative path
                 relative_path = os.path.join('.', 'media', media_dir, os.path.basename(file_path))
