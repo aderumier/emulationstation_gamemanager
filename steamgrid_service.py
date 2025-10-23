@@ -525,29 +525,28 @@ class SteamGridService:
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
                 
-                # Convert and resize image if needed using config-based settings
+                # Convert and/or resize image in a single operation (optimized)
                 try:
                     with open('var/config/config.json', 'r') as f:
                         config = json.load(f)
                 except Exception as e:
-                    logger.warning(f"Failed to load config for image conversion: {e}")
+                    logger.warning(f"Failed to load config for image processing: {e}")
                     config = {}
                 
-                # Convert image if needed
-                should_convert, target_extension = should_convert_field(target_field, config)
-                if should_convert and needs_conversion(file_path, target_extension):
-                    new_path, status = convert_image_replace(file_path, target_extension)
-                    if status == "converted":
-                        file_path = new_path
+                from game_utils import should_process_field, convert_and_resize_image_replace
+                should_process, target_extension, target_width, target_height = should_process_field(target_field, config)
                 
-                # Resize image if needed
-                should_resize, target_width, target_height = should_resize_field(target_field, config)
-                if should_resize:
-                    resized_path, resize_status = resize_image_replace(file_path, target_width, target_height)
-                    if resize_status == "resized":
-                        logger.info(f"Resized SteamGrid image to {target_width}x{target_height}")
-                    elif resize_status == "failed":
-                        logger.warning(f"Failed to resize SteamGrid image")
+                if should_process:
+                    processed_path, process_status = convert_and_resize_image_replace(
+                        file_path, target_extension, target_width, target_height
+                    )
+                    if process_status in ["converted", "resized", "converted_and_resized"]:
+                        file_path = processed_path
+                        logger.info(f"Processed SteamGrid image: {process_status}")
+                    elif process_status == "failed":
+                        logger.warning(f"Failed to process SteamGrid image")
+                else:
+                    logger.debug(f"No processing needed for SteamGrid field: {target_field}")
                 
                 return file_path
                 

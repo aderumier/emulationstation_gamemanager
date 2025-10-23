@@ -9253,27 +9253,22 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
             if os.path.exists(local_path):
                 file_size = os.path.getsize(local_path)
                 if file_size > 0:
-                    # Convert image if field has target_extension configured
+                    # Convert and/or resize image in a single operation (optimized)
                     # Use target_field parameter if available, otherwise fall back to media_type
                     field_to_check = target_field if target_field else media_type
-                    from game_utils import should_convert_field, should_resize_field, convert_image_replace, resize_image_replace, needs_conversion
-                    should_convert, target_extension = should_convert_field(field_to_check, config)
+                    from game_utils import should_process_field, convert_and_resize_image_replace
+                    should_process, target_extension, target_width, target_height = should_process_field(field_to_check, config)
                     
-                    if should_convert and needs_conversion(local_path, target_extension):
-                        new_path, status = convert_image_replace(local_path, target_extension)
-                        if status == "converted":
-                            # Conversion successful, update path and filename
-                            local_path = new_path
+                    if should_process:
+                        processed_path, process_status = convert_and_resize_image_replace(
+                            local_path, target_extension, target_width, target_height
+                        )
+                        if process_status in ["converted", "resized", "converted_and_resized"]:
+                            local_path = processed_path
                             filename = os.path.basename(local_path)
-                    
-                    # Resize image if field has width/height configured
-                    should_resize, target_width, target_height = should_resize_field(field_to_check, config)
-                    if should_resize:
-                        resized_path, resize_status = resize_image_replace(local_path, target_width, target_height)
-                        if resize_status == "resized":
-                            print(f"✅ Resized image to {target_width}x{target_height}: {filename}")
-                        elif resize_status == "failed":
-                            print(f"⚠️ Warning: Failed to resize image: {filename}")
+                            print(f"✅ Processed image: {process_status} - {filename}")
+                        elif process_status == "failed":
+                            print(f"⚠️ Warning: Failed to process image: {filename}")
                     
                     return True, f"Downloaded {filename} ({file_size} bytes)"
                 else:
@@ -13635,37 +13630,23 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
             f.write(response.content)
         print(f"🔧 DEBUG: Downloaded media to: {file_path}")
         
-        # Convert media if field has target_extension configured (like other scrapers)
-        from game_utils import convert_image_replace, needs_conversion, should_resize_field, resize_image_replace
-        if should_convert and needs_conversion(file_path, target_extension):
-            print(f"🔧 DEBUG: Attempting conversion from {file_path} to {target_extension}")
-            new_path, status = convert_image_replace(file_path, target_extension)
-            print(f"🔧 DEBUG: Conversion result - status: {status}, new_path: {new_path}")
-            if status == "converted":
-                # Conversion successful, update path and filename
-                file_path = new_path
-                print(f"🔧 DEBUG: Converted to {target_extension}: {os.path.basename(file_path)}")
-            elif status == "already_target":
-                print(f"🔧 DEBUG: Already {target_extension} format: {os.path.basename(file_path)}")
-            else:
-                print(f"🔧 DEBUG: Failed to convert to {target_extension}, keeping original: {os.path.basename(file_path)}")
-        elif should_convert:
-            print(f"🔧 DEBUG: Already {target_extension} format: {os.path.basename(file_path)}")
-        else:
-            print(f"🔧 DEBUG: No conversion needed for field: {media_type}")
+        # Convert and/or resize media in a single operation (optimized)
+        from game_utils import should_process_field, convert_and_resize_image_replace
+        should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
         
-        # Resize media if field has width/height configured
-        should_resize, target_width, target_height = should_resize_field(media_type, config)
-        if should_resize:
-            print(f"🔧 DEBUG: Attempting resize to {target_width}x{target_height}")
-            resized_path, resize_status = resize_image_replace(file_path, target_width, target_height)
-            print(f"🔧 DEBUG: Resize result - status: {resize_status}")
-            if resize_status == "resized":
-                print(f"🔧 DEBUG: Resized to {target_width}x{target_height}: {os.path.basename(file_path)}")
-            elif resize_status == "failed":
-                print(f"🔧 DEBUG: Failed to resize, keeping original: {os.path.basename(file_path)}")
+        if should_process:
+            print(f"🔧 DEBUG: Processing media - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
+            processed_path, process_status = convert_and_resize_image_replace(
+                file_path, target_extension, target_width, target_height
+            )
+            print(f"🔧 DEBUG: Processing result - status: {process_status}")
+            if process_status in ["converted", "resized", "converted_and_resized"]:
+                file_path = processed_path
+                print(f"🔧 DEBUG: Processed media: {process_status} - {os.path.basename(file_path)}")
+            elif process_status == "failed":
+                print(f"🔧 DEBUG: Failed to process media, keeping original: {os.path.basename(file_path)}")
         else:
-            print(f"🔧 DEBUG: No resize needed for field: {media_type}")
+            print(f"🔧 DEBUG: No processing needed for field: {media_type}")
         
         # Update gamelist.xml using existing pattern
         gamelist_path = get_gamelist_path(system_name)
@@ -17768,41 +17749,23 @@ def download_launchbox_media():
         with open(local_path, 'wb') as f:
             f.write(response.content)
         
-        # Convert image if field has target_extension configured
+        # Convert and/or resize image in a single operation (optimized)
         # Check the target field name, not the source field name
-        from game_utils import should_convert_field, should_resize_field, convert_image_replace, resize_image_replace, needs_conversion
-        should_convert, target_extension = should_convert_field(media_type, config)
+        from game_utils import should_process_field, convert_and_resize_image_replace
+        should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
         
-        if should_convert and needs_conversion(local_path, target_extension):
-            new_path, status = convert_image_replace(local_path, target_extension)
-            if status == "converted":
-                # Conversion successful, update paths and filename
-                local_path = new_path
+        if should_process:
+            processed_path, process_status = convert_and_resize_image_replace(
+                local_path, target_extension, target_width, target_height
+            )
+            if process_status in ["converted", "resized", "converted_and_resized"]:
+                local_path = processed_path
                 local_filename = os.path.basename(local_path)
-                print(f"✅ Converted to {target_extension}: {local_filename}")
-            elif status == "already_target":
-                # File was already in target format, no conversion needed
-                print(f"✅ Already {target_extension} format: {local_filename}")
-            else:
-                # Conversion failed
-                print(f"⚠️ Failed to convert to {target_extension}, keeping original: {local_filename}")
-        elif should_convert:
-            # Field should be converted but file is already in target format
-            print(f"✅ Already {target_extension} format: {local_filename}")
+                print(f"✅ Processed image: {process_status} - {local_filename}")
+            elif process_status == "failed":
+                print(f"⚠️ Warning: Failed to process image: {local_filename}")
         else:
-            # No conversion needed for this field
-            print(f"✅ No conversion needed for field: {media_type}")
-        
-        # Resize image if field has width/height configured
-        should_resize, target_width, target_height = should_resize_field(media_type, config)
-        if should_resize:
-            resized_path, resize_status = resize_image_replace(local_path, target_width, target_height)
-            if resize_status == "resized":
-                print(f"✅ Resized image to {target_width}x{target_height}: {local_filename}")
-            elif resize_status == "failed":
-                print(f"⚠️ Warning: Failed to resize image: {local_filename}")
-        else:
-            print(f"✅ No resize needed for field: {media_type}")
+            print(f"✅ No processing needed for field: {media_type}")
         
         # Update gamelist.xml
         media_field = game_element.find(media_type)
@@ -18925,38 +18888,23 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                 if igdb_type_value == image_type:
                     gamelist_field = gamelist_field_key
                     break
-            from game_utils import should_convert_field, should_resize_field, convert_image_replace, resize_image_replace, needs_conversion
-            should_convert, target_extension = should_convert_field(gamelist_field, config)
+            from game_utils import should_process_field, convert_and_resize_image_replace
+            should_process, target_extension, target_width, target_height = should_process_field(gamelist_field, config)
             
-            if should_convert and needs_conversion(temp_file_path, target_extension):
-                new_path, status = convert_image_replace(temp_file_path, target_extension)
-                if status == "converted":
-                    # Update temp_file_path to the converted file
-                    temp_file_path = new_path
+            if should_process:
+                processed_path, process_status = convert_and_resize_image_replace(
+                    temp_file_path, target_extension, target_width, target_height
+                )
+                if process_status in ["converted", "resized", "converted_and_resized"]:
+                    temp_file_path = processed_path
                     filename = os.path.basename(temp_file_path)
-                    print(f"{emoji} DEBUG: ✅ Converted to {target_extension}: {filename}")
-                elif status == "already_target":
+                    print(f"{emoji} DEBUG: ✅ Processed image: {process_status} - {filename}")
+                elif process_status == "failed":
                     filename = os.path.basename(temp_file_path)
-                    print(f"{emoji} DEBUG: ✅ Already {target_extension} format: {filename}")
-                else:
-                    filename = os.path.basename(temp_file_path)
-                    print(f"{emoji} DEBUG: ⚠️ Failed to convert to {target_extension}, keeping original: {filename}")
-            elif should_convert:
+                    print(f"{emoji} DEBUG: ⚠️ Failed to process: {filename}")
+            else:
                 filename = os.path.basename(temp_file_path)
-                print(f"{emoji} DEBUG: ✅ Already {target_extension} format: {filename}")
-            else:
-                print(f"{emoji} DEBUG: ✅ No conversion needed for field: {gamelist_field}")
-            
-            # Resize image if field has width/height configured
-            should_resize, target_width, target_height = should_resize_field(gamelist_field, config)
-            if should_resize:
-                resized_path, resize_status = resize_image_replace(temp_file_path, target_width, target_height)
-                if resize_status == "resized":
-                    print(f"{emoji} DEBUG: ✅ Resized to {target_width}x{target_height}: {filename}")
-                elif resize_status == "failed":
-                    print(f"{emoji} DEBUG: ⚠️ Failed to resize: {filename}")
-            else:
-                print(f"{emoji} DEBUG: ✅ No resize needed for field: {gamelist_field}")
+                print(f"{emoji} DEBUG: ✅ No processing needed for field: {gamelist_field}")
             
             # Determine final filename and path using common function
             final_filename = create_media_filename(rom_filename, file_extension)
