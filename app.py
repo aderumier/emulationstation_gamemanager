@@ -7851,7 +7851,7 @@ def resize_medias_endpoint():
         # Process the task immediately if no other task is running
         if not any(task.get('status') == 'running' for task in task_queue):
             print("DEBUG: No task running, processing next queued task")
-            asyncio.create_task(process_next_queued_task())
+            process_next_queued_task()
         
         return jsonify({
             'success': True,
