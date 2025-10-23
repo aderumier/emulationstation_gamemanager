@@ -3306,8 +3306,13 @@ def download_mobygames_media_from_url(page_url, target_path, is_cancelled_func=N
                         f.write(img_response.content)
                     
                     # Convert to target format using game_utils
-                    from game_utils import convert_image_to_format
-                    success = convert_image_to_format(temp_path, target_path, 'jpg')
+                    from game_utils import convert_and_resize_image_replace
+                    processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                    success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
+                    if success and processed_path != temp_path:
+                        # Move the processed file to the target path
+                        import shutil
+                        shutil.move(processed_path, target_path)
                     
                     # Clean up temp file
                     if os.path.exists(temp_path):
@@ -21710,8 +21715,13 @@ def download_mobygames_media(game_id, mobygames_system_name, media_type, target_
                                     f.write(img_response.content)
                                 
                                 # Convert to target format using game_utils
-                                from game_utils import convert_image_to_format
-                                success = convert_image_to_format(temp_path, target_path, 'jpg')
+                                from game_utils import convert_and_resize_image_replace
+                                processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                                success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
+                                if success and processed_path != temp_path:
+                                    # Move the processed file to the target path
+                                    import shutil
+                                    shutil.move(processed_path, target_path)
                                 
                                 # Clean up temp file
                                 if os.path.exists(temp_path):
@@ -21819,8 +21829,13 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                         f.write(img_response.content)
                                     
                                     # Convert to target format using game_utils
-                                    from game_utils import convert_image_to_format
-                                    success = convert_image_to_format(temp_path, target_path, 'jpg')
+                                    from game_utils import convert_and_resize_image_replace
+                                    processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                                    success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
+                                    if success and processed_path != temp_path:
+                                        # Move the processed file to the target path
+                                        import shutil
+                                        shutil.move(processed_path, target_path)
                                     
                                     # Clean up temp file
                                     if os.path.exists(temp_path):
@@ -21901,8 +21916,13 @@ def download_mobygames_screenshots(game_id, mobygames_system_name, media_type, t
                                     f.write(img_response.content)
                                 
                                 # Convert to target format using game_utils
-                                from game_utils import convert_image_to_format
-                                success = convert_image_to_format(temp_path, target_path, 'jpg')
+                                from game_utils import convert_and_resize_image_replace
+                                processed_path, process_status = convert_and_resize_image_replace(temp_path, '.jpg', 0, 0)
+                                success = process_status in ["converted", "resized", "converted_and_resized", "already_correct"]
+                                if success and processed_path != temp_path:
+                                    # Move the processed file to the target path
+                                    import shutil
+                                    shutil.move(processed_path, target_path)
                                 
                                 # Clean up temp file
                                 if os.path.exists(temp_path):
