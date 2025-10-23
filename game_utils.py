@@ -123,6 +123,10 @@ def should_process_field(field_name: str, config: dict) -> tuple[bool, str, int,
         - height: Target height (0 if not specified)
     """
     try:
+        # Skip image processing for video fields
+        if field_name == 'video':
+            return False, "", 0, 0
+        
         media_fields = config.get('media_fields', {})
         field_config = media_fields.get(field_name)
         

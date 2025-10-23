@@ -1036,24 +1036,30 @@ class ScreenScraperService:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
                     
-                    # Convert and/or resize image in a single operation (optimized)
-                    # Check the target field name by looking up the mapping
-                    local_field = self.get_media_type_mapping(media_type)
-                    from game_utils import should_process_field, convert_and_resize_image_replace
+                    # Check if this is a video file - skip image processing for videos
+                    is_video = content_type.startswith('video/') or media_type == 'video'
                     
-                    should_process, target_extension, target_width, target_height = should_process_field(local_field, self.config)
-                    
-                    if should_process:
-                        processed_path, process_status = convert_and_resize_image_replace(
-                            final_file_path, target_extension, target_width, target_height
-                        )
-                        if process_status in ["converted", "resized", "converted_and_resized"]:
-                            final_file_path = processed_path
-                            print(f"✅ Processed ScreenScraper {media_type}: {process_status} - {os.path.basename(final_file_path)}")
-                        elif process_status == "failed":
-                            print(f"⚠️ Warning: Failed to process ScreenScraper {media_type}: {os.path.basename(final_file_path)}")
+                    if is_video:
+                        print(f"✅ Downloaded video file: {os.path.basename(final_file_path)} (no processing needed for videos)")
                     else:
-                        print(f"✅ No processing needed for ScreenScraper field: {local_field}")
+                        # Convert and/or resize image in a single operation (optimized)
+                        # Check the target field name by looking up the mapping
+                        local_field = self.get_media_type_mapping(media_type)
+                        from game_utils import should_process_field, convert_and_resize_image_replace
+                        
+                        should_process, target_extension, target_width, target_height = should_process_field(local_field, self.config)
+                        
+                        if should_process:
+                            processed_path, process_status = convert_and_resize_image_replace(
+                                final_file_path, target_extension, target_width, target_height
+                            )
+                            if process_status in ["converted", "resized", "converted_and_resized"]:
+                                final_file_path = processed_path
+                                print(f"✅ Processed ScreenScraper {media_type}: {process_status} - {os.path.basename(final_file_path)}")
+                            elif process_status == "failed":
+                                print(f"⚠️ Warning: Failed to process ScreenScraper {media_type}: {os.path.basename(final_file_path)}")
+                        else:
+                            print(f"✅ No processing needed for ScreenScraper field: {local_field}")
                     
                     print(f"Successfully downloaded: {final_file_path}")
                     return True
