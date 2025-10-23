@@ -12024,6 +12024,26 @@ def apply_manual_scrap(system_name):
                     if resp.status_code == 200:
                         with open(target_path, 'wb') as f:
                             f.write(resp.content)
+                        
+                        # Convert and/or resize image in a single operation (optimized)
+                        from game_utils import should_process_field, convert_and_resize_image_replace
+                        should_process, target_extension, target_width, target_height = should_process_field(media_field, config)
+                        
+                        if should_process:
+                            print(f"🔧 DEBUG: Processing manual scrap media - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
+                            processed_path, process_status = convert_and_resize_image_replace(
+                                target_path, target_extension, target_width, target_height
+                            )
+                            print(f"🔧 DEBUG: Processing result - status: {process_status}")
+                            if process_status in ["converted", "resized", "converted_and_resized"]:
+                                target_path = processed_path
+                                target_filename = os.path.basename(target_path)
+                                print(f"🔧 DEBUG: Processed manual scrap media: {process_status} - {target_filename}")
+                            elif process_status == "failed":
+                                print(f"🔧 DEBUG: Failed to process manual scrap media, keeping original: {target_filename}")
+                        else:
+                            print(f"🔧 DEBUG: No processing needed for manual scrap field: {media_field}")
+                        
                         # Update game field with relative path
                         rel_path = f'./media/{directory}/{target_filename}'
                         game[media_field] = rel_path
