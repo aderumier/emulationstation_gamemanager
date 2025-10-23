@@ -8578,7 +8578,10 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         # Convert and/or resize image in a single operation (optimized)
         from game_utils import should_process_field, convert_and_resize_image_replace
+        print(f"🔧 DEBUG: Checking processing for media_type: {media_type}")
+        print(f"🔧 DEBUG: Config media_fields: {config.get('media_fields', {}).get(media_type, 'NOT_FOUND')}")
         should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
+        print(f"🔧 DEBUG: should_process: {should_process}, target_extension: {target_extension}, target_width: {target_width}, target_height: {target_height}")
         
         if should_process:
             print(f"🔧 DEBUG: Processing media - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
