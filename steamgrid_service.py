@@ -12,7 +12,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import logging
-from game_utils import normalize_game_name, convert_image_replace, should_convert_field, needs_conversion
+from game_utils import normalize_game_name, convert_image_replace, should_convert_field, should_resize_field, resize_image_replace, needs_conversion
 
 logger = logging.getLogger(__name__)
 
@@ -525,7 +525,7 @@ class SteamGridService:
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
                 
-                # Convert image if needed using config-based target extension
+                # Convert and resize image if needed using config-based settings
                 try:
                     with open('var/config/config.json', 'r') as f:
                         config = json.load(f)
@@ -533,11 +533,21 @@ class SteamGridService:
                     logger.warning(f"Failed to load config for image conversion: {e}")
                     config = {}
                 
+                # Convert image if needed
                 should_convert, target_extension = should_convert_field(target_field, config)
                 if should_convert and needs_conversion(file_path, target_extension):
                     new_path, status = convert_image_replace(file_path, target_extension)
                     if status == "converted":
                         file_path = new_path
+                
+                # Resize image if needed
+                should_resize, target_width, target_height = should_resize_field(target_field, config)
+                if should_resize:
+                    resized_path, resize_status = resize_image_replace(file_path, target_width, target_height)
+                    if resize_status == "resized":
+                        logger.info(f"Resized SteamGrid image to {target_width}x{target_height}")
+                    elif resize_status == "failed":
+                        logger.warning(f"Failed to resize SteamGrid image")
                 
                 return file_path
                 

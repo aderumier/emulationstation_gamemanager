@@ -214,6 +214,98 @@ def should_convert_field(field_name: str, config: dict) -> tuple[bool, str]:
         print(f"Error checking field conversion config: {e}")
         return False, ""
 
+def should_resize_field(field_name: str, config: dict) -> tuple[bool, int, int]:
+    """
+    Check if a media field should be resized based on configuration.
+    
+    Args:
+        field_name: Name of the media field (e.g., 'thumbnail', 'boxart')
+        config: Configuration dictionary containing media_fields
+        
+    Returns:
+        Tuple of (should_resize, width, height) where:
+        - should_resize: True if field should be resized
+        - width: Target width (0 if not specified)
+        - height: Target height (0 if not specified)
+    """
+    try:
+        media_fields = config.get('media_fields', {})
+        field_config = media_fields.get(field_name)
+        
+        if not field_config:
+            return False, 0, 0
+        
+        width = field_config.get('width', 0)
+        height = field_config.get('height', 0)
+        
+        # Resize if either width or height is specified
+        if width > 0 or height > 0:
+            return True, width, height
+        
+        return False, 0, 0
+        
+    except Exception as e:
+        print(f"Error checking field resize config: {e}")
+        return False, 0, 0
+
+def resize_image_replace(file_path: str, target_width: int = 0, target_height: int = 0) -> tuple[str, str]:
+    """
+    Resize an image file and return the new file path and status.
+    The original file is replaced with the resized version.
+    
+    Args:
+        file_path: Path to the image file to resize
+        target_width: Target width (0 to maintain aspect ratio)
+        target_height: Target height (0 to maintain aspect ratio)
+        
+    Returns:
+        Tuple of (new_file_path, status) where status is:
+        - "already_correct": File was already the correct size
+        - "resized": File was successfully resized
+        - "failed": Resize failed
+    """
+    try:
+        from PIL import Image
+        
+        # Open the image
+        with Image.open(file_path) as img:
+            original_width, original_height = img.size
+            
+            # Calculate new dimensions
+            if target_width > 0 and target_height > 0:
+                # Both width and height specified - resize to exact dimensions
+                new_width, new_height = target_width, target_height
+            elif target_height > 0:
+                # Only height specified - maintain aspect ratio
+                aspect_ratio = original_width / original_height
+                new_width = int(target_height * aspect_ratio)
+                new_height = target_height
+            elif target_width > 0:
+                # Only width specified - maintain aspect ratio
+                aspect_ratio = original_height / original_width
+                new_height = int(target_width * aspect_ratio)
+                new_width = target_width
+            else:
+                # No resize needed
+                return file_path, "already_correct"
+            
+            # Check if resize is actually needed
+            if new_width == original_width and new_height == original_height:
+                return file_path, "already_correct"
+            
+            # Resize the image
+            resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Save the resized image (overwrite original)
+            resized_img.save(file_path, quality=95, optimize=True)
+            
+            print(f"✅ Resized image from {original_width}x{original_height} to {new_width}x{new_height}")
+            return file_path, "resized"
+            
+    except Exception as e:
+        print(f"❌ Error resizing image: {e}")
+        return file_path, "failed"
+
 def get_file_extension(file_path: str) -> str:
     """
     Get the file extension from a file path.

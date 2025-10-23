@@ -13457,6 +13457,18 @@ class GameCollectionManager {
                            placeholder="e.g., .png">
                 </td>
                 <td>
+                    <input type="number" class="form-control form-control-sm" 
+                           data-field="width" data-field-name="${fieldName}" 
+                           value="${fieldConfig.width || ''}" 
+                           placeholder="0" min="0" step="1">
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm" 
+                           data-field="height" data-field-name="${fieldName}" 
+                           value="${fieldConfig.height || ''}" 
+                           placeholder="0" min="0" step="1">
+                </td>
+                <td>
                     <button class="btn btn-sm btn-outline-danger" 
                             data-field-name="${fieldName}" 
                             onclick="gameManager.deleteMediaField('${fieldName}')">
@@ -13496,9 +13508,12 @@ class GameCollectionManager {
         try {
             let processedValue = value;
             
-            // Process extensions field (convert comma-separated string to array)
+            // Process different field types
             if (fieldType === 'extensions') {
                 processedValue = value ? value.split(',').map(ext => ext.trim()).filter(ext => ext) : [];
+            } else if (fieldType === 'width' || fieldType === 'height') {
+                // Convert to integer, use 0 if empty or invalid
+                processedValue = value ? parseInt(value, 10) || 0 : 0;
             }
             
             const response = await fetch('/api/media-fields', {

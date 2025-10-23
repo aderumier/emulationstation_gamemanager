@@ -4941,6 +4941,8 @@ def manage_media_fields():
             directory = data.get('directory', '')
             extensions = data.get('extensions', [])
             target_extension = data.get('target_extension', '')
+            width = data.get('width', 0)
+            height = data.get('height', 0)
             
             # Validate field name (lowercase, no spaces)
             if not field_name.islower() or ' ' in field_name:
@@ -4957,7 +4959,9 @@ def manage_media_fields():
             config['media_fields'][field_name] = {
                 'directory': directory,
                 'extensions': extensions,
-                'target_extension': target_extension
+                'target_extension': target_extension,
+                'width': int(width) if width else 0,
+                'height': int(height) if height else 0
             }
             
             # Save to file
@@ -4984,6 +4988,9 @@ def manage_media_fields():
                 config['media_fields'][field_name][field_type] = value
             elif field_type == 'extensions':
                 config['media_fields'][field_name][field_type] = value if isinstance(value, list) else []
+            elif field_type in ['width', 'height']:
+                # Ensure width and height are integers
+                config['media_fields'][field_name][field_type] = int(value) if value else 0
             else:
                 return jsonify({'error': 'Invalid field type'}), 400
             
@@ -13625,7 +13632,7 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
         print(f"🔧 DEBUG: Downloaded media to: {file_path}")
         
         # Convert media if field has target_extension configured (like other scrapers)
-        from game_utils import convert_image_replace, needs_conversion
+        from game_utils import convert_image_replace, needs_conversion, should_resize_field, resize_image_replace
         if should_convert and needs_conversion(file_path, target_extension):
             print(f"🔧 DEBUG: Attempting conversion from {file_path} to {target_extension}")
             new_path, status = convert_image_replace(file_path, target_extension)
@@ -13642,6 +13649,19 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
             print(f"🔧 DEBUG: Already {target_extension} format: {os.path.basename(file_path)}")
         else:
             print(f"🔧 DEBUG: No conversion needed for field: {media_type}")
+        
+        # Resize media if field has width/height configured
+        should_resize, target_width, target_height = should_resize_field(media_type, config)
+        if should_resize:
+            print(f"🔧 DEBUG: Attempting resize to {target_width}x{target_height}")
+            resized_path, resize_status = resize_image_replace(file_path, target_width, target_height)
+            print(f"🔧 DEBUG: Resize result - status: {resize_status}")
+            if resize_status == "resized":
+                print(f"🔧 DEBUG: Resized to {target_width}x{target_height}: {os.path.basename(file_path)}")
+            elif resize_status == "failed":
+                print(f"🔧 DEBUG: Failed to resize, keeping original: {os.path.basename(file_path)}")
+        else:
+            print(f"🔧 DEBUG: No resize needed for field: {media_type}")
         
         # Update gamelist.xml using existing pattern
         gamelist_path = get_gamelist_path(system_name)

@@ -679,22 +679,31 @@ class SteamService:
                     f.write(response.content)
                 
                 # Convert image if needed using config-based target extension
-                from game_utils import should_convert_field
+                from game_utils import should_convert_field, should_resize_field, resize_image_replace
                 import json
                 
-                # Load config to get target_extension for this field
+                # Load config to get target_extension and resize settings for this field
                 try:
                     with open('var/config/config.json', 'r') as f:
                         config = json.load(f)
                 except Exception as e:
                     config = {}
                 
+                # Convert image if needed
                 should_convert, target_extension = should_convert_field(target_field, config)
-                
                 if should_convert and needs_conversion(file_path, target_extension):
                     converted_path, status = convert_image_replace(file_path, target_extension)
                     if converted_path and status in ['success', 'converted']:
                         file_path = converted_path
+                
+                # Resize image if needed
+                should_resize, target_width, target_height = should_resize_field(target_field, config)
+                if should_resize:
+                    resized_path, resize_status = resize_image_replace(file_path, target_width, target_height)
+                    if resize_status == "resized":
+                        print(f"✅ Resized Steam {media_type} for {game_name} to {target_width}x{target_height}")
+                    elif resize_status == "failed":
+                        print(f"⚠️ Warning: Failed to resize Steam {media_type} for {game_name}")
                 
                 # Store relative path
                 relative_path = os.path.join('.', 'media', media_dir, os.path.basename(file_path))

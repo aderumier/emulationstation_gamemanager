@@ -1036,12 +1036,13 @@ class ScreenScraperService:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
                     
-                    # Convert image if field has target_extension configured
+                    # Convert and resize image if configured
                     # Check the target field name by looking up the mapping
                     local_field = self.get_media_type_mapping(media_type)
-                    from game_utils import should_convert_field, convert_image_replace, needs_conversion
-                    should_convert, target_extension = should_convert_field(local_field, self.config)
+                    from game_utils import should_convert_field, should_resize_field, convert_image_replace, resize_image_replace, needs_conversion
                     
+                    # Convert image if needed
+                    should_convert, target_extension = should_convert_field(local_field, self.config)
                     if should_convert and needs_conversion(final_file_path, target_extension):
                         new_path, status = convert_image_replace(final_file_path, target_extension)
                         if status == "converted":
@@ -1057,6 +1058,15 @@ class ScreenScraperService:
                     elif should_convert:
                         # Field should be converted but file is already in target format
                         print(f"✅ Already {target_extension} format: {os.path.basename(final_file_path)}")
+                    
+                    # Resize image if needed
+                    should_resize, target_width, target_height = should_resize_field(local_field, self.config)
+                    if should_resize:
+                        resized_path, resize_status = resize_image_replace(final_file_path, target_width, target_height)
+                        if resize_status == "resized":
+                            print(f"✅ Resized ScreenScraper {media_type} to {target_width}x{target_height}: {os.path.basename(final_file_path)}")
+                        elif resize_status == "failed":
+                            print(f"⚠️ Warning: Failed to resize ScreenScraper {media_type}: {os.path.basename(final_file_path)}")
                     else:
                         # No conversion needed for this field
                         print(f"✅ No conversion needed for field: {local_field}")
