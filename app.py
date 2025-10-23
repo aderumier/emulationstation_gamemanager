@@ -2681,7 +2681,7 @@ def run_resize_medias_task(system_name, media_field, task_id):
             'details': details
         }
         
-        task.complete(True, f"Processed {total_games} media files: {converted_count} converted, {resized_count} resized, {skipped_count} skipped, {failed_count} failed", results)
+        task.complete(True, f"Processed {total_games} media files: {converted_count} converted, {resized_count} resized, {skipped_count} skipped, {failed_count} failed")
         
     except Exception as e:
         if task_id and task_id in tasks:

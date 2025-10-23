@@ -12315,10 +12315,6 @@ class GameCollectionManager {
     }
 
     resetResizeMediasUI() {
-        // Hide progress and results
-        document.getElementById('resizeMediasProgress').style.display = 'none';
-        document.getElementById('resizeMediasResults').style.display = 'none';
-        
         // Reset media field selection
         const mediaFieldSelect = document.getElementById('resizeMediaFieldSelect');
         if (mediaFieldSelect) {
@@ -12338,9 +12334,7 @@ class GameCollectionManager {
         }
 
         try {
-            // Show progress
-            document.getElementById('resizeMediasProgress').style.display = 'block';
-            document.getElementById('resizeMediasResults').style.display = 'none';
+            // Disable button to prevent multiple submissions
             document.getElementById('startResizeMediasBtn').disabled = true;
 
             // Start the resize task
@@ -12360,8 +12354,11 @@ class GameCollectionManager {
             if (data.success) {
                 this.showAlert('Resize task started successfully', 'success');
                 
-                // Start monitoring the task
-                this.monitorResizeTask(data.task_id);
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('resizeMediasModal'));
+                if (modal) {
+                    modal.hide();
+                }
             } else {
                 this.showAlert(data.error || 'Error starting resize task', 'danger');
                 this.resetResizeMediasUI();
@@ -12373,100 +12370,6 @@ class GameCollectionManager {
         }
     }
 
-    async monitorResizeTask(taskId) {
-        const progressBar = document.querySelector('#resizeMediasProgress .progress-bar');
-        const statusText = document.getElementById('resizeMediasStatus');
-        const resultsDiv = document.getElementById('resizeMediasResults');
-        const resultsContent = document.getElementById('resizeMediasResultsContent');
-        
-        const checkStatus = async () => {
-            try {
-                const response = await fetch(`/api/tasks/${taskId}`);
-                const data = await response.json();
-                
-                if (data.status === 'completed') {
-                    // Task completed
-                    progressBar.style.width = '100%';
-                    statusText.textContent = 'Processing complete!';
-                    
-                    // Show results
-                    this.showResizeResults(data.results);
-                    resultsDiv.style.display = 'block';
-                    
-                    // Reset button
-                    document.getElementById('startResizeMediasBtn').disabled = false;
-                    
-                } else if (data.status === 'failed') {
-                    // Task failed
-                    this.showAlert('Resize task failed', 'danger');
-                    this.resetResizeMediasUI();
-                    
-                } else if (data.status === 'running') {
-                    // Task still running
-                    const progress = data.progress || 0;
-                    progressBar.style.width = `${progress}%`;
-                    statusText.textContent = data.message || 'Processing...';
-                    
-                    // Continue monitoring
-                    setTimeout(checkStatus, 1000);
-                }
-            } catch (error) {
-                console.error('Error monitoring resize task:', error);
-                this.showAlert('Error monitoring task', 'danger');
-                this.resetResizeMediasUI();
-            }
-        };
-        
-        checkStatus();
-    }
-
-    showResizeResults(results) {
-        const resultsContent = document.getElementById('resizeMediasResultsContent');
-        
-        let html = `
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-success">${results.converted_count || 0}</h4>
-                        <small class="text-muted">Converted</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-info">${results.resized_count || 0}</h4>
-                        <small class="text-muted">Resized</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-warning">${results.skipped_count || 0}</h4>
-                        <small class="text-muted">Skipped</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-danger">${results.failed_count || 0}</h4>
-                        <small class="text-muted">Failed</small>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        if (results.details && results.details.length > 0) {
-            html += '<div class="mt-3"><h6>Details:</h6><ul class="list-group">';
-            results.details.forEach(detail => {
-                html += `
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>${detail.game_name} - ${detail.filename}</span>
-                        <span class="badge bg-${detail.status === 'success' ? 'success' : 'danger'}">${detail.status}</span>
-                    </li>
-                `;
-            });
-            html += '</ul></div>';
-        }
-        
-        resultsContent.innerHTML = html;
-    }
     
     showSystemsModalLoadingState() {
         const modalBody = document.querySelector('#systemsConfigurationModal .modal-body');
