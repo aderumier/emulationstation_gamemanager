@@ -8576,6 +8576,25 @@ def download_and_save_media(media_url, game, media_type, system_name):
             f.write(response.content)
         print(f"🔧 DEBUG: File saved to {target_path}")
         
+        # Convert and/or resize image in a single operation (optimized)
+        from game_utils import should_process_field, convert_and_resize_image_replace
+        should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
+        
+        if should_process:
+            print(f"🔧 DEBUG: Processing media - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
+            processed_path, process_status = convert_and_resize_image_replace(
+                target_path, target_extension, target_width, target_height
+            )
+            print(f"🔧 DEBUG: Processing result - status: {process_status}")
+            if process_status in ["converted", "resized", "converted_and_resized"]:
+                target_path = processed_path
+                media_filename = os.path.basename(target_path)
+                print(f"🔧 DEBUG: Processed media: {process_status} - {media_filename}")
+            elif process_status == "failed":
+                print(f"🔧 DEBUG: Failed to process media, keeping original: {media_filename}")
+        else:
+            print(f"🔧 DEBUG: No processing needed for field: {media_type}")
+        
         # Update game data
         relative_path = os.path.join('.', target_dir, media_filename)
         game[media_type] = relative_path
