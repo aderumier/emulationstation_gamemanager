@@ -2658,8 +2658,16 @@ def run_resize_medias_task(system_name, media_field, task_id):
                         continue
                         
                 except Exception as e:
-                    # If we can't read image dimensions, proceed with processing
-                    task.log_message(f"⚠️ Could not read image dimensions for {os.path.basename(full_media_path)}, proceeding with processing")
+                    # If we can't read image dimensions, skip the file
+                    task.log_message(f"⏭️ Skipped {os.path.basename(full_media_path)}: Could not read image dimensions - {e}")
+                    skipped_count += 1
+                    details.append({
+                        'game_name': game.get('name', 'Unknown'),
+                        'filename': os.path.basename(full_media_path),
+                        'status': 'skipped',
+                        'reason': f'Could not read image dimensions: {e}'
+                    })
+                    continue
                 
                 # Process the image
                 processed_path, process_status = convert_and_resize_image_replace(
