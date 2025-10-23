@@ -2683,11 +2683,6 @@ def run_resize_medias_task(system_name, media_field, task_id):
                     full_media_path, target_extension, target_width, target_height
                 )
                 
-                # Debug logging for file paths
-                task.log_message(f"🔧 DEBUG: Original: {full_media_path}")
-                task.log_message(f"🔧 DEBUG: Processed: {processed_path}")
-                task.log_message(f"🔧 DEBUG: Paths different: {processed_path != full_media_path}")
-                
                 if process_status in ["converted", "resized", "converted_and_resized"]:
                     # Get new image dimensions for logging
                     try:
