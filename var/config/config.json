@@ -52,7 +52,8 @@
                 ".png",
                 ".jpg",
                 ".jpeg"
-            ]
+            ],
+            "target_extension": ""
         },
         "cartridge": {
             "directory": "cartridges",
@@ -68,7 +69,8 @@
                 ".png",
                 ".jpg",
                 ".jpeg"
-            ]
+            ],
+            "target_extension": ".png"
         },
         "titleshot": {
             "directory": "titles",

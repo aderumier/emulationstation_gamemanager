@@ -8917,6 +8917,9 @@ class GameCollectionManager {
                                 <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-image"></i>
                                 </button>
+                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-google"></i>
+                                </button>
                                 ` : ''}
                                 ${field === 'marquee' ? `
                                 <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
@@ -8948,6 +8951,9 @@ class GameCollectionManager {
                                 ${field === 'fanart' ? `
                                 <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-image"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-google"></i>
                                 </button>
                                 ` : ''}
                                 ${field === 'marquee' ? `
@@ -9039,6 +9045,9 @@ class GameCollectionManager {
                             <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-image"></i>
                             </button>
+                            <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-google"></i>
+                            </button>
                             ` : ''}
                             ${field === 'marquee' ? `
                             <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
@@ -9099,9 +9108,19 @@ class GameCollectionManager {
             </div>
             <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                 <small class="text-center flex-grow-1" style="color: #dc3545; font-weight: bold;">${field} (Missing)</small>
-                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px; margin-left: 5px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                    <i class="bi bi-download"></i>
-                </button>
+                <div class="d-flex gap-1">
+                    ${field === 'fanart' ? `
+                    <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                        <i class="bi bi-image"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-google"></i>
+                    </button>
+                    ` : ''}
+                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
             </div>
         `;
         
@@ -19509,6 +19528,150 @@ class GameCollectionManager {
         }
     }
 
+    // Google Images Search Functions
+    async openGoogleImagesSearchModal(game, mediaType = 'fanart') {
+        const modal = new bootstrap.Modal(document.getElementById('googleImagesSearchModal'));
+        
+        // Pre-fill the game name
+        document.getElementById('googleImagesGameName').value = game.name || '';
+        
+        // Set the current system and media type for the search
+        this.currentGoogleImagesSearchGame = game;
+        this.currentGoogleImagesSearchSystem = this.currentSystem;
+        this.currentGoogleImagesSearchMediaType = mediaType;
+        
+        // Show the modal
+        modal.show();
+    }
+
+
+    async downloadGoogleImage(imageUrl, imageTitle) {
+        if (!this.currentGoogleImagesSearchGame || !this.currentGoogleImagesSearchSystem) {
+            this.showAlert('No game selected for download', 'error');
+            return;
+        }
+
+        try {
+            this.showAlert('Getting full-size image and downloading...', 'info');
+            
+            const response = await fetch('/api/download-media-from-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image_url: imageUrl,
+                    game_name: this.currentGoogleImagesSearchGame.name,
+                    system_name: this.currentGoogleImagesSearchSystem,
+                    media_type: this.currentGoogleImagesSearchMediaType || 'fanart'
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Full-size image downloaded successfully!', 'success');
+                
+                // Refresh the game grid to reflect gamelist changes
+                this.refreshGameGrid();
+                
+                // Refresh the media preview to show the new image
+                this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('googleImagesSearchModal'));
+                if (modal) {
+                    modal.hide();
+                }
+            } else {
+                this.showAlert(`Error downloading image: ${data.error}`, 'error');
+            }
+            
+        } catch (error) {
+            console.error('Error downloading Google image:', error);
+            this.showAlert('Error downloading image', 'error');
+        }
+    }
+
+    openGoogleImagesInNewTab() {
+        const gameName = document.getElementById('googleImagesGameName').value.trim();
+        
+        if (!gameName) {
+            this.showAlert('Please enter a game name', 'warning');
+            return;
+        }
+
+        // Build Google Images search URL
+        const searchQuery = encodeURIComponent(gameName);
+        const searchUrl = `https://www.google.com/search?q=${searchQuery}&tbm=isch`;
+        
+        window.open(searchUrl, '_blank');
+    }
+
+    async downloadDirectImageUrl() {
+        const imageUrl = document.getElementById('googleImagesDirectUrl').value.trim();
+        
+        if (!imageUrl) {
+            this.showAlert('Please enter an image URL', 'error');
+            return;
+        }
+        
+        // Basic URL validation
+        if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://') && !imageUrl.startsWith('data:image/')) {
+            this.showAlert('Please enter a valid image URL (http://, https://, or data:image/)', 'error');
+            return;
+        }
+        
+        if (!this.currentGoogleImagesSearchGame || !this.currentGoogleImagesSearchSystem) {
+            this.showAlert('No game selected for download', 'error');
+            return;
+        }
+
+        try {
+            this.showAlert('Downloading image from URL...', 'info');
+            
+            const response = await fetch('/api/download-media-from-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image_url: imageUrl,
+                    game_name: this.currentGoogleImagesSearchGame.name,
+                    system_name: this.currentGoogleImagesSearchSystem,
+                    media_type: this.currentGoogleImagesSearchMediaType || 'fanart'
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Image downloaded successfully!', 'success');
+                
+                // Clear the URL field
+                document.getElementById('googleImagesDirectUrl').value = '';
+                
+                // Refresh the game grid to reflect gamelist changes
+                this.refreshGameGrid();
+                
+                // Refresh the media preview to show the new image
+                this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('googleImagesSearchModal'));
+                if (modal) {
+                    modal.hide();
+                }
+            } else {
+                this.showAlert(`Error downloading image: ${data.error}`, 'error');
+            }
+            
+        } catch (error) {
+            console.error('Error downloading image from URL:', error);
+            this.showAlert('Error downloading image', 'error');
+        }
+    }
+
     // Marquee Search Functions
     async openMarqueeSearchModal(game) {
         const modal = new bootstrap.Modal(document.getElementById('marqueeSearchModal'));
@@ -19828,6 +19991,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+});
+
+// Google Images Search Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Marquee Search Event Listeners

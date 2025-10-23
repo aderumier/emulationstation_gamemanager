@@ -6906,9 +6906,11 @@ def write_gamelist_xml(games, file_path):
                 field_elem = ET.SubElement(game_elem, field)
                 field_elem.text = str(value) if value else ''
                 
-                # Debug logging for launchboxid
+                # Debug logging for launchboxid and fanart
                 if field == 'launchboxid':
                     print(f"🔧 DEBUG: Writing launchboxid field: '{value}' (type: {type(value)}) as text: '{str(value)}'")
+                if field == 'fanart':
+                    print(f"🔧 DEBUG: Writing fanart field: '{value}' (type: {type(value)}) as text: '{str(value)}'")
         
         # Write to file with formatting
         tree = ET.ElementTree(root)
@@ -13494,6 +13496,211 @@ def youtube_search():
         print(f"YouTube search error: {e}")
         return jsonify({'error': str(e)}), 500
 
+def download_media_from_url(media_url, game_name, system_name, media_type='fanart'):
+    """Download media from URL and save it to the appropriate media directory"""
+    import requests
+    import os
+    from urllib.parse import urlparse
+    global ROMS_FOLDER
+    
+    try:
+        print(f"🔧 DEBUG: Downloading media from URL: {media_url[:50]}...")
+        
+        # Validate URL
+        if not media_url.startswith('http'):
+            return {'success': False, 'error': f'Invalid URL: {media_url[:50]}...'}
+        
+        # Get media directory from config.json media_fields mapping
+        config = load_config()
+        media_fields = config.get('media_fields', {})
+        
+        # Get the system path
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        
+        if media_type in media_fields:
+            media_subdirectory = media_fields[media_type].get('directory', media_type)
+            media_directory = os.path.join(system_path, 'media', media_subdirectory)
+        else:
+            media_directory = os.path.join(system_path, 'media', media_type)
+        
+        # Create media directory if it doesn't exist
+        os.makedirs(media_directory, exist_ok=True)
+        print(f"🔧 DEBUG: Created media directory: {media_directory}")
+        
+        # Get ROM filename without extension and use target extension
+        gamelist_path = get_gamelist_path(system_name)
+        rom_filename_without_extension = None
+        if os.path.exists(gamelist_path):
+            games = parse_gamelist_xml(gamelist_path)
+            for game in games:
+                if game.get('name') == game_name:
+                    rom_path = game.get('path', '')
+                    if rom_path:
+                        rom_filename_without_extension = os.path.splitext(os.path.basename(rom_path))[0]
+                    break
+        
+        # Get target extension from media config
+        from game_utils import should_convert_field
+        should_convert, target_extension = should_convert_field(media_type, config)
+        
+        # Set headers to mimic a real browser
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': 'https://www.google.com/',
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+        
+        # Download the media
+        print(f"🔧 DEBUG: Downloading media from: {media_url[:100]}...")
+        response = requests.get(media_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        # Determine file extension from content type or URL
+        content_type = response.headers.get('content-type', '').lower()
+        if 'jpeg' in content_type or 'jpg' in content_type:
+            file_extension = '.jpg'
+        elif 'png' in content_type:
+            file_extension = '.png'
+        elif 'webp' in content_type:
+            file_extension = '.webp'
+        elif 'gif' in content_type:
+            file_extension = '.gif'
+        else:
+            # Fallback: try to get extension from URL
+            parsed_url = urlparse(media_url)
+            url_path = parsed_url.path.lower()
+            if url_path.endswith(('.jpg', '.jpeg')):
+                file_extension = '.jpg'
+            elif url_path.endswith('.png'):
+                file_extension = '.png'
+            elif url_path.endswith('.webp'):
+                file_extension = '.webp'
+            elif url_path.endswith('.gif'):
+                file_extension = '.gif'
+            else:
+                file_extension = '.jpg'  # Default fallback
+        
+        # Create filename: <romfilename_without_extension>.<extension>
+        if rom_filename_without_extension:
+            media_filename = f"{rom_filename_without_extension}{file_extension}"
+        else:
+            # Fallback: use game name if ROM path not found
+            safe_game_name = "".join(c for c in game_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            media_filename = f"{safe_game_name}{file_extension}"
+        
+        print(f"🔧 DEBUG: Generated media filename: {media_filename}")
+        
+        file_path = os.path.join(media_directory, media_filename)
+        
+        # Remove existing file if it exists (overwrite instead of creating _1 suffix)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                print(f"🔧 DEBUG: Removed existing file: {media_filename}")
+            except Exception as e:
+                print(f"🔧 DEBUG: Warning: Could not remove existing file {file_path}: {e}")
+        
+        # Save the downloaded media
+        with open(file_path, 'wb') as f:
+            f.write(response.content)
+        print(f"🔧 DEBUG: Downloaded media to: {file_path}")
+        
+        # Convert media if field has target_extension configured (like other scrapers)
+        from game_utils import convert_image_replace, needs_conversion
+        if should_convert and needs_conversion(file_path, target_extension):
+            print(f"🔧 DEBUG: Attempting conversion from {file_path} to {target_extension}")
+            new_path, status = convert_image_replace(file_path, target_extension)
+            print(f"🔧 DEBUG: Conversion result - status: {status}, new_path: {new_path}")
+            if status == "converted":
+                # Conversion successful, update path and filename
+                file_path = new_path
+                print(f"🔧 DEBUG: Converted to {target_extension}: {os.path.basename(file_path)}")
+            elif status == "already_target":
+                print(f"🔧 DEBUG: Already {target_extension} format: {os.path.basename(file_path)}")
+            else:
+                print(f"🔧 DEBUG: Failed to convert to {target_extension}, keeping original: {os.path.basename(file_path)}")
+        elif should_convert:
+            print(f"🔧 DEBUG: Already {target_extension} format: {os.path.basename(file_path)}")
+        else:
+            print(f"🔧 DEBUG: No conversion needed for field: {media_type}")
+        
+        # Update gamelist.xml using existing pattern
+        gamelist_path = get_gamelist_path(system_name)
+        if os.path.exists(gamelist_path):
+            games = parse_gamelist_xml(gamelist_path)
+            game = next((g for g in games if g.get('name') == game_name), None)
+            if game:
+                # Update game object in memory (same pattern as other scrapers)
+                media_subdirectory = media_fields[media_type].get('directory', media_type) if media_type in media_fields else media_type
+                relative_path = f"./media/{media_subdirectory}/{os.path.basename(file_path)}"
+                game[media_type] = relative_path
+                
+                # Write gamelist back
+                write_gamelist_xml(games, gamelist_path)
+                
+                # Notify clients (same pattern as other scrapers)
+                notify_game_updated(system_name, game.get('path', ''), [media_type])
+        
+        return {
+            'success': True,
+            'file_path': file_path,
+            'filename': os.path.basename(file_path),
+            'gamelist_updated': True
+        }
+        
+    except requests.exceptions.RequestException as e:
+        print(f"🔧 DEBUG: Request error downloading media: {e}")
+        return {'success': False, 'error': f'Failed to download media: {str(e)}'}
+    except Exception as e:
+        print(f"🔧 DEBUG: Error downloading media: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': f'Error downloading media: {str(e)}'}
+
+@app.route('/api/download-media-from-url', methods=['POST'])
+@login_required
+def download_media_from_url_endpoint():
+    """Download media from any URL"""
+    try:
+        data = request.get_json()
+        image_url = data.get('image_url', '').strip()
+        game_name = data.get('game_name', '').strip()
+        system_name = data.get('system_name', '').strip()
+        media_type = data.get('media_type', 'fanart')
+        
+        if not image_url or not game_name or not system_name:
+            return jsonify({'error': 'Image URL, game name, and system name are required'}), 400
+        
+        print(f"🔧 DEBUG: Downloading Google Image: {image_url[:50]}...")
+        
+        # Download the media
+        result = download_media_from_url(image_url, game_name, system_name, media_type)
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': f'Successfully downloaded: {result.get("filename")}',
+                'file_path': result.get('file_path'),
+                'filename': result.get('filename'),
+                'gamelist_updated': result.get('gamelist_updated')
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Download failed')
+            }), 500
+        
+    except Exception as e:
+        print(f"🔧 DEBUG: Google Images download error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 def get_youtube_api_key():
     """Get YouTube API key from credentials"""
     try:
@@ -15438,7 +15645,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         temp_filename = f"temp_{rom_name}"
         task.update_progress(f"  🎮 Using ROM name for temp file: {temp_filename}")
         
-        output_template = os.path.join(temp_videos_dir, temp_filename.replace('.mp4', '.%(ext)s'))
+        output_template = os.path.join(temp_videos_dir, f"{temp_filename}.%(ext)s")
         
         # Calculate end time for the 30-second section
         end_time = start_time + 30
@@ -15983,7 +16190,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         
         # Find the downloaded file - look for the specific temp file we created
         # Check for various formats that yt-dlp might download
-        possible_formats = ['.mp4', '.mkv', '.webm', '.avi', '.mov']
+        possible_formats = ['.mp4', '.mkv', '.webm', '.avi', '.mov', '']  # Add empty string for no extension
         temp_file = None
         temp_path = None
         
