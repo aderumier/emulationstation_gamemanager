@@ -19595,6 +19595,7 @@ class GameCollectionManager {
 
     openGoogleImagesInNewTab() {
         const gameName = document.getElementById('googleImagesGameName').value.trim();
+        const aspectRatio = document.getElementById('googleImagesAspectRatio').value;
         
         if (!gameName) {
             this.showAlert('Please enter a game name', 'warning');
@@ -19603,7 +19604,29 @@ class GameCollectionManager {
 
         // Build Google Images search URL
         const searchQuery = encodeURIComponent(gameName);
-        const searchUrl = `https://www.google.com/search?q=${searchQuery}&tbm=isch`;
+        let searchUrl = `https://www.google.com/search?q=${searchQuery}&tbm=isch`;
+        
+        // Add aspect ratio filter if selected
+        if (aspectRatio) {
+            let filterParam = '';
+            switch (aspectRatio) {
+                case 'panoramic':
+                    filterParam = 'xw';
+                    break;
+                case 'wide':
+                    filterParam = 'w';
+                    break;
+                case 'portrait':
+                    filterParam = 'h';
+                    break;
+                case 'square':
+                    filterParam = 's';
+                    break;
+            }
+            if (filterParam) {
+                searchUrl += `&imgar=${filterParam}`;
+            }
+        }
         
         window.open(searchUrl, '_blank');
     }
