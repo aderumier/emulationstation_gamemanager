@@ -13973,6 +13973,17 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
             f.write(response.content)
         print(f"🔧 DEBUG: Downloaded media to: {file_path}")
         
+        # Validate the downloaded file is a valid image before processing
+        try:
+            from PIL import Image
+            with Image.open(file_path) as img:
+                # Try to load the image to validate it's not corrupted
+                img.verify()
+            print(f"🔧 DEBUG: Downloaded file is a valid image: {os.path.basename(file_path)}")
+        except Exception as e:
+            print(f"❌ Error: Downloaded file is not a valid image: {e}")
+            return {'success': False, 'error': f'Downloaded file is not a valid image: {str(e)}'}
+        
         # Convert and/or resize media in a single operation (optimized)
         from game_utils import should_process_field, convert_and_resize_image_replace
         should_process, target_extension, target_width, target_height = should_process_field(media_type, config)

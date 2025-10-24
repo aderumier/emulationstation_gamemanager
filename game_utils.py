@@ -269,7 +269,13 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
             return output_path, status
             
     except Exception as e:
-        print(f"❌ Error processing image: {e}")
+        error_msg = str(e)
+        if "cannot identify image file" in error_msg:
+            print(f"❌ Error processing image: Downloaded file is not a valid image format")
+        elif "No such file or directory" in error_msg:
+            print(f"❌ Error processing image: File not found: {file_path}")
+        else:
+            print(f"❌ Error processing image: {error_msg}")
         return file_path, "failed"
 
 def resize_image_replace(file_path: str, target_width: int = 0, target_height: int = 0) -> tuple[str, str]:
