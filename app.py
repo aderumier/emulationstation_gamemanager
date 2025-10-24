@@ -14006,18 +14006,28 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
         gamelist_path = get_gamelist_path(system_name)
         if os.path.exists(gamelist_path):
             games = parse_gamelist_xml(gamelist_path)
+            print(f"🔧 DEBUG: Looking for game: '{game_name}' in {len(games)} games")
             game = next((g for g in games if g.get('name') == game_name), None)
             if game:
+                print(f"🔧 DEBUG: Found game: {game.get('name')}")
                 # Update game object in memory (same pattern as other scrapers)
                 media_subdirectory = media_fields[media_type].get('directory', media_type) if media_type in media_fields else media_type
                 relative_path = f"./media/{media_subdirectory}/{os.path.basename(file_path)}"
                 game[media_type] = relative_path
+                print(f"🔧 DEBUG: Updated game[{media_type}] = {relative_path}")
                 
                 # Write gamelist back
                 write_gamelist_xml(games, gamelist_path)
+                print(f"🔧 DEBUG: Wrote gamelist.xml")
                 
                 # Notify clients (same pattern as other scrapers)
                 notify_game_updated(system_name, game.get('path', ''), [media_type])
+                print(f"🔧 DEBUG: Notified clients of update")
+            else:
+                print(f"🔧 DEBUG: Game '{game_name}' not found in gamelist")
+                # List some game names for debugging
+                game_names = [g.get('name', 'Unknown') for g in games[:5]]
+                print(f"🔧 DEBUG: Available games (first 5): {game_names}")
         
         return {
             'success': True,
