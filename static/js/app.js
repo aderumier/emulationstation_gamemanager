@@ -5518,28 +5518,31 @@ class GameCollectionManager {
             const modal = bootstrap.Modal.getInstance(document.getElementById('manualScrapModal'));
             modal && modal.hide();
             
-            // Ensure game edit modal is reopened with updated data
-            setTimeout(() => {
-            if (this.editingGamePath) {
-                    const updatedGame = this.games.find(g => g.path === this.editingGamePath);
-                    if (updatedGame) {
-                        console.log('Repopulating edit modal with game:', updatedGame);
-                        // Always repopulate the edit modal with fresh data
-                        this.populateEditModal(updatedGame);
-                        
-                        // Show the edit modal if it's not already visible
-                        const editModal = document.getElementById('editGameModal');
-                        if (editModal && !editModal.classList.contains('show')) {
-                            const editModalInstance = new bootstrap.Modal(editModal);
-                            editModalInstance.show();
+            // Only reopen game edit modal if manual scrap was opened from game edit modal
+            if (!this.manualScrapFromPreview) {
+                // Ensure game edit modal is reopened with updated data
+                setTimeout(() => {
+                    if (this.editingGamePath) {
+                        const updatedGame = this.games.find(g => g.path === this.editingGamePath);
+                        if (updatedGame) {
+                            console.log('Repopulating edit modal with game:', updatedGame);
+                            // Always repopulate the edit modal with fresh data
+                            this.populateEditModal(updatedGame);
+                            
+                            // Show the edit modal if it's not already visible
+                            const editModal = document.getElementById('editGameModal');
+                            if (editModal && !editModal.classList.contains('show')) {
+                                const editModalInstance = new bootstrap.Modal(editModal);
+                                editModalInstance.show();
+                            }
+                        } else {
+                            console.error('Could not find updated game for path:', this.editingGamePath);
                         }
                     } else {
-                        console.error('Could not find updated game for path:', this.editingGamePath);
+                        console.error('No editingGamePath set');
                     }
-                } else {
-                    console.error('No editingGamePath set');
-                }
-            }, 300); // Small delay to ensure modal transitions complete
+                }, 300); // Small delay to ensure modal transitions complete
+            }
 
         } catch (error) {
             this.showAlert('Error applying manual scrap results', 'error');
