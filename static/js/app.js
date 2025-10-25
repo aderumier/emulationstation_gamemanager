@@ -20260,13 +20260,36 @@ class GameCollectionManager {
     }
     
     async testSteamgriddbConnection() {
-        const apiKey = document.getElementById('steamgriddbApiKey').value.trim();
+        // Check if we have credentials configured
+        const apiKeyInput = document.getElementById('steamgriddbApiKey');
+        const apiKey = apiKeyInput.value.trim();
         
-        if (!apiKey) {
+        // If the field contains dots, it means credentials are configured but hidden
+        if (apiKey.includes('•')) {
+            // Get the real API key from the backend
+            try {
+                const response = await fetch('/api/steamgriddb-credentials?include_key=true');
+                const data = await response.json();
+                
+                if (data.success && data.has_credentials && data.api_key) {
+                    // Use the real API key from the backend
+                    await this.testSteamgriddbConnectionWithKey(data.api_key);
+                } else {
+                    this.showAlert('No API key configured. Please enter your API key first.', 'warning');
+                }
+            } catch (error) {
+                this.showAlert('Error retrieving API key. Please enter your API key manually.', 'warning');
+            }
+        } else if (!apiKey) {
             this.showAlert('Please enter API Key', 'warning');
             return;
+        } else {
+            // Use the manually entered API key
+            await this.testSteamgriddbConnectionWithKey(apiKey);
         }
-        
+    }
+    
+    async testSteamgriddbConnectionWithKey(apiKey) {
         // Disable button and show loading state
         const testBtn = document.getElementById('testSteamgriddbConnectionBtn');
         const originalText = testBtn.innerHTML;

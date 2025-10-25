@@ -5854,16 +5854,25 @@ def manage_steamgriddb_credentials():
     """Manage SteamGridDB API credentials"""
     try:
         if request.method == 'GET':
-            # Return current credentials status (without exposing the actual key)
+            # Return current credentials status
             from steamgrid_service import SteamGridService
             service = SteamGridService()
             api_key = service.get_api_key()
             
-            return jsonify({
+            # Check if the request wants the actual API key (for test connection)
+            include_key = request.args.get('include_key', 'false').lower() == 'true'
+            
+            response_data = {
                 'success': True,
                 'has_credentials': bool(api_key),
                 'api_key_length': len(api_key) if api_key else 0
-            })
+            }
+            
+            # Include the actual API key if requested
+            if include_key and api_key:
+                response_data['api_key'] = api_key
+            
+            return jsonify(response_data)
         
         elif request.method == 'POST':
             # Save credentials
