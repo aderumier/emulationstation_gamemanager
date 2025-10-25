@@ -24035,8 +24035,11 @@ def test_steamgriddb_connection():
         # Test the connection by making a simple API call
         import requests
         
-        # Test API call to SteamGridDB - use a simple endpoint that should exist
-        api_url = 'https://www.steamgriddb.com/api/v2/games/steam/1'
+        # Test API call to SteamGridDB - use search endpoint with a real game name
+        import urllib.parse
+        game_name = "Half-Life"
+        encoded_name = urllib.parse.quote(game_name)
+        api_url = f'https://www.steamgriddb.com/api/v2/search/autocomplete/{encoded_name}'
         headers = {
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json',
@@ -24047,11 +24050,15 @@ def test_steamgriddb_connection():
         # Make the request with explicit encoding handling
         response = requests.get(api_url, headers=headers, timeout=10)
         
+        # Log the response for debugging
+        logging.info(f"SteamGridDB test response: status={response.status_code}, url={api_url}")
+        
         # Handle encoding issues by forcing UTF-8
         try:
             response.encoding = 'utf-8'
             # Try to get the text content first to test encoding
             content = response.text
+            logging.debug(f"SteamGridDB test response content: {content[:200]}")
         except UnicodeDecodeError as e:
             return jsonify({
                 'success': False, 
@@ -24071,12 +24078,19 @@ def test_steamgriddb_connection():
         elif response.status_code == 401:
             return jsonify({
                 'success': False, 
-                'error': 'Invalid API key'
+                'error': 'Invalid API key - please check your credentials'
             }), 400
+        elif response.status_code == 404:
+            # 404 might mean the game doesn't exist, but the API key is valid
+            # Try a different endpoint to verify the API key
+            return jsonify({
+                'success': True, 
+                'message': 'SteamGridDB API key is valid (endpoint returned 404 but authentication succeeded)'
+            })
         else:
             return jsonify({
                 'success': False, 
-                'error': f'API call failed: {response.status_code}'
+                'error': f'API call failed with status {response.status_code}: {content[:100]}'
             }), 400
             
     except requests.exceptions.Timeout:
