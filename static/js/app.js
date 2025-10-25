@@ -14216,6 +14216,9 @@ class GameCollectionManager {
             } else {
                 this.showAlert('Failed to load IGDB mappings data', 'danger');
             }
+            
+            // Load IGDB credentials values
+            await this.loadIgdbCredentialsValues();
         } catch (error) {
             this.showAlert('Error loading IGDB mappings data', 'danger');
         }
