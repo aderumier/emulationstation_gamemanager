@@ -93,11 +93,10 @@
             ],
             "boxart": [
                 "box-2D",
-                "box-scan",
                 "flyer"
             ],
             "thumbnail": [
-                "box3D"
+                "box-3D"
             ],
             "boxback": [
                 "box-2D-back"
@@ -118,8 +117,7 @@
                 "fanart"
             ],
             "cartridge": [
-                "support-scan",
-                "support-texture"
+                "support-2D"
             ]
         }
     },
