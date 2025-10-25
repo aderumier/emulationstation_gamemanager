@@ -1603,6 +1603,12 @@ class GameCollectionManager {
         // IGDB test connection button
         document.getElementById('testIgdbConnectionBtn').addEventListener('click', async () => await this.testIgdbConnection());
         
+        // ScreenScraper test connection button
+        document.getElementById('testScreenscraperConnectionBtn').addEventListener('click', async () => await this.testScreenscraperConnection());
+        
+        // SteamGridDB test connection button
+        document.getElementById('testSteamgriddbConnectionBtn').addEventListener('click', async () => await this.testSteamgriddbConnection());
+        
         // Handle manual scrap modal cancel button
         document.getElementById('manualScrapModal').addEventListener('hidden.bs.modal', () => {
             // Only reopen game edit modal if manual scrap was opened from game edit modal
@@ -20189,6 +20195,90 @@ class GameCollectionManager {
             }
         } catch (error) {
             this.showAlert(`IGDB connection test failed: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            testBtn.disabled = false;
+            testBtn.innerHTML = originalText;
+        }
+    }
+    
+    async testScreenscraperConnection() {
+        const ssId = document.getElementById('screenscraperSsId').value.trim();
+        const ssPassword = document.getElementById('screenscraperSsPassword').value.trim();
+        
+        if (!ssId || !ssPassword) {
+            this.showAlert('Please enter both SS ID and SS Password', 'warning');
+            return;
+        }
+        
+        // Disable button and show loading state
+        const testBtn = document.getElementById('testScreenscraperConnectionBtn');
+        const originalText = testBtn.innerHTML;
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
+        
+        try {
+            const response = await fetch('/api/test-screenscraper-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ss_id: ssId,
+                    ss_password: ssPassword
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                this.showAlert('ScreenScraper connection test successful!', 'success');
+            } else {
+                this.showAlert(`ScreenScraper connection test failed: ${data.error || 'Unknown error'}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert(`ScreenScraper connection test failed: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            testBtn.disabled = false;
+            testBtn.innerHTML = originalText;
+        }
+    }
+    
+    async testSteamgriddbConnection() {
+        const apiKey = document.getElementById('steamgriddbApiKey').value.trim();
+        
+        if (!apiKey) {
+            this.showAlert('Please enter API Key', 'warning');
+            return;
+        }
+        
+        // Disable button and show loading state
+        const testBtn = document.getElementById('testSteamgriddbConnectionBtn');
+        const originalText = testBtn.innerHTML;
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
+        
+        try {
+            const response = await fetch('/api/test-steamgriddb-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    api_key: apiKey
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                this.showAlert('SteamGridDB connection test successful!', 'success');
+            } else {
+                this.showAlert(`SteamGridDB connection test failed: ${data.error || 'Unknown error'}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert(`SteamGridDB connection test failed: ${error.message}`, 'danger');
         } finally {
             // Restore button state
             testBtn.disabled = false;

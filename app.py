@@ -23965,6 +23965,95 @@ def test_igdb_connection():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/test-screenscraper-connection', methods=['POST'])
+def test_screenscraper_connection():
+    """Test ScreenScraper connection with provided credentials"""
+    try:
+        data = request.json
+        ss_id = data.get('ss_id', '').strip()
+        ss_password = data.get('ss_password', '').strip()
+        
+        if not ss_id or not ss_password:
+            return jsonify({'success': False, 'error': 'SS ID and SS Password are required'}), 400
+        
+        # Test the connection by making a simple API call
+        import requests
+        
+        # Test API call to ScreenScraper
+        api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
+        params = {
+            'devid': ss_id,
+            'devpassword': ss_password,
+            'softname': 'GameManager',
+            'output': 'json',
+            'gameid': '1'  # Test with a simple game ID
+        }
+        
+        response = requests.get(api_url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'response' in data and 'erreur' in data['response']:
+                return jsonify({
+                    'success': False, 
+                    'error': f"ScreenScraper API error: {data['response']['erreur']}"
+                }), 400
+            else:
+                return jsonify({'success': True, 'message': 'ScreenScraper connection test successful'})
+        else:
+            return jsonify({
+                'success': False, 
+                'error': f'API call failed: {response.status_code}'
+            }), 400
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'Connection timeout'}), 400
+    except requests.exceptions.ConnectionError:
+        return jsonify({'success': False, 'error': 'Connection error'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/test-steamgriddb-connection', methods=['POST'])
+def test_steamgriddb_connection():
+    """Test SteamGridDB connection with provided API key"""
+    try:
+        data = request.json
+        api_key = data.get('api_key', '').strip()
+        
+        if not api_key:
+            return jsonify({'success': False, 'error': 'API Key is required'}), 400
+        
+        # Test the connection by making a simple API call
+        import requests
+        
+        # Test API call to SteamGridDB
+        api_url = 'https://www.steamgriddb.com/api/v2/grids/game/1'
+        headers = {
+            'Authorization': f'Bearer {api_key}'
+        }
+        
+        response = requests.get(api_url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'message': 'SteamGridDB connection test successful'})
+        elif response.status_code == 401:
+            return jsonify({
+                'success': False, 
+                'error': 'Invalid API key'
+            }), 400
+        else:
+            return jsonify({
+                'success': False, 
+                'error': f'API call failed: {response.status_code}'
+            }), 400
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'Connection timeout'}), 400
+    except requests.exceptions.ConnectionError:
+        return jsonify({'success': False, 'error': 'Connection error'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 def cleanup_on_exit():
     """Clean up resources when the application exits"""
     global _cleanup_in_progress
