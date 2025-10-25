@@ -14232,6 +14232,10 @@ class GameCollectionManager {
         const tbody = document.getElementById('screenscraperMappingsTableBody');
         if (!tbody) return;
         
+        // Debug: Log the structure of screenscraperMediaTypes
+        console.log('🔧 DEBUG: screenscraperMediaTypes structure:', screenscraperMediaTypes);
+        console.log('🔧 DEBUG: First few items:', screenscraperMediaTypes.slice(0, 3));
+        
         tbody.innerHTML = '';
         
         // Create rows for each media field

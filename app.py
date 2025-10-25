@@ -5609,6 +5609,11 @@ def manage_screenscraper_mappings():
             # Load ScreenScraper media types from API (with caching)
             screenscraper_media_types = load_screenscraper_media_types()
             
+            # Debug: Log the structure being returned
+            print(f"🔧 DEBUG: Returning {len(screenscraper_media_types)} media types")
+            if screenscraper_media_types:
+                print(f"🔧 DEBUG: First few items: {screenscraper_media_types[:3]}")
+            
             return jsonify({
                 'success': True, 
                 'screenscraper_mappings': screenscraper_mappings,
