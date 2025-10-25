@@ -253,10 +253,10 @@ class GameCollectionManager {
             document.getElementById('media-preview-tab').classList.add('active');
             document.getElementById('media-preview-content').classList.add('show', 'active');
             
-            // Show clear image cache button for media preview tab
-            const clearCacheContainer = document.getElementById('clearImageCacheContainer');
-            if (clearCacheContainer) {
-                clearCacheContainer.classList.remove('d-none');
+            // Show media preview action buttons for media preview tab
+            const mediaPreviewActionsContainer = document.getElementById('mediaPreviewActionsContainer');
+            if (mediaPreviewActionsContainer) {
+                mediaPreviewActionsContainer.classList.remove('d-none');
             }
             
             // Always refresh media preview for currently selected game
@@ -272,10 +272,10 @@ class GameCollectionManager {
             document.getElementById('task-management-tab').classList.add('active');
             document.getElementById('task-management-content').classList.add('show', 'active');
             
-            // Hide clear image cache button for task management tab
-            const clearCacheContainer = document.getElementById('clearImageCacheContainer');
-            if (clearCacheContainer) {
-                clearCacheContainer.classList.add('d-none');
+            // Hide media preview action buttons for task management tab
+            const mediaPreviewActionsContainer = document.getElementById('mediaPreviewActionsContainer');
+            if (mediaPreviewActionsContainer) {
+                mediaPreviewActionsContainer.classList.add('d-none');
             }
             
             // Clear media preview content when switching to task management to free memory
@@ -1592,6 +1592,11 @@ class GameCollectionManager {
             // Save changes first before opening manual scrap modal
             await this.saveGameChangesFromModal();
             await this.openManualScrapModal();
+        });
+        
+        // Manual scrap button in media preview pane
+        document.getElementById('manualScrapPreviewBtn').addEventListener('click', async () => {
+            await this.openManualScrapFromPreview();
         });
         document.getElementById('applyManualScrapResults').addEventListener('click', async () => await this.applyManualScrapResults());
         
@@ -4970,6 +4975,66 @@ class GameCollectionManager {
             }
         } catch (error) {
             this.showAlert('Error saving changes to gamelist.xml', 'danger');
+        }
+    }
+
+    async openManualScrapFromPreview() {
+        // Get the currently selected game from the grid
+        if (!this.gridApi) {
+            this.showAlert('No game grid available', 'error');
+            return;
+        }
+
+        const selectedRows = this.gridApi.getSelectedRows();
+        if (selectedRows.length === 0) {
+            this.showAlert('Please select a game first', 'error');
+            return;
+        }
+
+        const game = selectedRows[0];
+        if (!game || !game.path) {
+            this.showAlert('Invalid game selected', 'error');
+            return;
+        }
+
+        // Set the game path for manual scraping
+        this.currentManualScrapRomPath = game.path;
+        this.manualScrapSelectedMedia = {};
+
+        // Show the manual scrap modal
+        const modal = new bootstrap.Modal(document.getElementById('manualScrapModal'));
+        modal.show();
+
+        // Show loading state
+        document.getElementById('manualScrapLoading').style.display = 'block';
+        document.getElementById('manualScrapContent').style.display = 'none';
+
+        try {
+            // Call the manual scrap API
+            const response = await fetch('/api/manual-scrap', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    rom_path: game.path,
+                    system: this.currentSystem
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            this.displayManualScrapResults(data);
+        } catch (error) {
+            console.error('Error during manual scrap:', error);
+            this.showAlert('Error during manual scraping: ' + error.message, 'error');
+            
+            // Hide loading state
+            document.getElementById('manualScrapLoading').style.display = 'none';
+            document.getElementById('manualScrapContent').style.display = 'block';
         }
     }
 
