@@ -1604,10 +1604,20 @@ class GameCollectionManager {
         document.getElementById('testIgdbConnectionBtn').addEventListener('click', async () => await this.testIgdbConnection());
         
         // ScreenScraper test connection button
-        document.getElementById('testScreenscraperConnectionBtn').addEventListener('click', async () => await this.testScreenscraperConnection());
+        const testScreenscraperBtn = document.getElementById('testScreenscraperConnectionBtn');
+        if (testScreenscraperBtn) {
+            testScreenscraperBtn.addEventListener('click', async () => await this.testScreenscraperConnection());
+        } else {
+            console.warn('testScreenscraperConnectionBtn not found');
+        }
         
         // SteamGridDB test connection button
-        document.getElementById('testSteamgriddbConnectionBtn').addEventListener('click', async () => await this.testSteamgriddbConnection());
+        const testSteamgriddbBtn = document.getElementById('testSteamgriddbConnectionBtn');
+        if (testSteamgriddbBtn) {
+            testSteamgriddbBtn.addEventListener('click', async () => await this.testSteamgriddbConnection());
+        } else {
+            console.warn('testSteamgriddbConnectionBtn not found');
+        }
         
         // Handle manual scrap modal cancel button
         document.getElementById('manualScrapModal').addEventListener('hidden.bs.modal', () => {
