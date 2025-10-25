@@ -14246,8 +14246,8 @@ class GameCollectionManager {
                         <div class="col-5">
                             <label class="form-label small fw-bold">Available Types</label>
                             <select class="form-select form-select-sm" multiple size="4" id="screenscraper_availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px; min-width: 300px;">
-                                ${screenscraperMediaTypes.filter(type => !screenscraperTypes.includes(type)).map(type => 
-                                    `<option value="${type}">${type}</option>`
+                                ${screenscraperMediaTypes.filter(([shortName, fullName]) => !screenscraperTypes.includes(shortName)).map(([shortName, fullName]) => 
+                                    `<option value="${shortName}">${fullName}</option>`
                         ).join('')}
                     </select>
                         </div>
@@ -14262,14 +14262,17 @@ class GameCollectionManager {
                         <div class="col-5">
                             <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
                             <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto; min-width: 300px;" id="screenscraper_selectedTypes_${mediaField}">
-                                ${screenscraperTypes.map((type, index) => 
-                                    `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
-                                        <span class="small">${type}</span>
+                                ${screenscraperTypes.map((type, index) => {
+                                    // Find the full name for this short name
+                                    const mediaTypeInfo = screenscraperMediaTypes.find(([shortName, fullName]) => shortName === type);
+                                    const displayName = mediaTypeInfo ? mediaTypeInfo[1] : type;
+                                    return `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
+                                        <span class="small">${displayName}</span>
                                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificScreenscraperType('${mediaField}', '${type}')" title="Remove">
                                             <i class="bi bi-x"></i>
                                         </button>
-                                    </div>`
-                                ).join('')}
+                                    </div>`;
+                                }).join('')}
                             </div>
                         </div>
                     </div>
@@ -14354,6 +14357,7 @@ class GameCollectionManager {
         
         selectedOptions.forEach(option => {
             const type = option.value;
+            const displayName = option.textContent; // This is the full name
             
             // Add to selected types container
             const typeDiv = document.createElement('div');
@@ -14361,7 +14365,7 @@ class GameCollectionManager {
             typeDiv.setAttribute('data-type', type);
             typeDiv.style.cursor = 'move';
             typeDiv.innerHTML = `
-                <span class="small">${type}</span>
+                <span class="small">${displayName}</span>
                 <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificScreenscraperType('${mediaField}', '${type}')" title="Remove">
                     <i class="bi bi-x"></i>
                 </button>

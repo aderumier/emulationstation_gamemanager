@@ -636,6 +636,93 @@ def load_config():
     
     return default_config
 
+# ScreenScraper media types cache
+_screenscraper_media_types_cache = None
+_screenscraper_media_types_cache_time = None
+SCREENSCRAPER_CACHE_DURATION = 3600  # 1 hour in seconds
+
+def load_screenscraper_media_types():
+    """Load ScreenScraper media types from API with caching"""
+    global _screenscraper_media_types_cache, _screenscraper_media_types_cache_time
+    
+    current_time = time.time()
+    
+    # Check if cache is valid
+    if (_screenscraper_media_types_cache is not None and 
+        _screenscraper_media_types_cache_time is not None and 
+        (current_time - _screenscraper_media_types_cache_time) < SCREENSCRAPER_CACHE_DURATION):
+        return _screenscraper_media_types_cache
+    
+    try:
+        # Load credentials
+        config = load_config()
+        credentials = load_credentials()
+        screenscraper_credentials = credentials.get('screenscraper', {})
+        
+        if not screenscraper_credentials.get('username') or not screenscraper_credentials.get('password'):
+            print("⚠️ ScreenScraper credentials not configured, using fallback media types")
+            return get_fallback_screenscraper_media_types()
+        
+        # Make API request to ScreenScraper
+        url = "https://api.screenscraper.fr/api2/mediasJeuListe.php"
+        params = {
+            'devid': screenscraper_credentials.get('username'),
+            'devpassword': screenscraper_credentials.get('password'),
+            'softname': 'GameManager',
+            'output': 'json'
+        }
+        
+        print("🔄 Fetching ScreenScraper media types from API...")
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if 'response' in data and 'medias' in data['response']:
+            media_types = []
+            for media in data['response']['medias']:
+                nomcourt = media.get('nomcourt', '')
+                nom = media.get('nom', '')
+                if nomcourt and nom:
+                    # Store as tuple: (short_name, full_name)
+                    media_types.append((nomcourt, nom))
+            
+            # Sort by short name for consistency
+            media_types.sort(key=lambda x: x[0])
+            
+            # Update cache
+            _screenscraper_media_types_cache = media_types
+            _screenscraper_media_types_cache_time = current_time
+            
+            print(f"✅ Loaded {len(media_types)} ScreenScraper media types from API")
+            return media_types
+        else:
+            print("⚠️ Invalid response from ScreenScraper API, using fallback")
+            return get_fallback_screenscraper_media_types()
+            
+    except Exception as e:
+        print(f"❌ Error fetching ScreenScraper media types: {e}, using fallback")
+        return get_fallback_screenscraper_media_types()
+
+def get_fallback_screenscraper_media_types():
+    """Fallback to static file if API fails"""
+    try:
+        mediastype_file = os.path.join('var', 'db', 'screenscraper', 'mediastype.txt')
+        if os.path.exists(mediastype_file):
+            with open(mediastype_file, 'r', encoding='utf-8') as f:
+                media_types = []
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        # Use short name as both short and full name
+                        media_types.append((line, line))
+                return media_types
+    except Exception as e:
+        print(f"❌ Error reading fallback media types: {e}")
+    
+    # Ultimate fallback
+    return [('wheel', 'Wheel'), ('box-2D', 'Box 2D'), ('box-3D', 'Box 3D')]
+
 def load_scrappers_config():
     """Load scrappers configuration from scrappers.json"""
     try:
@@ -5537,24 +5624,14 @@ def manage_screenscraper_mappings():
             screenscraper_mappings = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
             media_fields = config.get('media_fields', {})
             
-            # Load ScreenScraper media types from static file
-            screenscraper_media_types = []
-            mediastype_file = os.path.join('var', 'db', 'screenscraper', 'mediastype.txt')
-            if os.path.exists(mediastype_file):
-                try:
-                    with open(mediastype_file, 'r', encoding='utf-8') as f:
-                        for line in f:
-                            line = line.strip()
-                            if line and not line.startswith('#'):
-                                screenscraper_media_types.append(line)
-                except Exception as e:
-                    print(f"Error reading ScreenScraper media types: {e}")
+            # Load ScreenScraper media types from API (with caching)
+            screenscraper_media_types = load_screenscraper_media_types()
             
             return jsonify({
                 'success': True, 
                 'screenscraper_mappings': screenscraper_mappings,
                 'media_fields': media_fields,
-                'screenscraper_media_types': sorted(screenscraper_media_types)
+                'screenscraper_media_types': screenscraper_media_types
             })
         
         elif request.method == 'PUT':
