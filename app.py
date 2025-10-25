@@ -660,7 +660,7 @@ def load_screenscraper_media_types():
         screenscraper_credentials = credentials.get('screenscraper', {})
         
         if not screenscraper_credentials.get('username') or not screenscraper_credentials.get('password'):
-            print("⚠️ ScreenScraper credentials not configured")
+            print("⚠️ ScreenScraper credentials not configured - please set username and password in settings")
             return []
         
         # Make API request to ScreenScraper
@@ -677,6 +677,11 @@ def load_screenscraper_media_types():
         response.raise_for_status()
         
         data = response.json()
+        
+        # Check for login errors
+        if 'response' in data and 'erreur' in data['response']:
+            print(f"❌ ScreenScraper API error: {data['response']['erreur']}")
+            return []
         
         if 'response' in data and 'medias' in data['response']:
             media_types = []

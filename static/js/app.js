@@ -14240,6 +14240,20 @@ class GameCollectionManager {
         
         tbody.innerHTML = '';
         
+        // Check if no media types are available
+        if (!screenscraperMediaTypes || screenscraperMediaTypes.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td colspan="2" class="text-center text-muted py-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>No ScreenScraper media types available</strong><br>
+                    <small>Please configure ScreenScraper credentials in the settings to load media types from the API.</small>
+                </td>
+            `;
+            tbody.appendChild(row);
+            return;
+        }
+        
         // Create rows for each media field
         Object.entries(screenscraperMappings).forEach(([mediaField, screenscraperTypes]) => {
             const row = document.createElement('tr');
