@@ -1,3 +1,19 @@
+gamemanager (2.7.1) stable; urgency=medium
+
+  * Fix IGDB test connection functionality with proper OAuth token validation
+  * Add ScreenScraper and SteamGridDB test connection buttons in unified modal
+  * Fix ScreenScraper and SteamGridDB credentials not displaying in configuration modal
+  * Fix SteamGridDB test connection encoding errors and 404 endpoint issues
+  * Use SteamGridDB search endpoint with Half-Life for reliable connection testing
+  * Add proper UTF-8 encoding handling for SteamGridDB API responses
+  * Fix SteamGridDB test connection with hidden credentials (dots display)
+  * Add backend support for retrieving actual API keys when credentials are configured
+  * Improve error handling and logging for all test connection endpoints
+  * Fix JavaScript syntax errors in test connection functions
+  * Add debugging for test connection button initialization
+
+ -- GameManager Team <admin@gamemanager.local>  Mon, 23 Dec 2024 10:00:00 +0000
+
 gamemanager (2.6.1) stable; urgency=medium
 
   * Simplify LaunchBox scraper architecture - remove worker-based system
