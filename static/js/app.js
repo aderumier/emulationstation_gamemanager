@@ -5011,23 +5011,27 @@ class GameCollectionManager {
 
         try {
             // Call the manual scrap API
-            const response = await fetch('/api/manual-scrap', {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/manual-scrap`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
+                credentials: 'include',
                 body: JSON.stringify({
-                    rom_path: game.path,
-                    system: this.currentSystem
+                    rom_path: game.path
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (response.ok) {
+                const result = await response.json();
+                // store results for apply mapping if needed
+                this.lastManualScrapResults = result.results || {};
+                this.lastManualScrapTextFields = (result.results && result.results.text_fields) || {};
+                this.displayManualScrapResults(result.results);
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
             }
-
-            const data = await response.json();
-            this.displayManualScrapResults(data);
         } catch (error) {
             console.error('Error during manual scrap:', error);
             this.showAlert('Error during manual scraping: ' + error.message, 'error');
