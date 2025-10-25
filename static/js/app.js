@@ -18288,11 +18288,23 @@ class GameCollectionManager {
     
     async applyRegularMatch(selectedMatch, originalGameName, closeModal = true, modalType = 'global') {
         try {
+            let gameIndex;
+            
             // Find the game in our data
-            const gameIndex = this.games.findIndex(game => game.name === originalGameName);
-            if (gameIndex === -1) {
-                this.showAlert('Original game not found', 'danger');
-                return;
+            if (modalType === 'gameEdit' && this.editingGameIndex >= 0) {
+                // Use editingGameIndex for game edit modal (more reliable than name)
+                gameIndex = this.editingGameIndex;
+                if (gameIndex >= this.games.length) {
+                    this.showAlert('Game index out of bounds', 'danger');
+                    return;
+                }
+            } else {
+                // Use name search for other contexts (scraping, etc.)
+                gameIndex = this.games.findIndex(game => game.name === originalGameName);
+                if (gameIndex === -1) {
+                    this.showAlert('Original game not found', 'danger');
+                    return;
+                }
             }
             
             // Update game data with selected match
