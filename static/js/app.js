@@ -20152,6 +20152,49 @@ class GameCollectionManager {
             this.showAlert('Error downloading marquee', 'error');
         }
     }
+    
+    async testIgdbConnection() {
+        const clientId = document.getElementById('igdbClientId').value.trim();
+        const clientSecret = document.getElementById('igdbClientSecret').value.trim();
+        
+        if (!clientId || !clientSecret) {
+            this.showAlert('Please enter both Client ID and Client Secret', 'warning');
+            return;
+        }
+        
+        // Disable button and show loading state
+        const testBtn = document.getElementById('testIgdbConnectionBtn');
+        const originalText = testBtn.innerHTML;
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
+        
+        try {
+            const response = await fetch('/api/test-igdb-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    client_id: clientId,
+                    client_secret: clientSecret
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                this.showAlert('IGDB connection test successful!', 'success');
+            } else {
+                this.showAlert(`IGDB connection test failed: ${data.error || 'Unknown error'}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert(`IGDB connection test failed: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            testBtn.disabled = false;
+            testBtn.innerHTML = originalText;
+        }
+    }
 }
 
 // Handle Steam image loading with fallback
@@ -20276,50 +20319,6 @@ function handleSteamImageError(imgElement) {
     
     // Replace the image with placeholder
     imgElement.parentNode.replaceChild(placeholder, imgElement);
-}
-
-    async testIgdbConnection() {
-        const clientId = document.getElementById('igdbClientId').value.trim();
-        const clientSecret = document.getElementById('igdbClientSecret').value.trim();
-        
-        if (!clientId || !clientSecret) {
-            this.showAlert('Please enter both Client ID and Client Secret', 'warning');
-            return;
-        }
-        
-        // Disable button and show loading state
-        const testBtn = document.getElementById('testIgdbConnectionBtn');
-        const originalText = testBtn.innerHTML;
-        testBtn.disabled = true;
-        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
-        
-        try {
-            const response = await fetch('/api/test-igdb-connection', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    client_id: clientId,
-                    client_secret: clientSecret
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok && data.success) {
-                this.showAlert('IGDB connection test successful!', 'success');
-            } else {
-                this.showAlert(`IGDB connection test failed: ${data.error || 'Unknown error'}`, 'danger');
-            }
-        } catch (error) {
-            this.showAlert(`IGDB connection test failed: ${error.message}`, 'danger');
-        } finally {
-            // Restore button state
-            testBtn.disabled = false;
-            testBtn.innerHTML = originalText;
-        }
-    }
 }
 
 // Fanart Search Event Listeners
