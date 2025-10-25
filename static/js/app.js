@@ -1967,6 +1967,7 @@ class GameCollectionManager {
         this.selectedMatchIndex = -1;
         this.currentMatches = null;
         this.currentOriginalGameName = null;
+        this.currentOriginalGamePath = null;
         this.isModalOpen = false;
         this.pendingBestMatchResults = null;
         this.currentBestMatchIndex = 0;
@@ -3856,7 +3857,10 @@ class GameCollectionManager {
             newBtn.addEventListener('click', () => {
                 const gameName = document.getElementById('editName').value;
                 if (gameName && gameName.trim()) {
-                    this.showPartialMatches(gameName);
+                    // Get current game path for reliable identification
+                    const currentGame = this.getCurrentEditingGame();
+                    const gamePath = currentGame ? currentGame.path : null;
+                    this.showPartialMatches(gameName, null, 'gameEdit', gamePath);
                 } else {
                     this.showAlert('Please enter a game name first', 'warning');
                 }
@@ -5528,7 +5532,10 @@ class GameCollectionManager {
         this.loadGameEditAlgorithmPreference();
         
         // Show the game edit match modal
-        this.showPartialMatches(gameName, null, 'gameEdit');
+        // Get current game path for reliable identification
+        const currentGame = this.getCurrentEditingGame();
+        const gamePath = currentGame ? currentGame.path : null;
+        this.showPartialMatches(gameName, null, 'gameEdit', gamePath);
         
         // Focus on the input field after modal is shown
         setTimeout(() => {
@@ -5878,7 +5885,10 @@ class GameCollectionManager {
             document.getElementById('gameEditLoadingSpinner').style.display = 'none';
             
             if (data.success) {
-                this.displayPartialMatchModal(gameName, data.matches, 'gameEdit');
+                // Get the current game path for reliable identification
+                const currentGame = this.getCurrentEditingGame();
+                const gamePath = currentGame ? currentGame.path : null;
+                this.displayPartialMatchModal(gameName, data.matches, 'gameEdit', gamePath);
             } else {
                 this.showAlert('Error getting matches: ' + data.error, 'danger');
             }
@@ -7789,10 +7799,11 @@ class GameCollectionManager {
         
         const currentResult = this.pendingBestMatchResults[this.currentBestMatchIndex];
         const gameName = currentResult.game_name;
+        const gamePath = currentResult.game_path || null; // Use game path if available
         const topMatches = currentResult.top_matches;
 
         // Show the modal with the current game's matches
-        this.showPartialMatches(gameName, topMatches, 'global');
+        this.showPartialMatches(gameName, topMatches, 'global', gamePath);
     }
     
     moveToPrevGame() {
@@ -7802,7 +7813,8 @@ class GameCollectionManager {
             
             // Ensure modal state is properly managed during navigation
             this.isModalOpen = true;
-            this.showPartialMatches(currentGame.game_name, currentGame.top_matches, 'global');
+            const gamePath = currentGame.game_path || null; // Use game path if available
+            this.showPartialMatches(currentGame.game_name, currentGame.top_matches, 'global', gamePath);
         }
     }
     
@@ -9289,7 +9301,10 @@ class GameCollectionManager {
             
             // Display the matches (pass data.matches, not data)
             if (data.success && data.matches) {
-                this.displayPartialMatchModal(gameName, data.matches, 'gameEdit');
+                // Get the current game path for reliable identification
+                const currentGame = this.getCurrentEditingGame();
+                const gamePath = currentGame ? currentGame.path : null;
+                this.displayPartialMatchModal(gameName, data.matches, 'gameEdit', gamePath);
             } else {
                 this.showAlert('Error reloading matches: ' + (data.error || 'Unknown error'), 'danger');
             }
@@ -17907,7 +17922,7 @@ class GameCollectionManager {
         return null;
     }
 
-    async showPartialMatches(gameName, preloadedMatches = null, modalType = 'global') {
+    async showPartialMatches(gameName, preloadedMatches = null, modalType = 'global', gamePath = null) {
         try {
             
             // Set modal as open for state management
@@ -17918,7 +17933,7 @@ class GameCollectionManager {
                 // Show the modal first, then populate content
                 this.showModalWithLoading(gameName, modalType);
                 document.getElementById(modalType === 'gameEdit' ? 'gameEditLoadingSpinner' : 'globalLoadingSpinner').style.display = 'none';
-                this.displayPartialMatchModal(gameName, preloadedMatches, modalType);
+                this.displayPartialMatchModal(gameName, preloadedMatches, modalType, gamePath);
             } else {
                 // Fetch matches from API (single game mode)
                 this.showModalWithLoading(gameName, modalType);
@@ -17939,7 +17954,7 @@ class GameCollectionManager {
                 if (data.success) {
                     // Hide loading spinner and display matches
                     document.getElementById(modalType === 'gameEdit' ? 'gameEditLoadingSpinner' : 'globalLoadingSpinner').style.display = 'none';
-                    this.displayPartialMatchModal(gameName, data.matches, modalType);
+                    this.displayPartialMatchModal(gameName, data.matches, modalType, gamePath);
                 } else {
                     // Hide loading spinner and show error
                     document.getElementById(modalType === 'gameEdit' ? 'gameEditLoadingSpinner' : 'globalLoadingSpinner').style.display = 'none';
@@ -18036,7 +18051,7 @@ class GameCollectionManager {
         
     }
 
-    displayPartialMatchModal(originalGameName, matches, modalType = 'global') {
+    displayPartialMatchModal(originalGameName, matches, modalType = 'global', originalGamePath = null) {
         
         // Show/hide navigation buttons based on modal type and whether we're processing multiple games
         if (modalType === 'global') {
@@ -18066,7 +18081,9 @@ class GameCollectionManager {
         }
         
         // Find the original game data to display details
-        const originalGame = this.games.find(game => game.name === originalGameName);
+        // Use path (unique identifier) - no fallback to name as names are not unique
+        const originalGame = originalGamePath ? 
+            this.games.find(game => game.path === originalGamePath) : null;
         
         // Set element IDs based on modal type
         const publisherId = modalType === 'gameEdit' ? 'gameEditOriginalGamePublisher' : 'globalOriginalGamePublisher';
@@ -18101,6 +18118,7 @@ class GameCollectionManager {
         // Store for later use
         this.currentMatches = matches;
         this.currentOriginalGameName = originalGameName;
+        this.currentOriginalGamePath = originalGamePath;
         this.selectedMatchIndex = -1;
         
         // Clear previous matches
@@ -18243,7 +18261,7 @@ class GameCollectionManager {
                 // Check if this is the last game
                 if (this.currentBestMatchIndex >= this.pendingBestMatchResults.length - 1) {
                     // Last game - apply match and close modal
-                    await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType);
+                    await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType, this.currentOriginalGamePath);
                     
                     // Reset multi-game state
                     this.pendingBestMatchResults = null;
@@ -18272,12 +18290,12 @@ class GameCollectionManager {
                     }, 100);
                 } else {
                     // Not the last game - apply match and move to next
-                    await this.applyRegularMatch(selectedMatch, originalGameName, false, modalType);
+                    await this.applyRegularMatch(selectedMatch, originalGameName, false, modalType, this.currentOriginalGamePath);
                     this.moveToNextGame();
                 }
             } else {
                 // Single game mode - close modal normally
-                await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType);
+                await this.applyRegularMatch(selectedMatch, originalGameName, true, modalType, this.currentOriginalGamePath);
             }
             
         } catch (error) {
@@ -18286,7 +18304,7 @@ class GameCollectionManager {
     }
     
     
-    async applyRegularMatch(selectedMatch, originalGameName, closeModal = true, modalType = 'global') {
+    async applyRegularMatch(selectedMatch, originalGameName, closeModal = true, modalType = 'global', originalGamePath = null) {
         try {
             let gameIndex;
             
@@ -18299,8 +18317,15 @@ class GameCollectionManager {
                     return;
                 }
             } else {
-                // Use name search for other contexts (scraping, etc.)
-                gameIndex = this.games.findIndex(game => game.name === originalGameName);
+                // Use path search for other contexts (scraping, etc.) - path is unique identifier
+                if (originalGamePath) {
+                    // Use path (unique identifier)
+                    gameIndex = this.games.findIndex(game => game.path === originalGamePath);
+                } else {
+                    // No fallback to name - path is required for reliable identification
+                    this.showAlert('Game path not provided - cannot identify game reliably', 'danger');
+                    return;
+                }
                 if (gameIndex === -1) {
                     this.showAlert('Original game not found', 'danger');
                     return;
