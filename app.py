@@ -639,7 +639,7 @@ def load_config():
 # ScreenScraper media types cache
 _screenscraper_media_types_cache = None
 _screenscraper_media_types_cache_time = None
-SCREENSCRAPER_CACHE_DURATION = 3600  # 1 hour in seconds
+SCREENSCRAPER_CACHE_DURATION = 30 * 24 * 3600  # 30 days in seconds
 
 def load_screenscraper_media_types():
     """Load ScreenScraper media types from API with caching"""
