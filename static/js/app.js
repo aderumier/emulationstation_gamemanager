@@ -13589,6 +13589,10 @@ class GameCollectionManager {
         await this.loadSteamMappingsData();
         await this.loadSteamgriddbMappingsData();
         
+        // Load credentials values for all services
+        await this.loadScreenscraperCredentialsValues();
+        await this.loadSteamgriddbCredentialsValues();
+        
         modal.show();
         
         // Reset all tabs and activate the first tab (Media Fields)
