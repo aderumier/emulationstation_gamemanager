@@ -688,7 +688,12 @@ def load_screenscraper_media_types():
         response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
         
+        print(f"🔧 DEBUG: Response status: {response.status_code}")
+        print(f"🔧 DEBUG: Response content type: {response.headers.get('content-type', 'unknown')}")
+        print(f"🔧 DEBUG: Response text (first 500 chars): {response.text[:500]}")
+        
         data = response.json()
+        print(f"🔧 DEBUG: Parsed JSON keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
         
         # Check for login errors
         if 'response' in data and 'erreur' in data['response']:
@@ -697,12 +702,17 @@ def load_screenscraper_media_types():
         
         if 'response' in data and 'medias' in data['response']:
             media_types = []
-            for media in data['response']['medias']:
+            medias = data['response']['medias']
+            print(f"🔧 DEBUG: Found {len(medias)} media types")
+            
+            # medias is a dictionary with numeric keys, not a list
+            for media_id, media in medias.items():
                 nomcourt = media.get('nomcourt', '')
                 nom = media.get('nom', '')
                 if nomcourt and nom:
                     # Store as tuple: (short_name, full_name)
                     media_types.append((nomcourt, nom))
+                    print(f"🔧 DEBUG: Added media type: {nomcourt} -> {nom}")
             
             # Sort by short name for consistency
             media_types.sort(key=lambda x: x[0])
