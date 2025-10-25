@@ -23901,6 +23901,70 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread = threading.Thread(target=run_async)
     thread.daemon = True
     thread.start()
+@app.route('/api/test-igdb-connection', methods=['POST'])
+def test_igdb_connection():
+    """Test IGDB connection with provided credentials"""
+    try:
+        data = request.json
+        client_id = data.get('client_id', '').strip()
+        client_secret = data.get('client_secret', '').strip()
+        
+        if not client_id or not client_secret:
+            return jsonify({'success': False, 'error': 'Client ID and Client Secret are required'}), 400
+        
+        # Test the connection by making a simple API call
+        import requests
+        
+        # Get access token
+        token_url = 'https://id.twitch.tv/oauth2/token'
+        token_data = {
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'grant_type': 'client_credentials'
+        }
+        
+        token_response = requests.post(token_url, data=token_data, timeout=10)
+        
+        if token_response.status_code != 200:
+            return jsonify({
+                'success': False, 
+                'error': f'Failed to get access token: {token_response.status_code}'
+            }), 400
+        
+        token_data = token_response.json()
+        access_token = token_data.get('access_token')
+        
+        if not access_token:
+            return jsonify({
+                'success': False, 
+                'error': 'No access token received'
+            }), 400
+        
+        # Test API call
+        api_url = 'https://api.igdb.com/v4/games'
+        headers = {
+            'Client-ID': client_id,
+            'Authorization': f'Bearer {access_token}'
+        }
+        api_data = 'fields id,name; limit 1;'
+        
+        api_response = requests.post(api_url, headers=headers, data=api_data, timeout=10)
+        
+        if api_response.status_code == 200:
+            return jsonify({'success': True, 'message': 'IGDB connection test successful'})
+        else:
+            return jsonify({
+                'success': False, 
+                'error': f'API call failed: {api_response.status_code}'
+            }), 400
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'Connection timeout'}), 400
+    except requests.exceptions.ConnectionError:
+        return jsonify({'success': False, 'error': 'Connection error'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 def cleanup_on_exit():
     """Clean up resources when the application exits"""
     global _cleanup_in_progress
