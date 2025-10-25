@@ -1,0 +1,202 @@
+{
+  "media_types": [
+    [
+      "bezel-16-9",
+      "Bezel 16:9 Horizontal"
+    ],
+    [
+      "bezel-16-9-cocktail",
+      "Bezel 16:9 Cocktail"
+    ],
+    [
+      "bezel-16-9-v",
+      "Bezel 16:9 Vertical"
+    ],
+    [
+      "bezel-4-3",
+      "Bezel 4:3 Horizontal"
+    ],
+    [
+      "bezel-4-3-cocktail",
+      "Bezel 4:3 Cocktail"
+    ],
+    [
+      "bezel-4-3-v",
+      "Bezel 4:3 Vertical"
+    ],
+    [
+      "box-2D",
+      "Boitier : Avant"
+    ],
+    [
+      "box-2D-back",
+      "Boitier : Arrière"
+    ],
+    [
+      "box-2D-side",
+      "Boitier : Tranche"
+    ],
+    [
+      "box-3D",
+      "Boitier : 3D"
+    ],
+    [
+      "box-scan",
+      "Boitier : Source(s)"
+    ],
+    [
+      "box-texture",
+      "Boitier : Texture"
+    ],
+    [
+      "fanart",
+      "Fan Art"
+    ],
+    [
+      "figurine",
+      "Figurine"
+    ],
+    [
+      "flyer",
+      "Flyer"
+    ],
+    [
+      "manuel",
+      "Manuel"
+    ],
+    [
+      "maps",
+      "Maps"
+    ],
+    [
+      "marquee",
+      "Marquee"
+    ],
+    [
+      "mixrbv1",
+      "Mixe Recalbox version 1"
+    ],
+    [
+      "mixrbv2",
+      "Mixe Recalbox version 2"
+    ],
+    [
+      "overlay",
+      "Overlay"
+    ],
+    [
+      "screenmarquee",
+      "ScreenMarquee"
+    ],
+    [
+      "screenmarqueesmall",
+      "Mini ScreenMarquee"
+    ],
+    [
+      "ss",
+      "Screenshot"
+    ],
+    [
+      "ssdmd",
+      "Screenshot DMD"
+    ],
+    [
+      "ssfronton1-1",
+      "Screenshot Fronton 1:1"
+    ],
+    [
+      "ssfronton16-9",
+      "Screenshot Fronton 16:9"
+    ],
+    [
+      "ssfronton4-3",
+      "Screenshot Fronton 4:3"
+    ],
+    [
+      "sstable",
+      "Screenshot Table"
+    ],
+    [
+      "sstitle",
+      "Screenshot Titre"
+    ],
+    [
+      "sstopper",
+      "Screenshot Topper"
+    ],
+    [
+      "steamgrid",
+      "Steam Grid"
+    ],
+    [
+      "support-2D",
+      "Support : 2D"
+    ],
+    [
+      "support-scan",
+      "Support : Source(s)"
+    ],
+    [
+      "support-texture",
+      "Support : Texture"
+    ],
+    [
+      "themehs",
+      "Thème Hyperspin"
+    ],
+    [
+      "video",
+      "Vidéo"
+    ],
+    [
+      "video-normalized",
+      "Vidéo Normalisée"
+    ],
+    [
+      "videodmd",
+      "Vidéo DMD"
+    ],
+    [
+      "videofronton16-9",
+      "Vidéo Fronton (3 Ecrans)"
+    ],
+    [
+      "videofronton4-3",
+      "Vidéo Fronton (2 Ecrans)"
+    ],
+    [
+      "videotable",
+      "Vidéo Table (FullHD)"
+    ],
+    [
+      "videotable4k",
+      "Vidéo Table (4k)"
+    ],
+    [
+      "videotopper",
+      "Vidéo Topper"
+    ],
+    [
+      "wheel",
+      "Wheel"
+    ],
+    [
+      "wheel-carbon",
+      "Wheel Carbon"
+    ],
+    [
+      "wheel-hd",
+      "Logos HD"
+    ],
+    [
+      "wheel-steel",
+      "Wheel Steel"
+    ],
+    [
+      "wheel-tarcisios",
+      "Wheel Tarcisio&apos;s"
+    ]
+  ],
+  "timestamp": 1761384501.3969934,
+  "count": 49
+}
