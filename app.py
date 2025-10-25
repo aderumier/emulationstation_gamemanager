@@ -641,11 +641,38 @@ _screenscraper_media_types_cache = None
 _screenscraper_media_types_cache_time = None
 SCREENSCRAPER_CACHE_DURATION = 30 * 24 * 3600  # 30 days in seconds
 
+def load_screenscraper_media_types_from_cache():
+    """Load ScreenScraper media types from cached JSON file"""
+    cache_file = 'var/db/screenscraper/mediastype.json'
+    if not os.path.exists(cache_file):
+        return []
+    
+    try:
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            media_types = data.get('media_types', [])
+            timestamp = data.get('timestamp', 0)
+            count = data.get('count', 0)
+            
+            print(f"📁 Loaded {count} ScreenScraper media types from cache (timestamp: {timestamp})")
+            return media_types
+    except Exception as e:
+        print(f"⚠️ Error loading cached media types: {e}")
+        return []
+
 def load_screenscraper_media_types():
     """Load ScreenScraper media types from API with caching"""
     global _screenscraper_media_types_cache, _screenscraper_media_types_cache_time
     
     current_time = time.time()
+    
+    # First try to load from cache file if not in memory
+    if _screenscraper_media_types_cache is None:
+        cached_media_types = load_screenscraper_media_types_from_cache()
+        if cached_media_types:
+            _screenscraper_media_types_cache = cached_media_types
+            _screenscraper_media_types_cache_time = current_time
+            return cached_media_types
     
     # Check if cache is valid
     if (_screenscraper_media_types_cache is not None and 
@@ -716,6 +743,20 @@ def load_screenscraper_media_types():
             
             # Sort by short name for consistency
             media_types.sort(key=lambda x: x[0])
+            
+            # Save to JSON file for persistence
+            try:
+                os.makedirs('var/db/screenscraper', exist_ok=True)
+                cache_file = 'var/db/screenscraper/mediastype.json'
+                with open(cache_file, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'media_types': media_types,
+                        'timestamp': current_time,
+                        'count': len(media_types)
+                    }, f, indent=2, ensure_ascii=False)
+                print(f"💾 Saved {len(media_types)} media types to {cache_file}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not save media types to file: {e}")
             
             # Update cache
             _screenscraper_media_types_cache = media_types
