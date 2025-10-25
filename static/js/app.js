@@ -1602,21 +1602,24 @@ class GameCollectionManager {
         
         // Handle manual scrap modal cancel button
         document.getElementById('manualScrapModal').addEventListener('hidden.bs.modal', () => {
-            // When manual scrap modal is closed, ensure the game edit modal is still open
-            const editModal = document.getElementById('editGameModal');
-            if (editModal && !editModal.classList.contains('show')) {
-                // Reopen the game edit modal if it was closed
-                const editModalInstance = new bootstrap.Modal(editModal);
-                editModalInstance.show();
-                
-                // Repopulate the edit modal fields if they're empty
-                if (this.editingGamePath) {
-                    const game = this.games.find(g => g.path === this.editingGamePath);
-                    if (game) {
-                        // Check if fields are empty and repopulate if needed
-                        const nameField = document.getElementById('editName');
-                        if (!nameField.value) {
-                            this.populateEditModal(game);
+            // Only reopen game edit modal if manual scrap was opened from game edit modal
+            if (!this.manualScrapFromPreview) {
+                // When manual scrap modal is closed, ensure the game edit modal is still open
+                const editModal = document.getElementById('editGameModal');
+                if (editModal && !editModal.classList.contains('show')) {
+                    // Reopen the game edit modal if it was closed
+                    const editModalInstance = new bootstrap.Modal(editModal);
+                    editModalInstance.show();
+                    
+                    // Repopulate the edit modal fields if they're empty
+                    if (this.editingGamePath) {
+                        const game = this.games.find(g => g.path === this.editingGamePath);
+                        if (game) {
+                            // Check if fields are empty and repopulate if needed
+                            const nameField = document.getElementById('editName');
+                            if (!nameField.value) {
+                                this.populateEditModal(game);
+                            }
                         }
                     }
                 }
@@ -5000,6 +5003,9 @@ class GameCollectionManager {
         // Set the game path for manual scraping
         this.currentManualScrapRomPath = game.path;
         this.manualScrapSelectedMedia = {};
+        
+        // Flag to indicate this was opened from media preview pane, not game edit modal
+        this.manualScrapFromPreview = true;
 
         // Show the manual scrap modal
         const modal = new bootstrap.Modal(document.getElementById('manualScrapModal'));
@@ -5057,6 +5063,9 @@ class GameCollectionManager {
         // Keep rom path and clear previous selections
         this.currentManualScrapRomPath = game.path;
         this.manualScrapSelectedMedia = {};
+        
+        // Flag to indicate this was opened from game edit modal, not media preview pane
+        this.manualScrapFromPreview = false;
 
         // Show the manual scrap modal
         const modal = new bootstrap.Modal(document.getElementById('manualScrapModal'));
