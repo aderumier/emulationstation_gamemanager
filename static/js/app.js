@@ -1600,9 +1600,6 @@ class GameCollectionManager {
         });
         document.getElementById('applyManualScrapResults').addEventListener('click', async () => await this.applyManualScrapResults());
         
-        // IGDB test connection button
-        document.getElementById('testIgdbConnectionBtn').addEventListener('click', async () => await this.testIgdbConnection());
-        
         // Handle manual scrap modal cancel button
         document.getElementById('manualScrapModal').addEventListener('hidden.bs.modal', () => {
             // Only reopen game edit modal if manual scrap was opened from game edit modal
@@ -11153,49 +11150,6 @@ class GameCollectionManager {
             } else {
             }
         } catch (error) {
-        }
-    }
-    
-    async testIgdbConnection() {
-        const clientId = document.getElementById('igdbClientId').value.trim();
-        const clientSecret = document.getElementById('igdbClientSecret').value.trim();
-        
-        if (!clientId || !clientSecret) {
-            this.showAlert('Please enter both Client ID and Client Secret', 'warning');
-            return;
-        }
-        
-        // Disable button and show loading state
-        const testBtn = document.getElementById('testIgdbConnectionBtn');
-        const originalText = testBtn.innerHTML;
-        testBtn.disabled = true;
-        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
-        
-        try {
-            const response = await fetch('/api/test-igdb-connection', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    client_id: clientId,
-                    client_secret: clientSecret
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok && data.success) {
-                this.showAlert('IGDB connection test successful!', 'success');
-            } else {
-                this.showAlert(`IGDB connection test failed: ${data.error || 'Unknown error'}`, 'danger');
-            }
-        } catch (error) {
-            this.showAlert(`IGDB connection test failed: ${error.message}`, 'danger');
-        } finally {
-            // Restore button state
-            testBtn.disabled = false;
-            testBtn.innerHTML = originalText;
         }
     }
     

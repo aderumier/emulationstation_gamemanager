@@ -1344,7 +1344,7 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         print(f"🔧 DEBUG: Global cache length: {len(global_metadata_cache) if global_metadata_cache else 0}")
         
         # Get system configuration
-    mapping_config, system_platform_mapping = load_launchbox_config()
+        mapping_config, system_platform_mapping = load_launchbox_config()
         current_system_platform = system_platform_mapping.get(system_name, {}).get('launchbox', system_name)
         
         print(f"🔧 DEBUG: Mapping config: {mapping_config}")
@@ -1353,19 +1353,19 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         print(f"🔧 DEBUG: Using platform: {current_system_platform}")
         
         # Get gamelist path
-    gamelist_path = get_gamelist_path(system_name)
-    if not os.path.exists(gamelist_path):
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
             return {'success': False, 'error': f'Gamelist not found: {gamelist_path}'}
         
         # Parse games from gamelist
-    all_games = parse_gamelist_xml(gamelist_path)
-    if not all_games:
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
             return {'success': False, 'error': 'No games found in gamelist'}
         
         print(f"🔧 DEBUG: Found {len(all_games)} games in gamelist")
         
         # Filter games if selection is provided (but keep original list for saving)
-    games = all_games
+        games = all_games
         if selected_games:
             games = [g for g in all_games if g.get('path', '') in selected_games]
             print(f"🔧 DEBUG: Filtered to {len(games)} selected games")
@@ -1401,11 +1401,11 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
                 # Use existing LaunchBox ID directly - look up in global cache
                 launchboxid = existing_launchboxid
                 print(f"🔧 DEBUG: Using existing LaunchBox ID: {launchboxid}")
-        else:
+            else:
                 # No existing LaunchBox ID - find one using name lookup
                 launchboxid = find_launchboxid_from_partionned_index_directmatch(
                     game_name, 
-                current_system_platform, 
+                    current_system_platform, 
                     existing_launchboxid=None
                 )
             
@@ -1457,7 +1457,7 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
             'rom_paths': matched_rom_paths,
             'system_name': system_name
         }
-            
+        
     except Exception as e:
         error_msg = f'Error in simplified LaunchBox scraper: {str(e)}'
         print(f"❌ ERROR: {error_msg}")
@@ -1539,7 +1539,7 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                     # selected_fields contains LaunchBox field names like "Name", "Developer", etc.
                     should_update = launchbox_field in selected_fields and (overwrite_text_fields or not old_value)
                     print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: selected={launchbox_field in selected_fields}, overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
-        else:
+                else:
                     # Update all fields based on overwrite setting or empty field check
                     should_update = overwrite_text_fields or not old_value
                     print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
@@ -3084,18 +3084,18 @@ def run_image_download_task(system_name, data):
                     print(f"🔧 DEBUG: [MAIN TASK NORMAL] selected_fields is empty, no downloads")
                 else:
                     print(f"🔧 DEBUG: [MAIN TASK NORMAL] selected_fields is None, using all fields")
-                
+            
             # Skip if no fields to download
-                if not fields_to_download:
-                    skipped_count += 1
-                    current_step = i + 1
-                    progress_percent = int((current_step / len(games_to_process)) * 100)
-                    if selected_fields is not None and len(selected_fields) == 0:
-                        task.update_progress(f"⏭️  Skipping {game_name} - no media fields selected", progress_percentage=progress_percent, current_step=current_step)
-                        results.append({
-                            'game': game_name,
-                            'status': 'skipped',
-                            'reason': 'No media fields selected'
+            if not fields_to_download:
+                skipped_count += 1
+                current_step = i + 1
+                progress_percent = int((current_step / len(games_to_process)) * 100)
+                if selected_fields is not None and len(selected_fields) == 0:
+                    task.update_progress(f"⏭️  Skipping {game_name} - no media fields selected", progress_percentage=progress_percent, current_step=current_step)
+                    results.append({
+                        'game': game_name,
+                        'status': 'skipped',
+                        'reason': 'No media fields selected'
                     })
                 else:
                     if force_download:
@@ -3112,7 +3112,7 @@ def run_image_download_task(system_name, data):
                             'status': 'skipped',
                             'reason': 'All media fields already populated'
                         })
-                    continue
+                continue
             
             # Add game task to the list
             game_tasks.append({
@@ -3966,7 +3966,7 @@ def load_launchbox_partitioned_indexes():
         global_launchbox_indexes_loaded = True
         return global_launchbox_partition_index
         
-        except Exception as e:
+    except Exception as e:
         print(f"❌ Failed to load LaunchBox partitioned indexes: {e}")
         global_launchbox_indexes_loaded = True
         return None
@@ -4040,8 +4040,8 @@ def load_metadata_cache():
             for game_id, game_data in global_metadata_cache.items():
                 # With flattened structure, platform is directly in game_data
                 platform = game_data.get('Platform', 'Unknown')
-                    if platform and platform.strip():
-                        platforms.add(platform.strip())
+                if platform and platform.strip():
+                    platforms.add(platform.strip())
             
             _launchbox_platforms_cache = sorted(list(platforms))
             
@@ -7149,7 +7149,7 @@ def normalize_igdb_url(image_id: str, media_type: str = 'default') -> str:
         template = 't_cover_big'
     elif media_type == 'artwork':
         template = 't_1080p'
-                else:
+    else:
         template = 't_720p'
     
     # Construct IGDB image URL using local image ID - always use .png
@@ -7200,30 +7200,30 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
                 # Find the game in metadata_games
                 for game in metadata_games:
                     if str(game.get('DatabaseID', '')) == str(launchboxid):
-            # Get box image URL for this game
+                        # Get box image URL for this game
                         database_id = game.get('DatabaseID', '')
-            box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
-        
-            # Create match info
-            match_info = {
+                        box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
+                        
+                        # Create match info
+                        match_info = {
                             'game': game,
-                'score': similarity,
+                            'score': similarity,
                             'match_type': 'main',
                             'matched_name': game.get('Name', ''),
-                'database_id': database_id,
+                            'database_id': database_id,
                             'name': game.get('Name', ''),
                             'overview': game.get('Overview', ''),
                             'developer': game.get('Developer', ''),
                             'publisher': game.get('Publisher', ''),
-                'box_image_url': box_image_url
-            }
-            
-            # Add mapped fields dynamically based on mapping configuration
-            if mapping_config:
-                for launchbox_field, gamelist_field in mapping_config.items():
+                            'box_image_url': box_image_url
+                        }
+                        
+                        # Add mapped fields dynamically based on mapping configuration
+                        if mapping_config:
+                            for launchbox_field, gamelist_field in mapping_config.items():
                                 match_info[gamelist_field] = game.get(launchbox_field, '')
-        
-            matches.append(match_info)
+                        
+                        matches.append(match_info)
                         print(f"🔍 DEBUG: Found match: '{game.get('Name', '')}' -> similarity: {similarity:.4f}")
                         break
     
@@ -7306,8 +7306,8 @@ def write_gamelist_xml(games, file_path):
                         value = ''
                 
                 # Add all fields from the game data
-                    field_elem = ET.SubElement(game_elem, field)
-                    field_elem.text = str(value) if value else ''
+                field_elem = ET.SubElement(game_elem, field)
+                field_elem.text = str(value) if value else ''
                 
         
         # Write to file with formatting
@@ -7434,7 +7434,7 @@ def find_best_matches_endpoint():
                 # Check if this game belongs to the target platform
                 game_platform = game_elem.get('Platform')
                 if game_platform and game_platform.strip() == current_system_platform:
-                        platform_games[db_id] = game_elem
+                    platform_games[db_id] = game_elem
                     platform_alternate_names[db_id] = game_elem.get('alternate_names', [])
         
         if not platform_games:
@@ -10368,8 +10368,8 @@ def save_gamelist_xml(file_path, games):
                         # Keep empty string as empty (don't convert to 'false')
                         value = ''
                 
-                    elem = ET.SubElement(game_elem, field)
-                    elem.text = html.escape(str(value), quote=False) if value else ''
+                elem = ET.SubElement(game_elem, field)
+                elem.text = html.escape(str(value), quote=False) if value else ''
         
         # Create XML tree and save
         tree = ET.ElementTree(root)
@@ -11283,7 +11283,7 @@ def upload_game_media(system_name):
                 print(f"✅ Processed uploaded image: {process_status} - {new_filename}")
             elif process_status == "failed":
                 print(f"⚠️ Warning: Failed to process uploaded image, keeping original: {os.path.basename(file_path)}")
-            else:
+        else:
             print(f"✅ No processing needed for uploaded field: {media_field}")
         
         # Update the game object in memory with relative path
@@ -18243,7 +18243,7 @@ def download_launchbox_media():
                 print(f"✅ Processed image: {process_status} - {local_filename}")
             elif process_status == "failed":
                 print(f"⚠️ Warning: Failed to process image: {local_filename}")
-            else:
+        else:
             print(f"✅ No processing needed for field: {media_type}")
         
         # Update gamelist.xml
@@ -18562,56 +18562,6 @@ async def get_igdb_access_token_async():
     except Exception as e:
         print(f"Error getting IGDB access token: {e}")
         return None
-async def test_igdb_connection_async(client_id, client_secret):
-    """Test IGDB connection with provided credentials"""
-    try:
-        import httpx
-        
-        # Try to get access token
-        token_url = "https://id.twitch.tv/oauth2/token"
-        token_data = {
-            'client_id': client_id,
-            'client_secret': client_secret,
-            'grant_type': 'client_credentials'
-        }
-        
-        async with httpx.AsyncClient(http2=True, timeout=10.0) as client:
-            response = await client.post(token_url, data=token_data)
-            
-            if response.status_code == 200:
-                token_info = response.json()
-                access_token = token_info.get('access_token')
-                
-                if access_token:
-                    # Test the token by making a simple API call
-                    test_url = "https://api.igdb.com/v4/platforms"
-                    test_data = 'fields id,name; limit 1;'
-                    
-                    headers = {
-                        'Client-ID': client_id,
-                        'Authorization': f'Bearer {access_token}',
-                        'Content-Type': 'text/plain'
-                    }
-                    
-                    test_response = await client.post(test_url, headers=headers, content=test_data)
-                    
-                    if test_response.status_code == 200:
-                        return {'success': True, 'message': 'IGDB connection successful!'}
-                    else:
-                        return {'success': False, 'error': f'API test failed with status {test_response.status_code}'}
-                else:
-                    return {'success': False, 'error': 'Failed to get access token from response'}
-            else:
-                error_msg = 'Invalid credentials'
-                if response.status_code == 400:
-                    error_msg = 'Invalid Client ID or Client Secret'
-                elif response.status_code == 401:
-                    error_msg = 'Unauthorized - please verify your credentials'
-                return {'success': False, 'error': error_msg}
-                
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
-
 async def make_igdb_manual_request_with_retry(async_client, url, headers, data, max_retries=1):
     """Make an IGDB API request with retry logic for rate limiting"""
     import asyncio
@@ -19431,8 +19381,8 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                 elif process_status == "failed":
                     filename = os.path.basename(temp_file_path)
                     print(f"{emoji} DEBUG: ⚠️ Failed to process: {filename}")
-                else:
-                    filename = os.path.basename(temp_file_path)
+            else:
+                filename = os.path.basename(temp_file_path)
                 print(f"{emoji} DEBUG: ✅ No processing needed for field: {gamelist_field}")
             
             # Determine final filename and path using common function
@@ -20617,10 +20567,10 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                     artwork_id = next(iter(igdb_game['artworks'].keys())) if igdb_game['artworks'] else None
                 
                 if artwork_id:
-                artwork_data = {
-                    'image_id': artwork_id,
+                    artwork_data = {
+                        'image_id': artwork_id,
                         'url': normalize_igdb_url(artwork_id, 'artwork')
-                }
+                    }
                 
                 # Use the same download function as manual scraping
                 fanart_path = await download_igdb_image(artwork_data, system_name, rom_path, 'artworks')
@@ -20652,10 +20602,10 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                     screenshot_id = next(iter(igdb_game['screenshots'].keys())) if igdb_game['screenshots'] else None
                 
                 if screenshot_id:
-                screenshot_data = {
-                    'image_id': screenshot_id,
+                    screenshot_data = {
+                        'image_id': screenshot_id,
                         'url': normalize_igdb_url(screenshot_id)
-                }
+                    }
                 
                 # Use the same download function as manual scraping
                 screenshot_path = await download_igdb_image(screenshot_data, system_name, rom_path, 'screenshots')
@@ -23951,133 +23901,6 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread = threading.Thread(target=run_async)
     thread.daemon = True
     thread.start()
-@app.route('/api/igdb-mappings', methods=['GET'])
-def get_igdb_mappings():
-    """Get IGDB mappings and media types"""
-    try:
-        # Load scrappers config
-        scrappers_config = load_scrappers_config()
-        media_fields = load_media_fields()
-        
-        # Get IGDB mappings
-        igdb_mappings = scrappers_config.get('igdb', {})
-        
-        # Get IGDB media types
-        igdb_media_types = ['cover', 'screenshots', 'artworks', 'videos']
-        
-        return jsonify({
-            'success': True,
-            'igdb_mappings': igdb_mappings,
-            'media_fields': media_fields,
-            'igdb_media_types': igdb_media_types
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/igdb-credentials-values', methods=['GET'])
-def get_igdb_credentials_values():
-    """Get current IGDB credentials values"""
-    try:
-        # Load credentials using CredentialManager
-        from credential_manager import CredentialManager
-        credential_manager = CredentialManager()
-        igdb_credentials = credential_manager.get_igdb_credentials()
-        
-        return jsonify({
-            'client_id': igdb_credentials.get('client_id', ''),
-            'client_secret': igdb_credentials.get('client_secret', '')
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/test-igdb-connection', methods=['POST'])
-def test_igdb_connection():
-    """Test IGDB API connection"""
-    try:
-        data = request.get_json()
-        client_id = data.get('client_id', '').strip()
-        client_secret = data.get('client_secret', '').strip()
-        
-        if not client_id or not client_secret:
-            return jsonify({'success': False, 'error': 'Client ID and Client Secret are required'}), 400
-        
-        # Test the connection by making a simple API call
-        import requests
-        
-        # Get access token
-        token_url = 'https://id.twitch.tv/oauth2/token'
-        token_data = {
-            'client_id': client_id,
-            'client_secret': client_secret,
-            'grant_type': 'client_credentials'
-        }
-        
-        token_response = requests.post(token_url, data=token_data, timeout=10)
-        
-        if token_response.status_code != 200:
-            return jsonify({
-                'success': False, 
-                'error': f'Failed to get access token: {token_response.status_code}'
-            }), 400
-        
-        token_data = token_response.json()
-        access_token = token_data.get('access_token')
-        
-        if not access_token:
-            return jsonify({
-                'success': False, 
-                'error': 'No access token received'
-            }), 400
-        
-        # Test API call
-        api_url = 'https://api.igdb.com/v4/games'
-        headers = {
-            'Client-ID': client_id,
-            'Authorization': f'Bearer {access_token}'
-        }
-        api_data = 'fields id,name; limit 1;'
-        
-        api_response = requests.post(api_url, headers=headers, data=api_data, timeout=10)
-        
-        if api_response.status_code == 200:
-            return jsonify({'success': True, 'message': 'IGDB connection test successful'})
-        else:
-            return jsonify({
-                'success': False, 
-                'error': f'API call failed: {api_response.status_code}'
-            }), 400
-            
-    except requests.exceptions.Timeout:
-        return jsonify({'success': False, 'error': 'Connection timeout'}), 400
-    except requests.exceptions.ConnectionError:
-        return jsonify({'success': False, 'error': 'Connection error'}), 400
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/test-igdb-connection', methods=['POST'])
-def test_igdb_connection():
-    """Test IGDB connection with provided credentials"""
-    try:
-        data = request.json
-        client_id = data.get('client_id', '').strip()
-        client_secret = data.get('client_secret', '').strip()
-        
-        if not client_id or not client_secret:
-            return jsonify({'success': False, 'error': 'Client ID and Client Secret are required'}), 400
-        
-        # Run the async test function
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(test_igdb_connection_async(client_id, client_secret))
-            return jsonify(result)
-        finally:
-            loop.close()
-            
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 def cleanup_on_exit():
     """Clean up resources when the application exits"""
     global _cleanup_in_progress
