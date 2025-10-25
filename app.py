@@ -660,8 +660,8 @@ def load_screenscraper_media_types():
         screenscraper_credentials = credentials.get('screenscraper', {})
         
         if not screenscraper_credentials.get('username') or not screenscraper_credentials.get('password'):
-            print("⚠️ ScreenScraper credentials not configured, using fallback media types")
-            return get_fallback_screenscraper_media_types()
+            print("⚠️ ScreenScraper credentials not configured")
+            return []
         
         # Make API request to ScreenScraper
         url = "https://api.screenscraper.fr/api2/mediasJeuListe.php"
@@ -697,31 +697,13 @@ def load_screenscraper_media_types():
             print(f"✅ Loaded {len(media_types)} ScreenScraper media types from API")
             return media_types
         else:
-            print("⚠️ Invalid response from ScreenScraper API, using fallback")
-            return get_fallback_screenscraper_media_types()
+            print("⚠️ Invalid response from ScreenScraper API")
+            return []
             
     except Exception as e:
-        print(f"❌ Error fetching ScreenScraper media types: {e}, using fallback")
-        return get_fallback_screenscraper_media_types()
+        print(f"❌ Error fetching ScreenScraper media types: {e}")
+        return []
 
-def get_fallback_screenscraper_media_types():
-    """Fallback to static file if API fails"""
-    try:
-        mediastype_file = os.path.join('var', 'db', 'screenscraper', 'mediastype.txt')
-        if os.path.exists(mediastype_file):
-            with open(mediastype_file, 'r', encoding='utf-8') as f:
-                media_types = []
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        # Use short name as both short and full name
-                        media_types.append((line, line))
-                return media_types
-    except Exception as e:
-        print(f"❌ Error reading fallback media types: {e}")
-    
-    # Ultimate fallback
-    return [('wheel', 'Wheel'), ('box-2D', 'Box 2D'), ('box-3D', 'Box 3D')]
 
 def load_scrappers_config():
     """Load scrappers configuration from scrappers.json"""
