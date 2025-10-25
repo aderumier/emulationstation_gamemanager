@@ -24029,13 +24029,25 @@ def test_steamgriddb_connection():
         # Test API call to SteamGridDB
         api_url = 'https://www.steamgriddb.com/api/v2/grids/game/1'
         headers = {
-            'Authorization': f'Bearer {api_key}'
+            'Authorization': f'Bearer {api_key}',
+            'Accept': 'application/json',
+            'Accept-Charset': 'utf-8'
         }
         
         response = requests.get(api_url, headers=headers, timeout=10)
+        # Ensure proper encoding
+        response.encoding = 'utf-8'
         
         if response.status_code == 200:
-            return jsonify({'success': True, 'message': 'SteamGridDB connection test successful'})
+            # Try to parse JSON to ensure the response is valid
+            try:
+                response.json()
+                return jsonify({'success': True, 'message': 'SteamGridDB connection test successful'})
+            except (ValueError, UnicodeDecodeError) as e:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Invalid response format: {str(e)}'
+                }), 400
         elif response.status_code == 401:
             return jsonify({
                 'success': False, 
