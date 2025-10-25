@@ -24026,22 +24026,33 @@ def test_steamgriddb_connection():
         # Test the connection by making a simple API call
         import requests
         
-        # Test API call to SteamGridDB
-        api_url = 'https://www.steamgriddb.com/api/v2/grids/game/1'
+        # Test API call to SteamGridDB - use a simpler endpoint that's less likely to have encoding issues
+        api_url = 'https://www.steamgriddb.com/api/v2/status'
         headers = {
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json',
-            'Accept-Charset': 'utf-8'
+            'Accept-Charset': 'utf-8',
+            'User-Agent': 'GameManager/1.0'
         }
         
+        # Make the request with explicit encoding handling
         response = requests.get(api_url, headers=headers, timeout=10)
-        # Ensure proper encoding
-        response.encoding = 'utf-8'
+        
+        # Handle encoding issues by forcing UTF-8
+        try:
+            response.encoding = 'utf-8'
+            # Try to get the text content first to test encoding
+            content = response.text
+        except UnicodeDecodeError as e:
+            return jsonify({
+                'success': False, 
+                'error': f'Encoding error: {str(e)}'
+            }), 400
         
         if response.status_code == 200:
             # Try to parse JSON to ensure the response is valid
             try:
-                response.json()
+                json_data = response.json()
                 return jsonify({'success': True, 'message': 'SteamGridDB connection test successful'})
             except (ValueError, UnicodeDecodeError) as e:
                 return jsonify({
@@ -24063,8 +24074,10 @@ def test_steamgriddb_connection():
         return jsonify({'success': False, 'error': 'Connection timeout'}), 400
     except requests.exceptions.ConnectionError:
         return jsonify({'success': False, 'error': 'Connection error'}), 400
+    except UnicodeDecodeError as e:
+        return jsonify({'success': False, 'error': f'Unicode encoding error: {str(e)}'}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'}), 500
 
 def cleanup_on_exit():
     """Clean up resources when the application exits"""
