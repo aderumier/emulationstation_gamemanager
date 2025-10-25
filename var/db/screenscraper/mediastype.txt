@@ -18,6 +18,7 @@ box-2D-side
 box-2D-back
 box-texture
 support-texture
+support-2D
 box-scan
 support-scan
 bezel-4-3

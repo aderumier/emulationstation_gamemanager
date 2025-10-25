@@ -1153,7 +1153,8 @@
     "namco23": {
         "launchbox": "Arcade",
         "screenscraper": 75,
-        "igdb": "",
+        "igdb": 52,
+        "mobygames": "Arcade",
         "extensions": [
             ".7z",
             ".zip"

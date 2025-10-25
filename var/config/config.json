@@ -45,7 +45,7 @@
                 ".jpg",
                 ".jpeg"
             ],
-            "height": 900
+            "height": 901
         },
         "image": {
             "directory": "images",

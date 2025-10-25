@@ -1334,21 +1334,20 @@ def find_launchboxid_from_partionned_index_directmatch(game_name, target_platfor
         print(f"🔧 DEBUG: find_launchboxid_from_partionned_index_directmatch called with game_name: {game_name}, target_platform: {target_platform}")
         
         # Load partitioned indexes if not already loaded
-        global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded
+        global global_launchbox_partition_index, global_launchbox_indexes_loaded
         if not global_launchbox_indexes_loaded:
             print("🔄 Loading LaunchBox partitioned indexes...")
             load_launchbox_partitioned_indexes()
         
         partition_index = global_launchbox_partition_index
-        partition_index_no_parens = global_launchbox_partition_index_no_parens
         
-        if not partition_index or not partition_index_no_parens:
+        if not partition_index:
             return None
         
         # Note: existing_launchboxid is now handled in the main loop, not here
         
         # Check if target platform exists in indexes
-        if target_platform not in partition_index or target_platform not in partition_index_no_parens:
+        if target_platform not in partition_index:
             return None
         
         # Direct match with parentheses
@@ -1356,13 +1355,6 @@ def find_launchboxid_from_partionned_index_directmatch(game_name, target_platfor
         if normalized_with_parens and normalized_with_parens in partition_index[target_platform]:
             launchboxid = partition_index[target_platform][normalized_with_parens]
             print(f"🔧 DEBUG: Found LaunchBox ID {launchboxid} with parentheses match")
-            return launchboxid
-        
-        # Direct match without parentheses
-        normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
-        if normalized_no_parens and normalized_no_parens in partition_index_no_parens[target_platform]:
-            launchboxid = partition_index_no_parens[target_platform][normalized_no_parens]
-            print(f"🔧 DEBUG: Found LaunchBox ID {launchboxid} without parentheses match")
             return launchboxid
         
         return None
@@ -3302,7 +3294,6 @@ global_igdb_service_loaded = False
 
 # Global LaunchBox partitioned indexes
 global_launchbox_partition_index = None
-global_launchbox_partition_index_no_parens = None
 global_launchbox_indexes_loaded = False
 
 
@@ -3700,10 +3691,10 @@ def load_igdb_service():
 
 def load_launchbox_partitioned_indexes():
     """Load LaunchBox partitioned indexes from cache or create them"""
-    global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded, global_metadata_cache, global_metadata_cache_loaded
+    global global_launchbox_partition_index, global_launchbox_indexes_loaded, global_metadata_cache, global_metadata_cache_loaded
     
     if global_launchbox_indexes_loaded:
-        return global_launchbox_partition_index, global_launchbox_partition_index_no_parens
+        return global_launchbox_partition_index
     
     try:
         import os
@@ -3713,30 +3704,27 @@ def load_launchbox_partitioned_indexes():
         # Check if cache files exist
         cache_dir = 'var/cache'
         index_file = os.path.join(cache_dir, 'launchbox_partition_index.pkl')
-        index_no_parens_file = os.path.join(cache_dir, 'launchbox_partition_index_no_parens.pkl')
         
         # Check if we should force regeneration (if cache files are older than metadata)
         force_regeneration = False
-        if os.path.exists(index_file) and os.path.exists(index_no_parens_file):
+        if os.path.exists(index_file):
             # Check if metadata cache is newer than index files
             metadata_cache_file = os.path.join(cache_dir, 'launchbox_global_metadata_cache.pkl')
             if os.path.exists(metadata_cache_file):
                 metadata_mtime = os.path.getmtime(metadata_cache_file)
-                index_mtime = min(os.path.getmtime(index_file), os.path.getmtime(index_no_parens_file))
+                index_mtime = os.path.getmtime(index_file)
                 if metadata_mtime > index_mtime:
                     print("🔄 Metadata cache is newer than partitioned indexes, forcing regeneration...")
                     force_regeneration = True
         
-        if not force_regeneration and os.path.exists(index_file) and os.path.exists(index_no_parens_file):
+        if not force_regeneration and os.path.exists(index_file):
             # Load from cache
             with open(index_file, 'rb') as f:
                 global_launchbox_partition_index = pickle.load(f)
-            with open(index_no_parens_file, 'rb') as f:
-                global_launchbox_partition_index_no_parens = pickle.load(f)
             
             print("✅ LaunchBox partitioned indexes loaded from cache")
             global_launchbox_indexes_loaded = True
-            return global_launchbox_partition_index, global_launchbox_partition_index_no_parens
+            return global_launchbox_partition_index
         
         # Create indexes from global metadata cache
         print("🔄 Creating LaunchBox partitioned indexes...")
@@ -3756,7 +3744,6 @@ def load_launchbox_partitioned_indexes():
         
         # Initialize indexes
         global_launchbox_partition_index = {}  # dict[systemid][normalized_name] = launchboxid
-        global_launchbox_partition_index_no_parens = {}  # dict[systemid][normalized_name_without_parens] = launchboxid
         
         # Process all games from global cache
         processed_count = 0
@@ -3783,13 +3770,6 @@ def load_launchbox_partitioned_indexes():
                 if platform not in global_launchbox_partition_index:
                     global_launchbox_partition_index[platform] = {}
                 global_launchbox_partition_index[platform][normalized_with_parens] = db_id
-            
-            # Normalize game name without parentheses
-            normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
-            if normalized_no_parens:
-                if platform not in global_launchbox_partition_index_no_parens:
-                    global_launchbox_partition_index_no_parens[platform] = {}
-                global_launchbox_partition_index_no_parens[platform][normalized_no_parens] = db_id
         
         # Process alternate names separately
         # Alternate names reference games by DatabaseID, so we need to process them after all main games
@@ -3824,13 +3804,6 @@ def load_launchbox_partitioned_indexes():
                     if platform not in global_launchbox_partition_index:
                         global_launchbox_partition_index[platform] = {}
                     global_launchbox_partition_index[platform][normalized_with_parens] = db_id
-                
-                # Normalize alternate name without parentheses
-                normalized_no_parens = normalize_game_name(alt_name, remove_paranthesis=True, remove_articles=True)
-                if normalized_no_parens:
-                    if platform not in global_launchbox_partition_index_no_parens:
-                        global_launchbox_partition_index_no_parens[platform] = {}
-                    global_launchbox_partition_index_no_parens[platform][normalized_no_parens] = db_id
         
         print(f"✅ Processed {alternate_names_processed} alternate names")
         
@@ -3838,23 +3811,20 @@ def load_launchbox_partitioned_indexes():
         os.makedirs(cache_dir, exist_ok=True)
         with open(index_file, 'wb') as f:
             pickle.dump(global_launchbox_partition_index, f)
-        with open(index_no_parens_file, 'wb') as f:
-            pickle.dump(global_launchbox_partition_index_no_parens, f)
         
         print(f"✅ LaunchBox partitioned indexes created and saved to cache")
         print(f"   - Processed {processed_count} games, skipped {skipped_count} games")
         print(f"   - Total names processed: {total_names_processed} (including alternate names)")
         print(f"   - With parentheses: {sum(len(platform_index) for platform_index in global_launchbox_partition_index.values())} entries")
-        print(f"   - Without parentheses: {sum(len(platform_index) for platform_index in global_launchbox_partition_index_no_parens.values())} entries")
         print(f"   - Platforms: {len(global_launchbox_partition_index)} platforms")
         
         global_launchbox_indexes_loaded = True
-        return global_launchbox_partition_index, global_launchbox_partition_index_no_parens
+        return global_launchbox_partition_index
         
     except Exception as e:
         print(f"❌ Failed to load LaunchBox partitioned indexes: {e}")
         global_launchbox_indexes_loaded = True
-        return None, None
+        return None
 
 
 def _save_global_cache_to_file(cache_data):
@@ -5169,6 +5139,16 @@ def manage_systems():
             # Reload the global systems configuration cache
             if not reload_systems_config():
                 print("⚠️ Warning: Failed to reload systems configuration cache")
+            
+            # Reload MobyGames service with updated systems configuration
+            try:
+                if global_mobygames_service:
+                    global_mobygames_service.reload_systems_config(current_systems_config)
+                    print(f"✅ MobyGames service systems config reloaded for system: {system_name}")
+                else:
+                    print("⚠️ Warning: MobyGames service not available for reload")
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to reload MobyGames service: {e}")
             
             return jsonify({'success': True, 'message': 'System updated successfully'})
         
@@ -6729,13 +6709,12 @@ def flush_launchbox_caches():
     print("🧹 Flushing all LaunchBox-related caches...")
     
     # Clear in-memory caches
-    global global_metadata_cache_loaded, global_metadata_cache, _launchbox_platforms_cache, global_launchbox_indexes_loaded, global_launchbox_partition_index, global_launchbox_partition_index_no_parens
+    global global_metadata_cache_loaded, global_metadata_cache, _launchbox_platforms_cache, global_launchbox_indexes_loaded, global_launchbox_partition_index
     global_metadata_cache_loaded = False
     global_metadata_cache = {}
     _launchbox_platforms_cache = None
     global_launchbox_indexes_loaded = False
     global_launchbox_partition_index = None
-    global_launchbox_partition_index_no_parens = None
     
     # Note: MobyGames partitioned index cache is not related to LaunchBox and should not be removed
     
@@ -7044,7 +7023,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
         print(f"🔍 DEBUG: No metadata games provided, returning empty list")
         return []
     
-    normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+    normalized_name = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
     print(f"🔍 DEBUG: Normalized name: '{normalized_name}'")
     
     if not normalized_name:
@@ -7054,8 +7033,8 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
     matches = []
     
     # Use global partitioned indexes
-    partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
-    if not partition_index_no_parens or target_platform not in partition_index_no_parens:
+    partition_index = load_launchbox_partitioned_indexes()
+    if not partition_index or target_platform not in partition_index:
         print(f"🔍 DEBUG: Global partitioned indexes not available for platform '{target_platform}'")
         return []
     
@@ -7066,7 +7045,7 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
     print(f"🔍 DEBUG: Searching in partition '{first_char}'")
     
     # Search through all games in the platform partition
-    platform_partition = partition_index_no_parens[target_platform]
+    platform_partition = partition_index[target_platform]
     print(f"🔍 DEBUG: Platform partition has {len(platform_partition)} entries")
     
     for normalized_game_name, launchboxid in platform_partition.items():
@@ -8551,30 +8530,30 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                         })
 
         elif scraper_name == 'launchbox':
-            # Use partitioned index (no parens) and global cache
+            # Use partitioned index (with parens) and global cache
             all_lb = []
-            partition_index, partition_index_no_parens = load_launchbox_partitioned_indexes()
-            if not partition_index_no_parens:
+            partition_index = load_launchbox_partitioned_indexes()
+            if not partition_index:
                 return results
             from game_utils import normalize_game_name, calculate_similarity
-            normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+            normalized_with_parens = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
             global global_metadata_cache, global_metadata_cache_loaded
             if not global_metadata_cache_loaded or not global_metadata_cache:
                 # Load the global cache if not already loaded
                 load_metadata_cache()
                 if not global_metadata_cache_loaded or not global_metadata_cache:
                     return results
-            for platform_name in partition_index_no_parens.keys():
+            for platform_name in partition_index.keys():
                 try:
                     if direct_match:
                         launchboxid = None
                         # First try partitioned index (main names)
-                        if normalized_no_parens and platform_name in partition_index_no_parens:
-                            launchboxid = partition_index_no_parens[platform_name].get(normalized_no_parens)
+                        if normalized_with_parens and platform_name in partition_index:
+                            launchboxid = partition_index[platform_name].get(normalized_with_parens)
                         
                         # If not found in partitioned index, the indexes might be outdated
                         if not launchboxid:
-                            print(f"🔧 DEBUG: Not found in partitioned index for '{normalized_no_parens}' on platform '{platform_name}'")
+                            print(f"🔧 DEBUG: Not found in partitioned index for '{normalized_with_parens}' on platform '{platform_name}'")
                             print(f"🔧 DEBUG: This might indicate the partitioned indexes need regeneration")
                         
                         if launchboxid:
@@ -8602,11 +8581,11 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
                                         'platform': platform_name
                                     })
                     else:
-                        platform_games = partition_index_no_parens.get(platform_name, {})
+                        platform_games = partition_index.get(platform_name, {})
                         if platform_games:
                             sim_list = []
                             for norm_name, lbid in platform_games.items():
-                                sim = calculate_similarity(normalized_no_parens, norm_name)
+                                sim = calculate_similarity(normalized_with_parens, norm_name)
                                 if sim > 0.9:
                                     sim_list.append((sim, lbid, norm_name))
                             sim_list.sort(key=lambda x: x[0], reverse=True)
@@ -8715,7 +8694,7 @@ def fanart_search_endpoint():
 @login_required
 def marquee_search_endpoint():
     """Search for marquee images by game name similarity across scrapers"""
-    global global_metadata_cache, global_metadata_cache_loaded, global_launchbox_partition_index_no_parens
+    global global_metadata_cache, global_metadata_cache_loaded
     from game_utils import calculate_similarity
     try:
         data = request.get_json()
@@ -10821,15 +10800,11 @@ def regenerate_indexes_endpoint():
         # Delete existing index cache files to force regeneration
         cache_dir = 'var/cache'
         index_file = os.path.join(cache_dir, 'launchbox_partition_index.pkl')
-        index_no_parens_file = os.path.join(cache_dir, 'launchbox_partition_index_no_parens.pkl')
         
         deleted_files = []
         if os.path.exists(index_file):
             os.remove(index_file)
             deleted_files.append('launchbox_partition_index.pkl')
-        if os.path.exists(index_no_parens_file):
-            os.remove(index_no_parens_file)
-            deleted_files.append('launchbox_partition_index_no_parens.pkl')
         
         # Also delete platform cache files to force regeneration with new structure
         if os.path.exists(cache_dir):
@@ -10841,9 +10816,8 @@ def regenerate_indexes_endpoint():
                     print(f"✅ Removed platform cache: {filename}")
         
         # Reset the global indexes to force reload
-        global global_launchbox_partition_index, global_launchbox_partition_index_no_parens, global_launchbox_indexes_loaded
+        global global_launchbox_partition_index, global_launchbox_indexes_loaded
         global_launchbox_partition_index = None
-        global_launchbox_partition_index_no_parens = None
         global_launchbox_indexes_loaded = False
         
         # Ensure global metadata cache is loaded before regenerating indexes

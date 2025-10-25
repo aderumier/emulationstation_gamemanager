@@ -39,6 +39,13 @@ class MobyGamesService:
         self.systems_config = systems_config or {}
         self.logger = logging.getLogger(__name__)
         
+        # Debug logging for systems_config
+        self.logger.info(f"MobyGames service initialized with {len(self.systems_config)} systems configured")
+        if 'namco23' in self.systems_config:
+            self.logger.info(f"namco23 system config: {self.systems_config['namco23']}")
+        else:
+            self.logger.warning(f"namco23 not found in systems_config. Available systems: {list(self.systems_config.keys())}")
+        
         # MobyGames database path
         self.db_path = 'var/db/mobygames'
         
@@ -221,13 +228,27 @@ class MobyGamesService:
             return False
     
     
+    def reload_systems_config(self, systems_config: Dict):
+        """Reload systems configuration after it has been updated"""
+        self.systems_config = systems_config or {}
+        self.logger.info(f"MobyGames service systems config reloaded with {len(self.systems_config)} systems")
+        if 'namco23' in self.systems_config:
+            self.logger.info(f"namco23 system config after reload: {self.systems_config['namco23']}")
+        else:
+            self.logger.warning(f"namco23 not found in reloaded systems_config. Available systems: {list(self.systems_config.keys())}")
+    
     def get_mobygames_system(self, system_name: str) -> Optional[str]:
         """Get MobyGames system name from systems configuration"""
         if not self.systems_config:
+            self.logger.warning(f"No systems_config loaded for MobyGames service")
             return None
         
         system_config = self.systems_config.get(system_name, {})
         mobygames_system = system_config.get('mobygames')
+        
+        self.logger.debug(f"System '{system_name}' config: {system_config}")
+        self.logger.debug(f"MobyGames system for '{system_name}': {mobygames_system}")
+        self.logger.debug(f"Available MobyGames databases: {list(self.databases.keys())}")
         
         if mobygames_system and mobygames_system in self.databases:
             return mobygames_system
