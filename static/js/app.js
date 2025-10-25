@@ -14252,16 +14252,9 @@ class GameCollectionManager {
                         <div class="col-5">
                             <label class="form-label small fw-bold">Available Types</label>
                             <select class="form-select form-select-sm" multiple size="4" id="screenscraper_availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px; min-width: 300px;">
-                                ${screenscraperMediaTypes.filter(item => {
-                                    // Handle both array format [shortName, fullName] and object format {shortName, fullName}
-                                    const shortName = Array.isArray(item) ? item[0] : item.shortName || item[0];
-                                    const fullName = Array.isArray(item) ? item[1] : item.fullName || item[1];
-                                    return !screenscraperTypes.includes(shortName);
-                                }).map(item => {
-                                    const shortName = Array.isArray(item) ? item[0] : item.shortName || item[0];
-                                    const fullName = Array.isArray(item) ? item[1] : item.fullName || item[1];
-                                    return `<option value="${shortName}">${fullName}</option>`;
-                                }).join('')}
+                                ${screenscraperMediaTypes.filter(([shortName, fullName]) => !screenscraperTypes.includes(shortName)).map(([shortName, fullName]) => 
+                                    `<option value="${shortName}">${fullName}</option>`
+                                ).join('')}
                     </select>
                         </div>
                         <div class="col-2 d-flex flex-column justify-content-center align-items-center">
@@ -14277,13 +14270,8 @@ class GameCollectionManager {
                             <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto; min-width: 300px;" id="screenscraper_selectedTypes_${mediaField}">
                                 ${screenscraperTypes.map((type, index) => {
                                     // Find the full name for this short name
-                                    const mediaTypeInfo = screenscraperMediaTypes.find(item => {
-                                        const shortName = Array.isArray(item) ? item[0] : item.shortName || item[0];
-                                        return shortName === type;
-                                    });
-                                    const displayName = mediaTypeInfo ? 
-                                        (Array.isArray(mediaTypeInfo) ? mediaTypeInfo[1] : mediaTypeInfo.fullName || mediaTypeInfo[1]) : 
-                                        type;
+                                    const mediaTypeInfo = screenscraperMediaTypes.find(([shortName, fullName]) => shortName === type);
+                                    const displayName = mediaTypeInfo ? mediaTypeInfo[1] : type;
                                     return `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
                                         <span class="small">${displayName}</span>
                                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificScreenscraperType('${mediaField}', '${type}')" title="Remove">
