@@ -1350,13 +1350,21 @@ def find_launchboxid_from_partionned_index_directmatch(game_name, target_platfor
         if target_platform not in partition_index:
             return None
         
-        # Direct match with parentheses
+        # First try: Direct match with parentheses
         normalized_with_parens = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
         if normalized_with_parens and normalized_with_parens in partition_index[target_platform]:
             launchboxid = partition_index[target_platform][normalized_with_parens]
             print(f"🔧 DEBUG: Found LaunchBox ID {launchboxid} with parentheses match")
             return launchboxid
         
+        # Fallback: Try without parentheses (search in the same index)
+        normalized_no_parens = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=False)
+        if normalized_no_parens and normalized_no_parens != normalized_with_parens and normalized_no_parens in partition_index[target_platform]:
+            launchboxid = partition_index[target_platform][normalized_no_parens]
+            print(f"🔧 DEBUG: Found LaunchBox ID {launchboxid} without parentheses match (fallback)")
+            return launchboxid
+        
+        print(f"🔧 DEBUG: No LaunchBox ID found for '{game_name}' on platform '{target_platform}'")
         return None
         
     except Exception as e:
