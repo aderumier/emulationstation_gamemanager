@@ -3107,6 +3107,8 @@ class GameCollectionManager {
 
     async editGame(game) {
         this.editingGamePath = game.path; // Store ROM path as identifier
+        // Find the game index for reliable identification
+        this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
         await this.populateEditModal(game);
         
         const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
@@ -3479,6 +3481,8 @@ class GameCollectionManager {
 
     async editGameWithPreviewTab(game) {
         this.editingGamePath = game.path; // Store ROM path as identifier
+        // Find the game index for reliable identification
+        this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
         await this.populateEditModal(game);
         
         const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
