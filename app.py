@@ -654,29 +654,32 @@ def load_screenscraper_media_types():
         return _screenscraper_media_types_cache
     
     try:
-        # Load credentials
+        # Load credentials using CredentialManager
         config = load_config()
         try:
-            with open('var/config/credentials.json', 'r', encoding='utf-8') as f:
-                credentials = json.load(f)
+            from credential_manager import CredentialManager
+            credential_manager = CredentialManager()
+            screenscraper_credentials = credential_manager.get_screenscraper_credentials()
         except Exception as e:
             print(f"❌ Error loading credentials: {e}")
             return []
         
-        screenscraper_credentials = credentials.get('screenscraper', {})
+        if not screenscraper_credentials.get('devid') or not screenscraper_credentials.get('devpassword'):
+            print("⚠️ ScreenScraper developer credentials not configured - please set devid and devpassword in settings")
+            return []
         
         if not screenscraper_credentials.get('ssid') or not screenscraper_credentials.get('sspassword'):
-            print("⚠️ ScreenScraper credentials not configured - please set ssid and sspassword in settings")
+            print("⚠️ ScreenScraper user credentials not configured - please set ssid and sspassword in settings")
             return []
         
         # Debug: Log the credentials being used
-        print(f"🔧 DEBUG: Using ScreenScraper credentials - ssid: {screenscraper_credentials.get('ssid')}")
+        print(f"🔧 DEBUG: Using ScreenScraper credentials - devid: {screenscraper_credentials.get('devid')}, ssid: {screenscraper_credentials.get('ssid')}")
         
         # Make API request to ScreenScraper
         url = "https://api.screenscraper.fr/api2/mediasJeuListe.php"
         params = {
-            'devid': screenscraper_credentials.get('ssid'),
-            'devpassword': screenscraper_credentials.get('sspassword'),
+            'devid': screenscraper_credentials.get('devid'),
+            'devpassword': screenscraper_credentials.get('devpassword'),
             'softname': 'GameManager',
             'output': 'json'
         }
