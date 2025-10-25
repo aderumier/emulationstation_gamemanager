@@ -24035,8 +24035,8 @@ def test_steamgriddb_connection():
         # Test the connection by making a simple API call
         import requests
         
-        # Test API call to SteamGridDB - use a simpler endpoint that's less likely to have encoding issues
-        api_url = 'https://www.steamgriddb.com/api/v2/status'
+        # Test API call to SteamGridDB - use a simple endpoint that should exist
+        api_url = 'https://www.steamgriddb.com/api/v2/games/steam/1'
         headers = {
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json',
