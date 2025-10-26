@@ -3280,18 +3280,22 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     task.update_progress(f"     📐 Target dimensions: {target_width}x{target_height}, extension: '{target_extension}'")
                     
                     try:
+                        # First, copy the source file to the target location with correct extension
+                        temp_target_path = target_file_path
+                        shutil.copy2(source_file_path, temp_target_path)
+                        task.update_progress(f"     📋 Copied source to target location: '{temp_target_path}'")
+                        
+                        # Process the file in place at the target location
                         processed_path, process_status = convert_and_resize_image_replace(
-                            source_file_path, target_extension, target_width, target_height
+                            temp_target_path, target_extension, target_width, target_height
                         )
                         
                         task.update_progress(f"     🔍 Processing result: status='{process_status}', processed_path='{processed_path}'")
                         
-                        if process_status in ["converted", "resized", "converted_and_resized"]:
+                        if process_status in ["converted", "resized", "converted_and_resized", "already_correct"]:
                             task.update_progress(f"     ✅ File processed successfully: {process_status}")
-                            # Move the processed file to the final target location
-                            if processed_path != target_file_path:
-                                shutil.move(processed_path, target_file_path)
-                                task.update_progress(f"     ✅ File moved to final location: '{target_file_path}'")
+                            # File is already in the correct location
+                            task.update_progress(f"     ✅ File ready at target location: '{processed_path}'")
                         else:
                             task.update_progress(f"     ❌ Processing failed with status: {process_status}")
                             raise Exception(f"Image processing failed with status: {process_status}")
@@ -3300,17 +3304,18 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     ❌ Error in convert_and_resize_image_replace: {e}")
                         raise Exception(f"Image processing error: {e}")
                     
-                    # Verify the file was moved
-                    if os.path.exists(target_file_path):
-                        task.update_progress(f"     ✅ Target file verified: '{target_file_path}'")
+                    # Verify the processed file exists
+                    final_path = processed_path if processed_path else target_file_path
+                    if os.path.exists(final_path):
+                        task.update_progress(f"     ✅ Target file verified: '{final_path}'")
                     else:
-                        task.update_progress(f"     ❌ Target file not found after move: '{target_file_path}'")
+                        task.update_progress(f"     ❌ Target file not found: '{final_path}'")
+                        continue
                     
-                    # Check if source file is gone
-                    if not os.path.exists(source_file_path):
+                    # Remove the source file
+                    if os.path.exists(source_file_path):
+                        os.remove(source_file_path)
                         task.update_progress(f"     ✅ Source file removed: '{source_file_path}'")
-                    else:
-                        task.update_progress(f"     ⚠️ Source file still exists: '{source_file_path}'")
                     
                     # Update gamelist
                     new_media_path = f"./media/{media_fields[target_field]['directory']}/{target_filename}"
