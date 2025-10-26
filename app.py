@@ -2044,6 +2044,28 @@ class Task:
             'duration': self.end_time - self.start_time if self.end_time and self.start_time else None
         }
 
+    def to_dict_lightweight(self):
+        """Convert task to lightweight dictionary for main grid (excludes heavy fields)"""
+        return {
+            'id': self.id,
+            'type': self.type,
+            'status': self.status,
+            'stats': self.stats,
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'error_message': self.error_message,
+            'username': self.username,
+            'progress_percentage': self.progress_percentage,
+            'total_steps': self.total_steps,
+            'current_step': self.current_step,
+            'grid_refresh_needed': getattr(self, 'grid_refresh_needed', False),
+            'duration': self.end_time - self.start_time if self.end_time and self.start_time else None,
+            # Include essential data fields needed for grid refresh
+            'data': {
+                'system_name': self.data.get('system_name') if self.data else None
+            } if self.data and self.data.get('system_name') else None
+        }
+
 def create_task(task_type, task_data=None):
     """Create a new task"""
     # Get current user from Flask-Login
@@ -2066,6 +2088,10 @@ def get_task(task_id):
 def get_all_tasks():
     """Get all tasks"""
     return {task_id: task.to_dict() for task_id, task in tasks.items()}
+
+def get_all_tasks_lightweight():
+    """Get all tasks in lightweight format (excludes heavy fields)"""
+    return {task_id: task.to_dict_lightweight() for task_id, task in tasks.items()}
 
 def get_task_log(task_id):
     """Get the log content for a specific task"""
@@ -13912,32 +13938,46 @@ def get_task_queue():
 @app.route('/api/task/status-and-queue')
 @login_required
 def get_task_status_and_queue():
-    """Get combined task status, queue status, and all tasks in one call"""
+    """Get combined task status, queue status, and all tasks in one call
+    
+    OPTIMIZED: Returns lightweight task data (excludes heavy 'data' and 'progress' fields)
+    to reduce payload size. Full task details are fetched separately when needed
+    (e.g., when opening task log modal via /api/tasks/{id}).
+    """
     global current_task_id
     
     # Get current task status
     current_task = None
     if current_task_id and current_task_id in tasks:
-        current_task = tasks[current_task_id].to_dict()
+        current_task = tasks[current_task_id].to_dict_lightweight()
     else:
         current_task = {
             'status': 'idle',
             'type': None,
-            'progress': [],
             'stats': {},
             'start_time': None,
             'end_time': None,
             'duration': None,
-            'system': None,
-            'user': None,
-            'id': None
+            'username': None,
+            'id': None,
+            'progress_percentage': 0,
+            'total_steps': 0,
+            'current_step': 0,
+            'grid_refresh_needed': False,
+            'error_message': None
         }
     
     # Get queue status
     queue_status = get_queue_status()
     
     # Get all tasks
-    all_tasks = get_all_tasks()
+    all_tasks = get_all_tasks_lightweight()
+    
+    # Log size optimization for debugging
+    import json
+    lightweight_size = len(json.dumps(all_tasks))
+    full_size = len(json.dumps(get_all_tasks()))
+    print(f"📊 Task data size optimization: Lightweight={lightweight_size} bytes, Full={full_size} bytes, Saved={full_size-lightweight_size} bytes ({((full_size-lightweight_size)/full_size*100):.1f}% reduction)")
     
     return jsonify({
         'current_task': current_task,

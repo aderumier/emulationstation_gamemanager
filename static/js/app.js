@@ -1120,9 +1120,16 @@ class GameCollectionManager {
 
     async showTaskLog(taskId) {
         try {
-            // Get task details first to check if it's running
-            const task = this.getTaskById(taskId);
+            // Fetch full task details from API (includes data and progress fields)
+            const response = await fetch(`/api/tasks/${taskId}`);
+            if (!response.ok) {
+                console.error('Failed to fetch task details:', response.status);
+                return;
+            }
+            
+            const task = await response.json();
             if (!task) {
+                console.error('Task not found:', taskId);
                 return;
             }
 
@@ -1132,14 +1139,16 @@ class GameCollectionManager {
                 this.startLiveLogStream(taskId);
             } else {
                 // For completed tasks, fetch static log
-                const response = await fetch(`/api/tasks/${taskId}/log`);
-                if (response.ok) {
-                    const data = await response.json();
+                const logResponse = await fetch(`/api/tasks/${taskId}/log`);
+                if (logResponse.ok) {
+                    const data = await logResponse.json();
                     this.displayTaskLogModal(taskId, data.log);
                 } else {
+                    console.error('Failed to fetch task log:', logResponse.status);
                 }
             }
         } catch (error) {
+            console.error('Error showing task log:', error);
         }
     }
 
