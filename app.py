@@ -3277,23 +3277,35 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     target_width = media_fields[target_field].get('width', 0)
                     target_height = media_fields[target_field].get('height', 0)
                     
-                    task.update_progress(f"     📐 Target dimensions: {target_width}x{target_height}, extension: {target_extension}")
+                    task.update_progress(f"     📐 Target dimensions: {target_width}x{target_height}, extension: '{target_extension}'")
+                    task.update_progress(f"     🔍 Debug - Original file_extension: '{file_extension}', target_extension: '{target_extension}'")
                     
-                    processed_path, process_status = convert_and_resize_image_replace(
-                        source_file_path, target_extension, target_width, target_height
-                    )
+                    # Validate target_extension
+                    if not target_extension or target_extension == '':
+                        task.update_progress(f"     ❌ Invalid target extension: '{target_extension}', using fallback")
+                        target_extension = file_extension.lstrip('.')
+                        task.update_progress(f"     🔄 Using fallback extension: '{target_extension}'")
                     
-                    if process_status in ["converted", "resized", "converted_and_resized"]:
-                        task.update_progress(f"     ✅ File processed successfully: {process_status}")
-                        # Move the processed file to the final target location
-                        if processed_path != target_file_path:
-                            shutil.move(processed_path, target_file_path)
-                            task.update_progress(f"     ✅ File moved to final location: '{target_file_path}'")
-                    else:
-                        task.update_progress(f"     ⚠️ Processing status: {process_status}")
-                        # If processing failed, try regular move as fallback
-                        shutil.move(source_file_path, target_file_path)
-                        task.update_progress(f"     ✅ Fallback: File moved without processing")
+                    try:
+                        processed_path, process_status = convert_and_resize_image_replace(
+                            source_file_path, target_extension, target_width, target_height
+                        )
+                        
+                        task.update_progress(f"     🔍 Processing result: status='{process_status}', processed_path='{processed_path}'")
+                        
+                        if process_status in ["converted", "resized", "converted_and_resized"]:
+                            task.update_progress(f"     ✅ File processed successfully: {process_status}")
+                            # Move the processed file to the final target location
+                            if processed_path != target_file_path:
+                                shutil.move(processed_path, target_file_path)
+                                task.update_progress(f"     ✅ File moved to final location: '{target_file_path}'")
+                        else:
+                            task.update_progress(f"     ❌ Processing failed with status: {process_status}")
+                            raise Exception(f"Image processing failed with status: {process_status}")
+                            
+                    except Exception as e:
+                        task.update_progress(f"     ❌ Error in convert_and_resize_image_replace: {e}")
+                        raise Exception(f"Image processing error: {e}")
                     
                     # Verify the file was moved
                     if os.path.exists(target_file_path):
