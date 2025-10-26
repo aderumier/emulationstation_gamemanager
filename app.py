@@ -3270,7 +3270,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     task.update_progress(f"     🔄 Processing image: '{source_file_path}' -> '{target_file_path}'")
                     
                     # Get target extension, width, and height from media fields configuration
-                    target_extension = media_fields[target_field].get('extension', file_extension.lstrip('.'))
+                    target_extension = media_fields[target_field].get('target_extension', file_extension.lstrip('.'))
+                    if target_extension.startswith('.'):
+                        target_extension = target_extension[1:]  # Remove the dot if present
+                    
                     target_width = media_fields[target_field].get('width', 0)
                     target_height = media_fields[target_field].get('height', 0)
                     
