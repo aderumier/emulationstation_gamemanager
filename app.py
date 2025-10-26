@@ -3249,9 +3249,35 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 task.update_progress(f"     Extension: '{file_extension}'")
                 
                 try:
+                    # Check if source file exists
+                    if not os.path.exists(source_file_path):
+                        task.update_progress(f"     ❌ Source file does not exist: '{source_file_path}'")
+                        raise FileNotFoundError(f"Source file not found: {source_file_path}")
+                    
+                    # Check if target directory exists
+                    if not os.path.exists(target_dir):
+                        task.update_progress(f"     ❌ Target directory does not exist: '{target_dir}'")
+                        raise FileNotFoundError(f"Target directory not found: {target_dir}")
+                    
+                    # Check if target file already exists
+                    if os.path.exists(target_file_path):
+                        task.update_progress(f"     ⚠️ Target file already exists, will overwrite: '{target_file_path}'")
+                    
                     # Move the file
                     shutil.move(source_file_path, target_file_path)
                     task.update_progress(f"     ✅ File moved successfully")
+                    
+                    # Verify the file was moved
+                    if os.path.exists(target_file_path):
+                        task.update_progress(f"     ✅ Target file verified: '{target_file_path}'")
+                    else:
+                        task.update_progress(f"     ❌ Target file not found after move: '{target_file_path}'")
+                    
+                    # Check if source file is gone
+                    if not os.path.exists(source_file_path):
+                        task.update_progress(f"     ✅ Source file removed: '{source_file_path}'")
+                    else:
+                        task.update_progress(f"     ⚠️ Source file still exists: '{source_file_path}'")
                     
                     # Update gamelist
                     new_media_path = f"./media/{media_fields[target_field]['directory']}/{target_filename}"
