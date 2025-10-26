@@ -3093,20 +3093,20 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             
             # Level 3: Normalized ROM filename with parentheses
             if not matched_file:
-                normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_parentheses=False)
+                normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=False)
                 for media_file in media_files:
                     media_name_without_ext = os.path.splitext(media_file)[0]
-                    normalized_media_with_parens = normalize_game_name(media_name_without_ext, remove_parentheses=False)
+                    normalized_media_with_parens = normalize_game_name(media_name_without_ext, remove_paranthesis=False)
                     if normalized_media_with_parens == normalized_rom_with_parens:
                         matched_file = media_file
                         break
             
             # Level 4: Normalized ROM filename without parentheses
             if not matched_file:
-                normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_parentheses=True)
+                normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=True)
                 for media_file in media_files:
                     media_name_without_ext = os.path.splitext(media_file)[0]
-                    normalized_media_without_parens = normalize_game_name(media_name_without_ext, remove_parentheses=True)
+                    normalized_media_without_parens = normalize_game_name(media_name_without_ext, remove_paranthesis=True)
                     if normalized_media_without_parens == normalized_rom_without_parens:
                         matched_file = media_file
                         break
