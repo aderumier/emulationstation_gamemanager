@@ -3245,7 +3245,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 file_extension = os.path.splitext(matched_file)[1]
                 
                 # Get target extension from media fields configuration
-                target_extension = media_fields[target_field].get('target_extension', file_extension)
+                target_extension = media_fields[target_field].get('target_extension')
+                if not target_extension:
+                    # If no target extension defined, keep the original extension
+                    target_extension = file_extension
                 target_filename = f"{rom_name_without_ext}{target_extension}"
                 target_file_path = os.path.join(target_dir, target_filename)
                 
@@ -3286,8 +3289,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     📋 Copied source to target location: '{temp_target_path}'")
                         
                         # Process the file in place at the target location
+                        # Only pass target_extension if it's different from original
+                        process_extension = target_extension if target_extension != file_extension else None
                         processed_path, process_status = convert_and_resize_image_replace(
-                            temp_target_path, target_extension, target_width, target_height
+                            temp_target_path, process_extension, target_width, target_height
                         )
                         
                         task.update_progress(f"     🔍 Processing result: status='{process_status}', processed_path='{processed_path}'")
