@@ -165,5 +165,13 @@
             ]
         },
         "description": "MobyGames local database scrapper. Maps game data from local JSON databases to gamelist.xml fields."
+    },
+    "datscrapper": {
+        "mapping": {
+            "description": "name",
+            "year": "releasedate",
+            "manufacturer": "developer"
+        },
+        "description": "DAT Scrapper local XML file scrapper. Maps game data from local DAT XML files to gamelist.xml fields."
     }
 }

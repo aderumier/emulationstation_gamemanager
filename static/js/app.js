@@ -153,6 +153,9 @@ class GameCollectionManager {
         // Initialize MobyGames configuration modal
         this.initializeMobygamesConfigModal();
         
+        // Initialize DAT Scrapper configuration modal
+        this.initializeDatscrapperConfigModal();
+        
         // Initialize SteamGridDB configuration modal
         this.initializeSteamgriddbConfigModal();
         
@@ -1543,6 +1546,8 @@ class GameCollectionManager {
         
         document.getElementById('scrapMobygamesBtn').addEventListener('click', () => this.scrapMobygames());
         
+        document.getElementById('scrapDatscrapperBtn').addEventListener('click', () => this.scrapDatscrapper());
+        
         // Add event listeners for find best match dropdown options
         document.getElementById('findBestMatchLaunchboxBtn').addEventListener('click', (e) => {
             e.preventDefault();
@@ -1551,6 +1556,10 @@ class GameCollectionManager {
         document.getElementById('findBestMatchMobygamesBtn').addEventListener('click', (e) => {
             e.preventDefault();
             this.findBestMatchForSelectedMobygames(); // Use MobyGames-specific functionality
+        });
+        document.getElementById('findBestMatchDatscrapperBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.findBestMatchForSelectedDatscrapper(); // Use DAT Scrapper-specific functionality
         });
         document.getElementById('findBestMatchSteamBtn').addEventListener('click', (e) => {
             e.preventDefault();
@@ -6964,6 +6973,77 @@ class GameCollectionManager {
         }
     }
 
+    async findBestMatchForSelectedDatscrapper() {
+        // DAT Scrapper find best match functionality with auto-selection
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
+            }
+
+            // Show the modal with loading state
+            this.showGlobalMatchModal();
+            
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            // Use the DAT Scrapper API endpoint
+            const response = await fetch('/api/find-best-matches-datscrapper', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
+                });
+                this.populateGlobalMatchTable('datscrapper');
+        } else {
+                this.showGlobalMatchEmpty();
+                this.showAlert('No matches found for the selected games', 'info');
+            }
+            
+        } catch (error) {
+            this.showAlert('Error finding best matches: ' + error.message, 'danger');
+            this.hideGlobalMatchModal();
+        } finally {
+            // Reset button state
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
+            }
+        }
+    }
+
     async findBestMatchForSelectedSteam() {
         // Steam find best match functionality with auto-selection
         try {
@@ -7994,11 +8074,12 @@ class GameCollectionManager {
     async loadCurrentSystemMappings() {
         try {
             // Load platform data for comboboxes
-            const [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems] = await Promise.all([
+            const [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles] = await Promise.all([
                 this.loadLaunchBoxPlatforms(),
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms(),
-                this.loadMobygamesSystems()
+                this.loadMobygamesSystems(),
+                this.loadDatscrapperFiles()
             ]);
             
             // Debug: Log what we got
@@ -8021,6 +8102,9 @@ class GameCollectionManager {
             // Populate MobyGames combobox
             this.populateCombobox('mobygamesMapping', mobygamesSystems, 'system');
             
+            // Populate DAT Scrapper combobox
+            await this.populateDatscrapperMapping();
+            
             // Load current system mappings
             const response = await fetch('/api/systems');
             const data = await response.json();
@@ -8033,6 +8117,7 @@ class GameCollectionManager {
                 document.getElementById('igdbMapping').value = systemConfig.igdb || '';
                 document.getElementById('mobygamesMapping').value = systemConfig.mobygames || '';
                 document.getElementById('screenscraperMapping').value = systemConfig.screenscraper || '';
+                document.getElementById('datscrapperMapping').value = systemConfig.dat_file || '';
                 
                 // Set extensions value
                 const extensions = systemConfig.extensions || [];
@@ -8079,9 +8164,33 @@ class GameCollectionManager {
         }
     }
 
+    async populateDatscrapperMapping() {
+        try {
+            const response = await fetch('/api/datscrapper/files');
+            const data = await response.json();
+            
+            const select = document.getElementById('datscrapperMapping');
+            if (!select) return;
+            
+            // Clear existing options except the first one
+            select.innerHTML = '<option value="">Select DAT file...</option>';
+            
+            if (data.success && data.files) {
+                data.files.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file.filename;
+                    option.textContent = `${file.filename} (${(file.size / 1024).toFixed(1)} KB)`;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading DAT files:', error);
+        }
+    }
+
     highlightScraperField(scraperType) {
         // Remove existing highlights
-        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping'];
+        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping', 'datscrapperMapping'];
         fields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field) {
@@ -8096,7 +8205,8 @@ class GameCollectionManager {
             'launchbox': 'launchboxMapping',
             'igdb': 'igdbMapping',
             'mobygames': 'mobygamesMapping',
-            'screenscraper': 'screenscraperMapping'
+            'screenscraper': 'screenscraperMapping',
+            'datscrapper': 'datscrapperMapping'
         };
         
         const targetFieldId = fieldMap[scraperType];
@@ -10452,6 +10562,15 @@ class GameCollectionManager {
             });
         }
 
+        // Add event listener for opening DAT Scrapper modal
+        const openDatscrapperModal = document.getElementById('openDatscrapperModal');
+        if (openDatscrapperModal) {
+            openDatscrapperModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openDatscrapperScrapPreferencesModal();
+            });
+        }
+
         // Add event listener for opening Systems modal
         const openSystemsModal = document.getElementById('openSystemsModal');
         if (openSystemsModal) {
@@ -10946,6 +11065,140 @@ class GameCollectionManager {
         modal.show();
     }
     
+    async openDatscrapperScrapPreferencesModal() {
+        // Load current settings before opening modal
+        this.loadDatscrapperSettings();
+        
+        // Populate dynamic field checkboxes
+        await this.populateDatscrapperFieldCheckboxes();
+        
+        // Initialize field checkboxes
+        this.initializeDatscrapperFieldCheckboxes();
+        
+        // Add event listener for overwrite text fields checkbox
+        const overwriteTextCheckbox = document.getElementById('overwriteTextFieldsDatscrapperModal');
+        if (overwriteTextCheckbox) {
+            overwriteTextCheckbox.addEventListener('change', (e) => {
+                this.setCookie('overwriteTextFieldsDatscrapper', e.target.checked.toString(), 365);
+            });
+        }
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('datscrapperConfigurationModal'));
+        modal.show();
+    }
+    
+    loadDatscrapperSettings() {
+        // Load saved settings from cookies
+        const overwriteTextFields = this.getCookie('overwriteTextFieldsDatscrapper') === 'true';
+        
+        // Set checkbox states
+        const overwriteTextCheckbox = document.getElementById('overwriteTextFieldsDatscrapperModal');
+        
+        if (overwriteTextCheckbox) {
+            overwriteTextCheckbox.checked = overwriteTextFields;
+        }
+        
+        // Load field settings
+        this.loadDatscrapperFieldSettings();
+    }
+    
+    loadDatscrapperFieldSettings() {
+        // This function is no longer needed since populateDatscrapperFieldCheckboxes()
+        // now handles individual cookie loading directly
+        // The old 'selectedDatscrapperFields' cookie is deprecated
+    }
+    
+    saveDatscrapperSettings() {
+        // Save settings to cookies
+        const overwriteTextFields = document.getElementById('overwriteTextFieldsDatscrapperModal')?.checked || false;
+        
+        this.setCookie('overwriteTextFieldsDatscrapper', overwriteTextFields.toString());
+        
+        // Field selections are now saved individually via event listeners
+        // The old 'selectedDatscrapperFields' cookie is deprecated
+    }
+    
+    async populateDatscrapperFieldCheckboxes() {
+        try {
+            // Get DAT scraper mappings from config
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            const container = document.getElementById('datscrapperFieldCheckboxes');
+            if (!container) return;
+            
+            // Clear existing checkboxes
+            container.innerHTML = '';
+            
+            if (config.datscrapper && config.datscrapper.mapping) {
+                const mappings = config.datscrapper.mapping;
+                
+                // Create a row for the checkboxes
+                const row = document.createElement('div');
+                row.className = 'row';
+                
+                // Get the mapped fields and create checkboxes
+                Object.entries(mappings).forEach(([datField, gamelistField], index) => {
+                    const col = document.createElement('div');
+                    col.className = 'col-md-6';
+                    
+                    const checkboxId = `datscrapperField${gamelistField.charAt(0).toUpperCase() + gamelistField.slice(1)}`;
+                    
+                    // Check if this field should be checked based on cookie
+                    const cookieName = `datscrapperField_${gamelistField}`;
+                    const cookieValue = this.getCookie(cookieName);
+                    const isChecked = cookieValue === 'true';
+                    
+                    // Debug logging for name field
+                    if (gamelistField === 'name') {
+                        console.log(`🔧 DEBUG: Name field - cookieName: ${cookieName}, cookieValue: ${cookieValue}, isChecked: ${isChecked}`);
+                    }
+                    
+                    col.innerHTML = `
+                        <div class="form-check mb-2">
+                            <input class="form-check-input datscrapper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${gamelistField}" ${isChecked ? 'checked' : ''}>
+                            <label class="form-check-label" for="${checkboxId}">${this.getFieldDisplayName(datField)} (${gamelistField})</label>
+                        </div>
+                    `;
+                    
+                    // Debug logging for name field - check state after creation
+                    if (gamelistField === 'name') {
+                        setTimeout(() => {
+                            const checkbox = document.getElementById(checkboxId);
+                            if (checkbox) {
+                                console.log(`🔧 DEBUG: Name checkbox after creation - checked: ${checkbox.checked}, has checked attribute: ${checkbox.hasAttribute('checked')}`);
+                            }
+                        }, 100);
+                    }
+                    
+                    row.appendChild(col);
+                });
+                
+                container.appendChild(row);
+            } else {
+                container.innerHTML = '<div class="alert alert-warning">No DAT scraper field mappings found. Please configure field mappings in Scraper Configuration.</div>';
+            }
+        } catch (error) {
+            console.error('Error populating DAT scraper field checkboxes:', error);
+            const container = document.getElementById('datscrapperFieldCheckboxes');
+            if (container) {
+                container.innerHTML = '<div class="alert alert-danger">Error loading field mappings.</div>';
+            }
+        }
+    }
+    
+    getFieldDisplayName(datField) {
+        const fieldNames = {
+            'description': 'Name',
+            'year': 'Release Year',
+            'manufacturer': 'Developer',
+            'genre': 'Genre',
+            'developer': 'Developer'
+        };
+        return fieldNames[datField] || datField.charAt(0).toUpperCase() + datField.slice(1);
+    }
+    
     loadMobygamesSettings() {
         // Load saved settings from cookies
         const overwriteTextFields = this.getCookie('overwriteTextFieldsMobygames') === 'true';
@@ -11108,6 +11361,58 @@ class GameCollectionManager {
                 checkbox.checked = defaultCheckedFields.includes(field);
             }
         });
+    }
+    
+    initializeDatscrapperFieldCheckboxes() {
+        // Add event listeners for DAT Scrapper field checkboxes
+        const fieldCheckboxes = document.querySelectorAll('.datscrapper-field-checkbox');
+        
+        fieldCheckboxes.forEach(checkbox => {
+            const field = checkbox.dataset.field;
+            
+            // Debug logging for name field
+            if (field === 'name') {
+                console.log(`🔧 DEBUG: initializeDatscrapperFieldCheckboxes - name checkbox before: checked=${checkbox.checked}`);
+            }
+            
+            // Add event listeners for field checkboxes
+            checkbox.addEventListener('change', (e) => {
+                // Save field selection to cookies
+                this.setCookie(`datscrapperField_${field}`, e.target.checked.toString(), 365);
+            });
+            
+            // Debug logging for name field after event listener
+            if (field === 'name') {
+                console.log(`🔧 DEBUG: initializeDatscrapperFieldCheckboxes - name checkbox after: checked=${checkbox.checked}`);
+            }
+        });
+        
+        // Add select all/deselect all functionality
+        const selectAllBtn = document.getElementById('selectAllDatscrapperFields');
+        const deselectAllBtn = document.getElementById('deselectAllDatscrapperFields');
+        
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                fieldCheckboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                    const field = checkbox.dataset.field;
+                    this.setCookie(`datscrapperField_${field}`, 'true', 365);
+                });
+            });
+        }
+        
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', () => {
+                fieldCheckboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                    const field = checkbox.dataset.field;
+                    this.setCookie(`datscrapperField_${field}`, 'false', 365);
+                });
+            });
+        }
+        
+        // Note: Field selections are now loaded in populateDatscrapperFieldCheckboxes()
+        // This function only handles event listeners
     }
     
     loadScreenscraperSettings() {
@@ -12563,12 +12868,13 @@ class GameCollectionManager {
                     <table class="table table-sm table-striped table-hover compact-table" id="systemsTable">
                         <thead>
                             <tr>
-                                <th style="width: 12%">System</th>
-                                <th style="width: 15%">Launchbox</th>
-                                <th style="width: 15%">Screenscraper</th>
-                                <th style="width: 15%">IGDB</th>
-                                <th style="width: 15%">MobyGames</th>
-                                <th style="width: 28%">Extensions</th>
+                                <th style="width: 10%">System</th>
+                                <th style="width: 12%">Launchbox</th>
+                                <th style="width: 12%">Screenscraper</th>
+                                <th style="width: 12%">IGDB</th>
+                                <th style="width: 12%">MobyGames</th>
+                                <th style="width: 12%">DAT File</th>
+                                <th style="width: 30%">Extensions</th>
                             </tr>
                         </thead>
                         <tbody id="systemsTableBody">
@@ -12606,7 +12912,8 @@ class GameCollectionManager {
                 launchbox: document.getElementById('launchboxMapping').value,
                 igdb: document.getElementById('igdbMapping').value,
                 mobygames: document.getElementById('mobygamesMapping').value,
-                screenscraper: document.getElementById('screenscraperMapping').value
+                screenscraper: document.getElementById('screenscraperMapping').value,
+                dat_file: document.getElementById('datscrapperMapping').value
             };
             
             // Get extensions value and convert to array
@@ -12752,7 +13059,8 @@ class GameCollectionManager {
             this.systemsConfigCache.platforms && 
             this.systemsConfigCache.screenscraperSystems && 
             this.systemsConfigCache.igdbPlatforms && 
-            this.systemsConfigCache.mobygamesSystems) {
+            this.systemsConfigCache.mobygamesSystems &&
+            this.systemsConfigCache.datscrapperFiles) {
             
             console.log('Using cached systems configuration data');
             // Load systems data for cached version
@@ -12763,6 +13071,7 @@ class GameCollectionManager {
                         this.systemsConfigCache.screenscraperSystems,
                         this.systemsConfigCache.igdbPlatforms,
                         this.systemsConfigCache.mobygamesSystems,
+                        this.systemsConfigCache.datscrapperFiles,
                         data.systems
                     );
                 } else {
@@ -12791,14 +13100,15 @@ class GameCollectionManager {
         `;
         
         // Load LaunchBox platforms, ScreenScraper systems, IGDB platforms, and MobyGames systems for comboboxes
-        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [];
+        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [], datscrapperFiles = [];
         
         try {
-            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems] = await Promise.all([
+            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles] = await Promise.all([
                 this.loadLaunchBoxPlatforms(),
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms(),
-                this.loadMobygamesSystems()
+                this.loadMobygamesSystems(),
+                this.loadDatscrapperFiles()
             ]);
 
             // Cache the results
@@ -12806,6 +13116,7 @@ class GameCollectionManager {
             this.systemsConfigCache.screenscraperSystems = screenscraperSystems;
             this.systemsConfigCache.igdbPlatforms = igdbPlatforms;
             this.systemsConfigCache.mobygamesSystems = mobygamesSystems;
+            this.systemsConfigCache.datscrapperFiles = datscrapperFiles;
             this.systemsConfigCache.lastUpdated = Date.now();
             
             console.log('Cached systems configuration data');
@@ -12831,7 +13142,7 @@ class GameCollectionManager {
             return fetch('/api/systems').then(response => response.json());
         }).then(data => {
             if (data.success) {
-                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, data.systems);
+                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles, data.systems);
             } else {
                 throw new Error('Failed to load systems data');
             }
@@ -12850,7 +13161,7 @@ class GameCollectionManager {
         });
     }
     
-    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, systems) {
+    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles, systems) {
         const tbody = document.getElementById('systemsTableBody');
         if (!tbody) return;
         
@@ -12953,6 +13264,17 @@ class GameCollectionManager {
                     </div>
                 </td>
                 <td>
+                    <div class="platform-field" 
+                         data-system="${systemName}" 
+                         data-field="dat_file" 
+                         data-type="datscrapper"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change DAT file">
+                        <span class="platform-display">${systemData.dat_file || 'Not set'}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
+                </td>
+                <td>
                     <input type="text" 
                            class="form-control form-control-sm extensions-input" 
                            value="${Array.isArray(systemData.extensions) ? systemData.extensions.join(', ') : ''}" 
@@ -13043,6 +13365,27 @@ class GameCollectionManager {
         }
     }
     
+    async loadDatscrapperFiles() {
+        try {
+            const response = await fetch('/api/datscrapper/files');
+            
+            if (!response.ok) {
+                return [];
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.files) {
+                // Return file names sorted alphabetically
+                return data.files.map(file => file.filename).sort((a, b) => a.localeCompare(b));
+            } else {
+                return [];
+            }
+        } catch (error) {
+            return [];
+        }
+    }
+    
     async showPlatformSelector(systemName, fieldType, platformType, fieldElement) {
         try {
             let options = [];
@@ -13067,6 +13410,9 @@ class GameCollectionManager {
                     break;
                 case 'mobygames':
                     options = await this.loadMobygamesSystems();
+                    break;
+                case 'datscrapper':
+                    options = await this.loadDatscrapperFiles();
                     break;
             }
             
@@ -13121,6 +13467,10 @@ class GameCollectionManager {
                     isSelected = option.name === currentValue;
                     break;
                 case 'mobygames':
+                    value = text = option;
+                    isSelected = option === currentValue;
+                    break;
+                case 'datscrapper':
                     value = text = option;
                     isSelected = option === currentValue;
                     break;
@@ -13209,6 +13559,7 @@ class GameCollectionManager {
                 screenscraper_platform: currentSystem.screenscraper || '',
                 igdb_platform: currentSystem.igdb || '',
                 mobygames_platform: currentSystem.mobygames || '',
+                dat_file: currentSystem.dat_file || '',
                 extensions: Array.isArray(currentSystem.extensions) ? currentSystem.extensions : []
             };
             
@@ -13221,6 +13572,8 @@ class GameCollectionManager {
                 updateData.igdb_platform = value.trim();
             } else if (field === 'mobygames') {
                 updateData.mobygames_platform = value.trim();
+            } else if (field === 'dat_file') {
+                updateData.dat_file = value.trim();
             } else if (field === 'extensions') {
                 // Parse extensions from comma-separated string
                 updateData.extensions = value.trim() ? 
@@ -13598,6 +13951,8 @@ class GameCollectionManager {
         await this.loadScreenscraperMappingsData();
         await this.loadSteamMappingsData();
         await this.loadSteamgriddbMappingsData();
+        await this.loadMobygamesMappingsData();
+        await this.loadDatscrapperMappingsData();
         
         // Load credentials values for all services
         await this.loadScreenscraperCredentialsValues();
@@ -14932,6 +15287,102 @@ class GameCollectionManager {
     }
     
     
+    async loadDatscrapperMappingsData() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            if (config.datscrapper && config.datscrapper.mapping) {
+                this.populateDatscrapperMappingsTable(config.datscrapper.mapping);
+            } else {
+                this.showAlert('Failed to load DAT Scrapper mappings data', 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error loading DAT Scrapper mappings data', 'danger');
+        }
+    }
+    
+    populateDatscrapperMappingsTable(datscrapperMappings) {
+        const tbody = document.getElementById('datscrapperMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        // Get available gamelist fields for the combobox
+        const availableGamelistFields = [
+            'name', 'desc', 'developer', 'publisher', 'genre', 'rating', 
+            'releasedate', 'players', 'youtubeurl', 'nbvotes'
+        ];
+        
+        // Create rows for each mapping
+        Object.entries(datscrapperMappings).forEach(([datField, gamelistField]) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="datscrapper-field-display fw-bold">${datField}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm datscrapper-field-mapping" data-dat-field="${datField}">
+                        <option value="">Select gamelist field...</option>
+                        ${availableGamelistFields.map(field => 
+                            `<option value="${field}" ${field === gamelistField ? 'selected' : ''}>${field}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        // Add event listeners for field mapping changes
+        tbody.querySelectorAll('.datscrapper-field-mapping').forEach(select => {
+            select.addEventListener('change', (e) => {
+                const datField = e.target.dataset.datField;
+                const gamelistField = e.target.value;
+                
+                // Save the mapping
+                this.saveDatscrapperFieldMapping(datField, gamelistField);
+            });
+        });
+    }
+    
+    async saveDatscrapperFieldMapping(datField, gamelistField) {
+        try {
+            const response = await fetch('/api/config', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    'datscrapper.mapping': {
+                        [datField]: gamelistField
+                    }
+                })
+            });
+            
+            if (response.ok) {
+                this.showAlert(`DAT Scrapper mapping saved: ${datField} → ${gamelistField}`, 'success');
+            } else {
+                this.showAlert('Failed to save DAT Scrapper mapping', 'danger');
+            }
+        } catch (error) {
+            console.error('Error updating DAT Scrapper mapping:', error);
+            this.showAlert('Error updating DAT Scrapper mapping', 'danger');
+        }
+    }
+    
+    initializeDatscrapperConfigModal() {
+        // Refresh mappings button
+        const refreshDatscrapperMappingsBtn = document.getElementById('refreshDatscrapperMappingsBtn');
+        if (refreshDatscrapperMappingsBtn) {
+            refreshDatscrapperMappingsBtn.addEventListener('click', () => {
+                this.loadDatscrapperMappingsData();
+            });
+        }
+        
+        // Load initial data
+        this.loadDatscrapperMappingsData();
+    }
+    
     initializeSteamgriddbConfigModal() {
         // Refresh button
         const refreshSteamgriddbMappingsBtn = document.getElementById('refreshSteamgriddbMappingsBtn');
@@ -15119,6 +15570,19 @@ class GameCollectionManager {
             await this.loadDiscordCredentials();
         } catch (error) {
         }
+    }
+    
+    async loadDatscrapperConfig() {
+        try {
+            const response = await fetch('/api/config');
+            if (response.ok) {
+                const config = await response.json();
+                return config.scrappers?.datscrapper || {};
+            }
+        } catch (error) {
+            console.error('Error loading DAT Scrapper configuration:', error);
+        }
+        return {};
     }
     
     async loadDiscordCredentials() {
@@ -16865,6 +17329,11 @@ class GameCollectionManager {
             mobygamesBtn.disabled = false; // Allow MobyGames scraping
         }
 
+        const datscrapperBtn = document.getElementById('scrapDatscrapperBtn');
+        if (datscrapperBtn) {
+            datscrapperBtn.disabled = false; // Allow DAT Scrapper scraping
+        }
+
         // Update selection display
         this.updateSelectionDisplay();
         
@@ -17219,6 +17688,57 @@ class GameCollectionManager {
         }
     }
 
+    async getSelectedDatscrapperFields() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // Get DAT Scrapper field mappings from config
+            const mapping = config.datscrapper?.mapping || {};
+            const datFields = Object.keys(mapping);
+            const gamelistFields = Object.values(mapping);
+
+            // Read field selections directly from cookies
+            const selectedGamelistFields = [];
+            let hasUncheckedTextFields = false;
+            
+            // Check text fields - cookies store gamelist field names
+            gamelistFields.forEach(gamelistField => {
+                const cookieName = `datscrapperField_${gamelistField}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedGamelistFields.push(gamelistField);
+                    } else {
+                        hasUncheckedTextFields = true;
+                    }
+                } else {
+                    // No cookie exists - treat as unchecked
+                    hasUncheckedTextFields = true;
+                }
+            });
+
+            // If we have some unchecked fields, return only the selected ones
+            if (hasUncheckedTextFields) {
+                return {
+                    selected_text_fields: selectedGamelistFields
+                };
+            }
+            
+            // If all fields are selected (no unchecked fields), return all fields
+            return {
+                selected_text_fields: gamelistFields
+            };
+        } catch (error) {
+            console.error('Error getting selected DAT Scrapper fields:', error);
+            return {
+                selected_text_fields: []
+            };
+        }
+    }
+
     async scrapMobygames() {
         if (!this.currentSystem) {
             this.showAlert('Please select a system first', 'warning');
@@ -17282,6 +17802,82 @@ class GameCollectionManager {
             // Restore button state
             const button = document.getElementById('scrapMobygamesBtn');
             button.innerHTML = '<i class="bi bi-database"></i> MobyGames';
+            button.disabled = false;
+        }
+    }
+
+    async scrapDatscrapper() {
+        if (!this.currentSystem) {
+            this.showAlert('❌ Please select a system first', 'warning');
+            return;
+        }
+
+        // Check if DAT file is configured for this system
+        const response = await fetch('/api/systems');
+        const data = await response.json();
+        
+        if (!data.success) {
+            this.showAlert('❌ Failed to load systems configuration', 'danger');
+            return;
+        }
+        
+        const systemConfig = data.systems[this.currentSystem];
+        
+        if (!systemConfig || !systemConfig.dat_file) {
+            this.showAlert('❌ No DAT file configured for this system. Please configure it in Systems Configuration.', 'warning');
+            await this.openSystemsConfigForCurrentSystem('datscrapper');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapDatscrapperBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Get selected games
+            const selectedGames = this.selectedGames.map(game => game.path);
+            
+            // Get selected fields for DAT Scrapper scraping
+            const fieldSelections = await this.getSelectedDatscrapperFields();
+            
+            // Get overwrite settings from cookies
+            const overwriteTextFields = this.getCookie('overwriteTextFieldsDatscrapper') === 'true';
+            const overwriteMediaFields = this.getCookie('overwriteMediaFieldsDatscrapper') === 'true';
+            
+            const response = await fetch(`/api/scrap-datscrapper/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: selectedGames,
+                    selected_text_fields: fieldSelections.selected_text_fields,
+                    selected_media_fields: [],
+                    overwrite_text_fields: overwriteTextFields,
+                    overwrite_media_fields: overwriteMediaFields
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert(`✅ DAT Scrapper task started for ${this.currentSystem}`, 'success');
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Failed to start DAT Scrapper task: ${result.error}`, 'danger');
+            }
+            
+        } catch (error) {
+            this.showAlert(`❌ Error starting DAT Scrapper task: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapDatscrapperBtn');
+            button.innerHTML = '<i class="bi bi-file-earmark-code"></i> DAT Scrapper';
             button.disabled = false;
         }
     }

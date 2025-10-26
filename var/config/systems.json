@@ -1,9 +1,10 @@
 {
     "mame": {
         "launchbox": "Arcade",
-        "screenscraper": "75",
-        "igdb": "52",
+        "screenscraper": 75,
+        "igdb": 52,
         "mobygames": "Arcade",
+        "dat_file": "hbmame-game-full.xml",
         "extensions": []
     },
     "nes": {
@@ -645,6 +646,7 @@
         "screenscraper": 29,
         "igdb": 50,
         "mobygames": "3DO",
+        "dat_file": "",
         "extensions": [
             ".CUE",
             ".ISO",

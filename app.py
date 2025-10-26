@@ -56,6 +56,7 @@ from screenscraper_service import ScreenScraperService
 from steamgrid_service import SteamGridService
 from mobygames_service import MobyGamesService
 from igdb_service import IGDBService
+from datscrapper_service import DATScrapperService
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -1310,6 +1311,7 @@ task_stop_event = threading.Event()
 _screenscraper_cancel_maps = {}
 _rom_scan_cancel_maps = {}
 _mobygames_cancel_maps = {}
+_datscrapper_cancel_maps = {}
 
 # Client tracking for system-specific notifications
 client_systems = {}  # {client_sid: system_name}
@@ -1705,7 +1707,7 @@ def fix_over_escaped_xml_entities(text):
 # Task storage and management
 tasks = {}  # task_id -> task_info
 task_queue = []
-current_task_id = None
+current_task_id = 0
 
 def load_existing_tasks_from_logs():
     """Load existing tasks from log files on server startup"""
@@ -2017,7 +2019,7 @@ class Task:
         
         # Clear current task and start next queued task
         global current_task_id
-        current_task_id = None
+        current_task_id = 0
         process_next_queued_task()
 
     
@@ -2565,6 +2567,40 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_mobygames_task, args=(system_name, task.id, selected_games, selected_text_fields, selected_media_fields, overwrite_text_fields, overwrite_media_fields))
             thread.daemon = True
             thread.start()
+    elif task_type == 'datscrapper':
+        # Start DAT Scrapper task
+        print(f"🔧 DEBUG: Processing datscrapper task in queue")
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        selected_text_fields = task_data.get('selected_text_fields', [])
+        selected_media_fields = task_data.get('selected_media_fields', [])
+        overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        print(f"🔧 DEBUG: DAT Scrapper task data: system_name={system_name}, selected_games={selected_games}")
+        
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            print(f"🔧 DEBUG: Using task_id: {task_id}")
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+                print(f"🔧 DEBUG: Started existing task {task_id}")
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('datscrapper', task_data)
+                current_task_id = task.id
+                task.start()
+                print(f"🔧 DEBUG: Created and started new task {task.id}")
+            # Start DAT Scrapper in background thread
+            print(f"🔧 DEBUG: Starting DAT Scrapper thread with args: ({system_name}, {task.id}, {selected_games}, {selected_text_fields}, {selected_media_fields}, {overwrite_text_fields}, {overwrite_media_fields})")
+            thread = threading.Thread(target=run_datscrapper_task, args=(system_name, task.id, selected_games, selected_text_fields, selected_media_fields, overwrite_text_fields, overwrite_media_fields))
+            thread.daemon = True
+            thread.start()
+            print(f"🔧 DEBUG: DAT Scrapper thread started")
+        else:
+            print(f"🔧 DEBUG: No system_name provided for DAT Scrapper task")
     elif task_type == 'launchbox_scraping':
         # Start LaunchBox scraping task
         system_name = task_data.get('system_name')
@@ -3429,6 +3465,10 @@ global_metadata_cache_loaded = False
 global_mobygames_service = None
 global_mobygames_service_loaded = False
 
+# Global DAT Scrapper service instance
+global_datscrapper_service = None
+global_datscrapper_service_loaded = False
+
 # Global Steam service instance
 global_steam_service = None
 global_steam_service_loaded = False
@@ -3772,6 +3812,37 @@ def load_mobygames_service():
     except Exception as e:
         print(f"❌ Failed to load MobyGames service: {e}")
         global_mobygames_service_loaded = True  # Mark as loaded to prevent retries
+        return None
+
+def load_datscrapper_service():
+    """Load DAT Scrapper service"""
+    global global_datscrapper_service, global_datscrapper_service_loaded
+    
+    if global_datscrapper_service_loaded:
+        return global_datscrapper_service
+    
+    try:
+        print("🔄 Loading DAT Scrapper service...")
+        start_time = time.time()
+        
+        # Load configurations
+        config = load_config()
+        scrappers_config = load_scrappers_config()
+        systems_config = load_systems_config()
+        
+        # Initialize DAT Scrapper service
+        global_datscrapper_service = DATScrapperService(config, scrappers_config, systems_config)
+        
+        end_time = time.time()
+        print(f"✅ DAT Scrapper service loaded in {end_time - start_time:.2f} seconds!")
+        
+        global_datscrapper_service_loaded = True
+        
+        return global_datscrapper_service
+        
+    except Exception as e:
+        print(f"❌ Error loading DAT Scrapper service: {e}")
+        global_datscrapper_service_loaded = True  # Mark as loaded to prevent retries
         return None
 
 def load_steam_service():
@@ -5150,6 +5221,7 @@ def manage_systems():
                         'launchbox': '',
                         'screenscraper': '',
                         'igdb': '',
+                        'dat_file': '',
                         'extensions': []
                     }
                     added_systems.append(system_name)
@@ -5174,6 +5246,7 @@ def manage_systems():
                 launchbox_platform = data.get('launchbox_platform', '')
                 screenscraper_platform = data.get('screenscraper_platform', '')
                 igdb_platform = data.get('igdb_platform', '')
+                dat_file = data.get('dat_file', '')
                 extensions = data.get('extensions', [])
                 
                 # Convert numeric platforms to integers
@@ -5210,6 +5283,7 @@ def manage_systems():
                     'launchbox': launchbox_platform,
                     'screenscraper': screenscraper_platform,
                     'igdb': igdb_platform,
+                    'dat_file': dat_file,
                     'extensions': extensions
                 }
                 
@@ -5234,6 +5308,7 @@ def manage_systems():
             screenscraper_platform = data.get('screenscraper_platform', '')
             igdb_platform = data.get('igdb_platform', '')
             mobygames_platform = data.get('mobygames_platform', '')
+            dat_file = data.get('dat_file', '')
             extensions = data.get('extensions', [])
             
             # Debug logging
@@ -5242,6 +5317,7 @@ def manage_systems():
             print(f"🔧 DEBUG: PUT systems - screenscraper_platform: {screenscraper_platform} (type: {type(screenscraper_platform)})")
             print(f"🔧 DEBUG: PUT systems - igdb_platform: {igdb_platform} (type: {type(igdb_platform)})")
             print(f"🔧 DEBUG: PUT systems - mobygames_platform: {mobygames_platform} (type: {type(mobygames_platform)})")
+            print(f"🔧 DEBUG: PUT systems - dat_file: {dat_file} (type: {type(dat_file)})")
             
             # Convert numeric platforms to integers
             if screenscraper_platform:
@@ -5274,6 +5350,7 @@ def manage_systems():
                 'screenscraper': screenscraper_platform,
                 'igdb': igdb_platform,
                 'mobygames': mobygames_platform,
+                'dat_file': dat_file,
                 'extensions': extensions
             }
             
@@ -6082,6 +6159,148 @@ def scrap_mobygames_system(system_name):
     except Exception as e:
         print(f"Error starting MobyGames task: {e}")
         return jsonify({'error': f'Failed to start MobyGames task: {str(e)}'}), 500
+
+@app.route('/api/scrap-datscrapper/<system_name>', methods=['POST'])
+@login_required
+def scrap_datscrapper_system(system_name):
+    """Start DAT Scrapper task for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_text_fields = data.get('selected_text_fields', [])
+        selected_media_fields = data.get('selected_media_fields', [])
+        overwrite_text_fields = data.get('overwrite_text_fields', False)
+        overwrite_media_fields = data.get('overwrite_media_fields', False)
+        
+        print(f"🔧 DEBUG: API received data: {data}")
+        print(f"🔧 DEBUG: API extracted selected_text_fields: {selected_text_fields}")
+        print(f"🔧 DEBUG: API extracted selected_media_fields: {selected_media_fields}")
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"DAT Scrapper API - selected_games: {len(selected_games)} games, selected_text_fields: {selected_text_fields}, selected_media_fields: {selected_media_fields}, overwrite_text: {overwrite_text_fields}, overwrite_media: {overwrite_media_fields}")
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_text_fields': selected_text_fields,
+            'selected_media_fields': selected_media_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
+        }
+        username = current_user.username if current_user.is_authenticated else 'anonymous'
+        task = add_task_to_queue('datscrapper', task_data, username)
+        
+        # Set current task and start it
+        current_task_id = task.id
+        task.start()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'DAT Scrapper task started', 
+            'task_id': task.id,
+            'system': system_name
+        })
+        
+    except Exception as e:
+        print(f"Error starting DAT Scrapper task: {e}")
+        return jsonify({'error': f'Failed to start DAT Scrapper task: {str(e)}'}), 500
+
+@app.route('/api/datscrapper/search', methods=['POST'])
+@login_required
+def search_datscrapper_games():
+    """Search for games in DAT file"""
+    try:
+        data = request.get_json()
+        system_name = data.get('system_name')
+        game_name = data.get('game_name', '')
+        limit = data.get('limit', 20)
+        
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        if not game_name:
+            return jsonify({'error': 'Game name is required'}), 400
+        
+        # Get DAT Scrapper service
+        service = load_datscrapper_service()
+        if not service:
+            return jsonify({'error': 'DAT Scrapper service not available'}), 500
+        
+        # Search for games
+        games = service.search_games(system_name, game_name, limit)
+        
+        return jsonify({
+            'success': True,
+            'games': games,
+            'count': len(games)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to search DAT games: {str(e)}'}), 500
+
+@app.route('/api/datscrapper/files', methods=['GET'])
+@login_required
+def get_datscrapper_files():
+    """Get available DAT files"""
+    try:
+        dat_path = 'var/db/dats'
+        if not os.path.exists(dat_path):
+            return jsonify({'files': []})
+        
+        dat_files = []
+        for filename in os.listdir(dat_path):
+            if filename.endswith('.xml'):
+                file_path = os.path.join(dat_path, filename)
+                file_size = os.path.getsize(file_path)
+                dat_files.append({
+                    'filename': filename,
+                    'size': file_size,
+                    'path': file_path
+                })
+        
+        return jsonify({
+            'success': True,
+            'files': dat_files
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get DAT files: {str(e)}'}), 500
+
+@app.route('/api/systems/<system_name>/dat-files', methods=['GET'])
+@login_required
+def get_system_dat_files(system_name):
+    """Get available DAT files for a system"""
+    try:
+        dat_path = 'var/db/dats'
+        if not os.path.exists(dat_path):
+            return jsonify({'files': []})
+        
+        dat_files = []
+        for filename in os.listdir(dat_path):
+            if filename.endswith('.xml'):
+                file_path = os.path.join(dat_path, filename)
+                file_size = os.path.getsize(file_path)
+                dat_files.append({
+                    'filename': filename,
+                    'size': file_size,
+                    'path': file_path
+                })
+        
+        return jsonify({
+            'success': True,
+            'files': dat_files
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get DAT files: {str(e)}'}), 500
 
 @app.route('/api/mobygames/search', methods=['POST'])
 @login_required
@@ -9151,6 +9370,86 @@ def find_best_matches_mobygames_endpoint():
     except Exception as e:
         print(f"Error in find_best_matches_mobygames endpoint: {e}")
         return jsonify({'error': f'Failed to find MobyGames matches: {str(e)}'}), 500
+
+@app.route('/api/find-best-matches-datscrapper', methods=['POST'])
+@login_required
+def find_best_matches_datscrapper_endpoint():
+    """Find best matches for selected games using DAT Scrapper database"""
+    try:
+        data = request.get_json()
+        system_name = data.get('system_name')
+        selected_games = data.get('selected_games', [])
+        
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        if not selected_games:
+            return jsonify({'error': 'No games selected'}), 400
+        
+        # Get DAT Scrapper service
+        service = load_datscrapper_service()
+        
+        if not service:
+            return jsonify({'error': 'DAT Scrapper service not available'}), 500
+        
+        # Load gamelist to get game details
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': f'Gamelist not found for system: {system_name}'}), 400
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            return jsonify({'error': f'No games found for system: {system_name}'}), 400
+        
+        # Create a map of game paths to game data
+        games_by_path = {game['path']: game for game in all_games}
+        
+        results = []
+        
+        for game_path in selected_games:
+            game_data = games_by_path.get(game_path)
+            if not game_data:
+                continue
+            
+            game_name = game_data.get('name', '')
+            if not game_name:
+                continue
+            
+            # Find game in DAT file by ROM name
+            dat_entry = service.find_game_by_rom_name(system_name, game_path)
+            
+            if dat_entry:
+                # Map DAT data structure to expected format
+                result = {
+                    'game_data': game_data,
+                    'game_path': game_path,
+                    'best_match': {
+                        'name': dat_entry.name,
+                        'description': dat_entry.description,
+                        'year': dat_entry.year,
+                        'publisher': dat_entry.publisher,
+                        'developer': dat_entry.developer,
+                        'genre': dat_entry.genre
+                    },
+                    'all_matches': [{
+                        'name': dat_entry.name,
+                        'description': dat_entry.description,
+                        'year': dat_entry.year,
+                        'publisher': dat_entry.publisher,
+                        'developer': dat_entry.developer,
+                        'genre': dat_entry.genre
+                    }]
+                }
+                results.append(result)
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'count': len(results)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to find best matches: {str(e)}'}), 500
 
 @app.route('/api/find-best-matches-steam', methods=['POST'])
 @login_required
@@ -13799,6 +14098,19 @@ def stop_task_endpoint(task_id):
             except Exception as e:
                 print(f"Warning: could not set MobyGames cancel flag: {e}")
         
+        # For DAT Scrapper tasks, we need to handle cancellation
+        if task.type == 'datscrapper':
+            task.update_progress("🛑 DAT Scrapper task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for DAT Scrapper tasks
+            try:
+                global _datscrapper_cancel_maps
+                if '_datscrapper_cancel_maps' not in globals():
+                    _datscrapper_cancel_maps = {}
+                _datscrapper_cancel_maps[task_id] = True
+                print(f"DEBUG: Set DAT Scrapper cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set DAT Scrapper cancel flag: {e}")
+        
         # Stop the task (except for YouTube batch download which handles its own completion)
         if task.type != 'youtube_download_batch':
             task.stop()
@@ -13808,7 +14120,7 @@ def stop_task_endpoint(task_id):
         
         # If this was the current running task, clear it
         if current_task_id == task_id:
-            current_task_id = None
+            current_task_id = 0
         
         # Clean up any stuck tasks
         cleanup_stuck_tasks()
@@ -22792,6 +23104,267 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
         if task_id in _mobygames_cancel_maps:
             del _mobygames_cancel_maps[task_id]
             logger.info(f"Removed task {task_id} from MobyGames cancel map")
+
+def run_datscrapper_task(system_name, task_id, selected_games=None, selected_text_fields=None, selected_media_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
+    """Run DAT Scrapper task for a specific system"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    print(f"🔧 DEBUG: run_datscrapper_task called with system_name={system_name}, task_id={task_id}")
+    print(f"🔧 DEBUG: selected_games={selected_games}")
+    print(f"🔧 DEBUG: selected_text_fields={selected_text_fields}")
+    
+    # Add task to cancel map
+    global _datscrapper_cancel_maps
+    _datscrapper_cancel_maps[task_id] = False
+    
+    def is_cancelled():
+        """Check if the DAT Scrapper task should be cancelled"""
+        global _datscrapper_cancel_maps
+        return _datscrapper_cancel_maps.get(task_id, False)
+    
+    logger.info(f"Starting DAT Scrapper task for system: {system_name}")
+    
+    # Get field mappings from config
+    datscrapper_config = load_scrappers_config().get('datscrapper', {})
+    text_field_mapping = datscrapper_config.get('mapping', {})
+    
+    print(f"🔧 DEBUG: DAT Scrapper config: {datscrapper_config}")
+    print(f"🔧 DEBUG: Text field mapping: {text_field_mapping}")
+    print(f"🔧 DEBUG: System name: {system_name}")
+    
+    # Use the parameters passed to the function directly
+    if selected_text_fields is None:
+        selected_text_fields = []
+    if selected_media_fields is None:
+        selected_media_fields = []
+    
+    print(f"🔧 DEBUG: Selected text fields: {selected_text_fields}")
+    print(f"🔧 DEBUG: Selected media fields: {selected_media_fields}")
+    print(f"🔧 DEBUG: Overwrite text fields: {overwrite_text_fields}")
+    print(f"🔧 DEBUG: Overwrite media fields: {overwrite_media_fields}")
+    
+    try:
+        # Load config
+        config = load_config()
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        dat_file = system_config.get('dat_file')
+        
+        logger.info(f"🔧 DEBUG: DAT file: {dat_file}")
+        
+        if not dat_file:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"No DAT file configured for system: {system_name}")
+            return
+        
+        # Get cached DAT Scrapper service or load it if not available
+        service = load_datscrapper_service()
+        if not service:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, "DAT Scrapper service not available")
+            return
+        
+        logger.info(f"🔧 DEBUG: DAT Scrapper service loaded: {service is not None}")
+        
+        # Add field selection settings to config
+        scrappers_config = load_scrappers_config()
+        datscrapper_config = scrappers_config.get('datscrapper', {})
+        datscrapper_config['selected_text_fields'] = selected_text_fields or []
+        datscrapper_config['selected_media_fields'] = selected_media_fields or []
+        datscrapper_config['overwrite_text_fields'] = overwrite_text_fields
+        datscrapper_config['overwrite_media_fields'] = overwrite_media_fields
+        
+        logger.info(f"DAT Scrapper task - selected_text_fields: {selected_text_fields}, selected_media_fields: {selected_media_fields}, overwrite_text: {overwrite_text_fields}, overwrite_media: {overwrite_media_fields}")
+        
+        # Get task object for progress updates
+        t = get_task(task_id)
+        if t:
+            t.update_progress("🔧 Loading DAT Scrapper configuration...")
+        
+        # Load games for the system
+        gamelist_path = get_gamelist_path(system_name)
+        print(f"🔧 DEBUG: Gamelist path: {gamelist_path}")
+        if not os.path.exists(gamelist_path):
+            print(f"🔧 DEBUG: Gamelist not found: {gamelist_path}")
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"Gamelist not found for system: {system_name}")
+            return
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        print(f"🔧 DEBUG: Parsed {len(all_games) if all_games else 0} games from gamelist")
+        if not all_games:
+            print(f"🔧 DEBUG: No games found in gamelist")
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"No games found for system: {system_name}")
+            return
+        
+        # Filter games if selection is provided
+        if selected_games:
+            selected_paths = set(selected_games)
+            games_to_process = [game for game in all_games if game['path'] in selected_paths]
+            print(f"🔧 DEBUG: Filtered to {len(games_to_process)} selected games")
+        else:
+            games_to_process = all_games
+            print(f"🔧 DEBUG: Processing all {len(games_to_process)} games")
+        
+        total_games = len(games_to_process)
+        print(f"🔧 DEBUG: Total games to process: {total_games}")
+        
+        if t:
+            t.update_progress(f"🎮 Processing {total_games} games for DAT scraping")
+        logger.info(f"🎮 Processing {total_games} games for DAT scraping")
+        
+        # Update task with total count
+        t = get_task(task_id)
+        if t:
+            t.update_progress(f"Processing {total_games} games", progress_percentage=0, current_step=0, total_steps=total_games)
+        
+        processed_count = 0
+        updated_count = 0
+        
+        print(f"🔧 DEBUG: Starting game processing loop with {total_games} games")
+        
+        for i, game in enumerate(games_to_process):
+            print(f"🔧 DEBUG: Processing game {i+1}/{total_games}")
+            print(f"🔧 DEBUG: Game data: {game}")
+            
+            # Check for cancellation
+            if is_cancelled():
+                print(f"🔧 DEBUG: Task cancelled")
+                logger.info(f"🛑 DAT Scrapper task cancelled for {system_name}")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"DAT Scrapper task cancelled for {system_name}")
+                return
+            
+            try:
+                print(f"🔧 DEBUG: Starting game processing for game {i+1}")
+                game_name = game.get('name', '')
+                game_path = game.get('path', '')
+                print(f"🔧 DEBUG: Game name: '{game_name}', Game path: '{game_path}'")
+                
+                if not game_path:
+                    print(f"⚠️  Skipping game with no path: {game_path}")
+                    continue
+                
+                # Use ROM filename (without extension) for DAT matching if game name is empty
+                rom_filename = os.path.basename(game_path)
+                rom_name_without_ext = os.path.splitext(rom_filename)[0]
+                display_name = game_name if game_name else rom_name_without_ext
+                print(f"🔧 DEBUG: ROM filename: '{rom_filename}', ROM name without ext: '{rom_name_without_ext}', Display name: '{display_name}'")
+                
+                # Update progress
+                if t:
+                    progress_percent = int((i / total_games) * 100)
+                    t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {display_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
+                
+                print(f"🔍 Searching DAT for: {display_name} (ROM: {rom_name_without_ext})")
+                print(f"🔧 DEBUG: ROM path: {game_path}")
+                print(f"🔧 DEBUG: ROM name without extension: {rom_name_without_ext}")
+                print(f"🔧 DEBUG: Selected text fields: {selected_text_fields}")
+                print(f"🔧 DEBUG: Text field mapping: {text_field_mapping}")
+                
+                # Find game in DAT file by ROM name
+                dat_entry = service.find_game_by_rom_name(system_name, game_path)
+                
+                if dat_entry:
+                    print(f"✅ Found DAT match for '{display_name}': {dat_entry.name}")
+                    print(f"🔧 DEBUG: DAT entry description: {getattr(dat_entry, 'description', 'N/A')}")
+                    print(f"🔧 DEBUG: DAT entry year: {getattr(dat_entry, 'year', 'N/A')}")
+                    print(f"🔧 DEBUG: DAT entry publisher: {getattr(dat_entry, 'publisher', 'N/A')}")
+                    print(f"🔧 DEBUG: DAT entry developer: {getattr(dat_entry, 'developer', 'N/A')}")
+                    
+                    # Extract text fields - only process selected fields
+                    text_fields = {}
+                    if selected_text_fields:  # Only process if fields are selected
+                        for dat_field, gamelist_field in text_field_mapping.items():
+                            if gamelist_field in selected_text_fields:
+                                value = getattr(dat_entry, dat_field, '')
+                                if value:
+                                    # Convert year field to gamelist date format
+                                    if gamelist_field == 'releasedate':
+                                        converted_date = format_releasedate_to_iso8601(value)
+                                        if converted_date:
+                                            text_fields[gamelist_field] = converted_date
+                                            print(f"🔧 DEBUG: Extracted field {dat_field} -> {gamelist_field}: {value} -> {converted_date}")
+                                        else:
+                                            print(f"🔧 DEBUG: Failed to convert date {value} for field {gamelist_field}")
+                                    else:
+                                        text_fields[gamelist_field] = value
+                                        print(f"🔧 DEBUG: Extracted field {dat_field} -> {gamelist_field}: {value}")
+                    else:
+                        print(f"🔧 DEBUG: No text fields selected, skipping field extraction")
+                    
+                    print(f"🔧 DEBUG: Extracted text fields: {text_fields}")
+                    
+                    # Apply text fields if any were found
+                    if text_fields:
+                        print(f"🔧 DEBUG: Before update - game fields: {dict(game)}")
+                        
+                        # Check if we should overwrite existing fields
+                        if not overwrite_text_fields:
+                            # Only update empty fields
+                            for field, value in text_fields.items():
+                                if not game.get(field):
+                                    game[field] = value
+                                    print(f"🔧 DEBUG: Updated empty field {field}: {value}")
+                                else:
+                                    print(f"🔧 DEBUG: Skipped non-empty field {field}: {game.get(field)}")
+                        else:
+                            # Overwrite all fields
+                            game.update(text_fields)
+                            print(f"🔧 DEBUG: Overwrote all fields: {text_fields}")
+                        
+                        print(f"🔧 DEBUG: After update - game fields: {dict(game)}")
+                        updated_count += 1
+                        print(f"✅ Updated {len(text_fields)} text fields for {display_name}")
+                    else:
+                        print(f"⚠️  No text fields extracted for {display_name}")
+                    
+                    processed_count += 1
+                else:
+                    print(f"❌ No DAT match found for '{display_name}'")
+                    print(f"🔧 DEBUG: Searched for ROM name: {rom_name_without_ext}")
+                    print(f"🔧 DEBUG: Available DAT entries: {list(service.load_dat_file(system_name).keys())[:10]}...")
+                
+            except Exception as e:
+                print(f"❌ Error processing game {display_name}: {e}")
+                continue
+        
+        # Complete the task
+        t = get_task(task_id)
+        if t:
+            success_message = f"DAT Scrapper completed: {processed_count} games processed, {updated_count} games updated"
+            t.complete(True, success_message)
+        
+        logger.info(f"✅ DAT Scrapper task completed for {system_name}: {processed_count} processed, {updated_count} updated")
+        
+        # Save the updated gamelist
+        if updated_count > 0:
+            save_gamelist_xml(gamelist_path, all_games)
+            logger.info(f"💾 Saved updated gamelist for {system_name}")
+            
+            # Notify clients of gamelist update
+            notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error in run_datscrapper_task: {e}")
+        t = get_task(task_id)
+        if t:
+            t.complete(False, f"Error in DAT Scrapper task: {str(e)}")
+        return False
+    finally:
+        # Cleanup: remove from cancel map
+        if task_id in _datscrapper_cancel_maps:
+            del _datscrapper_cancel_maps[task_id]
+            logger.info(f"Removed task {task_id} from DAT Scrapper cancel map")
 
 # =============================================================================
 # IGDB Scraper API Routes
