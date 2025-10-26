@@ -13974,11 +13974,6 @@ def get_task_status_and_queue():
     # Get all tasks
     all_tasks = get_all_tasks_lightweight()
     
-    # Log size optimization for debugging
-    import json
-    lightweight_size = len(json.dumps(all_tasks))
-    full_size = len(json.dumps(get_all_tasks()))
-    print(f"📊 Task data size optimization: Lightweight={lightweight_size} bytes, Full={full_size} bytes, Saved={full_size-lightweight_size} bytes ({((full_size-lightweight_size)/full_size*100):.1f}% reduction)")
     
     
     return jsonify({
