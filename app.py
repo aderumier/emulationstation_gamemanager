@@ -3244,13 +3244,12 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 source_file_path = os.path.join(source_dir, matched_file)
                 file_extension = os.path.splitext(matched_file)[1]
                 
-                # Get target extension from media fields configuration
-                target_extension = media_fields[target_field].get('target_extension')
-                if not target_extension:
-                    # If no target extension defined, keep the original extension
-                    target_extension = file_extension
-                target_filename = f"{rom_name_without_ext}{target_extension}"
+                # Always use original extension for the target filename
+                target_filename = f"{rom_name_without_ext}{file_extension}"
                 target_file_path = os.path.join(target_dir, target_filename)
+                
+                # Get target extension from media fields configuration for processing only
+                target_extension = media_fields[target_field].get('target_extension')
                 
                 task.update_progress(f"   📁 File operations:")
                 task.update_progress(f"     Source: '{source_file_path}'")
@@ -3289,10 +3288,8 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     📋 Copied source to target location: '{temp_target_path}'")
                         
                         # Process the file in place at the target location
-                        # Only pass target_extension if it's different from original
-                        process_extension = target_extension if target_extension != file_extension else None
                         processed_path, process_status = convert_and_resize_image_replace(
-                            temp_target_path, process_extension, target_width, target_height
+                            temp_target_path, target_extension, target_width, target_height
                         )
                         
                         task.update_progress(f"     🔍 Processing result: status='{process_status}', processed_path='{processed_path}'")
@@ -3322,13 +3319,14 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         os.remove(source_file_path)
                         task.update_progress(f"     ✅ Source file removed: '{source_file_path}'")
                     
-                    # Update gamelist
-                    new_media_path = f"./media/{media_fields[target_field]['directory']}/{target_filename}"
+                    # Update gamelist with the final processed filename
+                    final_filename = os.path.basename(processed_path) if processed_path else target_filename
+                    new_media_path = f"./media/{media_fields[target_field]['directory']}/{final_filename}"
                     game[target_field] = new_media_path
                     task.update_progress(f"     ✅ Gamelist updated: {target_field} = '{new_media_path}'")
                     
                     moved_count += 1
-                    task.log_message(f"✅ Moved {matched_file} -> {target_filename} for {game.get('name', rom_name_without_ext)}")
+                    task.log_message(f"✅ Moved {matched_file} -> {final_filename} for {game.get('name', rom_name_without_ext)}")
                     
                 except Exception as e:
                     task.update_progress(f"     ❌ Error moving file: {e}")
