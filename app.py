@@ -3268,8 +3268,29 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     
                     # Move and process the file using convert_and_resize_image_replace
                     task.update_progress(f"     🔄 Processing image: '{source_file_path}' -> '{target_file_path}'")
-                    convert_and_resize_image_replace(source_file_path, target_file_path)
-                    task.update_progress(f"     ✅ File processed and moved successfully")
+                    
+                    # Get target extension, width, and height from media fields configuration
+                    target_extension = file_extension.lstrip('.')  # Remove the dot
+                    target_width = media_fields[target_field].get('width', 0)
+                    target_height = media_fields[target_field].get('height', 0)
+                    
+                    task.update_progress(f"     📐 Target dimensions: {target_width}x{target_height}, extension: {target_extension}")
+                    
+                    processed_path, process_status = convert_and_resize_image_replace(
+                        source_file_path, target_extension, target_width, target_height
+                    )
+                    
+                    if process_status in ["converted", "resized", "converted_and_resized"]:
+                        task.update_progress(f"     ✅ File processed successfully: {process_status}")
+                        # Move the processed file to the final target location
+                        if processed_path != target_file_path:
+                            shutil.move(processed_path, target_file_path)
+                            task.update_progress(f"     ✅ File moved to final location: '{target_file_path}'")
+                    else:
+                        task.update_progress(f"     ⚠️ Processing status: {process_status}")
+                        # If processing failed, try regular move as fallback
+                        shutil.move(source_file_path, target_file_path)
+                        task.update_progress(f"     ✅ Fallback: File moved without processing")
                     
                     # Verify the file was moved
                     if os.path.exists(target_file_path):
