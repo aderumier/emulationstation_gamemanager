@@ -3096,9 +3096,11 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             # Level 1: Exact filename match (without extension)
             task.update_progress(f"   Level 1: Testing exact filename match for '{rom_name_without_ext}'")
             for media_file in media_files:
-                media_name_without_ext = os.path.splitext(media_file)[0]
-                task.update_progress(f"     Testing: '{media_name_without_ext}' == '{rom_name_without_ext}'")
-                if media_name_without_ext == rom_name_without_ext:
+                media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
+                # Remove number suffixes like -01, -02, etc.
+                media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+                task.update_progress(f"     Testing: '{os.path.basename(media_file)}' -> '{media_name_without_ext}' -> '{media_name_no_suffix}' == '{rom_name_without_ext}'")
+                if media_name_no_suffix == rom_name_without_ext:
                     matched_file = media_file
                     task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                     break
@@ -3115,9 +3117,11 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 game_name = game['name']
                 task.update_progress(f"   Level 2: Testing game name match for '{game_name}'")
                 for media_file in media_files:
-                    media_name_without_ext = os.path.splitext(media_file)[0]
-                    task.update_progress(f"     Testing: '{media_name_without_ext}' == '{game_name}' (case-insensitive)")
-                    if media_name_without_ext.lower() == game_name.lower():
+                    media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
+                    # Remove number suffixes like -01, -02, etc.
+                    media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+                    task.update_progress(f"     Testing: '{os.path.basename(media_file)}' -> '{media_name_without_ext}' -> '{media_name_no_suffix}' == '{game_name}' (case-insensitive)")
+                    if media_name_no_suffix.lower() == game_name.lower():
                         matched_file = media_file
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                         break
@@ -3137,11 +3141,11 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 task.update_progress(f"   Level 3: Testing normalized match with parentheses")
                 task.update_progress(f"     ROM normalized: '{rom_name_without_ext}' -> '{normalized_rom_with_parens}'")
                 for media_file in media_files:
-                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
                     # Remove number suffixes like -01, -02, etc.
                     media_name_no_suffix = remove_number_suffix(media_name_without_ext)
                     normalized_media_with_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=False)
-                    task.update_progress(f"     Testing: '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_with_parens}' == '{normalized_rom_with_parens}'")
+                    task.update_progress(f"     Testing: '{os.path.basename(media_file)}' -> '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_with_parens}' == '{normalized_rom_with_parens}'")
                     if normalized_media_with_parens == normalized_rom_with_parens:
                         matched_file = media_file
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
@@ -3160,11 +3164,11 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 task.update_progress(f"   Level 4: Testing normalized match without parentheses")
                 task.update_progress(f"     ROM normalized: '{rom_name_without_ext}' -> '{normalized_rom_without_parens}'")
                 for media_file in media_files:
-                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
                     # Remove number suffixes like -01, -02, etc.
                     media_name_no_suffix = remove_number_suffix(media_name_without_ext)
                     normalized_media_without_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=True)
-                    task.update_progress(f"     Testing: '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_without_parens}' == '{normalized_rom_without_parens}'")
+                    task.update_progress(f"     Testing: '{os.path.basename(media_file)}' -> '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_without_parens}' == '{normalized_rom_without_parens}'")
                     if normalized_media_without_parens == normalized_rom_without_parens:
                         matched_file = media_file
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
@@ -3184,11 +3188,11 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 task.update_progress(f"   Level 5: Testing normalized game name with parentheses")
                 task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_with_parens}'")
                 for media_file in media_files:
-                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
                     # Remove number suffixes like -01, -02, etc.
                     media_name_no_suffix = remove_number_suffix(media_name_without_ext)
                     normalized_media_with_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=False)
-                    task.update_progress(f"     Testing: '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_with_parens}' == '{normalized_game_with_parens}'")
+                    task.update_progress(f"     Testing: '{os.path.basename(media_file)}' -> '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_with_parens}' == '{normalized_game_with_parens}'")
                     if normalized_media_with_parens == normalized_game_with_parens:
                         matched_file = media_file
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
@@ -3210,11 +3214,11 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 task.update_progress(f"   Level 6: Testing normalized game name without parentheses")
                 task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_without_parens}'")
                 for media_file in media_files:
-                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
                     # Remove number suffixes like -01, -02, etc.
                     media_name_no_suffix = remove_number_suffix(media_name_without_ext)
                     normalized_media_without_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=True)
-                    task.update_progress(f"     Testing: '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_without_parens}' == '{normalized_game_without_parens}'")
+                    task.update_progress(f"     Testing: '{os.path.basename(media_file)}' -> '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_without_parens}' == '{normalized_game_without_parens}'")
                     if normalized_media_without_parens == normalized_game_without_parens:
                         matched_file = media_file
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
