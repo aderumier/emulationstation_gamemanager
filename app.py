@@ -3038,18 +3038,25 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         # Ensure target directory exists
         os.makedirs(target_dir, exist_ok=True)
         
-        # Get all media files from source directory
+        # Get all media files from source directory and all subdirectories
         media_files = []
-        for filename in os.listdir(source_dir):
-            file_path = os.path.join(source_dir, filename)
-            if os.path.isfile(file_path):
-                media_files.append(filename)
+        directories_searched = set()
+        for root, dirs, files in os.walk(source_dir):
+            directories_searched.add(os.path.relpath(root, source_dir))
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                if os.path.isfile(file_path):
+                    # Get relative path from source directory
+                    rel_path = os.path.relpath(file_path, source_dir)
+                    media_files.append(rel_path)
+        
+        task.update_progress(f"Searched directories: {sorted(directories_searched)}")
         
         if not media_files:
             task.complete(True, "No media files found in source directory")
             return
         
-        task.update_progress(f"Found {len(media_files)} media files to process")
+        task.update_progress(f"Found {len(media_files)} media files to process (including subdirectories)")
         
         # Process each game
         matched_count = 0
