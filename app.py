@@ -3080,7 +3080,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             
             # Find matching media file using 4-level matching algorithm
             matched_file = None
-            task.update_progress(f"🔍 Processing game {i+1}/{total_games}: {display_name}")
+            task.update_progress(f"🔍 Processing game {i+1}/{len(games)}: {display_name}")
             
             # Level 1: Exact filename match (without extension)
             task.update_progress(f"   Level 1: Testing exact filename match for '{rom_name_without_ext}'")
