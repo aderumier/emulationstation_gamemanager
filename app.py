@@ -3270,21 +3270,13 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     task.update_progress(f"     🔄 Processing image: '{source_file_path}' -> '{target_file_path}'")
                     
                     # Get target extension, width, and height from media fields configuration
-                    target_extension = media_fields[target_field].get('target_extension', file_extension.lstrip('.'))
-                    if target_extension.startswith('.'):
-                        target_extension = target_extension[1:]  # Remove the dot if present
+                    target_extension = media_fields[target_field].get('target_extension', file_extension)
+                    # Keep the dot in target_extension as it's expected by convert_and_resize_image_replace
                     
                     target_width = media_fields[target_field].get('width', 0)
                     target_height = media_fields[target_field].get('height', 0)
                     
                     task.update_progress(f"     📐 Target dimensions: {target_width}x{target_height}, extension: '{target_extension}'")
-                    task.update_progress(f"     🔍 Debug - Original file_extension: '{file_extension}', target_extension: '{target_extension}'")
-                    
-                    # Validate target_extension
-                    if not target_extension or target_extension == '':
-                        task.update_progress(f"     ❌ Invalid target extension: '{target_extension}', using fallback")
-                        target_extension = file_extension.lstrip('.')
-                        task.update_progress(f"     🔄 Using fallback extension: '{target_extension}'")
                     
                     try:
                         processed_path, process_status = convert_and_resize_image_replace(
