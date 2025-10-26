@@ -3072,6 +3072,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             rom_filename = os.path.basename(rom_path)
             rom_name_without_ext = os.path.splitext(rom_filename)[0]
             
+            # Create display name for logging
+            display_name = game.get('name', rom_name_without_ext)
+            
             # Check if target field already has a value
             current_value = game.get(target_field, '')
             if current_value and not overwrite_existing:
