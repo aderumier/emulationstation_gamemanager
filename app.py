@@ -3170,6 +3170,58 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 else:
                     task.update_progress(f"   ❌ Level 4 FAILED: No normalized match without parentheses")
             
+            # Level 5: Normalized game name with parentheses vs normalized media filename with parentheses
+            if not matched_file and game.get('name'):
+                game_name = game['name']
+                normalized_game_with_parens = normalize_game_name(game_name, remove_paranthesis=False)
+                task.update_progress(f"   Level 5: Testing normalized game name with parentheses")
+                task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_with_parens}'")
+                for media_file in media_files:
+                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    # Remove number suffixes like -01, -02, etc.
+                    media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+                    normalized_media_with_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=False)
+                    task.update_progress(f"     Testing: '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_with_parens}' == '{normalized_game_with_parens}'")
+                    if normalized_media_with_parens == normalized_game_with_parens:
+                        matched_file = media_file
+                        task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
+                        break
+                    else:
+                        task.update_progress(f"     ❌ No match")
+                
+                if matched_file:
+                    task.update_progress(f"   ✅ Level 5 SUCCESS: Using '{matched_file}'")
+                else:
+                    task.update_progress(f"   ❌ Level 5 FAILED: No normalized game name match with parentheses")
+            elif not matched_file:
+                task.update_progress(f"   ❌ Level 5 SKIPPED: No game name available")
+            
+            # Level 6: Normalized game name without parentheses vs normalized media filename without parentheses
+            if not matched_file and game.get('name'):
+                game_name = game['name']
+                normalized_game_without_parens = normalize_game_name(game_name, remove_paranthesis=True)
+                task.update_progress(f"   Level 6: Testing normalized game name without parentheses")
+                task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_without_parens}'")
+                for media_file in media_files:
+                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    # Remove number suffixes like -01, -02, etc.
+                    media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+                    normalized_media_without_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=True)
+                    task.update_progress(f"     Testing: '{media_name_without_ext}' -> '{media_name_no_suffix}' -> '{normalized_media_without_parens}' == '{normalized_game_without_parens}'")
+                    if normalized_media_without_parens == normalized_game_without_parens:
+                        matched_file = media_file
+                        task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
+                        break
+                    else:
+                        task.update_progress(f"     ❌ No match")
+                
+                if matched_file:
+                    task.update_progress(f"   ✅ Level 6 SUCCESS: Using '{matched_file}'")
+                else:
+                    task.update_progress(f"   ❌ Level 6 FAILED: No normalized game name match without parentheses")
+            elif not matched_file:
+                task.update_progress(f"   ❌ Level 6 SKIPPED: No game name available")
+            
             if matched_file:
                 matched_count += 1
                 task.update_progress(f"   🎯 FINAL RESULT: Match found! Using '{matched_file}'")
