@@ -2997,6 +2997,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
     """Run import medias task in background thread"""
     global current_task_id
     
+    # Import required functions
+    from game_utils import convert_and_resize_image_replace
+    
     try:
         if not task_id or task_id not in tasks:
             print("Error: No active task found")
@@ -3263,9 +3266,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     if os.path.exists(target_file_path):
                         task.update_progress(f"     ⚠️ Target file already exists, will overwrite: '{target_file_path}'")
                     
-                    # Move the file
-                    shutil.move(source_file_path, target_file_path)
-                    task.update_progress(f"     ✅ File moved successfully")
+                    # Move and process the file using convert_and_resize_image_replace
+                    task.update_progress(f"     🔄 Processing image: '{source_file_path}' -> '{target_file_path}'")
+                    convert_and_resize_image_replace(source_file_path, target_file_path)
+                    task.update_progress(f"     ✅ File processed and moved successfully")
                     
                     # Verify the file was moved
                     if os.path.exists(target_file_path):
