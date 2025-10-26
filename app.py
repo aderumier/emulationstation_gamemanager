@@ -2256,7 +2256,7 @@ def get_queue_status():
     current_task = tasks.get(current_task_id) if current_task_id else None
     
     return {
-        'current_task': current_task.to_dict() if current_task else None,
+        'current_task': current_task.to_dict_lightweight() if current_task else None,
         'queue_length': len(task_queue),
         'queued_tasks': task_queue
     }
@@ -13999,6 +13999,20 @@ def get_task_status_and_queue():
             if 'progress' in current_task:
                 progress_size = len(json.dumps(current_task['progress']))
                 print(f"🔧 DEBUG: Current task progress size: {progress_size} bytes")
+    
+    # Debug queue current task size
+    if queue_status and queue_status.get('current_task'):
+        queue_current_task = queue_status['current_task']
+        queue_task_size = len(json.dumps(queue_current_task))
+        print(f"🔧 DEBUG: Queue current task size: {queue_task_size} bytes")
+        if queue_task_size > 1000:  # If queue current task is larger than 1KB, something might be wrong
+            print(f"⚠️ WARNING: Queue current task size is large ({queue_task_size} bytes), checking content...")
+            if 'data' in queue_current_task and queue_current_task['data']:
+                data_size = len(json.dumps(queue_current_task['data']))
+                print(f"🔧 DEBUG: Queue current task data size: {data_size} bytes")
+            if 'progress' in queue_current_task:
+                progress_size = len(json.dumps(queue_current_task['progress']))
+                print(f"🔧 DEBUG: Queue current task progress size: {progress_size} bytes")
     
     return jsonify({
         'current_task': current_task,
