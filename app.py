@@ -2987,6 +2987,12 @@ def run_resize_medias_task(system_name, media_field, task_id):
         import traceback
         traceback.print_exc()
 
+def remove_number_suffix(filename):
+    """Remove number suffixes like -01, -02, etc. from filename"""
+    import re
+    # Remove patterns like -01, -02, -1, -2, etc. at the end of filename
+    return re.sub(r'-\d+$', '', filename)
+
 def run_import_medias_task(system_name, source_directory, target_field, overwrite_existing, task_id):
     """Run import medias task in background thread"""
     global current_task_id
@@ -3096,7 +3102,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=False)
                 for media_file in media_files:
                     media_name_without_ext = os.path.splitext(media_file)[0]
-                    normalized_media_with_parens = normalize_game_name(media_name_without_ext, remove_paranthesis=False)
+                    # Remove number suffixes like -01, -02, etc.
+                    media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+                    normalized_media_with_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=False)
                     if normalized_media_with_parens == normalized_rom_with_parens:
                         matched_file = media_file
                         break
@@ -3106,7 +3114,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=True)
                 for media_file in media_files:
                     media_name_without_ext = os.path.splitext(media_file)[0]
-                    normalized_media_without_parens = normalize_game_name(media_name_without_ext, remove_paranthesis=True)
+                    # Remove number suffixes like -01, -02, etc.
+                    media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+                    normalized_media_without_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=True)
                     if normalized_media_without_parens == normalized_rom_without_parens:
                         matched_file = media_file
                         break
