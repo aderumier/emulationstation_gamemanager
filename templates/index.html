@@ -336,6 +336,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openResizeMediasModal">
                             <i class="bi bi-arrows-fullscreen me-2"></i>Resize Medias
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openImportMediasModal">
+                            <i class="bi bi-download me-2"></i>Import Medias
+                        </a></li>
                         <li><a class="dropdown-item" href="#" id="forceImportGamelistBtn">
                             Force Import Gamelist.xml
                         </a></li>
@@ -4236,6 +4239,81 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary" id="startResizeMediasBtn">
                         <i class="bi bi-arrows-fullscreen me-2"></i>Start Resize
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Medias Modal -->
+    <div class="modal fade" id="importMediasModal" tabindex="-1" aria-labelledby="importMediasModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importMediasModalLabel">
+                        <i class="bi bi-download me-2"></i>Import Medias
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Import media files from a source directory to the current system's media folders. Files will be matched to games using multiple matching algorithms.
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="importSourceDirectory" class="form-label">
+                                <i class="bi bi-folder me-1"></i>Source Directory
+                            </label>
+                            <select class="form-select" id="importSourceDirectory">
+                                <option value="">Select source directory...</option>
+                            </select>
+                            <div class="form-text">Choose a subdirectory from ./roms/<span id="importCurrentSystemName">currentsystem</span>/media/import/</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="importTargetField" class="form-label">
+                                <i class="bi bi-folder2-open me-1"></i>Target Media Field
+                            </label>
+                            <select class="form-select" id="importTargetField">
+                                <option value="">Select target field...</option>
+                            </select>
+                            <div class="form-text">Select the gamelist media field where imported files will be stored</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="importOverwriteExisting">
+                                <label class="form-check-label" for="importOverwriteExisting">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Overwrite existing media
+                                </label>
+                            </div>
+                            <div class="form-text">If checked, existing media files will be replaced. If unchecked, only empty fields will be filled.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Matching Algorithm:</strong> Files will be matched using the following priority:
+                        <ol class="mb-0 mt-2">
+                            <li>Exact filename match (without extension)</li>
+                            <li>Game name match</li>
+                            <li>Normalized ROM filename with parentheses</li>
+                            <li>Normalized ROM filename without parentheses</li>
+                        </ol>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="startImportMediasBtn">
+                        <i class="bi bi-download me-2"></i>Start Import
                     </button>
                 </div>
             </div>

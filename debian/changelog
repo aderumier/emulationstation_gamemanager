@@ -1,3 +1,26 @@
+gamemanager (2.8.0) stable; urgency=medium
+
+  * Add DAT Scrapper - new local XML file scrapper for game metadata
+  * Support both <machine> and <game> XML formats in DAT files
+  * Add DAT Scrapper button in main interface after MobyGames button
+  * Add DAT Scrapper preferences modal with field selection checkboxes
+  * Add DAT Scrapper configuration in systems configuration modal
+  * Add DAT Scrapper field mappings in unified scraper configuration modal
+  * Implement cookie-based field selection for DAT Scrapper like other scrapers
+  * Add proper date conversion for year fields using format_releasedate_to_iso8601
+  * Fix field mapping logic to use gamelist field names from cookies with reverse lookup
+  * Fix field selection logic to only process selected fields and respect overwrite setting
+  * Add event listener for overwrite text fields checkbox
+  * Fix checkbox default state to only check if cookie exists
+  * Remove conflicting cookie logic that was checking name checkbox by default
+  * Fix ROM name extraction to remove path before removing extension
+  * Fix DAT Scrapper to save full gamelist instead of only selected games
+  * Add client notification for gamelist updates
+  * Add comprehensive debug output throughout DAT Scrapper service
+  * Integrate DAT Scrapper with existing task queue framework
+  * Add DAT Scrapper "Find Best Match" functionality
+  * Support manufacturer field parsing from DAT XML files
+
 gamemanager (2.7.1) stable; urgency=medium
 
   * Fix IGDB test connection functionality with proper OAuth token validation

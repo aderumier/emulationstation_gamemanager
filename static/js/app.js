@@ -44,6 +44,12 @@ class GameCollectionManager {
         this.lastClickedColumn = null; // Track which column was last clicked for double-click behavior
         this.screenscraperSearchInProgress = false; // Track ScreenScraper search progress
         
+        // Task refresh debouncing
+        this.isRefreshingTasks = false; // Flag to prevent overlapping refresh calls
+        this.taskRefreshTimeout = null; // Timeout for debounced refresh
+        this.refreshCallCount = 0; // Track actual API calls made
+        this.refreshSkipCount = 0; // Track calls that were skipped due to debouncing
+        
         // Initialize clear image cache button visibility (Media Preview is default active tab)
         setTimeout(() => {
             const clearCacheContainer = document.getElementById('clearImageCacheContainer');
@@ -355,6 +361,17 @@ class GameCollectionManager {
     }
 
     async refreshTasks() {
+        // Prevent overlapping calls - if a refresh is already in progress, skip this call
+        if (this.isRefreshingTasks) {
+            this.refreshSkipCount++;
+            console.log(`Task refresh already in progress, skipping this call (skipped: ${this.refreshSkipCount})`);
+            return;
+        }
+        
+        this.isRefreshingTasks = true;
+        this.refreshCallCount++;
+        console.log(`Starting task refresh... (call #${this.refreshCallCount})`);
+        
         try {
             // Use the combined endpoint to get both tasks and queue status in one call
             const response = await fetch('/api/task/status-and-queue', {
@@ -436,6 +453,11 @@ class GameCollectionManager {
             } else {
             }
         } catch (error) {
+            console.error('Error refreshing tasks:', error);
+        } finally {
+            // Always reset the flag, even if there was an error
+            this.isRefreshingTasks = false;
+            console.log(`Task refresh completed (calls: ${this.refreshCallCount}, skipped: ${this.refreshSkipCount})`);
         }
     }
 
@@ -1461,7 +1483,15 @@ class GameCollectionManager {
             // If we get a successful response or a 401 (which means we're authenticated but no tasks)
             if (response.ok || response.status === 401) {
                 this.taskRefreshInterval = setInterval(() => {
-                    this.refreshTasks();
+                    // Clear any pending timeout
+                    if (this.taskRefreshTimeout) {
+                        clearTimeout(this.taskRefreshTimeout);
+                    }
+                    
+                    // Set a timeout to ensure we don't call refreshTasks too frequently
+                    this.taskRefreshTimeout = setTimeout(() => {
+                        this.refreshTasks();
+                    }, 100); // Small delay to debounce rapid calls
                 }, 1000);
             } else {
             }
@@ -1474,6 +1504,23 @@ class GameCollectionManager {
             clearInterval(this.taskRefreshInterval);
             this.taskRefreshInterval = null;
         }
+        
+        // Also clear any pending timeout
+        if (this.taskRefreshTimeout) {
+            clearTimeout(this.taskRefreshTimeout);
+            this.taskRefreshTimeout = null;
+        }
+        
+        // Reset the refresh flag
+        this.isRefreshingTasks = false;
+    }
+
+    getRefreshStatistics() {
+        return {
+            calls: this.refreshCallCount,
+            skipped: this.refreshSkipCount,
+            efficiency: this.refreshCallCount > 0 ? (this.refreshSkipCount / (this.refreshCallCount + this.refreshSkipCount) * 100).toFixed(1) + '%' : '0%'
+        };
     }
 
     showToast(message, type = 'info') {
@@ -1530,6 +1577,7 @@ class GameCollectionManager {
         document.getElementById('confirmForceImportBtn').addEventListener('click', () => this.confirmForceImport());
         document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
         document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
+        document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
         
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
         document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
@@ -10611,6 +10659,15 @@ class GameCollectionManager {
         } else {
         }
 
+        // Add event listener for Import Medias modal
+        const openImportMediasModal = document.getElementById('openImportMediasModal');
+        if (openImportMediasModal) {
+            openImportMediasModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openImportMediasModal();
+            });
+        }
+
         // Add event listener for unified scraper config modal
         const openScraperConfigModal = document.getElementById('openScraperConfigModal');
         if (openScraperConfigModal) {
@@ -12715,6 +12772,104 @@ class GameCollectionManager {
         }
     }
 
+    // Import Medias Methods
+    async openImportMediasModal() {
+        try {
+            const modal = new bootstrap.Modal(document.getElementById('importMediasModal'));
+            modal.show();
+            
+            // Reset UI state
+            this.resetImportMediasUI();
+            
+            // Update current system name in modal
+            document.getElementById('importCurrentSystemName').textContent = this.currentSystem || 'currentsystem';
+            
+            // Load source directories and target fields
+            await this.loadImportMediasData();
+            
+        } catch (error) {
+            console.error('Error opening import medias modal:', error);
+            this.showAlert('Error opening import medias modal', 'danger');
+        }
+    }
+
+    resetImportMediasUI() {
+        // Reset form fields
+        document.getElementById('importSourceDirectory').value = '';
+        document.getElementById('importTargetField').value = '';
+        document.getElementById('importOverwriteExisting').checked = false;
+        
+        // Clear dropdowns
+        document.getElementById('importSourceDirectory').innerHTML = '<option value="">Select source directory...</option>';
+        document.getElementById('importTargetField').innerHTML = '<option value="">Select target field...</option>';
+    }
+
+    async loadImportMediasData() {
+        try {
+            // Load source directories
+            await this.loadImportSourceDirectories();
+            
+            // Load target media fields
+            await this.loadImportTargetFields();
+            
+        } catch (error) {
+            console.error('Error loading import medias data:', error);
+            this.showAlert('Error loading import medias data', 'danger');
+        }
+    }
+
+    async loadImportSourceDirectories() {
+        try {
+            const response = await fetch(`/api/import-medias/source-directories/${this.currentSystem}`);
+            const data = await response.json();
+            
+            const select = document.getElementById('importSourceDirectory');
+            select.innerHTML = '<option value="">Select source directory...</option>';
+            
+            if (data.directories && data.directories.length > 0) {
+                data.directories.forEach(dir => {
+                    const option = document.createElement('option');
+                    option.value = dir;
+                    option.textContent = dir;
+                    select.appendChild(option);
+                });
+            } else {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No source directories found';
+                option.disabled = true;
+                select.appendChild(option);
+            }
+            
+        } catch (error) {
+            console.error('Error loading source directories:', error);
+            this.showAlert('Error loading source directories', 'danger');
+        }
+    }
+
+    async loadImportTargetFields() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            const select = document.getElementById('importTargetField');
+            select.innerHTML = '<option value="">Select target field...</option>';
+            
+            if (config.media_fields) {
+                Object.entries(config.media_fields).forEach(([field, info]) => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = `${field} (${info.description || field})`;
+                    select.appendChild(option);
+                });
+            }
+            
+        } catch (error) {
+            console.error('Error loading target fields:', error);
+            this.showAlert('Error loading target fields', 'danger');
+        }
+    }
+
     async loadResizeMediasFields() {
         try {
             const response = await fetch('/api/remap-media-fields/target');
@@ -12791,6 +12946,63 @@ class GameCollectionManager {
             console.error('Error starting resize medias:', error);
             this.showAlert('Error starting resize task', 'danger');
             this.resetResizeMediasUI();
+        }
+    }
+
+    async startImportMedias() {
+        const sourceDirectory = document.getElementById('importSourceDirectory').value;
+        const targetField = document.getElementById('importTargetField').value;
+        const overwriteExisting = document.getElementById('importOverwriteExisting').checked;
+        
+        if (!sourceDirectory) {
+            this.showAlert('Please select a source directory', 'warning');
+            return;
+        }
+        
+        if (!targetField) {
+            this.showAlert('Please select a target media field', 'warning');
+            return;
+        }
+
+        try {
+            // Disable button to prevent multiple submissions
+            document.getElementById('startImportMediasBtn').disabled = true;
+
+            // Start the import task
+            const response = await fetch('/api/import-medias', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    source_directory: sourceDirectory,
+                    target_field: targetField,
+                    overwrite_existing: overwriteExisting
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Import medias task started successfully', 'success');
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('importMediasModal'));
+                if (modal) {
+                    modal.hide();
+                }
+            } else {
+                this.showAlert(data.error || 'Error starting import task', 'danger');
+                this.resetImportMediasUI();
+            }
+        } catch (error) {
+            console.error('Error starting import medias:', error);
+            this.showAlert('Error starting import task', 'danger');
+            this.resetImportMediasUI();
+        } finally {
+            // Re-enable button
+            document.getElementById('startImportMediasBtn').disabled = false;
         }
     }
 

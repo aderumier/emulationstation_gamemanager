@@ -1312,6 +1312,7 @@ _screenscraper_cancel_maps = {}
 _rom_scan_cancel_maps = {}
 _mobygames_cancel_maps = {}
 _datscrapper_cancel_maps = {}
+_import_medias_cancel_maps = {}
 
 # Client tracking for system-specific notifications
 client_systems = {}  # {client_sid: system_name}
@@ -2645,6 +2646,28 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_resize_medias_task, args=(system_name, media_field, task.id))
             thread.daemon = True
             thread.start()
+    elif task_type == 'import_medias':
+        # Start import medias task
+        system_name = task_data.get('system_name')
+        source_directory = task_data.get('source_directory')
+        target_field = task_data.get('target_field')
+        overwrite_existing = task_data.get('overwrite_existing', False)
+        if system_name and source_directory and target_field:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('import_medias', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start import medias in background thread
+            thread = threading.Thread(target=run_import_medias_task, args=(system_name, source_directory, target_field, overwrite_existing, task.id))
+            thread.daemon = True
+            thread.start()
     else:
         print(f"Unknown task type: {task_type}")
         return
@@ -2934,6 +2957,171 @@ def run_resize_medias_task(system_name, media_field, task_id):
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
         print(f"Error in resize medias task: {e}")
+        import traceback
+        traceback.print_exc()
+
+def run_import_medias_task(system_name, source_directory, target_field, overwrite_existing, task_id):
+    """Run import medias task in background thread"""
+    global current_task_id
+    
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found")
+            return
+        
+        task = tasks[task_id]
+        
+        # Add task to cancel map
+        global _import_medias_cancel_maps
+        _import_medias_cancel_maps[task_id] = False
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f"Gamelist not found: {gamelist_path}")
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            task.complete(False, "No games found in gamelist")
+            return
+        
+        # Load config
+        config = load_config()
+        media_fields = config.get('media_fields', {})
+        
+        if target_field not in media_fields:
+            task.complete(False, f"Target field '{target_field}' not found in configuration")
+            return
+        
+        # Set up paths
+        source_dir = os.path.join('roms', system_name, 'media', 'import', source_directory)
+        target_dir = os.path.join('roms', system_name, 'media', media_fields[target_field]['directory'])
+        
+        if not os.path.exists(source_dir):
+            task.complete(False, f"Source directory does not exist: {source_dir}")
+            return
+        
+        # Ensure target directory exists
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # Get all media files from source directory
+        media_files = []
+        for filename in os.listdir(source_dir):
+            file_path = os.path.join(source_dir, filename)
+            if os.path.isfile(file_path):
+                media_files.append(filename)
+        
+        if not media_files:
+            task.complete(True, "No media files found in source directory")
+            return
+        
+        task.update_progress(f"Found {len(media_files)} media files to process")
+        
+        # Process each game
+        matched_count = 0
+        moved_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        for i, game in enumerate(games):
+            # Check for cancellation
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path'):
+                continue
+            
+            # Extract ROM filename without extension
+            rom_path = game['path']
+            rom_filename = os.path.basename(rom_path)
+            rom_name_without_ext = os.path.splitext(rom_filename)[0]
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            # Find matching media file using 4-level matching algorithm
+            matched_file = None
+            
+            # Level 1: Exact filename match (without extension)
+            for media_file in media_files:
+                media_name_without_ext = os.path.splitext(media_file)[0]
+                if media_name_without_ext == rom_name_without_ext:
+                    matched_file = media_file
+                    break
+            
+            # Level 2: Game name match
+            if not matched_file and game.get('name'):
+                game_name = game['name']
+                for media_file in media_files:
+                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    if media_name_without_ext.lower() == game_name.lower():
+                        matched_file = media_file
+                        break
+            
+            # Level 3: Normalized ROM filename with parentheses
+            if not matched_file:
+                normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_parentheses=False)
+                for media_file in media_files:
+                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    normalized_media_with_parens = normalize_game_name(media_name_without_ext, remove_parentheses=False)
+                    if normalized_media_with_parens == normalized_rom_with_parens:
+                        matched_file = media_file
+                        break
+            
+            # Level 4: Normalized ROM filename without parentheses
+            if not matched_file:
+                normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_parentheses=True)
+                for media_file in media_files:
+                    media_name_without_ext = os.path.splitext(media_file)[0]
+                    normalized_media_without_parens = normalize_game_name(media_name_without_ext, remove_parentheses=True)
+                    if normalized_media_without_parens == normalized_rom_without_parens:
+                        matched_file = media_file
+                        break
+            
+            if matched_file:
+                matched_count += 1
+                
+                # Move and rename the file
+                source_file_path = os.path.join(source_dir, matched_file)
+                file_extension = os.path.splitext(matched_file)[1]
+                target_filename = f"{rom_name_without_ext}{file_extension}"
+                target_file_path = os.path.join(target_dir, target_filename)
+                
+                try:
+                    # Move the file
+                    shutil.move(source_file_path, target_file_path)
+                    
+                    # Update gamelist
+                    game[target_field] = f"./media/{media_fields[target_field]['directory']}/{target_filename}"
+                    
+                    moved_count += 1
+                    task.log_message(f"✅ Moved {matched_file} -> {target_filename} for {game.get('name', rom_name_without_ext)}")
+                    
+                except Exception as e:
+                    failed_count += 1
+                    task.log_message(f"❌ Failed to move {matched_file}: {e}")
+            
+            # Update progress
+            progress = int((i + 1) / len(games) * 100)
+            task.update_progress(f"Processed {i + 1}/{len(games)} games", progress)
+        
+        # Save updated gamelist
+        if moved_count > 0:
+            save_gamelist_xml(gamelist_path, games)
+            notify_gamelist_updated(system_name, len(games), updated_count=moved_count)
+        
+        task.complete(True, f"Import completed: {matched_count} matches found, {moved_count} files moved, {skipped_count} skipped, {failed_count} failed")
+        
+    except Exception as e:
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+        print(f"Error in import medias task: {e}")
         import traceback
         traceback.print_exc()
 
@@ -8263,6 +8451,69 @@ def resize_medias_endpoint():
         
     except Exception as e:
         print(f"Error starting resize medias task: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/import-medias/source-directories/<system_name>', methods=['GET'])
+@login_required
+def get_import_source_directories(system_name):
+    """Get available source directories for import medias"""
+    try:
+        import_dir = os.path.join('roms', system_name, 'media', 'import')
+        
+        if not os.path.exists(import_dir):
+            return jsonify({'directories': []})
+        
+        directories = []
+        for item in os.listdir(import_dir):
+            item_path = os.path.join(import_dir, item)
+            if os.path.isdir(item_path):
+                directories.append(item)
+        
+        directories.sort()
+        return jsonify({'directories': directories})
+        
+    except Exception as e:
+        print(f"Error getting source directories: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/import-medias', methods=['POST'])
+@login_required
+def import_medias_endpoint():
+    """Start a background task to import media files for a system"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        source_directory = data.get('source_directory')
+        target_field = data.get('target_field')
+        overwrite_existing = data.get('overwrite_existing', False)
+        
+        if not all([system_name, source_directory, target_field]):
+            return jsonify({'error': 'System name, source directory, and target field are required'}), 400
+        
+        # Validate source directory exists
+        import_dir = os.path.join('roms', system_name, 'media', 'import', source_directory)
+        if not os.path.exists(import_dir):
+            return jsonify({'error': f'Source directory does not exist: {import_dir}'}), 400
+        
+        # Add task to queue using the standard pattern
+        task = add_task_to_queue('import_medias', {
+            'system_name': system_name,
+            'source_directory': source_directory,
+            'target_field': target_field,
+            'overwrite_existing': overwrite_existing
+        })
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': 'Import medias task queued successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error starting import medias task: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/multiscraper-search', methods=['POST'])
@@ -14110,6 +14361,19 @@ def stop_task_endpoint(task_id):
                 print(f"DEBUG: Set DAT Scrapper cancel flag for task {task_id}")
             except Exception as e:
                 print(f"Warning: could not set DAT Scrapper cancel flag: {e}")
+        
+        # For Import Medias tasks, we need to handle cancellation
+        if task.type == 'import_medias':
+            task.update_progress("🛑 Import Medias task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for Import Medias tasks
+            try:
+                global _import_medias_cancel_maps
+                if '_import_medias_cancel_maps' not in globals():
+                    _import_medias_cancel_maps = {}
+                _import_medias_cancel_maps[task_id] = True
+                print(f"DEBUG: Set Import Medias cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set Import Medias cancel flag: {e}")
         
         # Stop the task (except for YouTube batch download which handles its own completion)
         if task.type != 'youtube_download_batch':
