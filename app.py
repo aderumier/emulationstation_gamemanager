@@ -3056,6 +3056,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         moved_count = 0
         skipped_count = 0
         failed_count = 0
+        not_matched_count = 0
         
         for i, game in enumerate(games):
             # Check for cancellation
