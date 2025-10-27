@@ -3333,7 +3333,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     failed_count += 1
                     task.log_message(f"❌ Failed to move {matched_file}: {e}")
             else:
-                task.update_progress(f"   ❌ FINAL RESULT: No match found for '{display_name}'")
+                # No match found - don't log to keep task log clean
                 not_matched_count += 1
             
             # Update progress
