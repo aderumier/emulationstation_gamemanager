@@ -3107,13 +3107,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     matched_file = media_file
                     task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                     break
-                else:
-                    task.update_progress(f"     ❌ No match")
             
             if matched_file:
                 task.update_progress(f"   ✅ Level 1 SUCCESS: Using '{matched_file}'")
-            else:
-                task.update_progress(f"   ❌ Level 1 FAILED: No exact filename match")
             
             # Level 2: Game name match
             if not matched_file and game.get('name'):
@@ -3129,14 +3125,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                         break
                     else:
-                        task.update_progress(f"     ❌ No match")
                 
                 if matched_file:
                     task.update_progress(f"   ✅ Level 2 SUCCESS: Using '{matched_file}'")
-                else:
-                    task.update_progress(f"   ❌ Level 2 FAILED: No game name match")
-            elif not matched_file:
-                task.update_progress(f"   ❌ Level 2 SKIPPED: No game name available")
             
             # Level 3: Normalized ROM filename with parentheses
             if not matched_file:
@@ -3154,12 +3145,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                         break
                     else:
-                        task.update_progress(f"     ❌ No match")
                 
                 if matched_file:
                     task.update_progress(f"   ✅ Level 3 SUCCESS: Using '{matched_file}'")
-                else:
-                    task.update_progress(f"   ❌ Level 3 FAILED: No normalized match with parentheses")
             
             # Level 4: Normalized ROM filename without parentheses
             if not matched_file:
@@ -3177,12 +3165,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                         break
                     else:
-                        task.update_progress(f"     ❌ No match")
                 
                 if matched_file:
                     task.update_progress(f"   ✅ Level 4 SUCCESS: Using '{matched_file}'")
-                else:
-                    task.update_progress(f"   ❌ Level 4 FAILED: No normalized match without parentheses")
             
             # Level 5: Normalized game name with parentheses vs normalized media filename with parentheses
             if not matched_file and game.get('name'):
@@ -3201,14 +3186,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                         break
                     else:
-                        task.update_progress(f"     ❌ No match")
                 
                 if matched_file:
                     task.update_progress(f"   ✅ Level 5 SUCCESS: Using '{matched_file}'")
-                else:
-                    task.update_progress(f"   ❌ Level 5 FAILED: No normalized game name match with parentheses")
-            elif not matched_file:
-                task.update_progress(f"   ❌ Level 5 SKIPPED: No game name available")
             
             # Level 6: Normalized game name without parentheses vs normalized media filename without parentheses
             if not matched_file and game.get('name'):
@@ -3227,14 +3207,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     ✅ MATCH FOUND: '{media_file}'")
                         break
                     else:
-                        task.update_progress(f"     ❌ No match")
                 
                 if matched_file:
                     task.update_progress(f"   ✅ Level 6 SUCCESS: Using '{matched_file}'")
-                else:
-                    task.update_progress(f"   ❌ Level 6 FAILED: No normalized game name match without parentheses")
-            elif not matched_file:
-                task.update_progress(f"   ❌ Level 6 SKIPPED: No game name available")
             
             if matched_file:
                 matched_count += 1
