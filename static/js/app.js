@@ -21356,50 +21356,65 @@ class GameCollectionManager {
         }
     }
     
-    rotateImage(direction) {
+    async rotateImage(direction) {
         if (!this.currentRotatingImage) return;
         
         const { element, game, field } = this.currentRotatingImage;
         const img = element.querySelector('img');
         if (!img) return;
         
-        // Add rotating class for smooth transition
-        img.classList.add('rotating-image');
+        // Show loading state
+        const originalSrc = img.src;
+        img.style.opacity = '0.5';
+        img.style.filter = 'grayscale(100%)';
         
-        // Get current rotation
-        let currentRotation = 0;
-        if (img.classList.contains('rotate-90')) currentRotation = 90;
-        else if (img.classList.contains('rotate-180')) currentRotation = 180;
-        else if (img.classList.contains('rotate-270')) currentRotation = 270;
-        
-        // Calculate new rotation
-        let newRotation;
-        if (direction === 'left') {
-            newRotation = (currentRotation - 90 + 360) % 360;
-        } else {
-            newRotation = (currentRotation + 90) % 360;
+        try {
+            // Call server-side rotation API
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/rotate-media`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    rom_path: game.path,
+                    media_field: field,
+                    direction: direction
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                // Add cache-busting parameter to force image refresh
+                const cacheSep = originalSrc.includes('?') ? '&' : '?';
+                img.src = `${originalSrc.split('?')[0]}${cacheSep}v=${Date.now()}`;
+                
+                // Reset image styling
+                img.style.opacity = '1';
+                img.style.filter = 'none';
+                
+                // Hide context menu
+                const contextMenu = document.getElementById('imageContextMenu');
+                if (contextMenu) {
+                    contextMenu.style.display = 'none';
+                }
+                
+                // Show success message
+                this.showAlert(`Image rotated ${direction === 'left' ? 'left' : 'right'} successfully`, 'success');
+            } else {
+                throw new Error(result.error || 'Failed to rotate image');
+            }
+            
+        } catch (error) {
+            console.error('Rotation error:', error);
+            
+            // Reset image styling
+            img.style.opacity = '1';
+            img.style.filter = 'none';
+            
+            // Show error message
+            this.showAlert(`Failed to rotate image: ${error.message}`, 'danger');
         }
-        
-        // Remove old rotation classes
-        img.classList.remove('rotate-90', 'rotate-180', 'rotate-270');
-        
-        // Add new rotation class
-        if (newRotation === 90) {
-            img.classList.add('rotate-90');
-        } else if (newRotation === 180) {
-            img.classList.add('rotate-180');
-        } else if (newRotation === 270) {
-            img.classList.add('rotate-270');
-        }
-        
-        // Hide context menu
-        const contextMenu = document.getElementById('imageContextMenu');
-        if (contextMenu) {
-            contextMenu.style.display = 'none';
-        }
-        
-        // Show success message
-        this.showAlert(`Image rotated ${direction === 'left' ? 'left' : 'right'}`, 'success');
     }
 }
 
