@@ -644,7 +644,7 @@ class ScreenScraperService:
         print(f"Failed to search ScreenScraper games after 1 attempt")
         return []
     
-    async def search_game(self, rom_filename: str, system_name: str) -> Optional[Dict]:
+    async def search_game_by_rom_name(self, rom_filename: str, system_name: str) -> Optional[Dict]:
         """
         Search for a game using ScreenScraper API and return game data if found.
         
@@ -994,7 +994,7 @@ class ScreenScraperService:
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Searching ScreenScraper for: {game_name}")
                     
-                    search_result = await self.search_game(rom_filename, system_name)
+                    search_result = await self.search_game_by_rom_name(rom_filename, system_name)
                     if search_result:
                         jeu_id = search_result['jeu_id']
                         game_data = search_result['game_data']
