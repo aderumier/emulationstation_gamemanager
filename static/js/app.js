@@ -4146,7 +4146,13 @@ class GameCollectionManager {
         // Get media fields from config.json mappings (excluding video)
         const mediaFields = await this.getMediaFieldsFromConfig();
         
+        // Process each field only once
+        const processedFields = new Set();
         mediaFields.forEach(field => {
+            if (processedFields.has(field)) {
+                return; // Skip duplicate fields
+            }
+            processedFields.add(field);
             const mediaItem = document.createElement('div');
             mediaItem.className = 'media-preview-item';
             mediaItem.style.cssText = `width: calc(20% - 6.4px); min-width: 180px; height: 200px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #dee2e6; border-radius: 8px; background-color: ${this.getMediaCardBackgroundColor()}; transition: all 0.2s ease;`;
