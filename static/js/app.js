@@ -4176,7 +4176,7 @@ class GameCollectionManager {
                     img.src = `${urlPath}${cacheSep}v=${Date.now()}`;
                     img.alt = `${field} for ${game.name}`;
                     img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion\nRight-click for rotate menu`;
-                    img.style.cssText = 'width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px;';
+                    img.style.cssText = `width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px; background-color: ${this.getMediaCardBackgroundColor()};`;
                     img.oncontextmenu = (e) => this.showImageContextMenu(e, mediaItem, game, field);
                     img.ondblclick = () => {
                         if (!this.uploadInProgress) {
@@ -9259,7 +9259,7 @@ class GameCollectionManager {
                     const cacheBuster = new Date().getTime();
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: #ffffff;" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -16071,6 +16071,12 @@ class GameCollectionManager {
         const placeholders = document.querySelectorAll('.media-placeholder');
         placeholders.forEach(placeholder => {
             placeholder.style.backgroundColor = color;
+        });
+        
+        // Update existing image elements
+        const images = document.querySelectorAll('img[style*="background-color"]');
+        images.forEach(img => {
+            img.style.backgroundColor = color;
         });
     }
     
