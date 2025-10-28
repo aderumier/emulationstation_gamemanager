@@ -4153,121 +4153,208 @@ class GameCollectionManager {
                 return; // Skip duplicate fields
             }
             processedFields.add(field);
+            
             const mediaItem = document.createElement('div');
             mediaItem.className = 'media-preview-item';
-            mediaItem.style.cssText = `width: calc(20% - 6.4px); min-width: 180px; height: 200px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #dee2e6; border-radius: 8px; background-color: ${this.getMediaCardBackgroundColor()}; transition: all 0.2s ease;`;
             
             if (game[field] && game[field].trim()) {
-                // Display actual media file
-                let imagePath = game[field];
-                if (imagePath && !imagePath.startsWith('roms/')) {
-                    imagePath = `roms/${this.currentSystem}/${imagePath}`;
-                }
+                // Media exists - show the actual media
+                const mediaPath = game[field];
                 
-                if (imagePath.toLowerCase().endsWith('.pdf')) {
+                if (field === 'video' || mediaPath.endsWith('.mp4')) {
+                    // Add cache-busting parameter to force video refresh
+                    const cacheBuster = new Date().getTime();
+                    mediaItem.innerHTML = `
+                        <div style="position: relative;">
+                            <video width="450" height="450" controls style="object-fit: contain; background-color: #f8f9fa;">
+                                <source src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" type="video/mp4">
+                            </video>
+                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </div>
+                            <div class="media-delete-overlay" style="position: absolute; top: 4px; left: 4px; background: rgba(220,53,69,0.8); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease; cursor: pointer;" title="Delete video">
+                                <i class="bi bi-trash"></i>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                            <small class="text-center flex-grow-1">${field}</small>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add error handler for video
+                    const video = mediaItem.querySelector('video');
+                    video.addEventListener('error', () => {
+                        this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                    });
+                } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
                     // PDF file - show PDF logo
                     mediaItem.innerHTML = `
-                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: ${this.getMediaCardBackgroundColor()};" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" onclick="gameManager.selectEditModalMediaItem(this, '${field}', gameManager.games.find(g => g.id === ${game.id}), '${game[field]}')" title="PDF Document: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion">
-                            <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #dc3545; margin-bottom: 0.5rem;"></i>
+                        <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;">
+                            <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
                             <small style="color: #6c757d; text-align: center;">PDF Document</small>
+                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </div>
                         </div>
-                        <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
+                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                            <small class="text-center flex-grow-1">${field}</small>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </div>
+                        </div>
                     `;
                 } else {
-                    // Regular image file
-                    const img = document.createElement('img');
-                    // Add cache-busting parameter to avoid stale cached images
-                    const urlPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
-                    const cacheSep = urlPath.includes('?') ? '&' : '?';
-                    img.src = `${urlPath}${cacheSep}v=${Date.now()}`;
-                    img.alt = `${field} for ${game.name}`;
-                    img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion\nRight-click for rotate menu`;
-                    img.style.cssText = `width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px; background-color: ${this.getMediaCardBackgroundColor()};`;
-                    img.oncontextmenu = (e) => this.showImageContextMenu(e, mediaItem, game, field);
-                    img.ondblclick = () => {
-                        if (!this.uploadInProgress) {
-                            this.uploadMediaForGame(game, field);
-                        } else {
-                            this.showAlert('Upload in progress. Please wait...', 'warning');
-                        }
-                    };
-                    img.onclick = () => this.selectEditModalMediaItem(mediaItem, field, game, game[field]);
-                    img.onerror = () => {
-                        // If image fails to load, show placeholder
-                        mediaItem.innerHTML = `
-                            <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: ${this.getMediaCardBackgroundColor()};" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
-                                <div style="text-align: center; color: #6c757d;">
-                                    <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
-                                    Double-click<br>to upload
-                                </div>
+                    // Add cache-busting parameter to force image refresh
+                    const cacheBuster = new Date().getTime();
+                    mediaItem.innerHTML = `
+                        <div style="position: relative;">
+                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                <i class="bi bi-arrow-clockwise"></i>
                             </div>
-                            <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
-                        `;
-                    };
-                    mediaItem.appendChild(img);
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                            <small class="text-center flex-grow-1">${field}</small>
+                            <div class="d-flex gap-1">
+                                ${field === 'fanart' ? `
+                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                    <i class="bi bi-image"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-google"></i>
+                                </button>
+                                ` : ''}
+                                ${field === 'marquee' ? `
+                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                    <i class="bi bi-badge-ad"></i>
+                                </button>
+                                ` : ''}
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
                 }
                 
-                // Filename display removed - no longer showing ROM path text under game image
+                // Add hover effects for replace overlay
+                mediaItem.addEventListener('mouseenter', () => {
+                    const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                    const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                    if (replaceOverlay) {
+                        replaceOverlay.style.opacity = '1';
+                    }
+                    if (deleteOverlay) {
+                        deleteOverlay.style.opacity = '1';
+                    }
+                });
                 
-                // Add field label
-                const fieldLabel = document.createElement('small');
-                fieldLabel.className = 'd-block text-center mt-1';
-                fieldLabel.textContent = field;
-                fieldLabel.style.cssText = 'font-size: 0.7rem; color: #6c757d;';
-                mediaItem.appendChild(fieldLabel);
+                mediaItem.addEventListener('mouseleave', () => {
+                    const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                    const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                    if (replaceOverlay) {
+                        replaceOverlay.style.opacity = '0';
+                    }
+                    if (deleteOverlay) {
+                        deleteOverlay.style.opacity = '0';
+                    }
+                });
                 
-                // Add button container
-                const buttonContainer = document.createElement('div');
-                buttonContainer.className = 'd-flex gap-1 mt-1';
-                buttonContainer.style.cssText = 'justify-content: center;';
+                // Add click handlers for overlays
+                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                if (replaceOverlay) {
+                    replaceOverlay.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.uploadMediaForGame(game, field);
+                    });
+                }
                 
-                // Add multiscraper download button
-                const multiscraperBtn = document.createElement('button');
-                multiscraperBtn.className = 'btn btn-outline-success btn-sm';
-                multiscraperBtn.style.cssText = 'font-size: 0.6rem; padding: 2px 6px;';
-                multiscraperBtn.innerHTML = '<i class="bi bi-search"></i>';
-                multiscraperBtn.title = 'Multiscraper Download';
-                multiscraperBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    this.openMultiscraperMediaModal(game, field);
-                };
-                buttonContainer.appendChild(multiscraperBtn);
+                const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                if (deleteOverlay) {
+                    deleteOverlay.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.deleteMediaForGame(game, field);
+                    });
+                }
                 
-                // Add LaunchBox download button
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'btn btn-outline-primary btn-sm';
-                downloadBtn.style.cssText = 'font-size: 0.6rem; padding: 2px 6px;';
-                downloadBtn.innerHTML = '<i class="bi bi-download"></i>';
-                downloadBtn.title = 'Download from LaunchBox';
-                downloadBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    this.openLaunchBoxMediaModal(game, field);
-                };
-                buttonContainer.appendChild(downloadBtn);
-                
-                mediaItem.appendChild(buttonContainer);
+                mediaContent.appendChild(mediaItem);
             } else {
                 // Display placeholder for missing media
+                const placeholderSize = field === 'video' ? '300px' : '150px';
+                const iconClass = field === 'video' ? 'bi-camera-video' : 'bi-image';
+                const uploadText = field === 'video' ? 'Double-click<br>to upload video' : 'Double-click<br>to upload';
+                
                 mediaItem.innerHTML = `
-                    <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: ${this.getMediaCardBackgroundColor()};" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
-                        <div style="text-align: center; color: #6c757d;">
-                            <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
-                            Double-click<br>to upload
+                    <div class="media-placeholder" style="width: ${placeholderSize}; height: ${placeholderSize}; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6c757d; font-size: 0.8rem; text-align: center; cursor: pointer; transition: all 0.2s ease;">
+                        <div>
+                            <i class="bi ${iconClass}" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                            ${uploadText}
                         </div>
                     </div>
-                    <small class="d-block text-center mt-1" style="font-size: 0.7rem; color: #6c757d;">${field}</small>
-                    <div class="d-flex gap-1 mt-1" style="justify-content: center;">
-                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 2px 6px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                            <i class="bi bi-search"></i>
-                        </button>
-                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 2px 6px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                            <i class="bi bi-download"></i>
-                        </button>
+                    <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                        <small class="text-center flex-grow-1">${field}</small>
+                        <div class="d-flex gap-1">
+                            ${field === 'fanart' ? `
+                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-image"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-google"></i>
+                            </button>
+                            ` : ''}
+                            ${field === 'marquee' ? `
+                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-badge-ad"></i>
+                            </button>
+                            ` : ''}
+                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-search"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </div>
                     </div>
                 `;
+                
+                // Add double-click handler for upload
+                mediaItem.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.uploadMediaForGame(game, field);
+                });
+                
+                // Add hover effect
+                mediaItem.addEventListener('mouseenter', () => {
+                    mediaItem.querySelector('.media-placeholder').style.borderColor = '#0d6efd';
+                    mediaItem.querySelector('.media-placeholder').style.backgroundColor = this.getMediaCardBackgroundColor();
+                });
+                
+                mediaItem.addEventListener('mouseleave', () => {
+                    mediaItem.querySelector('.media-placeholder').style.borderColor = '#dee2e6';
+                    mediaItem.querySelector('.media-placeholder').style.backgroundColor = this.getMediaCardBackgroundColor();
+                });
+                
+                mediaItem.style.cursor = 'pointer';
+                mediaItem.title = `Double-click to upload ${field} media`;
+                
+                mediaContent.appendChild(mediaItem);
             }
-            
-            mediaContent.appendChild(mediaItem);
         });
     }
     
