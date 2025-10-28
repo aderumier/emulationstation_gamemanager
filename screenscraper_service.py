@@ -682,70 +682,103 @@ class ScreenScraperService:
         
         for attempt in range(self.retry_attempts):
             try:
-                print(f"Searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
-                print(f"API URL: {self.api_url}")
-                print(f"Params: {params}")
+                print(f"🔍 Searching ScreenScraper for '{rom_name}' (attempt {attempt + 1}/{self.retry_attempts})")
+                print(f"🌐 API URL: {self.api_url}")
+                print(f"📋 Params: {params}")
+                print(f"⏱️ Timeout: {self.timeout}s")
+                
+                import time
+                start_time = time.time()
                 async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
                     response = await client.get(self.api_url, params=params)
+                request_duration = time.time() - start_time
+                
+                print(f"📡 Response received in {request_duration:.2f}s")
+                print(f"📊 Status Code: {response.status_code}")
+                print(f"📏 Response Size: {len(response.content)} bytes")
                 
                 if response.status_code == 200:
-                    data = response.json()
-                    print(f"API response: {data}")
-                    
-                    if 'response' in data and 'jeu' in data['response']:
-                        jeu = data['response']['jeu']
-                        print(f"Jeu data type: {type(jeu)}")
-                        print(f"Jeu data: {jeu}")
+                    try:
+                        data = response.json()
+                        print(f"✅ JSON parsed successfully")
+                        print(f"📄 Response keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
                         
-                        if isinstance(jeu, list) and len(jeu) > 0:
-                            # Take the first result
-                            jeu_data = jeu[0]
-                            jeu_id = jeu_data.get('id')
-                            print(f"List jeu[0]: {jeu_data}")
-                            print(f"Extracted jeu_id: {jeu_id}")
-                            if jeu_id:
-                                print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
-                                return {'jeu_id': str(jeu_id), 'game_data': jeu_data}
-                        elif isinstance(jeu, dict) and 'id' in jeu:
-                            jeu_id = jeu['id']
-                            print(f"Dict jeu: {jeu}")
-                            print(f"Extracted jeu_id: {jeu_id}")
-                            if jeu_id:
-                                print(f"Found ScreenScraper ID {jeu_id} for '{rom_name}'")
-                                return {'jeu_id': str(jeu_id), 'game_data': jeu}
-                        
-                        print(f"No ScreenScraper ID found for '{rom_name}'")
-                        print(f"Response structure: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
-                        if 'response' in data:
-                            print(f"Response keys: {list(data['response'].keys()) if isinstance(data['response'], dict) else 'Response not a dict'}")
-                        return None
-                    
-                    elif response.status_code == 429:
-                        # Rate limited, wait before retry
-                        wait_time = 2 ** attempt
-                        print(f"Rate limited, waiting {wait_time}s before retry")
-                        await asyncio.sleep(wait_time)
-                        continue
-                    
-                    else:
-                        print(f"ScreenScraper API returned status {response.status_code}")
-                        print(f"Response text: {response.text}")
+                        if 'response' in data and 'jeu' in data['response']:
+                            jeu = data['response']['jeu']
+                            print(f"🎮 Found jeu data: {type(jeu)}")
+                            print(f"📝 Jeu data: {jeu}")
+                            
+                            if isinstance(jeu, list) and len(jeu) > 0:
+                                # Take the first result
+                                jeu_data = jeu[0]
+                                jeu_id = jeu_data.get('id')
+                                print(f"📋 List jeu[0]: {jeu_data}")
+                                print(f"🎯 Extracted jeu_id: {jeu_id}")
+                                if jeu_id:
+                                    print(f"✅ Found ScreenScraper ID {jeu_id} for '{rom_name}'")
+                                    return {'jeu_id': str(jeu_id), 'game_data': jeu_data}
+                            elif isinstance(jeu, dict) and 'id' in jeu:
+                                jeu_id = jeu['id']
+                                print(f"📋 Dict jeu: {jeu}")
+                                print(f"🎯 Extracted jeu_id: {jeu_id}")
+                                if jeu_id:
+                                    print(f"✅ Found ScreenScraper ID {jeu_id} for '{rom_name}'")
+                                    return {'jeu_id': str(jeu_id), 'game_data': jeu}
+                            
+                            print(f"❌ No ScreenScraper ID found for '{rom_name}'")
+                            print(f"📄 Response structure: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+                            if 'response' in data:
+                                print(f"📄 Response keys: {list(data['response'].keys()) if isinstance(data['response'], dict) else 'Response not a dict'}")
+                            return None
+                        else:
+                            print(f"❌ No jeu found in response for '{rom_name}'")
+                            print(f"📄 Response structure: {data}")
+                            return None
+                    except Exception as json_error:
+                        print(f"❌ JSON parsing failed: {json_error}")
+                        print(f"📄 Raw response (first 500 chars): {response.text[:500]}")
                         return None
                 
+                elif response.status_code == 429:
+                    # Rate limited, wait before retry
+                    wait_time = 2 ** attempt
+                    print(f"🚫 Rate limited by ScreenScraper API (attempt {attempt + 1})")
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                
+                else:
+                    print(f"❌ ScreenScraper API returned status {response.status_code}")
+                    print(f"📄 Response text (first 500 chars): {response.text[:500]}")
+                    
+                    # Check for specific error types
+                    if response.status_code >= 500:
+                        print(f"🔥 Server error from ScreenScraper")
+                    elif response.status_code == 404:
+                        print(f"🔍 Game not found on ScreenScraper")
+                        return None  # Don't retry for 404
+                    
+                    return None
+                    
             except httpx.TimeoutException:
-                print(f"Timeout searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
+                print(f"⏰ Timeout searching ScreenScraper for '{rom_name}' (attempt {attempt + 1})")
+                print(f"⏱️ Request exceeded {self.timeout}s timeout")
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    wait_time = 2 ** attempt
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
                     continue
                 return None
             
             except Exception as e:
-                print(f"Error searching ScreenScraper for '{rom_name}': {e}")
-                print(f"Exception type: {type(e)}")
+                print(f"❌ Error searching ScreenScraper for '{rom_name}': {e}")
+                print(f"🔍 Exception type: {type(e)}")
                 import traceback
                 traceback.print_exc()
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    wait_time = 2 ** attempt
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
                     continue
                 return None
         
@@ -785,42 +818,88 @@ class ScreenScraperService:
 
         for attempt in range(self.retry_attempts):
             try:
-                # Debug prints
-                print(f"Fetching ScreenScraper by ID: {gameid} (attempt {attempt + 1})")
-                print(f"API URL: {self.api_url}")
-                print(f"Params: {params}")
+                print(f"🔍 Fetching ScreenScraper by ID: {gameid} (attempt {attempt + 1}/{self.retry_attempts})")
+                print(f"🌐 API URL: {self.api_url}")
+                print(f"📋 Params: {params}")
+                print(f"⏱️ Timeout: {self.timeout}s")
+                
+                import time
+                start_time = time.time()
                 async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
                     response = await client.get(self.api_url, params=params)
+                request_duration = time.time() - start_time
+                
+                print(f"📡 Response received in {request_duration:.2f}s")
+                print(f"📊 Status Code: {response.status_code}")
+                print(f"📏 Response Size: {len(response.content)} bytes")
+                
                 if response.status_code == 200:
-                    data = response.json()
-                    print(f"ID fetch response: {data}")
-                    if 'response' in data and 'jeu' in data['response']:
-                        jeu = data['response']['jeu']
-                        # API may return a dict or list; normalize to dict
-                        if isinstance(jeu, list) and len(jeu) > 0:
-                            return jeu[0]
-                        if isinstance(jeu, dict):
-                            return jeu
+                    try:
+                        data = response.json()
+                        print(f"✅ JSON parsed successfully")
+                        print(f"📄 ID fetch response: {data}")
+                        
+                        if 'response' in data and 'jeu' in data['response']:
+                            jeu = data['response']['jeu']
+                            print(f"🎮 Found jeu data by ID: {type(jeu)}")
+                            
+                            # API may return a dict or list; normalize to dict
+                            if isinstance(jeu, list) and len(jeu) > 0:
+                                jeu = jeu[0]
+                                print(f"📝 Normalized from list to dict")
+                                return jeu
+                            if isinstance(jeu, dict):
+                                print(f"📝 Already a dict")
+                                return jeu
+                            print(f"❌ Unexpected jeu format: {type(jeu)}")
+                            return None
+                        else:
+                            print(f"❌ No jeu found in response for ID {gameid}")
+                            print(f"📄 Response structure: {data}")
+                            return None
+                    except Exception as json_error:
+                        print(f"❌ JSON parsing failed: {json_error}")
+                        print(f"📄 Raw response (first 500 chars): {response.text[:500]}")
                         return None
-                    elif response.status_code == 429:
-                        wait_time = 2 ** attempt
-                        await asyncio.sleep(wait_time)
-                        continue
-                    else:
-                        print(f"ScreenScraper API returned status {response.status_code}")
-                        print(f"Response text: {response.text}")
-                        return None
+                        
+                elif response.status_code == 429:
+                    wait_time = 2 ** attempt
+                    print(f"🚫 Rate limited by ScreenScraper API (attempt {attempt + 1})")
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                    
+                else:
+                    print(f"❌ ScreenScraper API returned status {response.status_code}")
+                    print(f"📄 Response text (first 500 chars): {response.text[:500]}")
+                    
+                    # Check for specific error types
+                    if response.status_code >= 500:
+                        print(f"🔥 Server error from ScreenScraper")
+                    elif response.status_code == 404:
+                        print(f"🔍 Game ID not found on ScreenScraper")
+                        return None  # Don't retry for 404
+                    
+                    return None
+                    
             except httpx.TimeoutException:
+                print(f"⏰ Timeout fetching ScreenScraper by ID {gameid} (attempt {attempt + 1})")
+                print(f"⏱️ Request exceeded {self.timeout}s timeout")
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    wait_time = 2 ** attempt
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
                     continue
                 return None
             except Exception as e:
-                print(f"Error fetching ScreenScraper game by id '{gameid}': {e}")
+                print(f"❌ Error fetching ScreenScraper game by id '{gameid}': {e}")
+                print(f"🔍 Exception type: {type(e)}")
                 import traceback
                 traceback.print_exc()
                 if attempt < self.retry_attempts - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    wait_time = 2 ** attempt
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
                     continue
                 return None
 
