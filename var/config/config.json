@@ -39,13 +39,13 @@
         },
         "boxart": {
             "directory": "box2d",
-            "target_extension": ".png",
+            "target_extension": "",
             "extensions": [
                 ".png",
                 ".jpg",
                 ".jpeg"
             ],
-            "height": 901
+            "height": 0
         },
         "image": {
             "directory": "images",
@@ -95,7 +95,8 @@
                 ".png",
                 ".jpg",
                 ".jpeg"
-            ]
+            ],
+            "height": 0
         },
         "thumbnail": {
             "directory": "thumbnails",

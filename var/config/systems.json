@@ -3147,5 +3147,13 @@
         "igdb": "",
         "mobygames": "",
         "extensions": []
+    },
+    "vsmile": {
+        "launchbox": "",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "dat_file": "vsmile_cart.xml",
+        "extensions": []
     }
 }

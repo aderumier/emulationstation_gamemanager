@@ -3152,7 +3152,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             # Level 1: Exact rom filename match (without extension)
             if rom_name_without_ext.lower() in level1_index:
                 matched_file = level1_index[rom_name_without_ext.lower()]
-                task.update_progress(f"   ✅ Level 1 MATCH: '{matched_file}'")
+                task.update_progress(f"     ✅ Level 1 MATCH: '{rom_name_without_ext.lower()}' : '{matched_file}'")
             
            
             # Level 2: Game name match
@@ -3160,7 +3160,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 game_name = game['name']
                 if game_name.lower() in level1_index:
                     matched_file = level1_index[game_name.lower()]
-                    task.update_progress(f"   ✅ Level 2 MATCH: '{matched_file}'")
+                    task.update_progress(f"     ✅ Level 2 MATCH: '{game_name.lower()}' : '{matched_file}'")
                 
             
             # Level 3: Normalized ROM filename with parentheses
@@ -3168,14 +3168,14 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=False)
                 if normalized_rom_with_parens in level3_index:
                     matched_file = level3_index[normalized_rom_with_parens]
-                    task.update_progress(f"   ✅ Level 3 MATCH: '{matched_file}'")
+                    task.update_progress(f"     ✅ Level 3 MATCH: '{normalized_rom_with_parens}' : '{matched_file}'")
             
             # Level 4: Normalized ROM filename without parentheses
             if not matched_file:
                 normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=True)
                 if normalized_rom_without_parens in level4_index:
                     matched_file = level4_index[normalized_rom_without_parens]
-                    task.update_progress(f"   ✅ Level 4 MATCH: '{matched_file}'")
+                    task.update_progress(f"     ✅ Level 4 MATCH: '{normalized_rom_without_parens}' : '{matched_file}'")
                 
             
             # Level 5: Normalized game name with parentheses vs normalized media filename with parentheses
@@ -3184,7 +3184,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 normalized_game_with_parens = normalize_game_name(game_name, remove_paranthesis=False)
                 if normalized_game_with_parens in level3_index:
                     matched_file = level3_index[normalized_game_with_parens]
-                    task.update_progress(f"   ✅ Level 5 MATCH: '{matched_file}'")
+                    task.update_progress(f"     ✅ Level 5 MATCH: '{normalized_game_with_parens}' : '{matched_file}'")
                 
             
             # Level 6: Normalized game name without parentheses vs normalized media filename without parentheses
@@ -3193,7 +3193,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 normalized_game_without_parens = normalize_game_name(game_name, remove_paranthesis=True)
                 if normalized_game_without_parens in level4_index:
                     matched_file = level4_index[normalized_game_without_parens]
-                    task.update_progress(f"   ✅ Level 6 MATCH: '{matched_file}'")
+                    task.update_progress(f"     ✅ Level 6 MATCH: '{normalized_game_without_parens}' : '{matched_file}'")
 
             # Level 7: Normalized game name without parentheses without articles vs normalized media filename without articles
             if not matched_file and game.get('name'):
@@ -3201,7 +3201,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 normalized_game_without_parens_without_articles = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
                 if normalized_game_without_parens_without_articles in level7_index:
                     matched_file = level7_index[normalized_game_without_parens_without_articles]
-                    task.update_progress(f"   ✅ Level 7 MATCH: '{matched_file}'")                
+                    task.update_progress(f"     ✅ Level 7 MATCH: '{normalized_game_without_parens_without_articles}': '{matched_file}'")                
             
             if matched_file:
                 matched_count += 1
