@@ -3716,6 +3716,9 @@ class GameCollectionManager {
         // Initialize delete video button
         this.initializeDeleteVideoButton(game);
         
+        // Initialize upload video button
+        this.initializeUploadVideoButton(game);
+        
         // Initialize manual crop button
         this.initializeManualCropButton(game);
     }
@@ -4688,16 +4691,13 @@ class GameCollectionManager {
             }
         });
         
-        // If no videos found, show message with upload option
+        // If no videos found, show message
         if (videoContent.children.length === 0) {
             videoContent.innerHTML = `
                 <div class="text-center text-muted" style="width: 100%; padding: 2rem;">
                     <i class="bi bi-camera-video" style="font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
                     <h6>No Video Files</h6>
-                    <p class="mb-3">This game doesn't have any video files associated with it.</p>
-                    <button class="btn btn-primary" onclick="gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), 'video')">
-                        <i class="bi bi-cloud-upload me-2"></i>Upload Video
-                    </button>
+                    <p class="mb-0">Use the Upload Video button below to add a video file.</p>
                 </div>
             `;
         }
@@ -9811,6 +9811,19 @@ class GameCollectionManager {
                 if (videoField) {
                     this.deleteVideoForGame(game, videoField);
                 }
+            });
+        }
+    }
+    
+    initializeUploadVideoButton(game) {
+        const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+        if (uploadVideoBtn) {
+            // Always enable the upload button
+            uploadVideoBtn.disabled = false;
+            
+            // Add click event listener
+            uploadVideoBtn.addEventListener('click', () => {
+                this.uploadMediaForGame(game, 'video');
             });
         }
     }
