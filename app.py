@@ -3110,7 +3110,15 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             normalized_media_without_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=True)
             level6_index[normalized_media_without_parens] = media_file
         
-        task.update_progress(f"✅ Precomputed indexes: Level1={len(level1_index)}, Level2={len(level2_index)}, Level3={len(level3_index)}, Level4={len(level4_index)}, Level5={len(level5_index)}, Level6={len(level6_index)}")
+        # Level 7 index: normalized media without parentheses and without articles -> media_file
+        level7_index = {}
+        for media_file in media_files:
+            media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
+            media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+            normalized_media_without_parens_without_articles = normalize_game_name(media_name_no_suffix, remove_paranthesis=True, remove_articles=True)
+            level7_index[normalized_media_without_parens_without_articles] = media_file
+        
+        task.update_progress(f"✅ Precomputed indexes: Level1={len(level1_index)}, Level2={len(level2_index)}, Level3={len(level3_index)}, Level4={len(level4_index)}, Level5={len(level5_index)}, Level6={len(level6_index)}, Level7={len(level7_index)}")
         
         # Process each game
         matched_count = 0
@@ -3206,18 +3214,12 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             # Level 7: Normalized game name without parentheses without articles vs normalized media filename without articles
             if not matched_file and game.get('name'):
                 game_name = game['name']
-                normalized_game_without_parens_without_articles = normalize_game_name(game_name, remove_paranthesis=True,remove_articles=True)
-                task.update_progress(f"   Level 6: Testing normalized game name without parentheses")
+                normalized_game_without_parens_without_articles = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+                task.update_progress(f"   Level 7: Testing normalized game name without parentheses and articles")
                 task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_without_parens_without_articles}'")
-                for media_file in media_files:
-                    media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
-                    # Remove number suffixes like -01, -02, etc.
-                    media_name_no_suffix = remove_number_suffix(media_name_without_ext)
-                    normalized_media_without_parens_without_articles = normalize_game_name(media_name_no_suffix, remove_paranthesis=True,remove_articles=True)
-                    if normalized_media_without_parens_without_articles == normalized_game_without_parens_without_articles:
-                        matched_file = media_file
-                        task.update_progress(f"     ✅ MATCH FOUND (game name normalized without parens without article): '{normalized_game_without_parens_without_articles}' -> '{media_file}'")
-                        break                
+                if normalized_game_without_parens_without_articles in level7_index:
+                    matched_file = level7_index[normalized_game_without_parens_without_articles]
+                    task.update_progress(f"     ✅ MATCH FOUND (game name normalized without parens without articles): '{matched_file}'")                
             
             if matched_file:
                 matched_count += 1
