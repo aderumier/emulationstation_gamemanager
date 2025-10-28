@@ -20551,10 +20551,10 @@ def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refr
     from datetime import datetime, timedelta
     
     # Create cache directory
-    cache_dir = "var/db/screenscraper"
+    cache_dir = "var/cache/screenscraper"
     os.makedirs(cache_dir, exist_ok=True)
-    
-    cache_file = os.path.join(cache_dir, "user_info.json")
+
+    cache_file = os.path.join(cache_dir, "screenscraper_user_info.json")
     
     # Check if cache exists and is valid (24 hours)
     if not force_refresh and os.path.exists(cache_file):
@@ -20564,9 +20564,13 @@ def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refr
             
             # Check if cache is still valid (24 hours)
             cache_time = datetime.fromisoformat(cache_data.get('timestamp', ''))
-            if datetime.now() - cache_time < timedelta(hours=24):
-                print(f"📋 Using cached ScreenScraper user info (maxthreads: {cache_data.get('maxthreads', 2)})")
+            cache_age = datetime.now() - cache_time
+            if cache_age < timedelta(hours=24):
+                hours_remaining = 24 - (cache_age.total_seconds() / 3600)
+                print(f"📋 Using cached ScreenScraper user info (maxthreads: {cache_data.get('maxthreads', 2)}, expires in {hours_remaining:.1f}h)")
                 return cache_data.get('maxthreads', 2)
+            else:
+                print(f"🔄 ScreenScraper user info cache expired ({cache_age.total_seconds()/3600:.1f}h old), refreshing...")
         except Exception as e:
             print(f"⚠️ Error reading ScreenScraper user info cache: {e}")
     
@@ -20615,7 +20619,7 @@ def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refr
         with open(cache_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
         
-        print(f"✅ ScreenScraper user info cached (maxthreads: {maxthreads})")
+        print(f"✅ ScreenScraper user info cached (maxthreads: {maxthreads}, expires in 24h)")
         return maxthreads
         
     except Exception as e:
