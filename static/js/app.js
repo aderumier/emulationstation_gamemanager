@@ -4251,6 +4251,17 @@ class GameCollectionManager {
                             </div>
                         </div>
                     `;
+                    
+                    // Add hover preview functionality for images
+                    const img = mediaItem.querySelector('img');
+                    if (img) {
+                        img.addEventListener('mouseenter', (e) => {
+                            this.showMediaHover(e, `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`, field);
+                        });
+                        img.addEventListener('mouseleave', () => {
+                            this.hideMediaHover();
+                        });
+                    }
                 }
                 
                 // Add hover effects for replace overlay
@@ -9387,6 +9398,14 @@ class GameCollectionManager {
                     const img = mediaItem.querySelector('img');
                     img.addEventListener('error', () => {
                         this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                    });
+                    
+                    // Add hover preview functionality
+                    img.addEventListener('mouseenter', (e) => {
+                        this.showMediaHover(e, `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`, field);
+                    });
+                    img.addEventListener('mouseleave', () => {
+                        this.hideMediaHover();
                     });
                 }
                 
@@ -18732,6 +18751,54 @@ class GameCollectionManager {
 
     hideThumbnailHover() {
         const tooltip = document.getElementById('thumbnail-hover-tooltip');
+        if (tooltip) {
+            tooltip.remove();
+        }
+    }
+    
+    showMediaHover(event, imageUrl, fieldName) {
+        // Remove any existing tooltip
+        this.hideMediaHover();
+        
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.className = 'media-hover-tooltip';
+        tooltip.id = 'media-hover-tooltip';
+        
+        // Create image element
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = fieldName;
+        img.onerror = () => {
+            tooltip.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No image available</div>`;
+        };
+        
+        tooltip.appendChild(img);
+        document.body.appendChild(tooltip);
+        
+        // Position tooltip near mouse cursor
+        const rect = event.target.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        
+        let left = rect.right + 10;
+        let top = rect.top;
+        
+        // Adjust if tooltip would go off screen
+        if (left + tooltipRect.width > window.innerWidth) {
+            left = rect.left - tooltipRect.width - 10;
+        }
+        if (top + tooltipRect.height > window.innerHeight) {
+            top = window.innerHeight - tooltipRect.height - 10;
+        }
+        if (left < 0) left = 10;
+        if (top < 0) top = 10;
+        
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+    }
+
+    hideMediaHover() {
+        const tooltip = document.getElementById('media-hover-tooltip');
         if (tooltip) {
             tooltip.remove();
         }
