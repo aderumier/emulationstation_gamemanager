@@ -16154,12 +16154,6 @@ class GameCollectionManager {
         // Update CSS custom property for media card background
         document.documentElement.style.setProperty('--media-card-bg-color', color);
         
-        // Update existing media cards
-        const mediaCards = document.querySelectorAll('.media-preview-item');
-        mediaCards.forEach(card => {
-            card.style.backgroundColor = color;
-        });
-        
         // Update existing media placeholders
         const placeholders = document.querySelectorAll('.media-placeholder');
         placeholders.forEach(placeholder => {
