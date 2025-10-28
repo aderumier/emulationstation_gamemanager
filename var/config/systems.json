@@ -3150,10 +3150,10 @@
     },
     "vsmile": {
         "launchbox": "",
-        "screenscraper": "",
+        "screenscraper": 120,
         "igdb": "",
         "mobygames": "",
-        "dat_file": "vsmile_cart.xml",
+        "dat_file": "",
         "extensions": []
     }
 }
