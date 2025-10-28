@@ -2993,6 +2993,79 @@ def remove_number_suffix(filename):
     # Remove patterns like -01, -02, -1, -2, etc. at the end of filename
     return re.sub(r'-\d+$', '', filename)
 
+def process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+    """Process a matched media file for import medias task"""
+    try:
+        # Extract ROM filename without extension
+        rom_path = game['path']
+        rom_filename = os.path.basename(rom_path)
+        rom_name_without_ext = os.path.splitext(rom_filename)[0]
+        
+        # Move and rename the file
+        source_file_path = os.path.join(source_dir, matched_file)
+        file_extension = os.path.splitext(matched_file)[1]
+        
+        # Always use original extension for the target filename
+        target_filename = f"{rom_name_without_ext}{file_extension}"
+        target_file_path = os.path.join(target_dir, target_filename)
+        
+        # Get target extension from media fields configuration for processing only
+        target_extension = media_fields[target_field].get('target_extension')
+        
+        # Check if source file exists
+        if not os.path.exists(source_file_path):
+            task.update_progress(f"     ❌ Source file does not exist: '{source_file_path}'")
+            raise FileNotFoundError(f"Source file not found: {source_file_path}")
+        
+        # Move and process the file using convert_and_resize_image_replace
+        task.update_progress(f"     🔄 Processing image: '{source_file_path}' -> '{target_file_path}'")
+        
+        # Get target width and height from media fields configuration
+        target_width = media_fields[target_field].get('width', 0)
+        target_height = media_fields[target_field].get('height', 0)
+        
+        # First, move the source file to the target location with correct extension
+        temp_target_path = target_file_path
+        shutil.move(source_file_path, temp_target_path)
+        task.update_progress(f"     📋 Moved source to target location: '{temp_target_path}'")
+        
+        # Process the file in place at the target location
+        processed_path, process_status = convert_and_resize_image_replace(
+            temp_target_path, target_extension, target_width, target_height
+        )
+        
+        task.update_progress(f"     🔍 Processing result: status='{process_status}', processed_path='{processed_path}'")
+        
+        if process_status in ["converted", "resized", "converted_and_resized", "already_correct"]:
+            task.update_progress(f"     ✅ File processed successfully: {process_status}")
+            # File is already in the correct location
+            task.update_progress(f"     ✅ File ready at target location: '{processed_path}'")
+        else:
+            task.update_progress(f"     ❌ Processing failed with status: {process_status}")
+            raise Exception(f"Image processing failed with status: {process_status}")
+        
+        # Verify the processed file exists
+        final_path = processed_path if processed_path else target_file_path
+        if os.path.exists(final_path):
+            task.update_progress(f"     ✅ Target file verified: '{final_path}'")
+        else:
+            task.update_progress(f"     ❌ Target file not found: '{final_path}'")
+            return False
+        
+        # Update gamelist with the final processed filename
+        final_filename = os.path.basename(processed_path) if processed_path else target_filename
+        new_media_path = f"./media/{media_fields[target_field]['directory']}/{final_filename}"
+        game[target_field] = new_media_path
+        task.update_progress(f"     ✅ Gamelist updated: {target_field} = '{new_media_path}'")
+        
+        task.log_message(f"✅ Moved {matched_file} -> {final_filename} for {game.get('name', rom_name_without_ext)}")
+        return True
+        
+    except Exception as e:
+        task.update_progress(f"     ❌ Error moving file: {e}")
+        task.log_message(f"❌ Failed to move {matched_file}: {e}")
+        return False
+
 def run_import_medias_task(system_name, source_directory, target_field, overwrite_existing, task_id):
     """Run import medias task in background thread"""
     global current_task_id
@@ -3109,186 +3182,344 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             if normalized_media_without_parens_without_articles not in level7_index:
                 level7_index[normalized_media_without_parens_without_articles] = media_file
         
-        task.update_progress(f"✅ Precomputed indexes: Level1/2={len(level1_index)}, Level3/5={len(level3_index)}, Level4/6={len(level4_index)}, Level7={len(level7_index)}")
+        # Level 8 index: ROM files with first part before separator ("-", ":", "~") normalized without parentheses and articles -> media_file
+        level8_index = {}
+        level8_key_counts = {}  # Track how many media files map to each key
         
-        # Process each game
+        # First pass: build index and count duplicates
+        for media_file in media_files:
+            media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
+            media_name_no_suffix = remove_number_suffix(media_name_without_ext)
+            
+            # If media filename contains separator ("-", ":", "~"), keep only the first part before separator
+            for separator in ["-", ":", "~"]:
+                if separator in media_name_no_suffix:
+                    first_part = media_name_no_suffix.split(separator)[0].strip()
+                    normalized_first_part = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
+                    
+                    # Count occurrences of this key
+                    if normalized_first_part in level8_key_counts:
+                        level8_key_counts[normalized_first_part] += 1
+                    else:
+                        level8_key_counts[normalized_first_part] = 1
+                        level8_index[normalized_first_part] = media_file
+                    break  # Only use the first separator found
+        
+        # Second pass: remove keys that have duplicates (count > 1)
+        keys_to_remove = [key for key, count in level8_key_counts.items() if count > 1]
+        for key in keys_to_remove:
+            del level8_index[key]
+        
+        task.update_progress(f"🔧 Level 8 index cleanup: removed {len(keys_to_remove)} duplicate keys")
+        
+        task.update_progress(f"✅ Precomputed indexes: Level1/2={len(level1_index)}, Level3/5={len(level3_index)}, Level4/6={len(level4_index)}, Level7={len(level7_index)}, Level8={len(level8_index)}")
+        
+        # Process games level by level
         matched_count = 0
         moved_count = 0
         skipped_count = 0
         failed_count = 0
         not_matched_count = 0
         
+        # Track which games have been matched to avoid processing them again
+        matched_games = set()
+        
+        # Level 1: Exact rom filename match (without extension)
+        task.update_progress(f"🔍 Level 1: Exact ROM filename matching...")
+        level1_matches = 0
         for i, game in enumerate(games):
-            # Check for cancellation
             if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
                 task.update_progress("🛑 Import medias task cancelled by user")
                 task.complete(True, "Import medias task cancelled by user")
                 return
             
-            if not game.get('path'):
+            if not game.get('path') or game['path'] in matched_games:
                 continue
-            
-            # Extract ROM filename without extension
-            rom_path = game['path']
-            rom_filename = os.path.basename(rom_path)
-            rom_name_without_ext = os.path.splitext(rom_filename)[0]
-            
-            # Create display name for logging
-            display_name = game.get('name', rom_name_without_ext)
-            
-            # Log every game being processed
-            task.update_progress(f"🔍 Processing game {i+1}/{len(games)}: {display_name}")
             
             # Check if target field already has a value
             current_value = game.get(target_field, '')
             if current_value and not overwrite_existing:
                 skipped_count += 1
-                task.update_progress(f"   ⏸️ Skipped (field already has value): {current_value}")
                 continue
             
-            # Find matching media file using precomputed indexes
-            matched_file = None
+            rom_path = game['path']
+            rom_filename = os.path.basename(rom_path)
+            rom_name_without_ext = os.path.splitext(rom_filename)[0]
             
-            # Level 1: Exact rom filename match (without extension)
             if rom_name_without_ext.lower() in level1_index:
                 matched_file = level1_index[rom_name_without_ext.lower()]
-                task.update_progress(f"     ✅ Level 1 MATCH: '{rom_name_without_ext.lower()}' : '{matched_file}'")
-            
-           
-            # Level 2: Game name match
-            if not matched_file and game.get('name'):
-                game_name = game['name']
-                if game_name.lower() in level1_index:
-                    matched_file = level1_index[game_name.lower()]
-                    task.update_progress(f"     ✅ Level 2 MATCH: '{game_name.lower()}' : '{matched_file}'")
+                display_name = game.get('name', rom_name_without_ext)
+                task.update_progress(f"   ✅ Level 1 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level1_matches += 1
                 
-            
-            # Level 3: Normalized ROM filename with parentheses
-            if not matched_file:
-                normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=False)
-                if normalized_rom_with_parens in level3_index:
-                    matched_file = level3_index[normalized_rom_with_parens]
-                    task.update_progress(f"     ✅ Level 3 MATCH: '{normalized_rom_with_parens}' : '{matched_file}'")
-            
-            # Level 4: Normalized ROM filename without parentheses
-            if not matched_file:
-                normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=True)
-                if normalized_rom_without_parens in level4_index:
-                    matched_file = level4_index[normalized_rom_without_parens]
-                    task.update_progress(f"     ✅ Level 4 MATCH: '{normalized_rom_without_parens}' : '{matched_file}'")
-                
-            
-            # Level 5: Normalized game name with parentheses vs normalized media filename with parentheses
-            if not matched_file and game.get('name'):
-                game_name = game['name']
-                normalized_game_with_parens = normalize_game_name(game_name, remove_paranthesis=False)
-                if normalized_game_with_parens in level3_index:
-                    matched_file = level3_index[normalized_game_with_parens]
-                    task.update_progress(f"     ✅ Level 5 MATCH: '{normalized_game_with_parens}' : '{matched_file}'")
-                
-            
-            # Level 6: Normalized game name without parentheses vs normalized media filename without parentheses
-            if not matched_file and game.get('name'):
-                game_name = game['name']
-                normalized_game_without_parens = normalize_game_name(game_name, remove_paranthesis=True)
-                if normalized_game_without_parens in level4_index:
-                    matched_file = level4_index[normalized_game_without_parens]
-                    task.update_progress(f"     ✅ Level 6 MATCH: '{normalized_game_without_parens}' : '{matched_file}'")
-
-            # Level 7: Normalized game name without parentheses without articles vs normalized media filename without articles
-            if not matched_file and game.get('name'):
-                game_name = game['name']
-                normalized_game_without_parens_without_articles = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
-                if normalized_game_without_parens_without_articles in level7_index:
-                    matched_file = level7_index[normalized_game_without_parens_without_articles]
-                    task.update_progress(f"     ✅ Level 7 MATCH: '{normalized_game_without_parens_without_articles}': '{matched_file}'")                
-            
-            if matched_file:
-                matched_count += 1
-                
-                # Move and rename the file
-                source_file_path = os.path.join(source_dir, matched_file)
-                file_extension = os.path.splitext(matched_file)[1]
-                
-                # Always use original extension for the target filename
-                target_filename = f"{rom_name_without_ext}{file_extension}"
-                target_file_path = os.path.join(target_dir, target_filename)
-                
-                # Get target extension from media fields configuration for processing only
-                target_extension = media_fields[target_field].get('target_extension')
-                
-                
-                try:
-                    # Check if source file exists
-                    if not os.path.exists(source_file_path):
-                        task.update_progress(f"     ❌ Source file does not exist: '{source_file_path}'")
-                        raise FileNotFoundError(f"Source file not found: {source_file_path}")
-                    
-                    
-                    
-                    # Move and process the file using convert_and_resize_image_replace
-                    task.update_progress(f"     🔄 Processing image: '{source_file_path}' -> '{target_file_path}'")
-                    
-                    # Get target width and height from media fields configuration
-                    
-                    target_width = media_fields[target_field].get('width', 0)
-                    target_height = media_fields[target_field].get('height', 0)
-                    
-
-                    
-                    try:
-                        # First, move the source file to the target location with correct extension
-                        temp_target_path = target_file_path
-                        shutil.move(source_file_path, temp_target_path)
-                        task.update_progress(f"     📋 Moved source to target location: '{temp_target_path}'")
-                        
-                        # Process the file in place at the target location
-                        processed_path, process_status = convert_and_resize_image_replace(
-                            temp_target_path, target_extension, target_width, target_height
-                        )
-                        
-                        task.update_progress(f"     🔍 Processing result: status='{process_status}', processed_path='{processed_path}'")
-                        
-                        if process_status in ["converted", "resized", "converted_and_resized", "already_correct"]:
-                            task.update_progress(f"     ✅ File processed successfully: {process_status}")
-                            # File is already in the correct location
-                            task.update_progress(f"     ✅ File ready at target location: '{processed_path}'")
-                        else:
-                            task.update_progress(f"     ❌ Processing failed with status: {process_status}")
-                            raise Exception(f"Image processing failed with status: {process_status}")
-                            
-                    except Exception as e:
-                        task.update_progress(f"     ❌ Error in convert_and_resize_image_replace: {e}")
-                        raise Exception(f"Image processing error: {e}")
-                    
-                    # Verify the processed file exists
-                    final_path = processed_path if processed_path else target_file_path
-                    if os.path.exists(final_path):
-                        task.update_progress(f"     ✅ Target file verified: '{final_path}'")
-                    else:
-                        task.update_progress(f"     ❌ Target file not found: '{final_path}'")
-                        continue
-                    
-                    # Update gamelist with the final processed filename
-                    final_filename = os.path.basename(processed_path) if processed_path else target_filename
-                    new_media_path = f"./media/{media_fields[target_field]['directory']}/{final_filename}"
-                    game[target_field] = new_media_path
-                    task.update_progress(f"     ✅ Gamelist updated: {target_field} = '{new_media_path}'")
-                    
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
                     moved_count += 1
-                    task.log_message(f"✅ Moved {matched_file} -> {final_filename} for {game.get('name', rom_name_without_ext)}")
-                    
-                except Exception as e:
-                    task.update_progress(f"     ❌ Error moving file: {e}")
+                else:
                     failed_count += 1
-                    task.log_message(f"❌ Failed to move {matched_file}: {e}")
-            else:
-                # No match found - don't log to keep task log clean
-                not_matched_count += 1
+        
+        task.update_progress(f"   📊 Level 1 completed: {level1_matches} matches found")
+        
+        # Level 2: Game name match
+        task.update_progress(f"🔍 Level 2: Game name matching...")
+        level2_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
             
-            # Update progress
-            progress = int((i + 1) / len(games) * 100)
-            task.update_progress(f"Processed {i + 1}/{len(games)} games", progress)
+            if not game.get('path') or game['path'] in matched_games or not game.get('name'):
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            game_name = game['name']
+            if game_name.lower() in level1_index:
+                matched_file = level1_index[game_name.lower()]
+                display_name = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
+                task.update_progress(f"   ✅ Level 2 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level2_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
+        
+        task.update_progress(f"   📊 Level 2 completed: {level2_matches} matches found")
+        
+        # Level 3: Normalized ROM filename with parentheses
+        task.update_progress(f"🔍 Level 3: Normalized ROM filename with parentheses...")
+        level3_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path') or game['path'] in matched_games:
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            rom_path = game['path']
+            rom_filename = os.path.basename(rom_path)
+            rom_name_without_ext = os.path.splitext(rom_filename)[0]
+            
+            normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=False)
+            if normalized_rom_with_parens in level3_index:
+                matched_file = level3_index[normalized_rom_with_parens]
+                display_name = game.get('name', rom_name_without_ext)
+                task.update_progress(f"   ✅ Level 3 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level3_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
+        
+        task.update_progress(f"   📊 Level 3 completed: {level3_matches} matches found")
+        
+        # Level 4: Normalized ROM filename without parentheses
+        task.update_progress(f"🔍 Level 4: Normalized ROM filename without parentheses...")
+        level4_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path') or game['path'] in matched_games:
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            rom_path = game['path']
+            rom_filename = os.path.basename(rom_path)
+            rom_name_without_ext = os.path.splitext(rom_filename)[0]
+            
+            normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=True)
+            if normalized_rom_without_parens in level4_index:
+                matched_file = level4_index[normalized_rom_without_parens]
+                display_name = game.get('name', rom_name_without_ext)
+                task.update_progress(f"   ✅ Level 4 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level4_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
+        
+        task.update_progress(f"   📊 Level 4 completed: {level4_matches} matches found")
+        
+        # Level 5: Normalized game name with parentheses vs normalized media filename with parentheses
+        task.update_progress(f"🔍 Level 5: Normalized game name with parentheses...")
+        level5_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path') or game['path'] in matched_games or not game.get('name'):
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            game_name = game['name']
+            normalized_game_with_parens = normalize_game_name(game_name, remove_paranthesis=False)
+            if normalized_game_with_parens in level3_index:
+                matched_file = level3_index[normalized_game_with_parens]
+                display_name = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
+                task.update_progress(f"   ✅ Level 5 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level5_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
+        
+        task.update_progress(f"   📊 Level 5 completed: {level5_matches} matches found")
+        
+        # Level 6: Normalized game name without parentheses vs normalized media filename without parentheses
+        task.update_progress(f"🔍 Level 6: Normalized game name without parentheses...")
+        level6_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path') or game['path'] in matched_games or not game.get('name'):
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            game_name = game['name']
+            normalized_game_without_parens = normalize_game_name(game_name, remove_paranthesis=True)
+            if normalized_game_without_parens in level4_index:
+                matched_file = level4_index[normalized_game_without_parens]
+                display_name = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
+                task.update_progress(f"   ✅ Level 6 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level6_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
+        
+        task.update_progress(f"   📊 Level 6 completed: {level6_matches} matches found")
+        
+        # Level 7: Normalized game name without parentheses without articles vs normalized media filename without articles
+        task.update_progress(f"🔍 Level 7: Normalized game name without parentheses and articles...")
+        level7_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path') or game['path'] in matched_games or not game.get('name'):
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            game_name = game['name']
+            normalized_game_without_parens_without_articles = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+            if normalized_game_without_parens_without_articles in level7_index:
+                matched_file = level7_index[normalized_game_without_parens_without_articles]
+                display_name = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
+                task.update_progress(f"   ✅ Level 7 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level7_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
+        
+        task.update_progress(f"   📊 Level 7 completed: {level7_matches} matches found")
+        
+        # Level 8: Game name first part before separator vs media filename first part before separator
+        task.update_progress(f"🔍 Level 8: First part before separator matching...")
+        level8_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path') or game['path'] in matched_games or not game.get('name'):
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            game_name = game['name']
+            # If game name contains separator ("-", ":", "~"), keep only the first part before separator
+            for separator in ["-", ":", "~"]:
+                if separator in game_name:
+                    first_part = game_name.split(separator)[0].strip()
+                    normalized_first_part = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
+                    if normalized_first_part in level8_index:
+                        matched_file = level8_index[normalized_first_part]
+                        display_name = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
+                        task.update_progress(f"   ✅ Level 8 MATCH: '{display_name}' -> '{matched_file}'")
+                        matched_games.add(game['path'])
+                        level8_matches += 1
+                        
+                        # Process the match
+                        if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                            moved_count += 1
+                        else:
+                            failed_count += 1
+                        break  # Only use the first separator found
+        
+        task.update_progress(f"   📊 Level 8 completed: {level8_matches} matches found")
+        
+        # Count unmatched games
+        not_matched_count = len(games) - len(matched_games) - skipped_count
+        
+        matched_count = len(matched_games)
         
         # Save updated gamelist
         if moved_count > 0:
