@@ -21385,6 +21385,9 @@ class GameCollectionManager {
             const result = await response.json();
             
             if (response.ok && result.success) {
+                // Wait a moment to ensure file operation is complete
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
                 // Add cache-busting parameter to force image refresh
                 const cacheSep = originalSrc.includes('?') ? '&' : '?';
                 img.src = `${originalSrc.split('?')[0]}${cacheSep}v=${Date.now()}`;

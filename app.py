@@ -12515,6 +12515,113 @@ def apply_manual_crop():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/rom-system/<system_name>/game/rotate-media', methods=['POST'])
+@login_required
+def rotate_game_media(system_name):
+    """Rotate a media file for a specific game"""
+    try:
+        # Check if system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Check if game exists in gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        rom_path = data.get('rom_path')
+        media_field = data.get('media_field')
+        direction = data.get('direction')  # 'left' or 'right'
+        
+        if not all([rom_path, media_field, direction]):
+            return jsonify({'error': 'Missing required fields: rom_path, media_field, direction'}), 400
+        
+        if direction not in ['left', 'right']:
+            return jsonify({'error': 'Direction must be "left" or "right"'}), 400
+        
+        # Parse gamelist to find the game
+        games = parse_gamelist_xml(gamelist_path)
+        game = next((g for g in games if g.get('path') == rom_path), None)
+        if not game:
+            return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
+        
+        # Get the media file path
+        media_path = game.get(media_field)
+        if not media_path:
+            return jsonify({'error': f'No media file found for field: {media_field}'}), 404
+        
+        # Construct full path to media file
+        if media_path.startswith('./'):
+            media_path = media_path[2:]  # Remove './' prefix
+        
+        full_media_path = os.path.join(ROMS_FOLDER, system_name, media_path)
+        
+        if not os.path.exists(full_media_path):
+            return jsonify({'error': f'Media file not found: {full_media_path}'}), 404
+        
+        # Check if it's an image file
+        image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp']
+        if not any(full_media_path.lower().endswith(ext) for ext in image_extensions):
+            return jsonify({'error': 'File is not a supported image format'}), 400
+        
+        # Calculate rotation angle
+        rotation_angle = -90 if direction == 'left' else 90
+        
+        # Rotate the image using PIL
+        from PIL import Image
+        
+        try:
+            # Open the image
+            with Image.open(full_media_path) as img:
+                # Rotate the image
+                rotated_img = img.rotate(rotation_angle, expand=True)
+                
+                # Create a temporary file for atomic replacement
+                import tempfile
+                import shutil
+                
+                # Create temporary file in the same directory
+                temp_dir = os.path.dirname(full_media_path)
+                with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=os.path.splitext(full_media_path)[1]) as temp_file:
+                    temp_path = temp_file.name
+                
+                try:
+                    # Save the rotated image to temporary file
+                    rotated_img.save(temp_path, quality=95, optimize=True)
+                    
+                    # Atomically replace the original file
+                    shutil.move(temp_path, full_media_path)
+                    
+                    print(f"✅ Successfully rotated {direction} image: {full_media_path}")
+                    
+                    return jsonify({
+                        'success': True,
+                        'message': f'Image rotated {direction} successfully',
+                        'media_path': media_path
+                    })
+                    
+                except Exception as save_error:
+                    # Clean up temporary file if something goes wrong
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+                    raise save_error
+                
+        except Exception as img_error:
+            print(f"❌ Error rotating image: {img_error}")
+            return jsonify({'error': f'Failed to rotate image: {str(img_error)}'}), 500
+        
+    except Exception as e:
+        print(f"❌ Rotation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/rom-system/<system_name>/game/delete-media', methods=['POST'])
 @login_required
 def delete_game_media(system_name):
