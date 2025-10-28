@@ -2995,6 +2995,9 @@ def remove_number_suffix(filename):
 
 def process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
     """Process a matched media file for import medias task"""
+    # Import required functions
+    from game_utils import convert_and_resize_image_replace
+    
     try:
         # Extract ROM filename without extension
         rom_path = game['path']
@@ -3182,7 +3185,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             if normalized_media_without_parens_without_articles not in level7_index:
                 level7_index[normalized_media_without_parens_without_articles] = media_file
         
-        # Level 8 index: ROM files with first part before separator ("-", ":", "~") normalized without parentheses and articles -> media_file
+        # Level 8 index: Media files with first part before separator (or full name if no separator) normalized without parentheses and articles -> media_file
         level8_index = {}
         level8_key_counts = {}  # Track how many media files map to each key
         
@@ -3192,18 +3195,22 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             media_name_no_suffix = remove_number_suffix(media_name_without_ext)
             
             # If media filename contains separator ("-", ":", "~"), keep only the first part before separator
+            # If no separator, use the full string
+            first_part = media_name_no_suffix
             for separator in ["-", ":", "~"]:
                 if separator in media_name_no_suffix:
                     first_part = media_name_no_suffix.split(separator)[0].strip()
-                    normalized_first_part = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
-                    
-                    # Count occurrences of this key
-                    if normalized_first_part in level8_key_counts:
-                        level8_key_counts[normalized_first_part] += 1
-                    else:
-                        level8_key_counts[normalized_first_part] = 1
-                        level8_index[normalized_first_part] = media_file
                     break  # Only use the first separator found
+            
+            # Normalize the first part (or full string if no separator)
+            normalized_media = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
+            
+            # Count occurrences of this key
+            if normalized_media in level8_key_counts:
+                level8_key_counts[normalized_media] += 1
+            else:
+                level8_key_counts[normalized_media] = 1
+                level8_index[normalized_media] = media_file
         
         # Second pass: remove keys that have duplicates (count > 1)
         keys_to_remove = [key for key, count in level8_key_counts.items() if count > 1]
@@ -3476,9 +3483,56 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         
         task.update_progress(f"   📊 Level 7 completed: {level7_matches} matches found")
         
-        # Level 8: Game name first part before separator vs media filename first part before separator
+        # Level 8: ROM filename first part before separator (or full name if no separator) vs media filename first part before separator (or full name if no separator)
         task.update_progress(f"🔍 Level 8: First part before separator matching...")
         level8_matches = 0
+        for i, game in enumerate(games):
+            if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
+                task.update_progress("🛑 Import medias task cancelled by user")
+                task.complete(True, "Import medias task cancelled by user")
+                return
+            
+            if not game.get('path') or game['path'] in matched_games:
+                continue
+            
+            # Check if target field already has a value
+            current_value = game.get(target_field, '')
+            if current_value and not overwrite_existing:
+                skipped_count += 1
+                continue
+            
+            rom_path = game['path']
+            rom_filename = os.path.basename(rom_path)
+            rom_name_without_ext = os.path.splitext(rom_filename)[0]
+            
+            # If ROM filename contains separator ("-", ":", "~"), keep only the first part before separator
+            # If no separator, use the full string
+            first_part = rom_name_without_ext
+            for separator in ["-", ":", "~"]:
+                if separator in rom_name_without_ext:
+                    first_part = rom_name_without_ext.split(separator)[0].strip()
+                    break  # Only use the first separator found
+            
+            # Normalize the first part (or full string if no separator) without parentheses and articles
+            normalized_rom = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
+            if normalized_rom in level8_index:
+                matched_file = level8_index[normalized_rom]
+                display_name = game.get('name', rom_name_without_ext)
+                task.update_progress(f"   ✅ Level 8 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level8_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
+        
+        task.update_progress(f"   📊 Level 8 completed: {level8_matches} matches found")
+        
+        # Level 9: Game name first part before separator (or full name if no separator) vs media filename first part before separator (or full name if no separator)
+        task.update_progress(f"🔍 Level 9: Game name first part before separator matching...")
+        level9_matches = 0
         for i, game in enumerate(games):
             if task_id in _import_medias_cancel_maps and _import_medias_cancel_maps[task_id]:
                 task.update_progress("🛑 Import medias task cancelled by user")
@@ -3495,26 +3549,31 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                 continue
             
             game_name = game['name']
+            
             # If game name contains separator ("-", ":", "~"), keep only the first part before separator
+            # If no separator, use the full string
+            first_part = game_name
             for separator in ["-", ":", "~"]:
                 if separator in game_name:
                     first_part = game_name.split(separator)[0].strip()
-                    normalized_first_part = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
-                    if normalized_first_part in level8_index:
-                        matched_file = level8_index[normalized_first_part]
-                        display_name = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
-                        task.update_progress(f"   ✅ Level 8 MATCH: '{display_name}' -> '{matched_file}'")
-                        matched_games.add(game['path'])
-                        level8_matches += 1
-                        
-                        # Process the match
-                        if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
-                            moved_count += 1
-                        else:
-                            failed_count += 1
-                        break  # Only use the first separator found
+                    break  # Only use the first separator found
+            
+            # Normalize the first part (or full string if no separator) without parentheses and articles
+            normalized_game = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=True)
+            if normalized_game in level8_index:
+                matched_file = level8_index[normalized_game]
+                display_name = game.get('name', os.path.splitext(os.path.basename(game['path']))[0])
+                task.update_progress(f"   ✅ Level 9 MATCH: '{display_name}' -> '{matched_file}'")
+                matched_games.add(game['path'])
+                level9_matches += 1
+                
+                # Process the match
+                if process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
+                    moved_count += 1
+                else:
+                    failed_count += 1
         
-        task.update_progress(f"   📊 Level 8 completed: {level8_matches} matches found")
+        task.update_progress(f"   📊 Level 9 completed: {level9_matches} matches found")
         
         # Count unmatched games
         not_matched_count = len(games) - len(matched_games) - skipped_count
