@@ -4140,7 +4140,7 @@ class GameCollectionManager {
         mediaFields.forEach(field => {
             const mediaItem = document.createElement('div');
             mediaItem.className = 'media-preview-item';
-            mediaItem.style.cssText = 'width: calc(20% - 6.4px); min-width: 180px; height: 200px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; transition: all 0.2s ease;';
+            mediaItem.style.cssText = 'width: calc(20% - 6.4px); min-width: 180px; height: 200px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #dee2e6; border-radius: 8px; background-color: #616161; transition: all 0.2s ease;';
             
             if (game[field] && game[field].trim()) {
                 // Display actual media file
@@ -4152,7 +4152,7 @@ class GameCollectionManager {
                 if (imagePath.toLowerCase().endsWith('.pdf')) {
                     // PDF file - show PDF logo
                     mediaItem.innerHTML = `
-                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" onclick="gameManager.selectEditModalMediaItem(this, '${field}', gameManager.games.find(g => g.id === ${game.id}), '${game[field]}')" title="PDF Document: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion">
+                        <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #616161;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" onclick="gameManager.selectEditModalMediaItem(this, '${field}', gameManager.games.find(g => g.id === ${game.id}), '${game[field]}')" title="PDF Document: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion">
                             <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #dc3545; margin-bottom: 0.5rem;"></i>
                             <small style="color: #6c757d; text-align: center;">PDF Document</small>
                         </div>
@@ -4180,7 +4180,7 @@ class GameCollectionManager {
                     img.onerror = () => {
                         // If image fails to load, show placeholder
                         mediaItem.innerHTML = `
-                            <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
+                            <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #616161;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
                                 <div style="text-align: center; color: #6c757d;">
                                     <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                                     Double-click<br>to upload
@@ -4234,7 +4234,7 @@ class GameCollectionManager {
             } else {
                 // Display placeholder for missing media
                 mediaItem.innerHTML = `
-                    <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #f8f9fa;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
+                    <div class="media-placeholder" style="width: calc(100% - 20px); height: 140px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px dashed #dee2e6; border-radius: 4px; background-color: #616161;" ondblclick="if (!gameManager.uploadInProgress) { gameManager.uploadMediaForGame(gameManager.games.find(g => g.id === ${game.id}), '${field}'); } else { gameManager.showAlert('Upload in progress. Please wait...', 'warning'); }" title="Double-click to upload media">
                         <div style="text-align: center; color: #6c757d;">
                             <i class="bi bi-image" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                             Double-click<br>to upload
@@ -9216,7 +9216,7 @@ class GameCollectionManager {
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
                     // PDF file - show PDF logo
                     mediaItem.innerHTML = `
-                        <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px;">
+                        <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: #616161; border: 2px dashed #dee2e6; border-radius: 8px;">
                             <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
                             <small style="color: #6c757d; text-align: center;">PDF Document</small>
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
@@ -9253,7 +9253,7 @@ class GameCollectionManager {
                     const cacheBuster = new Date().getTime();
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: #f8f9fa;" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: #616161;" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -9345,7 +9345,7 @@ class GameCollectionManager {
                 const uploadText = field === 'video' ? 'Double-click<br>to upload video' : 'Double-click<br>to upload';
                 
                 mediaItem.innerHTML = `
-                    <div class="media-placeholder" style="width: ${placeholderSize}; height: ${placeholderSize}; background-color: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6c757d; font-size: 0.8rem; text-align: center; cursor: pointer; transition: all 0.2s ease;">
+                    <div class="media-placeholder" style="width: ${placeholderSize}; height: ${placeholderSize}; background-color: #616161; border: 2px dashed #dee2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6c757d; font-size: 0.8rem; text-align: center; cursor: pointer; transition: all 0.2s ease;">
                         <div>
                             <i class="bi ${iconClass}" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                             ${uploadText}
@@ -9392,7 +9392,7 @@ class GameCollectionManager {
                 
                 mediaItem.addEventListener('mouseleave', () => {
                     mediaItem.querySelector('.media-placeholder').style.borderColor = '#dee2e6';
-                    mediaItem.querySelector('.media-placeholder').style.backgroundColor = '#f8f9fa';
+                    mediaItem.querySelector('.media-placeholder').style.backgroundColor = '#616161';
                 });
                 
                 mediaItem.style.cursor = 'pointer';
