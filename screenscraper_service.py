@@ -667,8 +667,8 @@ class ScreenScraperService:
             print(f"No ScreenScraper system ID found for {system_name}")
             return None
         
-        # Remove file extension for search
-        rom_name = os.path.splitext(rom_filename)[0]
+        # Use the ROM filename as-is (with extension)
+        rom_name = rom_filename
         
         params = {
             'devid': self.devid,
