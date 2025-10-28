@@ -8540,10 +8540,35 @@ class GameCollectionManager {
         // Show modal
         const modal = new bootstrap.Modal(document.getElementById(modalId));
         modal.show();
+        
+        // Add event handler for modal close (cross button or ESC key)
+        const modalElement = document.getElementById(modalId);
+        
+        // Remove any existing event listeners to prevent duplicates
+        modalElement.removeEventListener('hidden.bs.modal', this.handleRomScanModalClose);
+        
+        // Create a bound handler function
+        this.handleRomScanModalClose = () => {
+            // Only cancel if no button was clicked (user closed with X or ESC)
+            if (!this.romScanModalActionTaken) {
+                this.confirmRomScan('cancel');
+            }
+            // Reset the flag for next time
+            this.romScanModalActionTaken = false;
+        };
+        
+        // Add the event listener
+        modalElement.addEventListener('hidden.bs.modal', this.handleRomScanModalClose);
+        
+        // Reset the action flag
+        this.romScanModalActionTaken = false;
     }
 
     async confirmRomScan(action) {
         try {
+            // Set flag to indicate user has taken an action
+            this.romScanModalActionTaken = true;
+            
             // Use the ROM scan confirmation endpoint for both cancel and proceed actions
             const response = await fetch(`/api/rom-system/${this.currentSystem}/scan-roms-confirm`, {
                 method: 'POST',
