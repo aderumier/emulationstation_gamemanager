@@ -3938,7 +3938,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             justify-content: center;
             border: 1px solid #dee2e6;
             border-radius: 8px;
-            background-color: #ffffff;
+            background-color: var(--media-card-bg-color, #ffffff);
             transition: all 0.2s ease;
             cursor: pointer;
         }
@@ -3970,13 +3970,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             justify-content: center;
             border: 2px dashed #dee2e6;
             border-radius: 4px;
-            background-color: transparent;
+            background-color: var(--media-card-bg-color, #ffffff);
             transition: all 0.2s ease;
         }
         
         #editGameMediaContent .media-placeholder:hover {
             border-color: #0d6efd;
-            background-color: transparent;
+            background-color: var(--media-card-bg-color, #ffffff);
             transform: scale(1.02);
         }
         
