@@ -187,7 +187,6 @@ echo "Copying additional database files to var/db..."
 [ ! -f /opt/gamemanager/var/db/igdb/genres.json ] && touch /opt/gamemanager/var/db/igdb/genres.json
 [ ! -f /opt/gamemanager/var/db/igdb/regions_cache.json ] && touch /opt/gamemanager/var/db/igdb/regions_cache.json
 [ ! -f /opt/gamemanager/var/db/igdb/sample_games.json ] && touch /opt/gamemanager/var/db/igdb/sample_games.json
-[ ! -f /opt/gamemanager/var/db/screenscraper/user_info.json ] && touch /opt/gamemanager/var/db/screenscraper/user_info.json
 [ ! -f /opt/gamemanager/var/db/launchbox/Metadata.xml ] && touch /opt/gamemanager/var/db/launchbox/Metadata.xml
 [ ! -f /opt/gamemanager/var/db/steam/appindex.json ] && touch /opt/gamemanager/var/db/steam/appindex.json
 
