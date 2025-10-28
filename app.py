@@ -3253,10 +3253,10 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     task.update_progress(f"     📐 Target dimensions: {target_width}x{target_height}, extension: '{target_extension}'")
                     
                     try:
-                        # First, copy the source file to the target location with correct extension
+                        # First, move the source file to the target location with correct extension
                         temp_target_path = target_file_path
-                        shutil.copy2(source_file_path, temp_target_path)
-                        task.update_progress(f"     📋 Copied source to target location: '{temp_target_path}'")
+                        shutil.move(source_file_path, temp_target_path)
+                        task.update_progress(f"     📋 Moved source to target location: '{temp_target_path}'")
                         
                         # Process the file in place at the target location
                         processed_path, process_status = convert_and_resize_image_replace(
@@ -3284,11 +3284,6 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     else:
                         task.update_progress(f"     ❌ Target file not found: '{final_path}'")
                         continue
-                    
-                    # Remove the source file
-                    if os.path.exists(source_file_path):
-                        os.remove(source_file_path)
-                        task.update_progress(f"     ✅ Source file removed: '{source_file_path}'")
                     
                     # Update gamelist with the final processed filename
                     final_filename = os.path.basename(processed_path) if processed_path else target_filename
