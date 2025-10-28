@@ -977,19 +977,7 @@ class ScreenScraperService:
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Using existing ScreenScraper ID {jeu_id} for {game_name}")
                     
-                    # Get game data using jeuInfos.php API
-                    game_data = await self.get_game_by_id(jeu_id, system_name)
-                    if not game_data:
-                        print(f"❌ Failed to get game data for existing ID {jeu_id}")
-                        if detailed_progress_callback:
-                            detailed_progress_callback(f"Failed to get game data for existing ID {jeu_id}")
-                        return None
-                    
-                    print(f"✅ Retrieved game data for existing ScreenScraper ID {jeu_id}")
-                    if detailed_progress_callback:
-                        detailed_progress_callback(f"Retrieved game data for existing ScreenScraper ID {jeu_id}")
-                    
-                    # If no fields are selected, skip processing and return early
+                    # If no fields are selected, skip processing entirely
                     if not selected_fields:
                         print(f"⚡ No fields selected - skipping processing for existing ScreenScraper ID {jeu_id}")
                         if detailed_progress_callback:
@@ -1005,6 +993,18 @@ class ScreenScraperService:
                         if detailed_progress_callback:
                             detailed_progress_callback(f"ScreenScraper ID found for {game_name}: {jeu_id}")
                         return None
+                    
+                    # Get game data using jeuInfos.php API (only if fields are selected)
+                    game_data = await self.get_game_by_id(jeu_id, system_name)
+                    if not game_data:
+                        print(f"❌ Failed to get game data for existing ID {jeu_id}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Failed to get game data for existing ID {jeu_id}")
+                        return None
+                    
+                    print(f"✅ Retrieved game data for existing ScreenScraper ID {jeu_id}")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Retrieved game data for existing ScreenScraper ID {jeu_id}")
                     
                     # Create search_result structure for consistency
                     search_result = {
