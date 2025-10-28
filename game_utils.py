@@ -72,8 +72,9 @@ def normalize_game_name(name, remove_paranthesis=True, remove_articles=True):
     # Remove roman numerals and convert to numbers
     normalized = romain_vers_arabe_1_9(normalized).lower()
 
-    # remove 1 number
-    normalized = re.sub(r"\b1\b", "", normalized)
+    # remove 1 number (but not when it's part of a larger number like 1,000)
+    # Don't remove "1" if it's followed by a comma and digits (like "1,000")
+    normalized = re.sub(r"\b1\b(?!,\d)", "", normalized)
 
     # remove articles (the, a, an, le , )
     if remove_articles:
