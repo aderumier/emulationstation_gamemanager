@@ -1916,14 +1916,14 @@ class Task:
             log_entry = f"[{timestamp}] {message}"
             
             self.progress.append(log_entry)
-        
-        # Write to log file
-        try:
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(log_entry + '\n')
-                    
-        except Exception as e:
-            print(f"Error writing to log file {self.log_file}: {e}")
+            
+            # Write to log file
+            try:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
+                    f.write(log_entry + '\n')
+                        
+            except Exception as e:
+                print(f"Error writing to log file {self.log_file}: {e}")
 
             # Keep only last 1000 messages in memory
             if len(self.progress) > 1000:
