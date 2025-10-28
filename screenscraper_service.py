@@ -995,6 +995,20 @@ class ScreenScraperService:
                         'game_data': game_data
                     }
                 else:
+                    # If no fields are selected, skip ScreenScraper API call entirely
+                    if not selected_fields:
+                        print(f"⚡ No fields selected - skipping ScreenScraper search for {game_name}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"No fields selected - skipping search for {game_name}")
+                        
+                        # Store empty result since no ScreenScraper ID was found and no processing needed
+                        results[game_path] = {
+                            'jeu_id': None,
+                            'downloaded_media': {},
+                            'text_info': {}
+                        }
+                        return None
+                    
                     # Search for game and get full data
                     print(f"🔍 Searching ScreenScraper for: {game_name}")
                     if detailed_progress_callback:
@@ -1018,56 +1032,40 @@ class ScreenScraperService:
                     # Add path to game data for media processing
                     game_data['path'] = game_path
                     
-                    # If no fields are selected, only store the ScreenScraper ID
-                    if not selected_fields:
-                        print(f"⚡ No fields selected - skipping text extraction and media downloads for {game_name}")
+                    # Extract text information from game data
+                    print(f"📝 Extracting text information for {game_name}...")
+                    if detailed_progress_callback:
+                        detailed_progress_callback(f"Extracting text information for {game_name}")
+                    
+                    text_info = extract_text_info_from_game_data(game_data, rom_filename)
+                    if text_info:
+                        print(f"📝 Extracted text info: {text_info}")
                         if detailed_progress_callback:
-                            detailed_progress_callback(f"No fields selected - skipping processing for {game_name}")
-                        
-                        # Store only the jeu_id
-                        results[game_path] = {
-                            'jeu_id': jeu_id,
-                            'downloaded_media': {},
-                            'text_info': {}
-                        }
-                        print(f"✅ ScreenScraper ID found for {game_name}: {jeu_id}")
+                            detailed_progress_callback(f"Extracted text info: {', '.join(text_info.keys())}")
+                    
+                    # Create client for media downloads
+                    async with httpx.AsyncClient(timeout=30.0) as media_client:
+                        # Process media downloads
+                        print(f"📥 Starting media downloads for {game_name}...")
                         if detailed_progress_callback:
-                            detailed_progress_callback(f"ScreenScraper ID found for {game_name}: {jeu_id}")
-                    else:
-                        # Extract text information from game data
-                        print(f"📝 Extracting text information for {game_name}...")
-                        if detailed_progress_callback:
-                            detailed_progress_callback(f"Extracting text information for {game_name}")
+                            detailed_progress_callback(f"Starting media downloads for {game_name}")
                         
-                        text_info = extract_text_info_from_game_data(game_data, rom_filename)
-                        if text_info:
-                            print(f"📝 Extracted text info: {text_info}")
-                            if detailed_progress_callback:
-                                detailed_progress_callback(f"Extracted text info: {', '.join(text_info.keys())}")
-                        
-                        # Create client for media downloads
-                        async with httpx.AsyncClient(timeout=30.0) as media_client:
-                            # Process media downloads
-                            print(f"📥 Starting media downloads for {game_name}...")
-                            if detailed_progress_callback:
-                                detailed_progress_callback(f"Starting media downloads for {game_name}")
-                            
-                            downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields, detailed_progress_callback)
-                        
-                        # Store jeu_id, downloaded media, and text information
-                        results[game_path] = {
-                            'jeu_id': jeu_id,
-                            'downloaded_media': downloaded_media,
-                            'text_info': text_info
-                        }
-                        print(f"✅ Successfully processed {game_name} -> ScreenScraper ID: {jeu_id}")
-                        print(f"📁 Downloaded media: {list(downloaded_media.keys())}")
-                        if detailed_progress_callback:
-                            media_list = list(downloaded_media.keys())
-                            if media_list:
-                                detailed_progress_callback(f"Downloaded media for {game_name}: {', '.join(media_list)}")
-                            else:
-                                detailed_progress_callback(f"No media downloaded for {game_name}")
+                        downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields, detailed_progress_callback)
+                    
+                    # Store jeu_id, downloaded media, and text information
+                    results[game_path] = {
+                        'jeu_id': jeu_id,
+                        'downloaded_media': downloaded_media,
+                        'text_info': text_info
+                    }
+                    print(f"✅ Successfully processed {game_name} -> ScreenScraper ID: {jeu_id}")
+                    print(f"📁 Downloaded media: {list(downloaded_media.keys())}")
+                    if detailed_progress_callback:
+                        media_list = list(downloaded_media.keys())
+                        if media_list:
+                            detailed_progress_callback(f"Downloaded media for {game_name}: {', '.join(media_list)}")
+                        else:
+                            detailed_progress_callback(f"No media downloaded for {game_name}")
                 else:
                     print(f"❌ No ScreenScraper ID found for {game_name}")
                     if detailed_progress_callback:
