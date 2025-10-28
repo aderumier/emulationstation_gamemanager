@@ -3069,7 +3069,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         for media_file in media_files:
             media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
             media_name_no_suffix = remove_number_suffix(media_name_without_ext)
-            level1_index[media_name_no_suffix.lower()] = media_file
+            # Don't replace existing key - keep first match
+            if media_name_no_suffix.lower() not in level1_index:
+                level1_index[media_name_no_suffix.lower()] = media_file
         
         # Level 2 uses the same index as Level 1 (both use lowercase keys)
         
@@ -3079,7 +3081,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
             media_name_no_suffix = remove_number_suffix(media_name_without_ext)
             normalized_media_with_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=False)
-            level3_index[normalized_media_with_parens] = media_file
+            # Don't replace existing key - keep first match
+            if normalized_media_with_parens not in level3_index:
+                level3_index[normalized_media_with_parens] = media_file
         
         # Level 4 index: normalized media without parentheses -> media_file
         level4_index = {}
@@ -3087,7 +3091,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
             media_name_no_suffix = remove_number_suffix(media_name_without_ext)
             normalized_media_without_parens = normalize_game_name(media_name_no_suffix, remove_paranthesis=True)
-            level4_index[normalized_media_without_parens] = media_file
+            # Don't replace existing key - keep first match
+            if normalized_media_without_parens not in level4_index:
+                level4_index[normalized_media_without_parens] = media_file
         
         # Level 5 uses the same index as Level 3 (both use normalized media with parentheses)
         
@@ -3099,7 +3105,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
             media_name_no_suffix = remove_number_suffix(media_name_without_ext)
             normalized_media_without_parens_without_articles = normalize_game_name(media_name_no_suffix, remove_paranthesis=True, remove_articles=True)
-            level7_index[normalized_media_without_parens_without_articles] = media_file
+            # Don't replace existing key - keep first match
+            if normalized_media_without_parens_without_articles not in level7_index:
+                level7_index[normalized_media_without_parens_without_articles] = media_file
         
         task.update_progress(f"✅ Precomputed indexes: Level1/2={len(level1_index)}, Level3/5={len(level3_index)}, Level4/6={len(level4_index)}, Level7={len(level7_index)}")
         
