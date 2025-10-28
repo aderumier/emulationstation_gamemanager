@@ -1,3 +1,14 @@
+gamemanager (2.8.3-1) unstable; urgency=medium
+
+  * Complete ScreenScraper optimization for all scenarios
+  * Skip get_game_by_id API calls when no fields selected
+  * Always search for ScreenScraper IDs but skip processing when no fields
+  * Remove obsolete ScreenScraper files (user_info.json, mediastype.txt)
+  * Clean up Dockerfile references to obsolete files
+  * Optimize ScreenScraper task performance significantly
+
+ -- aderumier <aderumier@example.com>  Mon, 28 Oct 2025 14:50:00 +0000
+
 gamemanager (2.8.2-1) unstable; urgency=medium
 
   * Fix Level 8 and Level 9 matching logic in Import Medias feature
