@@ -3957,6 +3957,54 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         #gamelistSaveModal .text-muted {
             color: #6c757d !important;
         }
+        
+        /* Image Context Menu Styles */
+        .image-context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            min-width: 150px;
+            padding: 4px 0;
+            display: none;
+        }
+        
+        .image-context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s ease;
+        }
+        
+        .image-context-menu-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .image-context-menu-item i {
+            width: 16px;
+            text-align: center;
+        }
+        
+        /* Image rotation styles */
+        .rotating-image {
+            transition: transform 0.3s ease;
+        }
+        
+        .rotating-image.rotate-90 {
+            transform: rotate(90deg);
+        }
+        
+        .rotating-image.rotate-180 {
+            transform: rotate(180deg);
+        }
+        
+        .rotating-image.rotate-270 {
+            transform: rotate(270deg);
+        }
     </style>
 
     <!-- Custom JS -->
@@ -4508,6 +4556,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
+        </div>
+    </div>
+    
+    <!-- Image Context Menu -->
+    <div id="imageContextMenu" class="image-context-menu">
+        <div class="image-context-menu-item" onclick="gameManager.rotateImage('left')">
+            <i class="bi bi-arrow-counterclockwise"></i>
+            <span>Rotate Left</span>
+        </div>
+        <div class="image-context-menu-item" onclick="gameManager.rotateImage('right')">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span>Rotate Right</span>
         </div>
     </div>
 </body>

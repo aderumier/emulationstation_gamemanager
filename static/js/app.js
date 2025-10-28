@@ -180,6 +180,9 @@ class GameCollectionManager {
         // Initialize change password modal
         this.initializeChangePasswordModal();
         
+        // Initialize image context menu
+        this.initializeImageContextMenu();
+        
         // Initialize WebSocket connection after everything else is ready
         setTimeout(() => {
             this.initializeWebSocket();
@@ -4163,8 +4166,9 @@ class GameCollectionManager {
                     const cacheSep = urlPath.includes('?') ? '&' : '?';
                     img.src = `${urlPath}${cacheSep}v=${Date.now()}`;
                     img.alt = `${field} for ${game.name}`;
-                    img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion`;
+                    img.title = `${field}: ${game[field]}\nDouble-click to upload new media\nClick to select for deletion\nRight-click for rotate menu`;
                     img.style.cssText = 'width: calc(100% - 20px); height: 140px; object-fit: contain; cursor: pointer; border-radius: 4px;';
+                    img.oncontextmenu = (e) => this.showImageContextMenu(e, mediaItem, game, field);
                     img.ondblclick = () => {
                         if (!this.uploadInProgress) {
                             this.uploadMediaForGame(game, field);
@@ -9249,7 +9253,7 @@ class GameCollectionManager {
                     const cacheBuster = new Date().getTime();
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: #f8f9fa;">
+                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: #f8f9fa;" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -21163,6 +21167,103 @@ class GameCollectionManager {
             testBtn.disabled = false;
             testBtn.innerHTML = originalText;
         }
+    }
+    
+    // Image Context Menu and Rotation Methods
+    initializeImageContextMenu() {
+        // Hide context menu when clicking elsewhere
+        document.addEventListener('click', (e) => {
+            const contextMenu = document.getElementById('imageContextMenu');
+            if (contextMenu && !contextMenu.contains(e.target)) {
+                contextMenu.style.display = 'none';
+            }
+        });
+        
+        // Prevent context menu on right-click elsewhere
+        document.addEventListener('contextmenu', (e) => {
+            const contextMenu = document.getElementById('imageContextMenu');
+            if (contextMenu && !contextMenu.contains(e.target)) {
+                contextMenu.style.display = 'none';
+            }
+        });
+    }
+    
+    showImageContextMenu(event, imageElement, game, field) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (!contextMenu) return;
+        
+        // Store current image info for rotation
+        this.currentRotatingImage = {
+            element: imageElement,
+            game: game,
+            field: field
+        };
+        
+        // Position the context menu
+        const x = event.clientX;
+        const y = event.clientY;
+        
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+        contextMenu.style.display = 'block';
+        
+        // Adjust position if menu goes off screen
+        const rect = contextMenu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            contextMenu.style.left = (x - rect.width) + 'px';
+        }
+        if (rect.bottom > window.innerHeight) {
+            contextMenu.style.top = (y - rect.height) + 'px';
+        }
+    }
+    
+    rotateImage(direction) {
+        if (!this.currentRotatingImage) return;
+        
+        const { element, game, field } = this.currentRotatingImage;
+        const img = element.querySelector('img');
+        if (!img) return;
+        
+        // Add rotating class for smooth transition
+        img.classList.add('rotating-image');
+        
+        // Get current rotation
+        let currentRotation = 0;
+        if (img.classList.contains('rotate-90')) currentRotation = 90;
+        else if (img.classList.contains('rotate-180')) currentRotation = 180;
+        else if (img.classList.contains('rotate-270')) currentRotation = 270;
+        
+        // Calculate new rotation
+        let newRotation;
+        if (direction === 'left') {
+            newRotation = (currentRotation - 90 + 360) % 360;
+        } else {
+            newRotation = (currentRotation + 90) % 360;
+        }
+        
+        // Remove old rotation classes
+        img.classList.remove('rotate-90', 'rotate-180', 'rotate-270');
+        
+        // Add new rotation class
+        if (newRotation === 90) {
+            img.classList.add('rotate-90');
+        } else if (newRotation === 180) {
+            img.classList.add('rotate-180');
+        } else if (newRotation === 270) {
+            img.classList.add('rotate-270');
+        }
+        
+        // Hide context menu
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+        
+        // Show success message
+        this.showAlert(`Image rotated ${direction === 'left' ? 'left' : 'right'}`, 'success');
     }
 }
 
