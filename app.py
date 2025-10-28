@@ -20586,7 +20586,7 @@ def get_screenscraper_user_info(ssid, sspassword, devid, devpassword, force_refr
         except:
             # If not JSON, try to parse as XML and extract maxthreads
             try:
-                root = ET.fromstring(response.text)
+                root = ET.fromstring(response.content)  # Use response.content (bytes) instead of response.text
                 data = {}
                 for child in root:
                     if child.tag == 'maxthreads':
