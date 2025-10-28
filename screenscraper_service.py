@@ -1012,21 +1012,7 @@ class ScreenScraperService:
                         'game_data': game_data
                     }
                 else:
-                    # If no fields are selected, skip ScreenScraper API call entirely
-                    if not selected_fields:
-                        print(f"⚡ No fields selected - skipping ScreenScraper search for {game_name}")
-                        if detailed_progress_callback:
-                            detailed_progress_callback(f"No fields selected - skipping search for {game_name}")
-                        
-                        # Store empty result since no ScreenScraper ID was found and no processing needed
-                        results[game_path] = {
-                            'jeu_id': None,
-                            'downloaded_media': {},
-                            'text_info': {}
-                        }
-                        return None
-                    
-                    # Search for game and get full data
+                    # Always search for ScreenScraper ID (even if no fields selected)
                     print(f"🔍 Searching ScreenScraper for: {game_name}")
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Searching ScreenScraper for: {game_name}")
@@ -1038,6 +1024,23 @@ class ScreenScraperService:
                         print(f"✅ Found ScreenScraper ID {jeu_id} for {game_name}")
                         if detailed_progress_callback:
                             detailed_progress_callback(f"Found ScreenScraper ID {jeu_id} for {game_name}")
+                        
+                        # If no fields are selected, skip processing and just store the ID
+                        if not selected_fields:
+                            print(f"⚡ No fields selected - skipping processing for ScreenScraper ID {jeu_id}")
+                            if detailed_progress_callback:
+                                detailed_progress_callback(f"No fields selected - skipping processing for {game_name}")
+                            
+                            # Store only the jeu_id
+                            results[game_path] = {
+                                'jeu_id': jeu_id,
+                                'downloaded_media': {},
+                                'text_info': {}
+                            }
+                            print(f"✅ ScreenScraper ID found for {game_name}: {jeu_id}")
+                            if detailed_progress_callback:
+                                detailed_progress_callback(f"ScreenScraper ID found for {game_name}: {jeu_id}")
+                            return None
                     else:
                         print(f"❌ No ScreenScraper ID found for {game_name}")
                         if detailed_progress_callback:
