@@ -482,7 +482,6 @@ class ScreenScraperService:
             try:
                 print(f"🔍 Searching ScreenScraper for '{cleaned_game_name}' (attempt {attempt + 1})")
                 print(f"🌐 API URL: {search_api_url}")
-                print(f"📋 Params: {params}")
                 
                 # Build the full URL for logging with obfuscated credentials
                 from urllib.parse import urlencode
@@ -685,7 +684,6 @@ class ScreenScraperService:
             try:
                 print(f"🔍 Searching ScreenScraper for '{rom_name}' (attempt {attempt + 1}/{self.retry_attempts})")
                 print(f"🌐 API URL: {self.api_url}")
-                print(f"📋 Params: {params}")
                 print(f"⏱️ Timeout: {self.timeout}s")
                 
                 # Log full URL with obfuscated credentials
@@ -827,7 +825,6 @@ class ScreenScraperService:
             try:
                 print(f"🔍 Fetching ScreenScraper by ID: {gameid} (attempt {attempt + 1}/{self.retry_attempts})")
                 print(f"🌐 API URL: {self.api_url}")
-                print(f"📋 Params: {params}")
                 print(f"⏱️ Timeout: {self.timeout}s")
                 
                 # Log full URL with obfuscated credentials
