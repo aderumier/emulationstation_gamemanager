@@ -988,6 +988,12 @@ class ScreenScraperService:
                     print(f"✅ Retrieved game data for existing ScreenScraper ID {jeu_id}")
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Retrieved game data for existing ScreenScraper ID {jeu_id}")
+                    
+                    # Create search_result structure for consistency
+                    search_result = {
+                        'jeu_id': jeu_id,
+                        'game_data': game_data
+                    }
                 else:
                     # Search for game and get full data
                     print(f"🔍 Searching ScreenScraper for: {game_name}")
