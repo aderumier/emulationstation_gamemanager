@@ -480,14 +480,15 @@ class ScreenScraperService:
         # Only try once - no retries
         for attempt in range(1):
             try:
-                print(f"Searching ScreenScraper for '{cleaned_game_name}' (attempt {attempt + 1})")
-                print(f"API URL: {search_api_url}")
-                print(f"Params: {params}")
+                print(f"🔍 Searching ScreenScraper for '{cleaned_game_name}' (attempt {attempt + 1})")
+                print(f"🌐 API URL: {search_api_url}")
+                print(f"📋 Params: {params}")
                 
-                # Build the full URL for logging
+                # Build the full URL for logging with obfuscated credentials
                 from urllib.parse import urlencode
                 full_url = f"{search_api_url}?{urlencode(params)}"
-                print(f"🔗 ScreenScraper API Call: {full_url}")
+                obfuscated_url = full_url.replace(f"devid={self.devid}", "devid=***").replace(f"devpassword={self.devpassword}", "devpassword=***").replace(f"ssid={self.ssid}", "ssid=***").replace(f"sspassword={self.sspassword}", "sspassword=***")
+                print(f"🔗 Full URL: {obfuscated_url}")
                 
                 async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
                     response = await client.get(search_api_url, params=params)
@@ -687,6 +688,12 @@ class ScreenScraperService:
                 print(f"📋 Params: {params}")
                 print(f"⏱️ Timeout: {self.timeout}s")
                 
+                # Log full URL with obfuscated credentials
+                from urllib.parse import urlencode
+                full_url = f"{self.api_url}?{urlencode(params)}"
+                obfuscated_url = full_url.replace(f"devid={self.devid}", "devid=***").replace(f"devpassword={self.devpassword}", "devpassword=***").replace(f"ssid={self.ssid}", "ssid=***").replace(f"sspassword={self.sspassword}", "sspassword=***")
+                print(f"🔗 Full URL: {obfuscated_url}")
+                
                 import time
                 start_time = time.time()
                 async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
@@ -822,6 +829,12 @@ class ScreenScraperService:
                 print(f"🌐 API URL: {self.api_url}")
                 print(f"📋 Params: {params}")
                 print(f"⏱️ Timeout: {self.timeout}s")
+                
+                # Log full URL with obfuscated credentials
+                from urllib.parse import urlencode
+                full_url = f"{self.api_url}?{urlencode(params)}"
+                obfuscated_url = full_url.replace(f"devid={self.devid}", "devid=***").replace(f"devpassword={self.devpassword}", "devpassword=***").replace(f"ssid={self.ssid}", "ssid=***").replace(f"sspassword={self.sspassword}", "sspassword=***")
+                print(f"🔗 Full URL: {obfuscated_url}")
                 
                 import time
                 start_time = time.time()
