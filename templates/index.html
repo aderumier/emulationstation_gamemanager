@@ -364,6 +364,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </a></li>
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">GUI Preferences</h6></li>
+                        <li><a class="dropdown-item" href="#" id="openGuiPreferencesModal">
+                            <i class="bi bi-palette me-2"></i>GUI Preferences
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
                         <li><h6 class="dropdown-header">Scrap Preferences</h6></li>
                         <li><a class="dropdown-item" href="#" id="openLaunchboxModal">
                             <i class="bi bi-box me-2"></i>Launchbox Scrap Preferences
@@ -2516,6 +2521,66 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- GUI Preferences Modal -->
+    <div class="modal fade" id="guiPreferencesModal" tabindex="-1" aria-labelledby="guiPreferencesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="guiPreferencesModalLabel">
+                        <i class="bi bi-palette me-2"></i>GUI Preferences
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="guiPreferencesForm">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h6><i class="bi bi-image me-2"></i>Media Card Appearance</h6>
+                                <div class="mb-3">
+                                    <label for="mediaCardBackgroundColor" class="form-label">Media Card Background Color</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="mediaCardBackgroundColor" value="#ffffff" title="Choose media card background color">
+                                        <input type="text" class="form-control" id="mediaCardBackgroundColorText" value="#ffffff" placeholder="#ffffff">
+                                        <button class="btn btn-outline-secondary" type="button" id="resetMediaCardColor">
+                                            <i class="bi bi-arrow-clockwise"></i> Reset
+                                        </button>
+                                    </div>
+                                    <div class="form-text">Background color for media cards in both media preview and game edit modal</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0"><i class="bi bi-eye me-2"></i>Preview</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="d-flex gap-3">
+                                                <div class="media-preview-sample" style="width: 120px; height: 120px; border: 1px solid #dee2e6; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #ffffff; transition: all 0.2s ease;">
+                                                    <i class="bi bi-image" style="font-size: 2rem; color: #6c757d;"></i>
+                                                    <small class="text-muted mt-1">Sample</small>
+                                                </div>
+                                                <div class="media-preview-sample" style="width: 120px; height: 120px; border: 2px dashed #dee2e6; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #ffffff; transition: all 0.2s ease;">
+                                                    <i class="bi bi-cloud-upload" style="font-size: 2rem; color: #6c757d;"></i>
+                                                    <small class="text-muted mt-1">Placeholder</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveGuiPreferences">
+                        <i class="bi bi-check-lg me-1"></i>Save Preferences
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- YouTube Search Modal -->
     <div class="modal fade" id="youtubeSearchModal" tabindex="-1" aria-labelledby="youtubeSearchModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -3874,7 +3939,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             justify-content: center;
             border: 1px solid #dee2e6;
             border-radius: 8px;
-            background-color: #a1a1a1;
+            background-color: #ffffff;
             transition: all 0.2s ease;
             cursor: pointer;
         }
@@ -3906,7 +3971,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             justify-content: center;
             border: 2px dashed #dee2e6;
             border-radius: 4px;
-            background-color: #a1a1a1;
+            background-color: #ffffff;
             transition: all 0.2s ease;
         }
         
