@@ -1,3 +1,15 @@
+gamemanager (2.8.2-1) unstable; urgency=medium
+
+  * Fix Level 8 and Level 9 matching logic in Import Medias feature
+  * Level 8: ROM filename first part before separator vs media filename first part
+  * Level 9: Game name first part before separator vs media filename first part
+  * Both levels use same separator logic: extract first part before (-, :, ~) or use full string if no separator
+  * Both levels use same normalization: remove parentheses and articles
+  * Level 9 reuses Level 8 index for efficiency (O(1) lookup)
+  * Consistent matching logic between ROM names and game names
+
+ -- aderumier <aderumier@example.com>  Mon, 28 Oct 2025 08:40:35 +0000
+
 gamemanager (2.8.0) stable; urgency=medium
 
   * Add DAT Scrapper - new local XML file scrapper for game metadata
