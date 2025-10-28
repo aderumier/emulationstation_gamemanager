@@ -1063,13 +1063,20 @@ class ScreenScraperService:
                         'text_info': {}
                     }
                 
-                if progress_callback:
-                    progress_callback(len(results), total_games)
-                
                 return search_result
         
-        # Process all games concurrently
-        tasks = [process_single_game(game) for game in games]
+        # Process all games concurrently with progress tracking
+        completed_count = 0
+        
+        async def process_single_game_with_progress(game):
+            nonlocal completed_count
+            result = await process_single_game(game)
+            completed_count += 1
+            if progress_callback:
+                progress_callback(completed_count, total_games)
+            return result
+        
+        tasks = [process_single_game_with_progress(game) for game in games]
         results_list = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Log any exceptions
