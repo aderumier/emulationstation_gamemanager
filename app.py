@@ -3069,14 +3069,9 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         for media_file in media_files:
             media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
             media_name_no_suffix = remove_number_suffix(media_name_without_ext)
-            level1_index[media_name_no_suffix] = media_file
+            level1_index[media_name_no_suffix.lower()] = media_file
         
-        # Level 2 index: lowercase media_name_no_suffix -> media_file
-        level2_index = {}
-        for media_file in media_files:
-            media_name_without_ext = os.path.splitext(os.path.basename(media_file))[0]
-            media_name_no_suffix = remove_number_suffix(media_name_without_ext)
-            level2_index[media_name_no_suffix.lower()] = media_file
+        # Level 2 uses the same index as Level 1 (both use lowercase keys)
         
         # Level 3 index: normalized media with parentheses -> media_file
         level3_index = {}
@@ -3106,7 +3101,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             normalized_media_without_parens_without_articles = normalize_game_name(media_name_no_suffix, remove_paranthesis=True, remove_articles=True)
             level7_index[normalized_media_without_parens_without_articles] = media_file
         
-        task.update_progress(f"✅ Precomputed indexes: Level1={len(level1_index)}, Level2={len(level2_index)}, Level3/5={len(level3_index)}, Level4/6={len(level4_index)}, Level7={len(level7_index)}")
+        task.update_progress(f"✅ Precomputed indexes: Level1/2={len(level1_index)}, Level3/5={len(level3_index)}, Level4/6={len(level4_index)}, Level7={len(level7_index)}")
         
         # Process each game
         matched_count = 0
@@ -3145,8 +3140,8 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             
             # Level 1: Exact rom filename match (without extension)
             task.update_progress(f"   Level 1: Testing exact filename match for '{rom_name_without_ext}'")
-            if rom_name_without_ext in level1_index:
-                matched_file = level1_index[rom_name_without_ext]
+            if rom_name_without_ext.lower() in level1_index:
+                matched_file = level1_index[rom_name_without_ext.lower()]
                 task.update_progress(f"     ✅ MATCH FOUND ( Exact romname): '{matched_file}'")
             
            
@@ -3154,8 +3149,8 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             if not matched_file and game.get('name'):
                 game_name = game['name']
                 task.update_progress(f"   Level 2: Testing game name match for '{game_name}'")
-                if game_name.lower() in level2_index:
-                    matched_file = level2_index[game_name.lower()]
+                if game_name.lower() in level1_index:
+                    matched_file = level1_index[game_name.lower()]
                     task.update_progress(f"     ✅ MATCH FOUND ( exact Game name): '{matched_file}'")
                 
             
