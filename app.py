@@ -3136,81 +3136,72 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             # Create display name for logging
             display_name = game.get('name', rom_name_without_ext)
             
+            # Log every game being processed
+            task.update_progress(f"🔍 Processing game {i+1}/{len(games)}: {display_name}")
+            
             # Check if target field already has a value
             current_value = game.get(target_field, '')
             if current_value and not overwrite_existing:
                 skipped_count += 1
+                task.update_progress(f"   ⏸️ Skipped (field already has value): {current_value}")
                 continue
             
             # Find matching media file using precomputed indexes
             matched_file = None
-            task.update_progress(f"🔍 Processing game {i+1}/{len(games)}: {display_name}")
             
             # Level 1: Exact rom filename match (without extension)
-            task.update_progress(f"   Level 1: Testing exact filename match for '{rom_name_without_ext}'")
             if rom_name_without_ext.lower() in level1_index:
                 matched_file = level1_index[rom_name_without_ext.lower()]
-                task.update_progress(f"     ✅ MATCH FOUND ( Exact romname): '{matched_file}'")
+                task.update_progress(f"   ✅ Level 1 MATCH: '{matched_file}'")
             
            
             # Level 2: Game name match
             if not matched_file and game.get('name'):
                 game_name = game['name']
-                task.update_progress(f"   Level 2: Testing game name match for '{game_name}'")
                 if game_name.lower() in level1_index:
                     matched_file = level1_index[game_name.lower()]
-                    task.update_progress(f"     ✅ MATCH FOUND ( exact Game name): '{matched_file}'")
+                    task.update_progress(f"   ✅ Level 2 MATCH: '{matched_file}'")
                 
             
             # Level 3: Normalized ROM filename with parentheses
             if not matched_file:
                 normalized_rom_with_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=False)
-                task.update_progress(f"   Level 3: Testing normalized match with parentheses")
-                task.update_progress(f"     ROM normalized: '{rom_name_without_ext}' -> '{normalized_rom_with_parens}'")
                 if normalized_rom_with_parens in level3_index:
                     matched_file = level3_index[normalized_rom_with_parens]
-                    task.update_progress(f"     ✅ MATCH FOUND (romfile normalized with parens): '{matched_file}'")
+                    task.update_progress(f"   ✅ Level 3 MATCH: '{matched_file}'")
             
             # Level 4: Normalized ROM filename without parentheses
             if not matched_file:
                 normalized_rom_without_parens = normalize_game_name(rom_name_without_ext, remove_paranthesis=True)
-                task.update_progress(f"   Level 4: Testing normalized match without parentheses")
-                task.update_progress(f"     ROM normalized: '{rom_name_without_ext}' -> '{normalized_rom_without_parens}'")
                 if normalized_rom_without_parens in level4_index:
                     matched_file = level4_index[normalized_rom_without_parens]
-                    task.update_progress(f"     ✅ MATCH FOUND (romfile normalized without parens): '{matched_file}'")
+                    task.update_progress(f"   ✅ Level 4 MATCH: '{matched_file}'")
                 
             
             # Level 5: Normalized game name with parentheses vs normalized media filename with parentheses
             if not matched_file and game.get('name'):
                 game_name = game['name']
                 normalized_game_with_parens = normalize_game_name(game_name, remove_paranthesis=False)
-                task.update_progress(f"   Level 5: Testing normalized game name with parentheses")
-                task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_with_parens}'")
                 if normalized_game_with_parens in level3_index:
                     matched_file = level3_index[normalized_game_with_parens]
-                    task.update_progress(f"     ✅ MATCH FOUND (game name normalized with parens): '{matched_file}'")
+                    task.update_progress(f"   ✅ Level 5 MATCH: '{matched_file}'")
                 
             
             # Level 6: Normalized game name without parentheses vs normalized media filename without parentheses
             if not matched_file and game.get('name'):
                 game_name = game['name']
                 normalized_game_without_parens = normalize_game_name(game_name, remove_paranthesis=True)
-                task.update_progress(f"   Level 6: Testing normalized game name without parentheses")
-                task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_without_parens}'")
                 if normalized_game_without_parens in level4_index:
                     matched_file = level4_index[normalized_game_without_parens]
-                    task.update_progress(f"     ✅ MATCH FOUND (game name normalized without parens): '{matched_file}'")
+                    task.update_progress(f"   ✅ Level 6 MATCH: '{matched_file}'")
 
             # Level 7: Normalized game name without parentheses without articles vs normalized media filename without articles
             if not matched_file and game.get('name'):
                 game_name = game['name']
                 normalized_game_without_parens_without_articles = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
-                task.update_progress(f"   Level 7: Testing normalized game name without parentheses and articles")
-                task.update_progress(f"     Game normalized: '{game_name}' -> '{normalized_game_without_parens_without_articles}'")
                 if normalized_game_without_parens_without_articles in level7_index:
                     matched_file = level7_index[normalized_game_without_parens_without_articles]
-                    task.update_progress(f"     ✅ MATCH FOUND (game name normalized without parens without articles): '{matched_file}'")                
+                    task.update_progress(f"   ✅ Level 7 MATCH: '{matched_file}'")                
             
             if matched_file:
                 matched_count += 1
@@ -3233,14 +3224,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                         task.update_progress(f"     ❌ Source file does not exist: '{source_file_path}'")
                         raise FileNotFoundError(f"Source file not found: {source_file_path}")
                     
-                    # Check if target directory exists
-                    if not os.path.exists(target_dir):
-                        task.update_progress(f"     ❌ Target directory does not exist: '{target_dir}'")
-                        raise FileNotFoundError(f"Target directory not found: {target_dir}")
                     
-                    # Check if target file already exists
-                    if os.path.exists(target_file_path):
-                        task.update_progress(f"     ⚠️ Target file already exists, will overwrite: '{target_file_path}'")
                     
                     # Move and process the file using convert_and_resize_image_replace
                     task.update_progress(f"     🔄 Processing image: '{source_file_path}' -> '{target_file_path}'")
@@ -3250,7 +3234,7 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
                     target_width = media_fields[target_field].get('width', 0)
                     target_height = media_fields[target_field].get('height', 0)
                     
-                    task.update_progress(f"     📐 Target dimensions: {target_width}x{target_height}, extension: '{target_extension}'")
+
                     
                     try:
                         # First, move the source file to the target location with correct extension
