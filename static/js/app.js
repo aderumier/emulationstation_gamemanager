@@ -21611,9 +21611,6 @@ class GameCollectionManager {
             const result = await response.json();
             
             if (response.ok && result.success) {
-                // Wait longer to ensure file operation is complete and web server cache is refreshed
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
                 // Add cache-busting parameter to force image refresh
                 const baseUrl = originalSrc.split('?')[0]; // Get URL without any existing parameters
                 const newSrc = `${baseUrl}?v=${Date.now()}`;
