@@ -10937,6 +10937,23 @@ class GameCollectionManager {
             });
         }
 
+        // Add event listener for Clean Missing Medias modal
+        const openCleanMissingMediasModal = document.getElementById('openCleanMissingMediasModal');
+        if (openCleanMissingMediasModal) {
+            openCleanMissingMediasModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openCleanMissingMediasModal();
+            });
+        }
+
+        // Add event listener for confirm clean missing medias button
+        const confirmCleanMissingMediasBtn = document.getElementById('confirmCleanMissingMediasBtn');
+        if (confirmCleanMissingMediasBtn) {
+            confirmCleanMissingMediasBtn.addEventListener('click', () => {
+                this.startCleanMissingMediasTask();
+            });
+        }
+
         // Add event listener for unified scraper config modal
         const openScraperConfigModal = document.getElementById('openScraperConfigModal');
         if (openScraperConfigModal) {
@@ -13136,6 +13153,90 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error loading target fields:', error);
             this.showAlert('Error loading target fields', 'danger');
+        }
+    }
+
+    // Clean Missing Medias Methods
+    async openCleanMissingMediasModal() {
+        try {
+            const modal = new bootstrap.Modal(document.getElementById('cleanMissingMediasModal'));
+            modal.show();
+            
+            // Load media fields
+            await this.loadCleanMissingMediasFields();
+            
+        } catch (error) {
+            console.error('Error opening clean missing medias modal:', error);
+            this.showAlert('Error opening clean missing medias modal', 'danger');
+        }
+    }
+
+    async loadCleanMissingMediasFields() {
+        try {
+            const response = await fetch('/api/remap-media-fields/target');
+            const data = await response.json();
+            const mediaFieldSelect = document.getElementById('cleanMediaFieldSelect');
+            
+            if (data.success && data.fields) {
+                mediaFieldSelect.innerHTML = '<option value="any">Any Field</option>';
+                data.fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    mediaFieldSelect.appendChild(option);
+                });
+            } else {
+                mediaFieldSelect.innerHTML = '<option value="any">Any Field</option><option value="" disabled>No media fields available</option>';
+            }
+        } catch (error) {
+            console.error('Error loading media fields:', error);
+            this.showAlert('Error loading media fields', 'danger');
+        }
+    }
+
+    async startCleanMissingMediasTask() {
+        const mediaField = document.getElementById('cleanMediaFieldSelect').value;
+        
+        if (!mediaField) {
+            this.showAlert('Please select a media field', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/clean-missing-medias`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    media_field: mediaField
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('Clean missing medias task started successfully', 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('cleanMissingMediasModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Refresh task grid to show the new task
+                setTimeout(() => this.refreshTasks(), 500);
+            } else {
+                this.showAlert(result.error || 'Failed to start clean missing medias task', 'danger');
+            }
+        } catch (error) {
+            console.error('Error starting clean missing medias task:', error);
+            this.showAlert('Error starting clean missing medias task: ' + error.message, 'danger');
         }
     }
 

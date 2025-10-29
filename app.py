@@ -2414,6 +2414,26 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_rom_scan_task, args=(system_name,))
             thread.daemon = True
             thread.start()
+    elif task_type == 'clean_missing_medias':
+        # Start clean missing medias task
+        system_name = task_data.get('system_name')
+        media_field = task_data.get('media_field', 'any')
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('clean_missing_medias', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start clean missing medias in background thread
+            thread = threading.Thread(target=run_clean_missing_medias_task, args=(system_name, media_field))
+            thread.daemon = True
+            thread.start()
     elif task_type == 'youtube_download':
         # Start YouTube download task
         # For youtube_download, task_data is flat (not nested under 'data')
@@ -11694,6 +11714,27 @@ def scan_media_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'Media scan failed: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/clean-missing-medias', methods=['POST'])
+@login_required
+def clean_missing_medias_endpoint(system_name):
+    """Clean missing media fields for a specific system"""
+    global current_task_id
+    
+    try:
+        # Get media field from request
+        data = request.get_json()
+        media_field = data.get('media_field', 'any')
+        
+        # Add task to queue
+        task = add_task_to_queue('clean_missing_medias', {
+            'system_name': system_name,
+            'media_field': media_field
+        })
+        
+        return jsonify({'success': True, 'message': 'Clean missing medias task started'})
+    except Exception as e:
+        return jsonify({'error': f'Clean missing medias failed: {str(e)}'}), 500
+
 @app.route('/api/cache/statistics')
 @login_required
 def cache_statistics_endpoint():
@@ -16423,6 +16464,98 @@ def apply_rom_scan_changes(task, new_roms, missing_roms, system_name, gamelist_p
     except Exception as e:
         task.update_progress(f"Error applying ROM scan changes: {e}")
         raise
+
+def run_clean_missing_medias_task(system_name, media_field):
+    """Run clean missing medias task in background thread"""
+    global current_task_id
+    
+    try:
+        if not current_task_id or current_task_id not in tasks:
+            print("Error: No active task found for clean missing medias")
+            return
+        
+        task = tasks[current_task_id]
+        
+        # Load gamelist
+        task.update_progress(f"Loading gamelist for system: {system_name}")
+        gamelist_path = get_gamelist_path(system_name)
+        
+        if not os.path.exists(gamelist_path):
+            task.update_progress(f"Gamelist not found: {gamelist_path}")
+            task.complete(False, "Gamelist not found")
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        task.update_progress(f"Loaded {len(games)} games from gamelist")
+        
+        # Get media config for field paths
+        media_config = load_media_config()
+        media_fields = media_config.get('media_fields', {}) if media_config else {}
+        
+        # Determine which fields to check
+        if media_field == 'any':
+            fields_to_check = list(media_fields.keys())
+        else:
+            fields_to_check = [media_field] if media_field in media_fields else []
+        
+        task.update_progress(f"Checking fields: {', '.join(fields_to_check)}")
+        
+        # System path for checking files
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        
+        games_updated = 0
+        total_medias_cleaned = 0
+        
+        # Check each game
+        for i, game in enumerate(games):
+            task.update_progress(f"Checking game {i+1}/{len(games)}: {game.get('name', 'Unknown')}")
+            
+            game_updated = False
+            
+            for field in fields_to_check:
+                media_path = game.get(field, '')
+                if not media_path:
+                    continue
+                
+                # Normalize path (remove ./ if present)
+                normalized_path = media_path.lstrip('./')
+                
+                # Check if file exists
+                if normalized_path:
+                    # Handle full paths vs relative paths
+                    if normalized_path.startswith(os.sep):
+                        full_path = normalized_path
+                    elif normalized_path.startswith(system_name):
+                        full_path = os.path.join(ROMS_FOLDER, normalized_path)
+                    else:
+                        full_path = os.path.join(system_path, normalized_path)
+                    
+                    if not os.path.exists(full_path):
+                        # File doesn't exist, clear the field
+                        game[field] = ''
+                        game_updated = True
+                        total_medias_cleaned += 1
+                        task.update_progress(f"  - Cleaned missing {field}: {media_path}")
+            
+            if game_updated:
+                games_updated += 1
+        
+        # Save updated gamelist
+        task.update_progress(f"Writing updated gamelist...")
+        write_gamelist_xml(games, gamelist_path)
+        
+        task.update_progress(f"✅ Cleanup complete: {games_updated} games updated, {total_medias_cleaned} media fields cleaned")
+        task.complete(True, f"Cleaned {total_medias_cleaned} missing media fields from {games_updated} games")
+        
+        # Process next queued task
+        process_next_queued_task()
+        
+    except Exception as e:
+        if current_task_id and current_task_id in tasks:
+            tasks[current_task_id].complete(False, str(e))
+        print(f"Error in clean missing medias task: {e}")
+        import traceback
+        traceback.print_exc()
 
 def run_rom_scan_task(system_name):
     """Run ROM scan task in background thread"""
