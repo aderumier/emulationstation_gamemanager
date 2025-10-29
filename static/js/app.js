@@ -18650,6 +18650,7 @@ class GameCollectionManager {
                             <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event);" />
                         </div>
                         <img src="${imageUrl}" alt="${fieldName}" 
+                            style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
                             onmouseenter="gameManager.showThumbnailHover(event, '${imageUrl}', '${fieldName}')" 
                             onmouseleave="gameManager.hideThumbnailHover()" />
                     `;
@@ -18742,6 +18743,7 @@ class GameCollectionManager {
         const img = new Image();
         img.onload = () => {
             container.innerHTML = `<img src="${src}" alt="${field}" 
+                style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
                 onmouseenter="gameManager.showThumbnailHover(event, '${src}', '${field}')" 
                 onmouseleave="gameManager.hideThumbnailHover()" />`;
             container.classList.remove('thumbnail-loading');
