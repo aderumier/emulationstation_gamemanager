@@ -21611,16 +21611,45 @@ class GameCollectionManager {
             const result = await response.json();
             
             if (response.ok && result.success) {
-                // Wait a moment to ensure file operation is complete
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // Wait longer to ensure file operation is complete and web server cache is refreshed
+                await new Promise(resolve => setTimeout(resolve, 500));
                 
                 // Add cache-busting parameter to force image refresh
                 const cacheSep = originalSrc.includes('?') ? '&' : '?';
-                img.src = `${originalSrc.split('?')[0]}${cacheSep}v=${Date.now()}`;
+                const newSrc = `${originalSrc.split('?')[0]}${cacheSep}v=${Date.now()}`;
                 
-                // Reset image styling
-                img.style.opacity = '1';
-                img.style.filter = 'none';
+                // Try to reload the image with retry mechanism
+                let retryCount = 0;
+                const maxRetries = 3;
+                
+                const loadImageWithRetry = () => {
+                    img.src = newSrc;
+                    
+                    img.onerror = () => {
+                        if (retryCount < maxRetries) {
+                            retryCount++;
+                            console.log(`Image rotation reload failed, retrying (${retryCount}/${maxRetries})...`);
+                            setTimeout(() => {
+                                img.src = `${originalSrc.split('?')[0]}${cacheSep}v=${Date.now()}`;
+                            }, 200 * retryCount); // Increasing delay between retries
+                        } else {
+                            console.error('Failed to reload rotated image after multiple retries');
+                            // Reset image styling
+                            img.style.opacity = '1';
+                            img.style.filter = 'none';
+                            this.showAlert('Image rotated but failed to reload. Please refresh the page.', 'warning');
+                        }
+                    };
+                    
+                    img.onload = () => {
+                        // Successfully loaded, reset styling
+                        img.style.opacity = '1';
+                        img.style.filter = 'none';
+                        img.onerror = null; // Clear error handler
+                    };
+                };
+                
+                loadImageWithRetry();
                 
                 // Hide context menu
                 const contextMenu = document.getElementById('imageContextMenu');
