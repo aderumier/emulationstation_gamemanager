@@ -2511,8 +2511,7 @@ class GameCollectionManager {
                     resizable: true, 
                     flex: 2,
                     cellStyle: { 
-                        fontWeight: 'bold',
-                        backgroundColor: '#f8f9fa'
+                        fontWeight: 'bold'
                     },
                     // Add a custom cell renderer for the name field to show edit indicator
                     cellRenderer: (params) => {
@@ -18654,8 +18653,7 @@ class GameCollectionManager {
                 resizable: true, 
                 flex: 2,
                 cellStyle: { 
-                    fontWeight: 'bold',
-                    backgroundColor: '#f8f9fa'
+                    fontWeight: 'bold'
                 }
             }
         ];
