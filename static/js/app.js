@@ -4620,7 +4620,7 @@ class GameCollectionManager {
             img.className = 'card-img-top';
             img.style.height = '300px';
             img.style.objectFit = 'contain';
-            img.style.backgroundColor = '#f8f9fa';
+            img.style.backgroundColor = this.getMediaCardBackgroundColor();
             img.src = media.url;
             img.alt = `${mediaType} option ${index + 1}`;
             img.onerror = () => {
