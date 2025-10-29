@@ -4576,6 +4576,14 @@ class GameCollectionManager {
                 }
             };
             
+            // Add hover preview functionality
+            img.addEventListener('mouseenter', (e) => {
+                this.showMediaHover(e, result.url, mediaType);
+            });
+            img.addEventListener('mouseleave', () => {
+                this.hideMediaHover();
+            });
+            
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'btn btn-primary btn-sm mt-auto';
             downloadBtn.textContent = 'Download';
@@ -4658,6 +4666,14 @@ class GameCollectionManager {
             img.onerror = () => {
                 img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
             };
+            
+            // Add hover preview functionality
+            img.addEventListener('mouseenter', (e) => {
+                this.showMediaHover(e, media.url, mediaType);
+            });
+            img.addEventListener('mouseleave', () => {
+                this.hideMediaHover();
+            });
             
             const cardBody = document.createElement('div');
             cardBody.className = 'card-body d-flex flex-column';
@@ -21039,6 +21055,14 @@ class GameCollectionManager {
                                 }
                             }
                         });
+                        
+                        // Add hover preview functionality
+                        img.addEventListener('mouseenter', (e) => {
+                            this.showMediaHover(e, url, 'fanart');
+                        });
+                        img.addEventListener('mouseleave', () => {
+                            this.hideMediaHover();
+                        });
                     }
                     
                     container.appendChild(resultCard);
@@ -21406,6 +21430,14 @@ class GameCollectionManager {
                                     resolutionInfo.textContent = 'Resolution: Unknown';
                                 }
                             }
+                        });
+                        
+                        // Add hover preview functionality
+                        img.addEventListener('mouseenter', (e) => {
+                            this.showMediaHover(e, url, 'marquee');
+                        });
+                        img.addEventListener('mouseleave', () => {
+                            this.hideMediaHover();
                         });
                     }
                     
