@@ -16317,6 +16317,14 @@ class GameCollectionManager {
         } else {
             document.body.classList.remove('dark-mode');
         }
+        
+        // Refresh AG Grids to apply new theme
+        if (this.gridApi) {
+            this.gridApi.refreshCells();
+        }
+        if (this.taskGridApi) {
+            this.taskGridApi.refreshCells();
+        }
     }
     
     initializeVideoConfigurationModal() {
