@@ -18768,6 +18768,8 @@ class GameCollectionManager {
         const img = document.createElement('img');
         img.src = imageUrl;
         img.alt = fieldName;
+        img.style.objectFit = 'contain';
+        img.style.backgroundColor = this.getMediaCardBackgroundColor();
         img.onerror = () => {
             tooltip.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No image available</div>`;
         };
@@ -18817,6 +18819,8 @@ class GameCollectionManager {
         const img = document.createElement('img');
         img.src = imageUrl;
         img.alt = fieldName;
+        img.style.objectFit = 'contain';
+        img.style.backgroundColor = this.getMediaCardBackgroundColor();
         img.onerror = () => {
             tooltip.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No image available</div>`;
         };
