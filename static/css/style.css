@@ -1426,3 +1426,96 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     background-color: #f8f9fa !important;
     opacity: 0.7 !important;
 }
+
+/* Dark mode theme */
+body.dark-mode {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+.dark-mode .navbar {
+    background-color: #212529;
+}
+
+.dark-mode .card {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+}
+
+.dark-mode .card-header {
+    background-color: #343434;
+    border-color: #404040;
+    color: #e0e0e0;
+}
+
+.dark-mode .modal-content {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+}
+
+.dark-mode .modal-header {
+    border-color: #404040;
+}
+
+.dark-mode .modal-footer {
+    border-color: #404040;
+}
+
+.dark-mode .btn-close {
+    filter: invert(1);
+}
+
+.dark-mode .form-control {
+    background-color: #343434;
+    border-color: #404040;
+    color: #e0e0e0;
+}
+
+.dark-mode .form-control:focus {
+    background-color: #3a3a3a;
+    border-color: #007bff;
+    color: #e0e0e0;
+}
+
+.dark-mode .form-select {
+    background-color: #343434;
+    border-color: #404040;
+    color: #e0e0e0;
+}
+
+.dark-mode .table {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+}
+
+.dark-mode .table thead th {
+    background-color: #343434;
+    border-color: #404040;
+    color: #e0e0e0;
+}
+
+.dark-mode .table tbody tr {
+    border-color: #404040;
+}
+
+.dark-mode .table tbody tr:hover {
+    background-color: #343434;
+}
+
+.dark-mode .dropdown-menu {
+    background-color: #2d2d2d;
+    border-color: #404040;
+}
+
+.dark-mode .dropdown-item {
+    color: #e0e0e0;
+}
+
+.dark-mode .dropdown-item:hover {
+    background-color: #343434;
+    color: #e0e0e0;
+}
+
+.dark-mode .dropdown-divider {
+    border-color: #404040;
+}

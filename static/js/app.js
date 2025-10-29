@@ -16200,6 +16200,14 @@ class GameCollectionManager {
                 this.resetMediaCardColor();
             });
         }
+        
+        // Add event listener for dark mode toggle
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        if (darkModeToggle) {
+            darkModeToggle.addEventListener('change', () => {
+                this.applyDarkMode(darkModeToggle.checked);
+            });
+        }
     }
     
     openGuiPreferencesModal() {
@@ -16211,6 +16219,10 @@ class GameCollectionManager {
     }
     
     loadGuiPreferences() {
+        // Load dark mode preference
+        const savedDarkMode = localStorage.getItem('guiPreferences_darkMode') === 'true';
+        document.getElementById('darkModeToggle').checked = savedDarkMode;
+        
         // Load from localStorage or use default white
         const savedColor = localStorage.getItem('guiPreferences_mediaCardBackgroundColor') || '#ffffff';
         
@@ -16223,6 +16235,7 @@ class GameCollectionManager {
     saveGuiPreferences() {
         try {
             const color = document.getElementById('mediaCardBackgroundColor').value;
+            const darkMode = document.getElementById('darkModeToggle').checked;
             
             // Validate color
             if (!/^#[0-9A-F]{6}$/i.test(color)) {
@@ -16232,9 +16245,13 @@ class GameCollectionManager {
             
             // Save to localStorage
             localStorage.setItem('guiPreferences_mediaCardBackgroundColor', color);
+            localStorage.setItem('guiPreferences_darkMode', darkMode.toString());
             
             // Apply the new color immediately
             this.applyMediaCardBackgroundColor(color);
+            
+            // Apply dark mode
+            this.applyDarkMode(darkMode);
             
             // Show success message
             this.showAlert('GUI preferences saved successfully!', 'success');
@@ -16288,6 +16305,18 @@ class GameCollectionManager {
         // Apply saved media card background color on page load
         const savedColor = this.getMediaCardBackgroundColor();
         this.applyMediaCardBackgroundColor(savedColor);
+        
+        // Apply saved dark mode on page load
+        const savedDarkMode = localStorage.getItem('guiPreferences_darkMode') === 'true';
+        this.applyDarkMode(savedDarkMode);
+    }
+    
+    applyDarkMode(enabled) {
+        if (enabled) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
     }
     
     initializeVideoConfigurationModal() {
