@@ -12551,8 +12551,8 @@ class GameCollectionManager {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('remapMediaFieldModal'));
                 modal.hide();
                 
-                // Refresh the grid to show changes
-                await this.refreshGridData();
+                // Force reload the entire gamelist.xml and refresh the grid
+                await this.forceReloadCurrentSystem();
             } else {
                 this.showAlert(data.error || 'Error remapping fields', 'danger');
             }
