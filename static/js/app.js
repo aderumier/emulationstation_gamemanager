@@ -21003,7 +21003,7 @@ class GameCollectionManager {
                     resultCard.innerHTML = `
                         <div class="card">
                             <div class="card-body">
-                                <img src="${url}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: cover;" 
+                                <img src="${url}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" 
                                      alt="Fanart" onerror="this.style.display='none'">
                                 <h6 class="card-title">${result.game_name}</h6>
                                 <p class="card-text">
@@ -21013,6 +21013,10 @@ class GameCollectionManager {
                                         <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
                                     </small>
                                 </p>
+                                <div class="image-metadata" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                    <div class="resolution-info">Loading...</div>
+                                    ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
+                                </div>
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleFanartImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentFanartSearchGame).replace(/"/g, '&quot;')})">
                                         <i class="bi bi-download me-1"></i>Download This Fanart
@@ -21021,6 +21025,21 @@ class GameCollectionManager {
                             </div>
                         </div>
                     `;
+                    
+                    // Add image load handler to update resolution
+                    const img = resultCard.querySelector('img');
+                    if (img) {
+                        img.addEventListener('load', () => {
+                            const resolutionInfo = resultCard.querySelector('.resolution-info');
+                            if (resolutionInfo) {
+                                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                    resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                                } else {
+                                    resolutionInfo.textContent = 'Resolution: Unknown';
+                                }
+                            }
+                        });
+                    }
                     
                     container.appendChild(resultCard);
                 });
@@ -21345,7 +21364,7 @@ class GameCollectionManager {
                     resultCard.className = 'col-md-4 col-lg-3 mb-3';
                     resultCard.innerHTML = `
                         <div class="card h-100">
-                            <div class="card-img-top-container" style="height: 200px; overflow: hidden; background-color: #f8f9fa;">
+                            <div class="card-img-top-container" style="height: 200px; overflow: hidden; background-color: ${this.getMediaCardBackgroundColor()};">
                                 <img src="${url}" class="card-img-top" style="object-fit: contain; height: 100%; width: 100%;" 
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                 <div class="d-flex align-items-center justify-content-center h-100" style="display: none;">
@@ -21362,6 +21381,10 @@ class GameCollectionManager {
                                     <strong>System:</strong> ${result.platform || 'Unknown'}<br>
                                     <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
                                 </p>
+                                <div class="image-metadata" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
+                                    <div class="resolution-info">Loading...</div>
+                                    ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
+                                </div>
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleMarqueeImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentMarqueeSearchGame).replace(/"/g, '&quot;')})">
                                         <i class="bi bi-download me-1"></i>Download This Marquee
@@ -21370,6 +21393,21 @@ class GameCollectionManager {
                             </div>
                         </div>
                     `;
+                    
+                    // Add image load handler to update resolution
+                    const img = resultCard.querySelector('img');
+                    if (img) {
+                        img.addEventListener('load', () => {
+                            const resolutionInfo = resultCard.querySelector('.resolution-info');
+                            if (resolutionInfo) {
+                                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                    resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                                } else {
+                                    resolutionInfo.textContent = 'Resolution: Unknown';
+                                }
+                            }
+                        });
+                    }
                     
                     container.appendChild(resultCard);
                 });
