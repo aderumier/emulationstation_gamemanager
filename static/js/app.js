@@ -21615,8 +21615,8 @@ class GameCollectionManager {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
                 // Add cache-busting parameter to force image refresh
-                const cacheSep = originalSrc.includes('?') ? '&' : '?';
-                const newSrc = `${originalSrc.split('?')[0]}${cacheSep}v=${Date.now()}`;
+                const baseUrl = originalSrc.split('?')[0]; // Get URL without any existing parameters
+                const newSrc = `${baseUrl}?v=${Date.now()}`;
                 
                 // Try to reload the image with retry mechanism
                 let retryCount = 0;
@@ -21630,7 +21630,7 @@ class GameCollectionManager {
                             retryCount++;
                             console.log(`Image rotation reload failed, retrying (${retryCount}/${maxRetries})...`);
                             setTimeout(() => {
-                                img.src = `${originalSrc.split('?')[0]}${cacheSep}v=${Date.now()}`;
+                                img.src = `${baseUrl}?v=${Date.now()}`;
                             }, 200 * retryCount); // Increasing delay between retries
                         } else {
                             console.error('Failed to reload rotated image after multiple retries');
