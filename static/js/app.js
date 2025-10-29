@@ -2719,7 +2719,8 @@ class GameCollectionManager {
                     cellStyle: { 
                         backgroundColor: '#fff3cd',
                         fontFamily: 'monospace',
-                        fontSize: '0.9em'
+                        fontSize: '0.9em',
+                        color: '#000'
                     },
                     cellEditor: 'agTextCellEditor',
                     cellEditorParams: {
