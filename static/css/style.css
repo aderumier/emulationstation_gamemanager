@@ -239,7 +239,6 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 /* Hover effect for editable cells */
 .ag-cell[col-id="name"]:hover {
-    background-color: #e3f2fd !important;
     cursor: pointer !important;
 }
 
@@ -613,7 +612,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 .ag-theme-alpine .ag-cell[col-id="name"]:hover,
 .ag-theme-alpine .ag-cell[col-id="desc"]:hover {
-    background-color: #f8f9fa;
+    /* Removed forced background color to allow dark mode styling */
 }
 
 /* Fix column filter popup z-index issues */
