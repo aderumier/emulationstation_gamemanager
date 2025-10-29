@@ -2541,7 +2541,8 @@ class GameCollectionManager {
                     cellStyle: { 
                         backgroundColor: '#e8f5e8',
                         fontFamily: 'monospace',
-                        fontSize: '0.9em'
+                        fontSize: '0.9em',
+                        color: '#000'
                     },
                     valueFormatter: function(params) {
                         // Ensure launchboxid is displayed as a string
@@ -2564,7 +2565,8 @@ class GameCollectionManager {
                     cellStyle: { 
                         backgroundColor: '#e8f4fd',
                         fontFamily: 'monospace',
-                        fontSize: '0.9em'
+                        fontSize: '0.9em',
+                        color: '#000'
                     }
                 },
                 { 
@@ -2579,7 +2581,8 @@ class GameCollectionManager {
                     cellStyle: { 
                         backgroundColor: '#fff3cd',
                         fontFamily: 'monospace',
-                        fontSize: '0.9em'
+                        fontSize: '0.9em',
+                        color: '#000'
                     }
                 },
                 { 
@@ -2594,7 +2597,8 @@ class GameCollectionManager {
                     cellStyle: { 
                         backgroundColor: '#d1ecf1',
                         fontFamily: 'monospace',
-                        fontSize: '0.9em'
+                        fontSize: '0.9em',
+                        color: '#000'
                     }
                 },
                 { 
@@ -2609,7 +2613,8 @@ class GameCollectionManager {
                     cellStyle: { 
                         backgroundColor: '#e2e3e5',
                         fontFamily: 'monospace',
-                        fontSize: '0.9em'
+                        fontSize: '0.9em',
+                        color: '#000'
                     }
                 },
                 { 
@@ -2624,7 +2629,8 @@ class GameCollectionManager {
                     cellStyle: { 
                         backgroundColor: '#f8d7da',
                         fontFamily: 'monospace',
-                        fontSize: '0.9em'
+                        fontSize: '0.9em',
+                        color: '#000'
                     }
                 },
 
