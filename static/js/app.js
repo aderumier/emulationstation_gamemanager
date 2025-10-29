@@ -9054,8 +9054,8 @@ class GameCollectionManager {
                     const modal = bootstrap.Modal.getInstance(document.getElementById('forceImportGamelistModal'));
                     modal.hide();
                     
-                    // Reload the current system to reflect the imported data
-                    await this.loadRomSystem(this.currentSystem);
+                    // Force reload the current system to reflect the imported data
+                    await this.forceReloadCurrentSystem();
                 } else {
                     this.showAlert(result.error || 'Failed to force import gamelist', 'danger');
                 }
@@ -9069,6 +9069,52 @@ class GameCollectionManager {
             // Restore button state
             button.innerHTML = originalText;
             button.disabled = false;
+        }
+    }
+
+    async forceReloadCurrentSystem() {
+        if (!this.currentSystem) return;
+        
+        try {
+            // Clear current data
+            this.games = [];
+            this.selectedGames = [];
+            this.currentMediaPreviewGame = null;
+            
+            // Clear grid selection
+            if (this.gridApi) {
+                this.gridApi.deselectAll();
+            }
+            
+            // Force reload the gamelist with cache-busting
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist?t=${Date.now()}`, {
+                headers: {
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.games = data.games || [];
+                
+                // Update the grid with fresh data
+                if (this.gridApi) {
+                    await this.updateGameGridData(this.games);
+                }
+                
+                // Update counters and UI
+                this.updateGamesCount();
+                this.updateSelectionDisplay();
+                
+                // Show success message
+                this.showAlert('Gamelist.xml reloaded successfully', 'success');
+            } else {
+                throw new Error('Failed to reload gamelist');
+            }
+        } catch (error) {
+            console.error('Error force reloading system:', error);
+            this.showAlert('Error reloading gamelist: ' + error.message, 'danger');
         }
     }
 
