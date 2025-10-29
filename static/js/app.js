@@ -4545,6 +4545,37 @@ class GameCollectionManager {
             title.className = 'card-title';
             title.textContent = `${result.source} - ${mediaType}`;
             
+            // Add image metadata (region and resolution)
+            const metadataDiv = document.createElement('div');
+            metadataDiv.className = 'image-metadata';
+            metadataDiv.style.fontSize = '0.75rem';
+            metadataDiv.style.color = '#6c757d';
+            metadataDiv.style.marginTop = '4px';
+            
+            const resolutionInfo = document.createElement('div');
+            resolutionInfo.className = 'resolution-info';
+            resolutionInfo.textContent = 'Loading...';
+            
+            const regionInfo = document.createElement('div');
+            regionInfo.className = 'region-info';
+            if (result.region) {
+                regionInfo.textContent = `Region: ${result.region}`;
+            }
+            
+            metadataDiv.appendChild(resolutionInfo);
+            if (result.region) {
+                metadataDiv.appendChild(regionInfo);
+            }
+            
+            // Add image load handler to update resolution
+            img.onload = () => {
+                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                    resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                } else {
+                    resolutionInfo.textContent = 'Resolution: Unknown';
+                }
+            };
+            
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'btn btn-primary btn-sm mt-auto';
             downloadBtn.textContent = 'Download';
@@ -4554,6 +4585,7 @@ class GameCollectionManager {
             };
             
             cardBody.appendChild(title);
+            cardBody.appendChild(metadataDiv);
             cardBody.appendChild(downloadBtn);
             
             card.appendChild(img);
