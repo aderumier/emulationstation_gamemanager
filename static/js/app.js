@@ -13231,12 +13231,37 @@ class GameCollectionManager {
                 
                 // Refresh task grid to show the new task
                 setTimeout(() => this.refreshTasks(), 500);
+
+                // After task completes, fully reload gamelist and grid
+                this.waitForTaskTypeCompletion('clean_missing_medias').then(() => {
+                    this.forceReloadCurrentSystem();
+                });
             } else {
                 this.showAlert(result.error || 'Failed to start clean missing medias task', 'danger');
             }
         } catch (error) {
             console.error('Error starting clean missing medias task:', error);
             this.showAlert('Error starting clean missing medias task: ' + error.message, 'danger');
+        }
+    }
+
+    async waitForTaskTypeCompletion(taskType) {
+        try {
+            for (let i = 0; i < 300; i++) { // up to ~5 minutes
+                const resp = await fetch('/api/task/status-and-queue', {
+                    credentials: 'include',
+                    headers: { 'Accept-Encoding': 'gzip, deflate' }
+                });
+                if (!resp.ok) break;
+                const data = await resp.json();
+                const current = data.current_task || {};
+                if (!(current.status === 'running' && current.type === taskType)) {
+                    break;
+                }
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        } catch (e) {
+            // best-effort; ignore errors
         }
     }
 
