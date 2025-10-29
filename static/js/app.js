@@ -5548,7 +5548,7 @@ class GameCollectionManager {
         if (mediaType === 'video') {
             return `<video src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: cover;" controls></video>`;
         } else {
-            return `<img src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: contain;" onload="gameManager.handleImageLoad(this)" onerror="gameManager.handleImageError(this)">`;
+            return `<img src="${mediaUrl}" style="width: 100%; height: 100%; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onload="gameManager.handleImageLoad(this)" onerror="gameManager.handleImageError(this)">`;
         }
     }
 
