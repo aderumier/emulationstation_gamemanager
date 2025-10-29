@@ -54,11 +54,12 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-COPY gamemanager_2.8.3-1_all.deb .
+ARG DEB_FILE=gamemanager_2.8.4-1_all.deb
+COPY ${DEB_FILE} .
 
 # Extract the .deb package manually (skip postinst script for Docker)
-RUN dpkg-deb -x gamemanager_2.8.3-1_all.deb / && \
-    rm gamemanager_2.8.3-1_all.deb
+RUN dpkg-deb -x ${DEB_FILE} / && \
+    rm ${DEB_FILE}
 
 # Python packages are installed via system packages above
 
@@ -244,6 +245,6 @@ CMD ["/opt/gamemanager/start.sh"]
 # Labels for metadata
 LABEL maintainer="GameManager Team <admin@gamemanager.local>"
 LABEL description="Game Collection Management System with LaunchBox integration"
-LABEL version="2.8.3-1"
+LABEL version="2.8.4-1"
 LABEL org.opencontainers.image.source="https://github.com/aderumier/emulationstation_gamemanager"
 LABEL org.opencontainers.image.description="Flask-based web application for managing game collections with metadata and media from LaunchBox database"
