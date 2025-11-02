@@ -5381,6 +5381,47 @@ def manage_similarity_config():
     except Exception as e:
         return jsonify({'error': f'Failed to manage similarity configuration: {str(e)}'}), 500
 
+@app.route('/api/proxy-screenscraper-video/<int:screenscraper_id>/<int:system_id>')
+@login_required
+def proxy_screenscraper_video(screenscraper_id, system_id):
+    """
+    Proxy endpoint for ScreenScraper videos with proper Referer header
+    This allows the video player to access ScreenScraper videos that require a Referer header
+    """
+    try:
+        # Construct video URL
+        video_url = f"https://www.screenscraper.fr/medias/{system_id}/{screenscraper_id}/video.mp4"
+        
+        # Construct Referer header URL
+        referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
+        
+        # Set headers with Referer and browser User-Agent
+        headers = {
+            'Referer': referer_url,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        import requests
+        from flask import Response, stream_with_context
+        
+        # Stream the video with proper headers
+        response = requests.get(video_url, headers=headers, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        # Return the streamed video with appropriate content type
+        return Response(
+            stream_with_context(response.iter_content(chunk_size=8192)),
+            content_type=response.headers.get('Content-Type', 'video/mp4'),
+            headers={
+                'Content-Length': response.headers.get('Content-Length', ''),
+                'Accept-Ranges': 'bytes',
+                'Cache-Control': 'public, max-age=3600'
+            }
+        )
+    except Exception as e:
+        print(f"❌ Error proxying ScreenScraper video: {e}")
+        return jsonify({'error': f'Failed to proxy video: {str(e)}'}), 500
+
 @app.route('/api/video-config', methods=['GET', 'PUT'])
 @login_required
 def manage_video_config():
@@ -9215,21 +9256,72 @@ def multiscraper_search_endpoint():
             # Check if ScreenScraper supports this media type
             screenscraper_image_mapping = scrappers_config.get('screenscraper', {}).get('image_type_mappings', {})
             if media_type in screenscraper_image_mapping:
-                try:
-                    print(f"🔧 DEBUG: Running screenscraper scraper...")
+                # For video type, don't call the API - just check if direct video URL exists
+                if media_type == 'video':
                     screenscraper_start_time = time.time()
-                    result = run_async_safely(scrape_screenscraper_manual(current_game, system_name, sys_config, target_media_type=media_type))
+                    screenscraper_id = current_game.get('screenscraperid')
+                    screenscraper_system_id = sys_config.get('screenscraper')
+                    
+                    if screenscraper_id and screenscraper_system_id:
+                        # Construct direct video URL
+                        direct_video_url = f"https://www.screenscraper.fr/medias/{screenscraper_system_id}/{screenscraper_id}/video.mp4"
+                        print(f"🔍 Testing ScreenScraper video URL: {direct_video_url}")
+                        
+                        # Construct Referer header URL
+                        referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
+                        
+                        # Set headers with Referer and browser User-Agent
+                        headers = {
+                            'Referer': referer_url,
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        }
+                        
+                        # Test if video URL exists using HEAD request (no API call, just check if file exists)
+                        import requests
+                        try:
+                            print(f"🌐 Making HEAD request to: {direct_video_url}")
+                            print(f"🔗 Using Referer: {referer_url}")
+                            response = requests.head(direct_video_url, headers=headers, timeout=5, allow_redirects=True)
+                            print(f"📡 Response status code: {response.status_code} for URL: {direct_video_url}")
+                            if response.status_code == 200:
+                                # Video exists - return it without API call
+                                # Use proxy endpoint URL instead of direct URL to include Referer header
+                                proxy_video_url = f"/api/proxy-screenscraper-video/{screenscraper_id}/{screenscraper_system_id}"
+                                result = {
+                                    'media_fields': {
+                                        'video': [{
+                                            'url': proxy_video_url,
+                                            'type': 'video',
+                                            'screenscraperid': screenscraper_id,
+                                            'screenscraper_system_id': screenscraper_system_id
+                                        }]
+                                    }
+                                }
+                                scrap_results['screenscraper'] = result
+                                print(f"✅ ScreenScraper video URL exists: {direct_video_url}")
+                            else:
+                                print(f"⚠️ ScreenScraper video URL not found (status {response.status_code}): {direct_video_url}")
+                        except Exception as e:
+                            print(f"⚠️ ScreenScraper video URL check failed: {e}")
                     screenscraper_end_time = time.time()
-                    print(f"⏱️ ScreenScraper took {screenscraper_end_time - screenscraper_start_time:.3f} seconds")
-                    if result:
-                        print(f"🔧 DEBUG: screenscraper scraper returned data with keys: {list(result.keys())}")
-                        scrap_results['screenscraper'] = result
-                    else:
-                        print(f"🔧 DEBUG: screenscraper scraper returned None")
-                except Exception as e:
-                    print(f"🔧 DEBUG: screenscraper scraper failed: {e}")
-                    import traceback
-                    print(f"🔧 DEBUG: screenscraper traceback: {traceback.format_exc()}")
+                    print(f"⏱️ ScreenScraper video check took {screenscraper_end_time - screenscraper_start_time:.3f} seconds")
+                else:
+                    # For non-video types, use normal API call
+                    try:
+                        print(f"🔧 DEBUG: Running screenscraper scraper...")
+                        screenscraper_start_time = time.time()
+                        result = run_async_safely(scrape_screenscraper_manual(current_game, system_name, sys_config, target_media_type=media_type))
+                        screenscraper_end_time = time.time()
+                        print(f"⏱️ ScreenScraper took {screenscraper_end_time - screenscraper_start_time:.3f} seconds")
+                        if result:
+                            print(f"🔧 DEBUG: screenscraper scraper returned data with keys: {list(result.keys())}")
+                            scrap_results['screenscraper'] = result
+                        else:
+                            print(f"🔧 DEBUG: screenscraper scraper returned None")
+                    except Exception as e:
+                        print(f"🔧 DEBUG: screenscraper scraper failed: {e}")
+                        import traceback
+                        print(f"🔧 DEBUG: screenscraper traceback: {traceback.format_exc()}")
             else:
                 print(f"🔧 DEBUG: Skipping ScreenScraper - no mapping for media type '{media_type}'")
         
@@ -9260,7 +9352,9 @@ def multiscraper_search_endpoint():
         if current_game.get('launchboxid'):
             # Check if LaunchBox supports this media type
             launchbox_image_mapping = scrappers_config.get('launchbox', {}).get('image_type_mappings', {})
-            if media_type in launchbox_image_mapping:
+            # For video type, LaunchBox uses VideoURL directly (not in image_type_mappings)
+            supports_media_type = media_type in launchbox_image_mapping or media_type == 'video'
+            if supports_media_type:
                 try:
                     print(f"🔧 DEBUG: Running launchbox scraper...")
                     launchbox_start_time = time.time()
@@ -9321,30 +9415,65 @@ def multiscraper_search_endpoint():
                                 # Media object with url, region, type, etc.
                                 url = item.get('url')
                                 if url:
-                                    results.append({
+                                    result_item = {
                                         'url': url,
                                         'source': scraper_name.title(),
                                         'type': media_type,
                                         'region': item.get('region', 'Unknown')
-                                    })
+                                    }
+                                    # For LaunchBox video, include VideoURL fields
+                                    if media_type == 'video' and scraper_name == 'launchbox':
+                                        if item.get('VideoURL'):
+                                            result_item['VideoURL'] = item.get('VideoURL')
+                                        if item.get('videoURL'):
+                                            result_item['videoURL'] = item.get('videoURL')
+                                        if item.get('video_url'):
+                                            result_item['video_url'] = item.get('video_url')
+                                    # For ScreenScraper video, include screenscraperid and system_id for direct video URL construction
+                                    if media_type == 'video' and scraper_name == 'screenscraper':
+                                        screenscraperid = current_game.get('screenscraperid')
+                                        screenscraper_system_id = sys_config.get('screenscraper')
+                                        if screenscraperid:
+                                            result_item['screenscraperid'] = screenscraperid
+                                        if screenscraper_system_id:
+                                            result_item['screenscraper_system_id'] = screenscraper_system_id
+                                    results.append(result_item)
                                     print(f"🔧 DEBUG: Added {scraper_name} result {i+1}: {url}")
                             elif isinstance(item, str):
                                 # Simple URL string
                                 if item:
-                                    results.append({
+                                    result_item = {
                                         'url': item,
                                         'source': scraper_name.title(),
                                         'type': media_type
-                                    })
+                                    }
+                                    # For ScreenScraper video, include screenscraperid and system_id for direct video URL construction
+                                    if media_type == 'video' and scraper_name == 'screenscraper':
+                                        screenscraperid = current_game.get('screenscraperid')
+                                        screenscraper_system_id = sys_config.get('screenscraper')
+                                        if screenscraperid:
+                                            result_item['screenscraperid'] = screenscraperid
+                                        if screenscraper_system_id:
+                                            result_item['screenscraper_system_id'] = screenscraper_system_id
+                                    results.append(result_item)
                                     print(f"🔧 DEBUG: Added {scraper_name} result {i+1}: {item}")
                     elif isinstance(media_items, str):
                         # Single URL string
                         if media_items:
-                            results.append({
+                            result_item = {
                                 'url': media_items,
                                 'source': scraper_name.title(),
                                 'type': media_type
-                            })
+                            }
+                            # For ScreenScraper video, include screenscraperid and system_id for direct video URL construction
+                            if media_type == 'video' and scraper_name == 'screenscraper':
+                                screenscraperid = current_game.get('screenscraperid')
+                                screenscraper_system_id = sys_config.get('screenscraper')
+                                if screenscraperid:
+                                    result_item['screenscraperid'] = screenscraperid
+                                if screenscraper_system_id:
+                                    result_item['screenscraper_system_id'] = screenscraper_system_id
+                            results.append(result_item)
                             print(f"🔧 DEBUG: Added {scraper_name} single result: {media_items}")
                 else:
                     print(f"🔧 DEBUG: {scraper_name} has no {media_type} or empty {media_type}")
@@ -9381,6 +9510,8 @@ def download_multiscraper_media_endpoint():
         game_name = data.get('game_name')
         media_type = data.get('media_type')
         system_name = data.get('system_name')
+        screenscraper_id = data.get('screenscraper_id')
+        screenscraper_system_id = data.get('screenscraper_system_id')
         
         if not all([media_url, game_name, media_type, system_name]):
             return jsonify({'error': 'Media URL, game name, media type, and system name are required'}), 400
@@ -9404,8 +9535,71 @@ def download_multiscraper_media_endpoint():
         
         print(f"🔧 DEBUG: Found game: {game.get('name')} with path: {game.get('path')}")
         
-        # Download the media
-        success = download_and_save_media(media_url, game, media_type, system_name)
+        # For ScreenScraper videos, download with Referer header
+        if media_type == 'video' and screenscraper_id and screenscraper_system_id:
+            # Construct direct ScreenScraper video URL
+            direct_video_url = f"https://www.screenscraper.fr/medias/{screenscraper_system_id}/{screenscraper_id}/video.mp4"
+            
+            # Construct Referer header URL
+            referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
+            
+            # Set headers with Referer and browser User-Agent
+            headers = {
+                'Referer': referer_url,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            
+            print(f"📥 Downloading ScreenScraper video with Referer: {direct_video_url}")
+            
+            # Download the video with Referer header
+            import requests
+            try:
+                response = requests.get(direct_video_url, headers=headers, stream=True, timeout=30)
+                response.raise_for_status()
+                
+                # Save the video file directly using the same logic as download_and_save_media
+                # Get media field configuration
+                config_path = os.path.join('var', 'config', 'config.json')
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                media_config = config['media_fields'][media_type]
+                target_dir = media_config.get('directory', f'media/{media_type}')
+                target_extension = media_config.get('target_extension', '.mp4')
+                
+                if not target_dir.startswith('media/'):
+                    target_dir = f'media/{target_dir}'
+                
+                # Create target directory
+                full_target_dir = os.path.join('roms', system_name, target_dir)
+                os.makedirs(full_target_dir, exist_ok=True)
+                
+                # Generate filename
+                media_filename = create_media_filename(game.get('path', ''), target_extension)
+                file_path = os.path.join(full_target_dir, media_filename)
+                
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                
+                # Save the video file
+                with open(file_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                print(f"✅ ScreenScraper video saved to: {file_path}")
+                
+                # Update gamelist with the media path
+                relative_path = os.path.relpath(file_path, os.path.join('roms', system_name))
+                game[media_type] = relative_path.replace('\\', '/')
+                
+                success = True
+            except Exception as e:
+                print(f"❌ Error downloading ScreenScraper video: {e}")
+                return jsonify({'error': f'Failed to download video: {str(e)}'}), 500
+        else:
+            # For non-ScreenScraper videos or non-video media, use normal download
+            success = download_and_save_media(media_url, game, media_type, system_name)
         
         if success:
             # Update the gamelist
@@ -14742,38 +14936,61 @@ async def scrape_launchbox_manual(game, system_name, target_media_type=None):
         # Extract media fields from the images in the metadata (arrays per field)
         media_fields: Dict[str, List[Dict]] = {}
         
-        # Get media URLs from LaunchBox images in the metadata
-        if 'images' in game_metadata and game_metadata['images']:
-            images = game_metadata['images']
+        # Handle video type separately - VideoURL is stored directly in metadata, not in images array
+        if target_media_type == 'video':
+            # Check for VideoURL in game_metadata (check multiple possible field names)
+            video_url = (game_metadata.get('VideoURL') or 
+                        game_metadata.get('videoURL') or 
+                        game_metadata.get('video_url') or
+                        game_metadata.get('Video Url'))
             
-            # Get LaunchBox image base URL from config
-            image_config = load_image_mappings()
-            base_url = 'https://images.launchbox-app.com/'
-            
-            for image in images:
-                # Handle dictionary-based image data (new format)
-                image_type = image.get('Type', '')  # LaunchBox uses 'Type' (capital T)
-                filename = image.get('FileName', '')
-                region = image.get('Region', 'Unknown')
+            if video_url:
+                print(f"🔧 DEBUG: LaunchBox manual scrap - found VideoURL: {video_url}")
+                media_fields['video'] = [{
+                    'url': video_url,  # VideoURL is already a full URL
+                    'VideoURL': video_url,
+                    'videoURL': video_url,
+                    'video_url': video_url,
+                    'filename': video_url,  # Use URL as filename for video
+                    'region': game_metadata.get('Region', 'Unknown'),
+                    'primary': True,
+                    'type': 'Video'
+                }]
+            else:
+                print(f"🔧 DEBUG: LaunchBox manual scrap - no VideoURL found for video type")
+        else:
+            # Get media URLs from LaunchBox images in the metadata (for image types)
+            if 'images' in game_metadata and game_metadata['images']:
+                images = game_metadata['images']
                 
-                if image_type and filename:
-                    # Construct full URL from base URL + filename
-                    image_url = base_url + filename
+                # Get LaunchBox image base URL from config
+                image_config = load_image_mappings()
+                base_url = 'https://images.launchbox-app.com/'
+                
+                for image in images:
+                    # Handle dictionary-based image data (new format)
+                    image_type = image.get('Type', '')  # LaunchBox uses 'Type' (capital T)
+                    filename = image.get('FileName', '')
+                    region = image.get('Region', 'Unknown')
                     
-                    lb_map = image_config.get('image_type_mappings', {})
-                    
-                    # Check all fields to see if this image type maps to any of them
-                    for gamelist_field, launchbox_types in lb_map.items():
-                        if image_type in launchbox_types:
-                            # Skip if target_media_type is specified and this doesn't match
-                            if target_media_type and gamelist_field != target_media_type:
-                                continue
-                            
-                            media_fields.setdefault(gamelist_field, []).append({
-                                'url': image_url,
-                                'region': region,
-                                'type': image_type
-                            })
+                    if image_type and filename:
+                        # Construct full URL from base URL + filename
+                        image_url = base_url + filename
+                        
+                        lb_map = image_config.get('image_type_mappings', {})
+                        
+                        # Check all fields to see if this image type maps to any of them
+                        for gamelist_field, launchbox_types in lb_map.items():
+                            if image_type in launchbox_types:
+                                # Skip if target_media_type is specified and this doesn't match
+                                if target_media_type and gamelist_field != target_media_type:
+                                    continue
+                                
+                                media_fields.setdefault(gamelist_field, []).append({
+                                    'url': image_url,
+                                    'region': region,
+                                    'type': image_type
+                                })
         
         return {
             'text_fields': text_fields,

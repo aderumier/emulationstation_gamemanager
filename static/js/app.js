@@ -4547,16 +4547,213 @@ class GameCollectionManager {
             card.className = 'card h-100';
             card.style.cursor = 'pointer';
             
-            const img = document.createElement('img');
-            img.className = 'card-img-top';
-            img.style.height = '300px';
-            img.style.objectFit = 'contain';
-            img.style.backgroundColor = this.getMediaCardBackgroundColor();
-            img.src = result.url;
-            img.alt = `${mediaType} from ${result.source}`;
-            img.onerror = () => {
-                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
-            };
+            // Check if this is video type - get URL from VideoURL fields or url field
+            let videoURL = null;
+            if (mediaType === 'video') {
+                // For LaunchBox, check VideoURL fields first, then fallback to url
+                videoURL = result.videoURL || result.VideoURL || result.video_url || result.url;
+                
+            }
+            
+            // Display video player if this is video type and we have a URL
+            // Skip video player for ScreenScraper - ScreenScraper videos should be downloaded directly, not played in browser
+            const isScreenScraper = result.source && result.source.toLowerCase().includes('screenscraper');
+            
+            if (mediaType === 'video' && videoURL && !isScreenScraper) {
+                // Use the same video display logic as displayLaunchBoxMediaOptions
+                // Check for video hosting sites that need iframe embed players
+                const isYouTubeURL = videoURL.includes('youtube.com') || videoURL.includes('youtu.be');
+                const isDailyMotionURL = videoURL.includes('dailymotion.com') || videoURL.includes('dai.ly');
+                const isVimeoURL = videoURL.includes('vimeo.com') || videoURL.includes('player.vimeo.com');
+                const isFacebookURL = videoURL.includes('facebook.com');
+                const isTwitterURL = videoURL.includes('twitter.com') || videoURL.includes('x.com');
+                const isTikTokURL = videoURL.includes('tiktok.com');
+                const isBilibiliURL = videoURL.includes('bilibili.com');
+                
+                if (isYouTubeURL) {
+                    // Use YouTube iframe embed player
+                    const videoId = this.extractYouTubeVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://www.youtube.com/embed/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid YouTube URL');
+                    }
+                } else if (isDailyMotionURL) {
+                    // Use DailyMotion iframe embed player
+                    const videoId = this.extractDailyMotionVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://www.dailymotion.com/embed/video/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid DailyMotion URL');
+                    }
+                } else if (isVimeoURL) {
+                    // Use Vimeo iframe embed player
+                    const videoId = this.extractVimeoVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://player.vimeo.com/video/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid Vimeo URL');
+                    }
+                } else if (isFacebookURL) {
+                    // Facebook videos - use Facebook embed player
+                    const iframe = document.createElement('iframe');
+                    iframe.className = 'card-img-top';
+                    iframe.style.height = '300px';
+                    iframe.style.width = '100%';
+                    iframe.style.border = 'none';
+                    iframe.allow = 'autoplay; fullscreen';
+                    iframe.allowFullscreen = true;
+                    iframe.src = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoURL)}&show_text=false&width=476`;
+                    card.appendChild(iframe);
+                } else if (isTwitterURL) {
+                    // Twitter/X videos - extract tweet ID and use Twitter embed
+                    const tweetId = this.extractTwitterTweetId(videoURL);
+                    if (tweetId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.src = `https://platform.twitter.com/embed/Tweet.html?id=${tweetId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid Twitter/X URL');
+                    }
+                } else if (isTikTokURL) {
+                    // TikTok videos - use TikTok embed player
+                    const videoId = this.extractTikTokVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'encrypted-media';
+                        iframe.src = `https://www.tiktok.com/embed/v2/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid TikTok URL');
+                    }
+                } else if (isBilibiliURL) {
+                    // Bilibili videos - use Bilibili embed player
+                    const bvid = this.extractBilibiliVideoId(videoURL);
+                    if (bvid) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'autoplay; fullscreen';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid Bilibili URL');
+                    }
+                } else {
+                    // Use HTML5 video player for direct video URLs (direct video files)
+                    const video = document.createElement('video');
+                    video.className = 'card-img-top';
+                    video.style.height = '300px';
+                    video.style.objectFit = 'contain';
+                    video.style.backgroundColor = this.getMediaCardBackgroundColor();
+                    video.controls = true;
+                    video.preload = 'metadata';
+                    
+                    const source = document.createElement('source');
+                    source.src = videoURL;
+                    source.type = 'video/mp4'; // Default to mp4, could be enhanced to detect type
+                    video.appendChild(source);
+                    
+                    card.appendChild(video);
+                }
+            } else if (mediaType === 'video' && videoURL && isScreenScraper) {
+                // ScreenScraper videos - backend has already checked if URL exists
+                // If videoURL is present, it means the server confirmed the video exists
+                // Use the proxy endpoint URL (which includes Referer header) instead of direct URL
+                const video = document.createElement('video');
+                video.className = 'card-img-top';
+                video.style.height = '300px';
+                video.style.width = '100%';
+                video.style.objectFit = 'contain';
+                video.style.backgroundColor = this.getMediaCardBackgroundColor();
+                video.controls = true;
+                video.preload = 'metadata';
+                
+                const source = document.createElement('source');
+                // videoURL is already the proxy endpoint URL from backend
+                source.src = videoURL;
+                source.type = 'video/mp4';
+                video.appendChild(source);
+                
+                // Add error handler in case the video fails to load (shouldn't happen if server checked)
+                video.addEventListener('error', () => {
+                    // Replace video with placeholder if loading fails
+                    const videoPlaceholder = document.createElement('div');
+                    videoPlaceholder.className = 'card-img-top';
+                    videoPlaceholder.style.height = '300px';
+                    videoPlaceholder.style.display = 'flex';
+                    videoPlaceholder.style.alignItems = 'center';
+                    videoPlaceholder.style.justifyContent = 'center';
+                    videoPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                    videoPlaceholder.style.flexDirection = 'column';
+                    videoPlaceholder.style.padding = '1rem';
+                    videoPlaceholder.innerHTML = `
+                        <i class="bi bi-file-earmark-play" style="font-size: 3rem; color: #6c757d; margin-bottom: 1rem;"></i>
+                        <div style="text-align: center; color: #6c757d; font-weight: 500;">Video file from ScreenScraper</div>
+                        <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-top: 0.5rem;">Click Download to save video file</div>
+                    `;
+                    card.replaceChild(videoPlaceholder, video);
+                });
+                
+                card.appendChild(video);
+            } else {
+                // Display image for other media types
+                const img = document.createElement('img');
+                img.className = 'card-img-top';
+                img.style.height = '300px';
+                img.style.objectFit = 'contain';
+                img.style.backgroundColor = this.getMediaCardBackgroundColor();
+                img.src = result.url;
+                img.alt = `${mediaType} from ${result.source}`;
+                img.onerror = () => {
+                    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+                };
+                
+                // Add hover preview functionality for images
+                img.addEventListener('mouseenter', (e) => {
+                    this.showMediaHover(e, result.url, mediaType);
+                });
+                img.addEventListener('mouseleave', () => {
+                    this.hideMediaHover();
+                });
+                
+                card.appendChild(img);
+            }
             
             const cardBody = document.createElement('div');
             cardBody.className = 'card-body d-flex flex-column';
@@ -4565,78 +4762,112 @@ class GameCollectionManager {
             title.className = 'card-title';
             title.textContent = `${result.source} - ${mediaType}`;
             
-            // Add image metadata (region and resolution)
-            const metadataDiv = document.createElement('div');
-            metadataDiv.className = 'image-metadata';
-            metadataDiv.style.fontSize = '0.75rem';
-            metadataDiv.style.color = '#6c757d';
-            metadataDiv.style.marginTop = '4px';
-            
-            const resolutionInfo = document.createElement('div');
-            resolutionInfo.className = 'resolution-info';
-            resolutionInfo.textContent = 'Loading...';
-            
-            const regionInfo = document.createElement('div');
-            regionInfo.className = 'region-info';
-            if (result.region) {
-                regionInfo.textContent = `Region: ${result.region}`;
-            }
-            
-            metadataDiv.appendChild(resolutionInfo);
-            if (result.region) {
-                metadataDiv.appendChild(regionInfo);
-            }
-            
-            // Add image load handler to update resolution
-            img.onload = () => {
-                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                    resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
-                } else {
-                    resolutionInfo.textContent = 'Resolution: Unknown';
+            // Add image metadata (region and resolution) - only for non-video media
+            let metadataDiv = null;
+            if (mediaType !== 'video' || !videoURL) {
+                metadataDiv = document.createElement('div');
+                metadataDiv.className = 'image-metadata';
+                metadataDiv.style.fontSize = '0.75rem';
+                metadataDiv.style.color = '#6c757d';
+                metadataDiv.style.marginTop = '4px';
+                
+                const resolutionInfo = document.createElement('div');
+                resolutionInfo.className = 'resolution-info';
+                resolutionInfo.textContent = 'Loading...';
+                
+                const regionInfo = document.createElement('div');
+                regionInfo.className = 'region-info';
+                if (result.region) {
+                    regionInfo.textContent = `Region: ${result.region}`;
                 }
-            };
-            
-            // Add hover preview functionality
-            img.addEventListener('mouseenter', (e) => {
-                this.showMediaHover(e, result.url, mediaType);
-            });
-            img.addEventListener('mouseleave', () => {
-                this.hideMediaHover();
-            });
+                
+                metadataDiv.appendChild(resolutionInfo);
+                if (result.region) {
+                    metadataDiv.appendChild(regionInfo);
+                }
+                
+                // Add image load handler to update resolution (only for images)
+                if (mediaType !== 'video') {
+                    const img = card.querySelector('img');
+                    if (img) {
+                        img.onload = () => {
+                            if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                            } else {
+                                resolutionInfo.textContent = 'Resolution: Unknown';
+                            }
+                        };
+                    }
+                }
+            }
             
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'btn btn-primary btn-sm mt-auto';
             downloadBtn.textContent = 'Download';
+            
+            // For video type with VideoURL, open YouTube preview modal instead of direct download
+            // But ScreenScraper videos should always download directly, never try to play
             downloadBtn.onclick = (e) => {
                 e.stopPropagation();
-                this.downloadMultiscraperMedia(result.url, game, mediaType);
+                // If this is video type with VideoURL in multiscraper results, open YouTube preview modal instead
+                // EXCEPT for ScreenScraper - ScreenScraper videos should be downloaded directly
+                if (mediaType === 'video' && videoURL && !isScreenScraper) {
+                    // Create a video object for the player
+                    const video = {
+                        url: videoURL,
+                        title: game.name || 'Game Video Preview',
+                        game: game
+                    };
+                    // Store the current video for the player
+                    this.currentYouTubeVideo = video;
+                    // Open YouTube player modal (works for both YouTube and other video URLs)
+                    this.openYouTubePlayerModal(video);
+                    return;
+                }
+                // For non-video types or ScreenScraper videos, proceed with normal download
+                // For ScreenScraper videos, pass screenscraperid and system_id to use direct download with Referer
+                if (mediaType === 'video' && videoURL && isScreenScraper && result.screenscraperid && result.screenscraper_system_id) {
+                    this.downloadMultiscraperMedia(result.url, game, mediaType, result.screenscraperid, result.screenscraper_system_id);
+                } else {
+                    this.downloadMultiscraperMedia(result.url, game, mediaType);
+                }
             };
             
             cardBody.appendChild(title);
-            cardBody.appendChild(metadataDiv);
+            if (metadataDiv) {
+                cardBody.appendChild(metadataDiv);
+            }
             cardBody.appendChild(downloadBtn);
             
-            card.appendChild(img);
+            // Append cardBody to card (img/video already appended earlier)
             card.appendChild(cardBody);
             col.appendChild(card);
             contentDiv.appendChild(col);
         });
     }
     
-    async downloadMultiscraperMedia(mediaUrl, game, mediaType) {
+    async downloadMultiscraperMedia(mediaUrl, game, mediaType, screenscraperId = null, screenscraperSystemId = null) {
         try {
+            const requestBody = {
+                media_url: mediaUrl,
+                game_name: game.name,
+                media_type: mediaType,
+                system_name: this.currentSystem
+            };
+            
+            // Add ScreenScraper IDs for video downloads
+            if (screenscraperId && screenscraperSystemId) {
+                requestBody.screenscraper_id = screenscraperId;
+                requestBody.screenscraper_system_id = screenscraperSystemId;
+            }
+            
             const response = await fetch('/api/download-multiscraper-media', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 credentials: 'include',
-                body: JSON.stringify({
-                    media_url: mediaUrl,
-                    game_name: game.name,
-                    media_type: mediaType,
-                    system_name: this.currentSystem
-                })
+                body: JSON.stringify(requestBody)
             });
             
             if (!response.ok) {
