@@ -59,6 +59,33 @@ def normalize_game_name(name, remove_paranthesis=True, remove_articles=True):
     if not name:
         return ""
 
+    # When remove_articles=False, convert trailing articles (after comma) to beginning before normalization
+    if not remove_articles:
+        original_name = name
+        # Match patterns: ",The", ",A", ",La", ",Le", ",L'" at the end (case insensitive)
+        # Order matters: match longer patterns first (L' before L)
+        patterns = [
+            (r',\s*The\s*$', 'The'),
+            (r',\s*La\s*$', 'La'),
+            (r',\s*Le\s*$', 'Le'),
+            (r",\s*L'\s*$", "L'"),
+            (r',\s*A\s*$', 'A'),
+        ]
+        
+        for pattern, article in patterns:
+            matched = re.search(pattern, name, flags=re.IGNORECASE)
+            if matched:
+                # Remove the matched pattern
+                name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+                # Add article at the beginning
+                if article == "L'":
+                    # L' doesn't have a space after it
+                    name = f"{article}{name.strip()}"
+                else:
+                    # Other articles have a space after them
+                    name = f"{article} {name.strip()}"
+                break
+
     # Remove non-Latin characters and normalize accented characters
     # First, normalize accented characters to their base forms
     normalized = unicodedata.normalize('NFD', name)

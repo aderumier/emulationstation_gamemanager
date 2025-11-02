@@ -8433,7 +8433,8 @@ def find_best_matches_endpoint():
             game_name = game_data.get('name', 'Unknown')
             existing_launchboxid = game_data.get('launchboxid')
             
-                # Get top matches for the modal
+            # Get top matches for the modal - get_top_matches uses normalize_game_name with remove_articles=False
+            # which will automatically convert ",The" -> "The " before normalization
             top_matches = get_top_matches(game_name, metadata_games, current_system_platform, top_n=20, mapping_config=mapping_config)
             
             if top_matches:  # Only include games with matches
@@ -10085,6 +10086,7 @@ def find_best_matches_mobygames_endpoint():
                 continue
             
             # Search MobyGames for best matches
+            # The search function will normalize internally using normalize_game_name
             matches = mobygames_service.search_games(system_name, game_name, limit=5)
             
             if matches:
@@ -10192,7 +10194,7 @@ def find_best_matches_datscrapper_endpoint():
             if not game_name:
                 continue
             
-            # Find game in DAT file by ROM name
+            # Find game in DAT file by ROM name (uses ROM path)
             dat_entry = service.find_game_by_rom_name(system_name, game_path)
             
             if dat_entry:
@@ -10279,6 +10281,7 @@ def find_best_matches_steam_endpoint():
                 continue
             
             # Search Steam for best matches
+            # The search function will normalize internally using normalize_game_name
             matches = steam_service.find_similarity_matches(game_name, apps, limit=5)
             
             if matches:
@@ -10391,6 +10394,7 @@ def find_best_matches_igdb_endpoint():
             print(f"🔧 DEBUG IGDB Find Best Match: Searching for '{game_name}'")
             
             # Search IGDB for best matches
+            # The search function will normalize internally using normalize_game_name
             # Use platform_id 18 for NES (Nintendo Entertainment System)
             platform_id = 18 if system_name.lower() == 'nes' else None
             matches = igdb_service.search_games_by_name(game_name, platform_id=platform_id, limit=5)
