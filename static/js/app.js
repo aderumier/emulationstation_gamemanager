@@ -3727,6 +3727,9 @@ class GameCollectionManager {
         
         // Initialize manual crop button
         this.initializeManualCropButton(game);
+        
+        // Initialize take screenshot button
+        this.initializeTakeScreenshotButton(game);
     }
     initializeEditModalTabs() {
         // Ensure the first tab is active and visible
@@ -4858,6 +4861,22 @@ class GameCollectionManager {
                     <p class="mb-0">Use the Upload Video button below to add a video file.</p>
                 </div>
             `;
+        }
+        
+        // Show/hide Take Screenshot button based on video existence
+        const takeScreenshotBtn = document.getElementById('takeScreenshotBtn');
+        if (takeScreenshotBtn) {
+            const hasVideos = videoContent.children.length > 0 && 
+                            !videoContent.innerHTML.includes('No Video Files');
+            takeScreenshotBtn.style.display = hasVideos ? 'inline-block' : 'none';
+        }
+        
+        // Store current game and video element for screenshot capture
+        if (videoContent.children.length > 0) {
+            const videoElement = videoContent.querySelector('video');
+            if (videoElement) {
+                videoElement.setAttribute('data-game-index', this.editingGameIndex);
+            }
         }
     }
     
@@ -10072,6 +10091,202 @@ class GameCollectionManager {
             };
             
             manualCropBtn.addEventListener('click', manualCropBtn._manualCropHandler);
+        }
+    }
+    
+    initializeTakeScreenshotButton(game) {
+        const takeScreenshotBtn = document.getElementById('takeScreenshotBtn');
+        if (takeScreenshotBtn) {
+            // Check if game has any videos
+            const videoFields = ['video', 'video_mp4', 'video_avi', 'video_mov', 'video_mkv'];
+            const hasVideos = videoFields.some(field => game[field] && game[field].trim());
+            
+            // Show/hide button based on whether videos exist
+            takeScreenshotBtn.style.display = hasVideos ? 'inline-block' : 'none';
+            
+            // Add click event listener (remove any existing ones first)
+            if (takeScreenshotBtn._screenshotHandler) {
+                takeScreenshotBtn.removeEventListener('click', takeScreenshotBtn._screenshotHandler);
+            }
+            
+            takeScreenshotBtn._screenshotHandler = () => {
+                this.takeVideoScreenshot(game);
+            };
+            
+            takeScreenshotBtn.addEventListener('click', takeScreenshotBtn._screenshotHandler);
+        }
+    }
+    
+    async takeVideoScreenshot(game) {
+        try {
+            // Find the video element in the edit modal
+            const videoContent = document.getElementById('editGameVideoContent');
+            if (!videoContent) {
+                this.showAlert('Video content not found', 'error');
+                return;
+            }
+            
+            const videoElement = videoContent.querySelector('video');
+            if (!videoElement) {
+                this.showAlert('No video element found', 'error');
+                return;
+            }
+            
+            // Check if video is ready
+            if (videoElement.readyState < 2) {
+                this.showAlert('Video is not ready. Please wait for the video to load.', 'warning');
+                return;
+            }
+            
+            // Create canvas to capture the video frame
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw the current video frame to canvas
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            // Convert canvas to blob (JPEG format)
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    this.showAlert('Failed to capture screenshot', 'error');
+                    return;
+                }
+                
+                // Create FormData to send the screenshot
+                const formData = new FormData();
+                formData.append('screenshot', blob, 'screenshot.jpg');
+                formData.append('rom_path', game.path || '');
+                formData.append('system_name', this.currentSystem || '');
+                
+                try {
+                    // Send screenshot to backend to save in temp directory
+                    const response = await fetch(`/api/rom-system/${this.currentSystem}/game/save-screenshot`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Show the screenshot preview modal
+                        this.showScreenshotPreviewModal(result.temp_path);
+                    } else {
+                        this.showAlert(result.error || 'Failed to save screenshot', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error saving screenshot:', error);
+                    this.showAlert('Failed to save screenshot: ' + error.message, 'error');
+                }
+            }, 'image/jpeg', 0.95);
+            
+        } catch (error) {
+            console.error('Error taking screenshot:', error);
+            this.showAlert('Failed to take screenshot: ' + error.message, 'error');
+        }
+    }
+    
+    showScreenshotPreviewModal(tempPath) {
+        // Set the preview image source
+        const previewImage = document.getElementById('screenshotPreviewImage');
+        const previewContainer = document.getElementById('screenshotPreviewContainer');
+        
+        if (previewImage && previewContainer) {
+            // Use cache busting to ensure fresh image
+            previewImage.src = `${tempPath}?v=${Date.now()}`;
+            previewImage.onload = () => {
+                // Apply background color
+                const bgColor = this.getMediaCardBackgroundColor();
+                previewContainer.style.backgroundColor = bgColor;
+                previewImage.style.backgroundColor = bgColor;
+            };
+            previewImage.onerror = () => {
+                this.showAlert('Failed to load screenshot preview', 'error');
+            };
+        }
+        
+        // Store temp path for later use
+        this.currentScreenshotTempPath = tempPath;
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('screenshotPreviewModal'));
+        modal.show();
+        
+        // Initialize confirm button handler
+        const confirmBtn = document.getElementById('confirmScreenshotBtn');
+        if (confirmBtn) {
+            // Remove any existing handler
+            if (confirmBtn._confirmHandler) {
+                confirmBtn.removeEventListener('click', confirmBtn._confirmHandler);
+            }
+            
+            confirmBtn._confirmHandler = () => {
+                this.confirmScreenshotSave();
+            };
+            
+            confirmBtn.addEventListener('click', confirmBtn._confirmHandler);
+        }
+    }
+    
+    async confirmScreenshotSave() {
+        try {
+            if (!this.currentScreenshotTempPath) {
+                this.showAlert('No screenshot to save', 'error');
+                return;
+            }
+            
+            const mediaField = document.getElementById('screenshotMediaFieldSelect')?.value;
+            if (!mediaField) {
+                this.showAlert('Please select a media field', 'warning');
+                return;
+            }
+            
+            const game = this.games[this.editingGameIndex];
+            if (!game) {
+                this.showAlert('Game not found', 'error');
+                return;
+            }
+            
+            // Send request to move screenshot to final location and update gamelist
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/save-screenshot-to-field`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rom_path: game.path,
+                    media_field: mediaField,
+                    temp_path: this.currentScreenshotTempPath
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert('Screenshot saved successfully', 'success');
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('screenshotPreviewModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Update the game in memory
+                game[mediaField] = result.media_path;
+                
+                // Reload the media display
+                await this.showEditGameMedia(game);
+                this.showEditGameVideo(game);
+                
+                // Clear temp path
+                this.currentScreenshotTempPath = null;
+            } else {
+                this.showAlert(result.error || 'Failed to save screenshot', 'error');
+            }
+        } catch (error) {
+            console.error('Error confirming screenshot save:', error);
+            this.showAlert('Failed to save screenshot: ' + error.message, 'error');
         }
     }
     

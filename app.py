@@ -1131,14 +1131,6 @@ def save_gamelist_to_roms(system_name, delete_orphan_medias=False):
         # Ensure the roms directory exists
         os.makedirs(os.path.dirname(roms_gamelist_path), exist_ok=True)
         
-        # Create backup of existing roms gamelist if it exists
-        if os.path.exists(roms_gamelist_path):
-            backup_path = f"{roms_gamelist_path}.backup.{int(time.time())}"
-            shutil.copy2(roms_gamelist_path, backup_path)
-            print(f"Created backup: {backup_path}")
-            # Clean up old backups, keeping only the last 10
-            cleanup_old_backups(roms_gamelist_path, max_backups=10)
-        
         # Copy the gamelist
         shutil.copy2(gamelist_path, roms_gamelist_path)
         print(f"Copied gamelist from {gamelist_path} to {roms_gamelist_path}")
@@ -5203,6 +5195,13 @@ def index():
 def serve_rom_file(filename):
     """Serve ROM files and media"""
     return send_from_directory(ROMS_FOLDER, filename)
+
+@app.route('/var/temp/<path:filename>')
+@login_required
+def serve_temp_file(filename):
+    """Serve temporary files (e.g., screenshots)"""
+    temp_dir = os.path.join('var', 'temp')
+    return send_from_directory(temp_dir, filename)
 
 @app.route('/api/rom-systems')
 @login_required
@@ -11422,15 +11421,6 @@ def save_gamelist_xml(file_path, games):
         # Create XML tree and save
         tree = ET.ElementTree(root)
         
-        # Create backup before saving
-        backup_path = file_path + '.backup.' + str(int(time.time()))
-        if os.path.exists(file_path):
-            import shutil
-            shutil.copy2(file_path, backup_path)
-            print(f"Created backup: {backup_path}")
-            # Clean up old backups, keeping only the last 10
-            cleanup_old_backups(file_path, max_backups=10)
-        
         # Save the file with proper formatting
         # First write to a temporary string to get the raw XML
         import io
@@ -11488,15 +11478,6 @@ def format_xml_for_readability(xml_content):
 def save_formatted_gamelist_xml(tree, gamelist_path):
     """Save gamelist.xml with proper formatting using the common formatting function"""
     try:
-        # Create backup of existing file if it exists
-        if os.path.exists(gamelist_path):
-            backup_path = f"{gamelist_path}.backup.{int(time.time())}"
-            import shutil
-            shutil.copy2(gamelist_path, backup_path)
-            print(f"Created backup: {backup_path}")
-            # Clean up old backups, keeping only the last 10
-            cleanup_old_backups(gamelist_path, max_backups=10)
-        
         # Write to a temporary string to get the raw XML
         import io
         xml_bytes = io.BytesIO()
@@ -12379,6 +12360,168 @@ def upload_game_media(system_name):
     except Exception as e:
         app.logger.error(f'Error uploading media: {str(e)}')
         return jsonify({'error': f'Failed to upload media: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/game/save-screenshot', methods=['POST'])
+@login_required
+def save_screenshot(system_name):
+    """Save a screenshot from video player to temp directory"""
+    try:
+        # Check if system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Check if screenshot file was uploaded
+        if 'screenshot' not in request.files:
+            return jsonify({'error': 'No screenshot file uploaded'}), 400
+        
+        file = request.files['screenshot']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Create temp directory for screenshots
+        temp_medias_dir = os.path.join('var', 'temp', 'medias')
+        os.makedirs(temp_medias_dir, exist_ok=True)
+        
+        # Generate unique temp filename
+        import time
+        timestamp = int(time.time() * 1000)
+        temp_filename = f"screenshot_{timestamp}.jpg"
+        temp_file_path = os.path.join(temp_medias_dir, temp_filename)
+        
+        # Save the screenshot to temp directory
+        file.save(temp_file_path)
+        
+        # Return temp path relative to app root for frontend to access
+        temp_path = f"/var/temp/medias/{temp_filename}"
+        
+        app.logger.info(f'Saved screenshot to temp: {temp_file_path}')
+        
+        return jsonify({
+            'success': True,
+            'temp_path': temp_path,
+            'message': 'Screenshot saved to temp directory'
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error saving screenshot: {str(e)}')
+        return jsonify({'error': f'Failed to save screenshot: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/game/save-screenshot-to-field', methods=['POST'])
+@login_required
+def save_screenshot_to_field(system_name):
+    """Move screenshot from temp directory to final location and update gamelist"""
+    try:
+        # Check if system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Get data from request
+        data = request.get_json()
+        rom_path = data.get('rom_path')
+        media_field = data.get('media_field')
+        temp_path = data.get('temp_path')
+        
+        if not rom_path:
+            return jsonify({'error': 'ROM path not provided'}), 400
+        if not media_field:
+            return jsonify({'error': 'Media field not provided'}), 400
+        if not temp_path:
+            return jsonify({'error': 'Temp path not provided'}), 400
+        
+        # Check if game exists in gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        # Parse gamelist to find the game
+        games = parse_gamelist_xml(gamelist_path)
+        game = next((g for g in games if g.get('path') == rom_path), None)
+        if not game:
+            return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
+        
+        # Convert temp path to absolute path
+        if temp_path.startswith('/var/temp/'):
+            temp_file_path = temp_path[1:]  # Remove leading /
+        elif temp_path.startswith('var/temp/'):
+            temp_file_path = temp_path
+        else:
+            temp_file_path = os.path.join('var', 'temp', 'medias', os.path.basename(temp_path))
+        
+        if not os.path.exists(temp_file_path):
+            return jsonify({'error': f'Temp screenshot file not found: {temp_file_path}'}), 404
+        
+        # Load media config to get media mappings
+        media_config = load_media_config()
+        
+        # Find the media directory for this field
+        media_directory = get_media_directory(media_field)
+        if not media_directory:
+            return jsonify({'error': f'No media mapping found for field: {media_field}'}), 400
+        
+        # Create category-specific media directory
+        category_dir = os.path.join(system_path, 'media', media_directory)
+        if not os.path.exists(category_dir):
+            os.makedirs(category_dir)
+        
+        # Generate filename using ROM name
+        rom_filename = os.path.splitext(os.path.basename(rom_path))[0] if rom_path else game.get('name', 'unknown')
+        new_filename = create_media_filename(rom_path, '.jpg')
+        file_path = os.path.join(category_dir, new_filename)
+        
+        # Remove existing file if it exists
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                print(f"🗑️ Removed existing media file: {new_filename}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not remove existing file {file_path}: {e}")
+        
+        # Move screenshot from temp to final location
+        import shutil
+        shutil.move(temp_file_path, file_path)
+        
+        # Process the image using convert_and_resize_image_replace
+        from game_utils import should_process_field, convert_and_resize_image_replace
+        config = load_config()
+        should_process, target_extension, target_width, target_height = should_process_field(media_field, config)
+        
+        if should_process:
+            print(f"🔧 Processing screenshot - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
+            processed_path, process_status = convert_and_resize_image_replace(
+                file_path, target_extension, target_width, target_height
+            )
+            if process_status in ["converted", "resized", "converted_and_resized"]:
+                file_path = processed_path
+                new_filename = os.path.basename(file_path)
+                print(f"✅ Processed screenshot: {process_status} - {new_filename}")
+            elif process_status == "failed":
+                print(f"⚠️ Warning: Failed to process screenshot, keeping original: {os.path.basename(file_path)}")
+        
+        # Update the game object in memory with relative path
+        relative_path = f"./media/{media_directory}/{new_filename}"
+        game[media_field] = relative_path
+        
+        # Update the gamelist.xml file
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Notify all connected clients about the gamelist update
+        notify_gamelist_updated(system_name, len(games))
+        notify_game_updated(system_name, game.get('path', ''), [media_field])
+        
+        app.logger.info(f'Saved screenshot: {file_path} for game {rom_path} field {media_field}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Screenshot saved successfully for {media_field}',
+            'media_path': relative_path,
+            'filename': new_filename
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error saving screenshot to field: {str(e)}')
+        return jsonify({'error': f'Failed to save screenshot: {str(e)}'}), 500
 
 @app.route('/api/extract-first-frame', methods=['POST'])
 @login_required
@@ -17463,6 +17606,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             # Get video resolution from config
             video_config = config.get('video', {})
             force_resolution = video_config.get('force_video_resolution', '1080')
+            enable_youtube_po_token = video_config.get('enable_youtube_po_token', False)
             
             cmd = [
                 yt_dlp_path,
@@ -17482,11 +17626,16 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                         cmd.extend(['--cookies', abs_cookie])
                 except Exception:
                     pass
-            if mode == 'po' and is_youtube_url:
+            if mode == 'po' and is_youtube_url and enable_youtube_po_token:
                 youtube_po_token_provider = video_config.get('youtube_po_token_provider', 'http://127.0.0.1:4416')
                 cmd.extend([
                     '--extractor-args', 'youtube:player-client=mweb',
                     '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
+                ])
+            elif mode != 'po' and is_youtube_url and not enable_youtube_po_token:
+                # Explicitly disable PO token provider when option is disabled (use web client to avoid auto-detection)
+                cmd.extend([
+                    '--extractor-args', 'youtube:player-client=web'
                 ])
             elif mode == 'sections':
                 # Sections mode: download only the specific time segment
