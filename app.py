@@ -7241,7 +7241,7 @@ def scrap_igdb_system(system_name):
 @app.route('/api/igdb/search', methods=['POST'])
 @login_required
 def search_igdb_games():
-    """Search for games in IGDB database"""
+    """Search for games in IGDB database using local database (no API calls)"""
     try:
         data = request.get_json()
         if not data:
@@ -7254,68 +7254,47 @@ def search_igdb_games():
         if not game_name:
             return jsonify({'error': 'Game name is required'}), 400
         
-        # Check if IGDB is enabled
-        igdb_config = get_igdb_config()
-        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-            return jsonify({'error': 'IGDB credentials not configured'}), 400
+        # Get IGDB service (uses local database)
+        igdb_service = load_igdb_service()
+        if not igdb_service or not igdb_service.is_loaded():
+            return jsonify({'error': 'IGDB local database not available. Please run the IGDB dump first.'}), 500
         
-        # Get access token (async version for manual operations)
-        access_token = run_async_safely(get_igdb_access_token_async())
-        if not access_token:
-            return jsonify({'error': 'Failed to get IGDB access token'}), 500
+        # Search for games using local database
+        search_results = igdb_service.search_games_by_name(game_name, platform_id, limit)
         
-        # Get async client (manual version without rate limiting for search)
-        async_client = run_async_safely(get_igdb_manual_async_client())
-        
-        # Search for games
-        if platform_id:
-            # Search with platform filter
-            games = run_async_safely(search_igdb_games_by_name_async(
-                game_name, 
-                platform_id, 
-                access_token, 
-                igdb_config['client_id'],
-                async_client
-            ))
-        else:
-            # Search without platform filter - use a more general search
-            import re
-            clean_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
-            clean_name = re.sub(r'\s*\[[^\]]*\]', '', clean_name).strip()
-            
-            search_url = "https://api.igdb.com/v4/games"
-            search_data = f'fields id,name,summary,first_release_date,platforms,genres,total_rating,rating_count,player_perspectives,game_modes,cover,screenshots,artworks; search "{clean_name}"; limit {limit};'
-            
-            headers = {
-                'Client-ID': igdb_config['client_id'],
-                'Authorization': f'Bearer {access_token}',
-                'Content-Type': 'text/plain'
+        # Convert search results to format expected by frontend
+        games = []
+        for game_data in search_results:
+            game = {
+                'id': game_data.get('id'),
+                'name': game_data.get('name', ''),
+                'summary': game_data.get('summary', ''),
+                'first_release_date': game_data.get('first_release_date'),
+                'platforms': game_data.get('platforms', []),
+                'genres': game_data.get('genres', []),
+                'rating': game_data.get('rating'),
+                'total_rating': game_data.get('total_rating'),
+                'rating_count': game_data.get('rating_count'),
+                'cover_id': None,
+                'cover_url': None
             }
             
-            # Make the request
-            response = run_async_safely(make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data))
-            
-            if response and response.status_code == 200:
-                games = response.json()
-            else:
-                games = []
-        
-        # Don't fetch cover URLs here - let the frontend load them asynchronously
-        # Just pass the cover ID for later use
-        for game in games:
-            if game.get('cover'):
-                # Keep the cover ID for async loading
-                cover_id = game['cover']
-                if isinstance(cover_id, dict) and 'image_id' in cover_id:
-                    game['cover_id'] = cover_id['image_id']
+            # Handle cover field from local database
+            cover_data = game_data.get('cover')
+            if cover_data:
+                if isinstance(cover_data, dict):
+                    game['cover_id'] = cover_data.get('image_id')
                 else:
-                    game['cover_id'] = cover_id
-                game['cover_url'] = None  # Will be loaded asynchronously
+                    game['cover_id'] = cover_data
+                # Cover URL will be loaded asynchronously by frontend
+                game['cover_url'] = None
             else:
                 game['cover_id'] = None
                 game['cover_url'] = None
+            
+            games.append(game)
         
-        print(f"🔧 DEBUG: IGDB search completed - found {len(games)} games")
+        print(f"🔧 DEBUG: IGDB local database search completed - found {len(games)} games")
         return jsonify({
             'success': True,
             'games': games
@@ -7323,63 +7302,60 @@ def search_igdb_games():
         
     except Exception as e:
         print(f"Error searching IGDB games: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to search IGDB games: {str(e)}'}), 500
 
 @app.route('/api/igdb/cover/<int:game_id>', methods=['GET'])
 @login_required
 def get_igdb_cover(game_id):
-    """Get cover image URL for a specific IGDB game ID"""
+    """Get cover image URL for a specific IGDB game ID using local database (no API calls)"""
     try:
-        # Get IGDB configuration
-        igdb_config = scrappers_config.get('igdb', {})
-        if not igdb_config.get('client_id') or not igdb_config.get('client_secret'):
-            return jsonify({'error': 'IGDB configuration not found'}), 500
+        # Get IGDB service (uses local database)
+        igdb_service = load_igdb_service()
+        if not igdb_service or not igdb_service.is_loaded():
+            return jsonify({'error': 'IGDB local database not available. Please run the IGDB dump first.'}), 500
         
-        # Get access token
-        access_token = get_igdb_access_token()
-        if not access_token:
-            return jsonify({'error': 'Failed to get IGDB access token'}), 500
+        # Get game data from local database
+        game_data = igdb_service.get_game_by_id(game_id)
+        if not game_data:
+            return jsonify({
+                'success': False,
+                'cover_url': None,
+                'error': f'Game {game_id} not found in local database'
+            }), 404
         
-        # Create async client and run the async operation
-        import httpx
-        import asyncio
+        # Get cover data from local database
+        cover_data = game_data.get('cover')
+        cover_url = None
         
-        async def fetch_cover_async():
-            async with httpx.AsyncClient(http2=True, timeout=30.0) as async_client:
-                cover_data = await fetch_igdb_covers(async_client, access_token, igdb_config['client_id'], game_id, '')
-                return cover_data
-        
-        # Run the async function
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            cover_data = loop.run_until_complete(fetch_cover_async())
-            if cover_data and cover_data.get('url'):
-                # Convert relative URL to absolute URL
-                cover_url = cover_data['url']
-                if cover_url.startswith('//'):
-                    cover_url = f"https:{cover_url}"
-                elif not cover_url.startswith('http'):
-                    cover_url = f"https://images.igdb.com{cover_url}"
-                
-                # Replace thumb size with 720p for better quality
-                if '/t_thumb/' in cover_url:
-                    cover_url = cover_url.replace('/t_thumb/', '/t_720p/')
-                
-                return jsonify({
-                    'success': True,
-                    'cover_url': cover_url
-                })
+        if cover_data:
+            if isinstance(cover_data, dict):
+                image_id = cover_data.get('image_id')
             else:
-                return jsonify({
-                    'success': False,
-                    'cover_url': None
-                })
-        finally:
-            loop.close()
+                # cover_data is already the image_id
+                image_id = cover_data
+            
+            if image_id:
+                # Construct IGDB cover URL from image_id
+                # Format: https://images.igdb.com/igdb/image/upload/t_{size}/{image_id}.jpg
+                cover_url = f"https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg"
+        
+        if cover_url:
+            return jsonify({
+                'success': True,
+                'cover_url': cover_url
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'cover_url': None
+            })
             
     except Exception as e:
         print(f"Error fetching IGDB cover for game {game_id}: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to fetch cover: {str(e)}'}), 500
 
 @app.route('/api/igdb/database/search', methods=['POST'])
@@ -21735,38 +21711,14 @@ def get_igdb_platform_id(platform_name_or_id, platform_cache=None):
     return None
 
 async def ensure_igdb_platform_cache():
-    """Ensure IGDB platform cache is up to date"""
+    """Ensure IGDB platform cache is up to date (uses local database or cached file, no API calls)"""
     cache = load_igdb_platform_cache()
     
-    # If cache is empty or very old, refresh it
+    # If cache is empty, return empty dict (no API calls)
     if not cache:
-        print("IGDB platform cache is empty, fetching from API...")
-        
-        # Get IGDB configuration
-        igdb_config = get_igdb_config()
-        if not (igdb_config.get('client_id') and igdb_config.get('client_secret')):
-            print("IGDB credentials not configured")
-            return cache
-        
-        # Get access token
-        access_token = get_igdb_access_token()
-        if not access_token:
-            print("Failed to get IGDB access token")
-            return cache
-        
-        # Fetch platforms
-        async_client = await get_igdb_async_client()
-        try:
-            platforms = await fetch_igdb_platforms(
-                async_client, 
-                access_token, 
-                igdb_config['client_id']
-            )
-            if platforms:
-                save_igdb_platform_cache(platforms)
-                return platforms
-        except Exception as e:
-            print(f"Error refreshing IGDB platform cache: {e}")
+        print("⚠️ IGDB platform cache is empty - please ensure platforms cache file exists")
+        print("⚠️ Platform cache should be created during IGDB database dump")
+        return {}
     
     return cache
 
