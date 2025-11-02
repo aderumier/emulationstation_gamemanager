@@ -9207,9 +9207,10 @@ def multiscraper_search_endpoint():
         
         # Execute IGDB scraper if game has igdbid and supports the media type
         if current_game.get('igdbid'):
-            # Check if IGDB supports this media type
+            # Check if IGDB supports this media type (video is supported via API, not image_type_mappings)
             igdb_image_mapping = scrappers_config.get('igdb', {}).get('image_type_mappings', {})
-            if media_type in igdb_image_mapping:
+            supports_media_type = media_type in igdb_image_mapping or media_type == 'video'
+            if supports_media_type:
                 try:
                     print(f"🔧 DEBUG: Running igdb scraper...")
                     igdb_start_time = time.time()
@@ -9230,9 +9231,10 @@ def multiscraper_search_endpoint():
         
         # Execute Steam scraper if game has steamid and supports the media type
         if current_game.get('steamid'):
-            # Check if Steam supports this media type
+            # Check if Steam supports this media type (video is supported via store page, not image_type_mappings)
             steam_image_mapping = scrappers_config.get('steam', {}).get('image_type_mappings', {})
-            if media_type in steam_image_mapping:
+            supports_media_type = media_type in steam_image_mapping or media_type == 'video'
+            if supports_media_type:
                 try:
                     print(f"🔧 DEBUG: Running steam scraper...")
                     steam_start_time = time.time()
@@ -9423,6 +9425,14 @@ def multiscraper_search_endpoint():
                                     }
                                     # For LaunchBox video, include VideoURL fields
                                     if media_type == 'video' and scraper_name == 'launchbox':
+                                        if item.get('VideoURL'):
+                                            result_item['VideoURL'] = item.get('VideoURL')
+                                        if item.get('videoURL'):
+                                            result_item['videoURL'] = item.get('videoURL')
+                                        if item.get('video_url'):
+                                            result_item['video_url'] = item.get('video_url')
+                                    # For IGDB and Steam video, include VideoURL fields (similar to LaunchBox)
+                                    if media_type == 'video' and scraper_name in ['igdb', 'steam']:
                                         if item.get('VideoURL'):
                                             result_item['VideoURL'] = item.get('VideoURL')
                                         if item.get('videoURL'):
@@ -14333,6 +14343,49 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                     print(f"⏱️ IGDB local logos processing took {end_time - start_time:.2f} seconds")
                 except Exception as e:
                     print(f"Error processing IGDB logos: {e}")
+            elif target_media_type == 'video':
+                # For video type, use local database only (no API calls)
+                try:
+                    import time
+                    start_time = time.time()
+                    print(f"🎥 Fetching IGDB video for game {igdb_game['id']} from local database...")
+                    
+                    # Check if videos are in the local database
+                    videos_from_db = igdb_game.get('videos', [])
+                    video_url = None
+                    
+                    if videos_from_db and isinstance(videos_from_db, list) and len(videos_from_db) > 0:
+                        # Use first video from database
+                        first_video = videos_from_db[0]
+                        if isinstance(first_video, dict):
+                            video_id = first_video.get('video_id')
+                            if video_id:
+                                # Convert video_id to YouTube URL
+                                video_url = f"https://www.youtube.com/watch?v={video_id}"
+                                print(f"✅ IGDB video found in database: {video_url} (from video_id: {video_id})")
+                            else:
+                                print(f"⚠️ Video in database has no video_id field")
+                        else:
+                            print(f"⚠️ Video in database is not a dict: {type(first_video)}")
+                    else:
+                        print(f"❌ No videos found in local database for game {igdb_game['id']}")
+                    
+                    if video_url:
+                        media_fields.setdefault('video', []).append({
+                            'url': video_url,
+                            'VideoURL': video_url,
+                            'videoURL': video_url,
+                            'video_url': video_url,
+                            'type': 'video'
+                        })
+                        end_time = time.time()
+                        print(f"⏱️ IGDB video processing took {end_time - start_time:.2f} seconds")
+                    else:
+                        print(f"❌ No IGDB video found for game {igdb_game['id']}")
+                except Exception as e:
+                    print(f"❌ Error fetching IGDB video: {e}")
+                    import traceback
+                    traceback.print_exc()
         else:
             # Process all media types from local database
             print(f"🚀 IGDB MANUAL SCRAP: Processing all media types from local database for game {igdb_game['id']}")
@@ -14499,6 +14552,89 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
             elif target_steam_type == 'hero':
                 hero_url = f"https://shared.steamstatic.com/store_item_assets/steam/apps/{steam_id}/library_hero.jpg"
                 media_fields.setdefault(target_media_type, []).append(hero_url)
+            elif target_media_type == 'video':
+                # For video type, extract from Steam store page HTML (similar to LaunchBox VideoURL extraction)
+                try:
+                    print(f"🎥 Fetching Steam video for Steam ID {steam_id}...")
+                    import httpx
+                    from bs4 import BeautifulSoup
+                    import json
+                    import re
+                    
+                    store_page_url = f"https://store.steampowered.com/app/{steam_id}"
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                    }
+                    
+                    async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+                        response = await client.get(store_page_url, follow_redirects=True)
+                        if response.status_code == 200:
+                            html_content = response.text
+                            soup = BeautifulSoup(html_content, 'html.parser')
+                            
+                            # Look for video elements with data-props attribute containing movie information
+                            # Steam embeds videos in elements with data-props containing hlsManifest or dashManifests
+                            video_elements = soup.find_all(attrs={'data-props': True})
+                            
+                            video_url = None
+                            for element in video_elements:
+                                data_props = element.get('data-props', '')
+                                if data_props and ('hlsManifest' in data_props or 'dashManifests' in data_props):
+                                    try:
+                                        # Parse the JSON data-props
+                                        props_data = json.loads(data_props)
+                                        # Check for hlsManifest (preferred) or dashManifests
+                                        hls_manifest = props_data.get('hlsManifest')
+                                        dash_manifests = props_data.get('dashManifests', [])
+                                        
+                                        if hls_manifest:
+                                            # Use HLS manifest URL
+                                            video_url = hls_manifest
+                                            break
+                                        elif dash_manifests and len(dash_manifests) > 0:
+                                            # Use first DASH manifest URL
+                                            video_url = dash_manifests[0]
+                                            break
+                                    except (json.JSONDecodeError, KeyError):
+                                        continue
+                            
+                            # If no video found in data-props, try to find video elements with source tags
+                            if not video_url:
+                                video_tags = soup.find_all('video')
+                                for video_tag in video_tags:
+                                    source_tags = video_tag.find_all('source')
+                                    for source in source_tags:
+                                        src = source.get('src', '')
+                                        if src and ('steamstatic.com' in src or 'video' in src.lower()):
+                                            video_url = src
+                                            break
+                                    if video_url:
+                                        break
+                            
+                            if video_url:
+                                # Ensure URL is absolute
+                                if video_url.startswith('//'):
+                                    video_url = 'https:' + video_url
+                                elif video_url.startswith('/'):
+                                    video_url = 'https://store.steampowered.com' + video_url
+                                
+                                media_fields.setdefault('video', []).append({
+                                    'url': video_url,
+                                    'VideoURL': video_url,
+                                    'videoURL': video_url,
+                                    'video_url': video_url,
+                                    'type': 'video'
+                                })
+                                print(f"✅ Steam video found: {video_url}")
+                            else:
+                                print(f"❌ No Steam video found for Steam ID {steam_id}")
+                        else:
+                            print(f"❌ Failed to fetch Steam store page (status {response.status_code})")
+                except Exception as e:
+                    print(f"❌ Error fetching Steam video: {e}")
+                    import traceback
+                    traceback.print_exc()
         else:
             # Build all URLs (original behavior)
             print(f"🚀 Steam MANUAL SCRAP: Building all URLs")
@@ -20683,62 +20819,6 @@ async def fetch_igdb_logos(async_client, access_token, client_id, game_id):
         traceback.print_exc()
         return None
 
-async def fetch_igdb_game_videos(async_client, access_token, client_id, game_id):
-    """Fetch game videos from IGDB"""
-    try:
-        print(f"🎥 DEBUG: fetch_igdb_game_videos called for game_id: {game_id}")
-        search_url = "https://api.igdb.com/v4/game_videos"
-        search_data = f'fields id,video_id,name; where game = {game_id};'
-        
-        print(f"🎥 DEBUG: Game videos API request - URL: {search_url}")
-        print(f"🎥 DEBUG: Game videos API request - Data: {search_data}")
-        
-        headers = {
-            'Client-ID': client_id,
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'text/plain'
-        }
-        
-        # Make the request with retry logic
-        response = await make_igdb_manual_request_with_retry(async_client, search_url, headers, search_data)
-        
-        if response and response.status_code == 200:
-            videos = response.json()
-            print(f"🎥 DEBUG: Received {len(videos)} videos from API")
-            
-            # Debug: Print all videos
-            for i, video in enumerate(videos):
-                video_id = video.get('video_id', 'N/A')
-                name = video.get('name', 'N/A')
-                print(f"🎥 DEBUG: Video {i+1}: id={video.get('id')}, video_id={video_id}, name={name}")
-            
-            # Return the first video's video_id (which is the YouTube URL) if any exist
-            if videos:
-                selected = videos[0]
-                video_id = selected.get('video_id')
-                if video_id:
-                    # Prefix with YouTube URL format
-                    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
-                    print(f"🎥 DEBUG: Selected video: {selected.get('id')} with video_id: {video_id}")
-                    print(f"🎥 DEBUG: Generated YouTube URL: {youtube_url}")
-                    return youtube_url
-                else:
-                    print(f"🎥 DEBUG: No video_id found in selected video")
-                    return None
-            else:
-                print(f"🎥 DEBUG: No videos found for game {game_id}")
-                return None
-        else:
-            if response:
-                print(f"🎥 DEBUG: IGDB game videos API error: {response.status_code} - {response.text}")
-            else:
-                print(f"🎥 DEBUG: No response received from game videos API")
-            return None
-    except Exception as e:
-        print(f"🎥 DEBUG: Error fetching IGDB game videos: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
 
 async def fetch_igdb_screenshots(async_client, access_token, client_id, game_id):
     """Fetch screenshots for a specific game and return the first one"""
@@ -22864,7 +22944,7 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
             else:
                 print(f"🏷️ DEBUG: Logo field not selected, skipping logo processing")
             
-            # Fetch and set YouTube URL if selected fields include youtubeurl
+            # Fetch and set YouTube URL if selected fields include youtubeurl (using local database only)
             if not selected_fields or 'youtubeurl' in selected_fields:
                 print(f"🎥 DEBUG: YouTube URL field is selected or no field selection (all fields)")
                 # Check if youtubeurl field is selected or if no field selection (all fields)
@@ -22878,21 +22958,28 @@ async def process_game_async(game, igdb_platform_id, access_token, client_id, as
                 
                 # Only fetch YouTube URL if it doesn't exist or if overwrite is enabled
                 if youtubeurl_elem is None or not youtubeurl_elem.text or overwrite_text_fields:
-                    print(f"🎥 DEBUG: Proceeding with YouTube URL fetch for '{game_name}'...")
-                    print(f"🎥 Fetching YouTube URL for '{game_name}'...")
-                    try:
-                        # Add timeout to video fetching as well
-                        import asyncio
-                        youtube_url = await asyncio.wait_for(
-                            fetch_igdb_game_videos(async_client, access_token, client_id, igdb_game['id']),
-                            timeout=15.0  # 15 second timeout for API call
-                        )
-                    except asyncio.TimeoutError:
-                        print(f"⏰ Timeout fetching videos for '{game_name}' (15s limit)")
-                        youtube_url = None
-                    except Exception as e:
-                        print(f"❌ Error fetching videos for '{game_name}': {e}")
-                        youtube_url = None
+                    print(f"🎥 DEBUG: Proceeding with YouTube URL fetch for '{game_name}' from local database...")
+                    print(f"🎥 Fetching YouTube URL for '{game_name}' from local database...")
+                    
+                    # Use local database to get videos
+                    youtube_url = None
+                    videos_from_db = igdb_game.get('videos', [])
+                    
+                    if videos_from_db and isinstance(videos_from_db, list) and len(videos_from_db) > 0:
+                        # Use first video from database
+                        first_video = videos_from_db[0]
+                        if isinstance(first_video, dict):
+                            video_id = first_video.get('video_id')
+                            if video_id:
+                                # Convert video_id to YouTube URL
+                                youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+                                print(f"✅ YouTube URL found in database: {youtube_url} (from video_id: {video_id})")
+                            else:
+                                print(f"⚠️ Video in database has no video_id field")
+                        else:
+                            print(f"⚠️ Video in database is not a dict: {type(first_video)}")
+                    else:
+                        print(f"❌ No videos found in local database for '{game_name}'")
                     
                     if youtube_url:
                         print(f"🎥 DEBUG: YouTube URL found: {youtube_url}")
