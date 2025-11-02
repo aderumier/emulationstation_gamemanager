@@ -7835,8 +7835,46 @@ def rom_system_gamelist(system_name):
         elif request.method == 'PUT':
             # Update the gamelist.xml file
             data = request.get_json()
-            if not data or 'games' not in data:
+            if not data:
                 return jsonify({'error': 'Invalid request data'}), 400
+            
+            # Check if this is a single game update (optimized path)
+            if 'rom_path' in data and 'game' in data:
+                # Optimized single game update using rom_path as key
+                rom_path = data['rom_path']
+                updated_game = data['game']
+                
+                # Load existing gamelist
+                games = parse_gamelist_xml(gamelist_path)
+                
+                # Find and update the game by rom_path
+                game_found = False
+                for i, game in enumerate(games):
+                    if game.get('path') == rom_path:
+                        # Update the game in place
+                        games[i].update(updated_game)
+                        game_found = True
+                        break
+                
+                if not game_found:
+                    return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
+                
+                # Write updated gamelist
+                write_gamelist_xml(games, gamelist_path)
+                
+                # Notify about the single game update
+                notify_gamelist_updated(system_name, len(games))
+                notify_game_updated(system_name, rom_path, list(updated_game.keys()))
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully updated game: {rom_path}',
+                    'count': len(games)
+                })
+            
+            # Legacy full gamelist update path
+            if 'games' not in data:
+                return jsonify({'error': 'Invalid request data: must provide either single game (rom_path + game) or full games array'}), 400
             
             print(f"🔔 PUT request received for system: {system_name}")
             print(f"🔔 Request data: {data}")

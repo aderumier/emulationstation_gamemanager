@@ -7799,8 +7799,8 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save changes to backend directly
-                await this.saveGameChanges();
+                // Save single game update (optimized - only sends the validated game)
+                await this.saveSingleGameUpdate(game);
                 
                 this.showAlert(`LaunchBox ID set to ${launchboxId} for "${game.name}"`, 'success');
             } else {
@@ -7822,8 +7822,8 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save changes to backend directly
-                await this.saveGameChanges();
+                // Save single game update (optimized - only sends the validated game)
+                await this.saveSingleGameUpdate(game);
                 
                 this.showAlert(`MobyGames ID set to ${mobygamesId} for "${game.name}"`, 'success');
             } else {
@@ -7845,8 +7845,8 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save changes to backend directly
-                await this.saveGameChanges();
+                // Save single game update (optimized - only sends the validated game)
+                await this.saveSingleGameUpdate(game);
                 
                 this.showAlert(`Steam ID set to ${steamId} for "${game.name}"`, 'success');
             } else {
@@ -7868,8 +7868,8 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save changes to backend directly
-                await this.saveGameChanges();
+                // Save single game update (optimized - only sends the validated game)
+                await this.saveSingleGameUpdate(game);
                 
                 this.showAlert(`IGDB ID set to ${igdbId} for "${game.name}"`, 'success');
             } else {
@@ -9302,6 +9302,40 @@ class GameCollectionManager {
         } catch (error) {
             this.showAlert('Error deleting game', 'danger');
             throw error;
+        }
+    }
+
+    async saveSingleGameUpdate(game) {
+        // Save a single game update using optimized endpoint (only sends the validated game)
+        try {
+            if (!game || !game.path) {
+                this.showAlert('Invalid game data', 'error');
+                return;
+            }
+
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rom_path: game.path,
+                    game: game
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Don't clear all modifiedGames - only clear for this specific game
+                if (game.id !== undefined && game.id !== null) {
+                    this.modifiedGames.delete(game.id);
+                }
+            } else {
+                const errorText = await response.text();
+                this.showAlert('Error saving game update', 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error saving game update', 'danger');
         }
     }
 
@@ -20132,21 +20166,14 @@ class GameCollectionManager {
             // Mark game as modified
             this.markGameAsModified(updatedGame);
             
-            // Save changes to backend directly
-            await this.saveGameChanges();
+            // Save single game update to backend (optimized - only sends the validated game)
+            await this.saveSingleGameUpdate(updatedGame);
             
             // Refresh grid, respecting current filters
             await this.refreshGridData();
             
             // Update edit modal fields if it's open
             this.updateEditModalFields(updatedGame);
-            
-            // Auto-save changes to server
-            try {
-                await this.saveGameChanges();
-            } catch (error) {
-                this.showAlert('Warning: Changes applied but auto-save failed. Please save manually.', 'warning');
-            }
             
             // Handle modal closing based on modal type
             if (modalType === 'gameEdit') {
