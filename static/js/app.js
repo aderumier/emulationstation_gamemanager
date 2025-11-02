@@ -4569,6 +4569,7 @@ class GameCollectionManager {
                 const isTwitterURL = videoURL.includes('twitter.com') || videoURL.includes('x.com');
                 const isTikTokURL = videoURL.includes('tiktok.com');
                 const isBilibiliURL = videoURL.includes('bilibili.com');
+                const isSteamURL = videoURL.includes('steamstatic.com') || videoURL.includes('steampowered.com') || videoURL.includes('.m3u8') || videoURL.includes('.mpd');
                 
                 if (isYouTubeURL) {
                     // Use YouTube iframe embed player
@@ -4674,6 +4675,102 @@ class GameCollectionManager {
                     } else {
                         this.createVideoErrorDiv(card, 'Invalid Bilibili URL');
                     }
+                } else if (isSteamURL) {
+                    // Steam videos - HLS/DASH manifests need special handling
+                    // Use HLS.js library if available, otherwise try HTML5 video (works in Safari)
+                    // For Chrome and other browsers, we'll try to play with HLS.js or fallback to store page
+                    const video = document.createElement('video');
+                    video.className = 'card-img-top';
+                    video.style.height = '300px';
+                    video.style.width = '100%';
+                    video.style.objectFit = 'contain';
+                    video.style.backgroundColor = this.getMediaCardBackgroundColor();
+                    video.controls = true;
+                    video.preload = 'metadata';
+                    
+                    // Check if URL is HLS manifest (.m3u8) or DASH manifest (.mpd)
+                    if (videoURL.includes('.m3u8')) {
+                        // HLS manifest - use HLS.js for playback (required for Chrome/Firefox, Safari has native support)
+                        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                            // Use HLS.js library for HLS playback
+                            const hls = new Hls({
+                                enableWorker: true,
+                                lowLatencyMode: false
+                            });
+                            hls.loadSource(videoURL);
+                            hls.attachMedia(video);
+                            
+                            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                                console.log('✅ HLS manifest parsed, video ready to play');
+                                video.play().catch(err => {
+                                    console.log('Auto-play prevented:', err);
+                                });
+                            });
+                            
+                            hls.on(Hls.Events.ERROR, (event, data) => {
+                                console.error('HLS error:', data);
+                                if (data.fatal) {
+                                    switch(data.type) {
+                                        case Hls.ErrorTypes.NETWORK_ERROR:
+                                            console.error('Fatal network error, trying to recover...');
+                                            hls.startLoad();
+                                            break;
+                                        case Hls.ErrorTypes.MEDIA_ERROR:
+                                            console.error('Fatal media error, trying to recover...');
+                                            hls.recoverMediaError();
+                                            break;
+                                        default:
+                                            console.error('Fatal error, cannot recover');
+                                            hls.destroy();
+                                            this.createVideoErrorDiv(card, 'Failed to load Steam video. Please try again or download the video.');
+                                            break;
+                                    }
+                                }
+                            });
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            // Safari native HLS support
+                            const source = document.createElement('source');
+                            source.src = videoURL;
+                            source.type = 'application/x-mpegURL';
+                            video.appendChild(source);
+                            console.log('Using Safari native HLS support');
+                        } else {
+                            // HLS.js not available and browser doesn't support HLS natively
+                            console.error('HLS.js not available and browser does not support HLS natively');
+                            this.createVideoErrorDiv(card, 'HLS video playback requires HLS.js library. Please refresh the page.');
+                        }
+                    } else if (videoURL.includes('.mpd')) {
+                        // DASH manifest - requires dash.js library
+                        const source = document.createElement('source');
+                        source.src = videoURL;
+                        source.type = 'application/dash+xml'; // DASH MIME type
+                        video.appendChild(source);
+                        
+                        // Note: DASH requires dash.js library, which may not be loaded
+                        // For now, we'll try native playback (may not work)
+                        if (typeof dashjs !== 'undefined') {
+                            const player = dashjs.MediaPlayer().create();
+                            player.initialize(video, videoURL, true);
+                        } else {
+                            console.warn('DASH.js not available, video may not play');
+                            this.createVideoErrorDiv(card, 'DASH video requires dash.js library');
+                            return;
+                        }
+                    } else {
+                        // Try as regular video (might be a direct MP4 URL from Steam)
+                        const source = document.createElement('source');
+                        source.src = videoURL;
+                        source.type = 'video/mp4';
+                        video.appendChild(source);
+                    }
+                    
+                    // Add error handler
+                    video.addEventListener('error', (e) => {
+                        console.error('Steam video playback error:', e);
+                        this.createVideoErrorDiv(card, 'Failed to play Steam video. The video may require additional libraries or may not be playable in this browser.');
+                    });
+                    
+                    card.appendChild(video);
                 } else {
                     // Use HTML5 video player for direct video URLs (direct video files)
                     const video = document.createElement('video');
@@ -10071,7 +10168,7 @@ class GameCollectionManager {
                 mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
             } else {
                 // Media missing - show placeholder with upload functionality
-                const placeholderSize = field === 'video' ? '450px' : '150px';
+                const placeholderSize = '150px'; // Use same size for all media types including video
                 const iconClass = field === 'video' ? 'bi-camera-video' : 'bi-cloud-upload';
                 const uploadText = field === 'video' ? 'Double-click<br>to upload video' : 'Double-click<br>to upload';
                 
@@ -10139,7 +10236,7 @@ class GameCollectionManager {
 
     showFileMissingPlaceholder(mediaItem, field, mediaPath, game) {
         // Replace the media content with a "file missing" placeholder
-        const placeholderSize = field === 'video' ? '450px' : '150px';
+        const placeholderSize = '150px'; // Use same size for all media types including video
         const iconClass = field === 'video' ? 'bi-exclamation-triangle' : 'bi-exclamation-triangle';
         
         mediaItem.innerHTML = `
@@ -21226,6 +21323,7 @@ class GameCollectionManager {
         const isTwitterURL = videoUrl.includes('twitter.com') || videoUrl.includes('x.com');
         const isTikTokURL = videoUrl.includes('tiktok.com');
         const isBilibiliURL = videoUrl.includes('bilibili.com');
+        const isSteamURL = videoUrl.includes('steamstatic.com') || videoUrl.includes('steampowered.com') || videoUrl.includes('.m3u8') || videoUrl.includes('.mpd');
         
         const playerContainer = document.getElementById('youtubePlayer');
         if (!playerContainer) {
@@ -21324,6 +21422,96 @@ class GameCollectionManager {
                 } else {
                     this.showPlayerError('Invalid Bilibili URL');
                 }
+            } else if (isSteamURL) {
+                // Steam videos - HLS/DASH manifests need special handling
+                const video = document.createElement('video');
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.controls = true;
+                video.preload = 'metadata';
+                
+                // Check if URL is HLS manifest (.m3u8) or DASH manifest (.mpd)
+                if (videoUrl.includes('.m3u8')) {
+                    // HLS manifest - use HLS.js for playback (required for Chrome/Firefox, Safari has native support)
+                    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                        // Use HLS.js library for HLS playback
+                        const hls = new Hls({
+                            enableWorker: true,
+                            lowLatencyMode: false
+                        });
+                        hls.loadSource(videoUrl);
+                        hls.attachMedia(video);
+                        
+                        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            console.log('✅ HLS manifest parsed, video ready to play');
+                            video.play().catch(err => {
+                                console.log('Auto-play prevented:', err);
+                            });
+                        });
+                        
+                        hls.on(Hls.Events.ERROR, (event, data) => {
+                            console.error('HLS error:', data);
+                            if (data.fatal) {
+                                switch(data.type) {
+                                    case Hls.ErrorTypes.NETWORK_ERROR:
+                                        console.error('Fatal network error, trying to recover...');
+                                        hls.startLoad();
+                                        break;
+                                    case Hls.ErrorTypes.MEDIA_ERROR:
+                                        console.error('Fatal media error, trying to recover...');
+                                        hls.recoverMediaError();
+                                        break;
+                                    default:
+                                        console.error('Fatal error, cannot recover');
+                                        hls.destroy();
+                                        this.showPlayerError('Failed to load Steam video. Please try again or download the video.');
+                                        break;
+                                }
+                            }
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        // Safari native HLS support
+                        const source = document.createElement('source');
+                        source.src = videoUrl;
+                        source.type = 'application/x-mpegURL';
+                        video.appendChild(source);
+                        console.log('Using Safari native HLS support');
+                    } else {
+                        // HLS.js not available and browser doesn't support HLS natively
+                        console.error('HLS.js not available and browser does not support HLS natively');
+                        this.showPlayerError('HLS video playback requires HLS.js library. Please refresh the page.');
+                    }
+                } else if (videoUrl.includes('.mpd')) {
+                    // DASH manifest - requires dash.js library
+                    const source = document.createElement('source');
+                    source.src = videoUrl;
+                    source.type = 'application/dash+xml'; // DASH MIME type
+                    video.appendChild(source);
+                    
+                    // Note: DASH requires dash.js library, which may not be loaded
+                    if (typeof dashjs !== 'undefined') {
+                        const player = dashjs.MediaPlayer().create();
+                        player.initialize(video, videoUrl, true);
+                    } else {
+                        console.warn('DASH.js not available, video may not play');
+                        this.showPlayerError('DASH video requires dash.js library');
+                        return;
+                    }
+                } else {
+                    // Try as regular video (might be a direct MP4 URL from Steam)
+                    const source = document.createElement('source');
+                    source.src = videoUrl;
+                    source.type = 'video/mp4';
+                    video.appendChild(source);
+                }
+                
+                // Add error handler
+                video.addEventListener('error', (e) => {
+                    console.error('Steam video playback error:', e);
+                    this.showPlayerError('Failed to play Steam video. The video may require additional libraries or may not be playable in this browser.');
+                });
+                
+                playerContainer.appendChild(video);
             } else {
                 // Fallback: try HTML5 video player for direct video URLs
                 const video = document.createElement('video');
