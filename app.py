@@ -12635,7 +12635,7 @@ def save_screenshot_to_field(system_name):
 @app.route('/api/extract-first-frame', methods=['POST'])
 @login_required
 def extract_first_frame():
-    """Extract first frame from video for manual cropping"""
+    """Extract middle frame from video for manual cropping"""
     try:
         data = request.get_json()
         video_path = data.get('video_path')
@@ -12654,6 +12654,35 @@ def extract_first_frame():
         if not os.path.exists(video_path):
             return jsonify({'error': f'Video file not found: {video_path}'}), 404
         
+        # Get video duration to calculate middle frame time
+        duration_cmd = [
+            'ffprobe',
+            '-v', 'quiet',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            video_path
+        ]
+        
+        duration_result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=10)
+        duration = None
+        
+        if duration_result.returncode == 0:
+            try:
+                duration = float(duration_result.stdout.strip())
+                print(f"Video duration: {duration} seconds")
+            except (ValueError, AttributeError):
+                print(f"Could not parse duration, using middle estimate")
+        
+        # Calculate middle frame time (or use 5 seconds if duration unknown)
+        if duration and duration > 0:
+            middle_time = duration / 2
+        else:
+            # Default to 5 seconds if we can't get duration
+            middle_time = 5.0
+            print(f"Using default middle time: {middle_time} seconds")
+        
+        print(f"Extracting frame at time: {middle_time} seconds (middle of video)")
+        
         # Create frames directory if it doesn't exist
         frames_dir = os.path.join(os.path.dirname(video_path), 'frames')
         os.makedirs(frames_dir, exist_ok=True)
@@ -12663,9 +12692,11 @@ def extract_first_frame():
         frame_filename = f"{video_basename}_frame.jpg"
         frame_path = os.path.join(frames_dir, frame_filename)
         
-        # Extract first frame using ffmpeg
+        # Extract frame from middle of video using ffmpeg
+        # Use -ss before -i for faster seeking (input seeking)
         cmd = [
             'ffmpeg',
+            '-ss', str(middle_time),  # Seek to middle of video
             '-i', video_path,
             '-vframes', '1',
             '-q:v', '2',  # High quality
@@ -19161,11 +19192,16 @@ def get_media_mappings():
 
 @app.route('/api/media-fields')
 def get_media_fields():
-    """Get all media fields from config.json (excluding video)"""
+    """Get all media fields from config.json"""
     try:
         media_fields = config.get('media_fields', {})
-        # Get all field names, excluding video
-        field_names = [field for field in media_fields.keys() if field != 'video']
+        # Get all field names, including video
+        field_names = list(media_fields.keys())
+        
+        # Ensure 'video' is always included as it's a standard field
+        # even if not explicitly configured in media_fields
+        if 'video' not in field_names:
+            field_names.append('video')
         
         return jsonify({
             'success': True,
@@ -19633,29 +19669,56 @@ def get_launchbox_media(launchbox_id, media_type):
         # Get available media for this type
         available_media = []
         
-        
-        # The metadata structure has 'images' array containing dictionaries
-        if game_metadata and 'images' in game_metadata:
-            for image_element in game_metadata['images']:
-                # Handle dictionary format
-                image_type = image_element.get('Type', '').strip()
-                
-                # Check if this image type matches what we're looking for
-                if _matches_media_type(image_type, media_type, media_directory):
-                    filename = image_element.get('FileName', '')
-                    region = image_element.get('Region', 'Unknown')
+        # Handle video type separately - VideoURL is stored directly in metadata, not in images array
+        if media_type == 'video':
+            # Debug: Print available keys in game_metadata
+            print(f"DEBUG: Checking video for launchbox_id={launchbox_id}")
+            print(f"DEBUG: game_metadata keys: {list(game_metadata.keys())}")
+            
+            # Check for VideoURL in game_metadata (check multiple possible field names)
+            video_url = (game_metadata.get('VideoURL') or 
+                        game_metadata.get('videoURL') or 
+                        game_metadata.get('video_url') or
+                        game_metadata.get('Video Url'))
+            
+            print(f"DEBUG: video_url found: {video_url}")
+            
+            if video_url:
+                available_media.append({
+                    'url': video_url,  # VideoURL is already a full URL
+                    'VideoURL': video_url,
+                    'videoURL': video_url,
+                    'video_url': video_url,
+                    'filename': video_url,  # Use URL as filename for video
+                    'region': game_metadata.get('Region', 'Unknown'),
+                    'primary': True,
+                    'type': 'Video'
+                })
+            else:
+                print(f"DEBUG: No VideoURL found for launchbox_id={launchbox_id}")
+        else:
+            # The metadata structure has 'images' array containing dictionaries
+            if game_metadata and 'images' in game_metadata:
+                for image_element in game_metadata['images']:
+                    # Handle dictionary format
+                    image_type = image_element.get('Type', '').strip()
                     
-                    if filename:
-                        base_url = 'https://images.launchbox-app.com/'
-                        media_url = base_url + filename
+                    # Check if this image type matches what we're looking for
+                    if _matches_media_type(image_type, media_type, media_directory):
+                        filename = image_element.get('FileName', '')
+                        region = image_element.get('Region', 'Unknown')
                         
-                        available_media.append({
-                            'url': media_url,
-                            'filename': filename,
-                            'region': region,
-                            'primary': False,  # We don't have primary info in this structure
-                            'type': image_type
-                        })
+                        if filename:
+                            base_url = 'https://images.launchbox-app.com/'
+                            media_url = base_url + filename
+                            
+                            available_media.append({
+                                'url': media_url,
+                                'filename': filename,
+                                'region': region,
+                                'primary': False,  # We don't have primary info in this structure
+                                'type': image_type
+                            })
         
         # Sort by primary first, then by region
         available_media.sort(key=lambda x: (not x.get('primary', False), x.get('region', '')))

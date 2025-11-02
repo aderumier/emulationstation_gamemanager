@@ -4027,7 +4027,12 @@ class GameCollectionManager {
         return columnId === 'video' || columnId === 'video_thumb';
     }
 
-    async getMediaFieldsFromConfig() {
+    async getMediaFieldsFromConfig(forceRefresh = false) {
+        // Clear cache if force refresh is requested
+        if (forceRefresh) {
+            this.mediaFieldsCache = null;
+        }
+        
         // Use cached fields if available
         if (this.mediaFieldsCache && Array.isArray(this.mediaFieldsCache)) {
             return this.mediaFieldsCache;
@@ -4048,13 +4053,19 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (data.success && Array.isArray(data.fields)) {
+                // Ensure video is included if it exists in config
+                if (!data.fields.includes('video')) {
+                    // Check if video exists in config by making another API call or checking mappings
+                    // For now, we'll trust the API response
+                    // If video is missing but should be there, it might not be in media_fields config
+                }
                 this.mediaFieldsCache = data.fields;
                 return this.mediaFieldsCache;
             } else {
                 throw new Error(data.error || 'Invalid response format');
             }
         } catch (error) {
-            // Fallback to default media fields if API call fails
+            // Fallback to default media fields if API call fails (video is not in fallback as it's optional)
             const fallbackFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'boxback', 'thumbnail'];
             this.mediaFieldsCache = fallbackFields;
             return this.mediaFieldsCache;
@@ -4665,24 +4676,170 @@ class GameCollectionManager {
             card.className = 'card h-100';
             card.style.cursor = 'pointer';
             
-            const img = document.createElement('img');
-            img.className = 'card-img-top';
-            img.style.height = '300px';
-            img.style.objectFit = 'contain';
-            img.style.backgroundColor = this.getMediaCardBackgroundColor();
-            img.src = media.url;
-            img.alt = `${mediaType} option ${index + 1}`;
-            img.onerror = () => {
-                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
-            };
+            // Check if this is video type and has VideoURL
+            const hasVideoURL = mediaType === 'video' && (media.videoURL || media.VideoURL || media.video_url);
+            const videoURL = hasVideoURL ? (media.videoURL || media.VideoURL || media.video_url) : null;
             
-            // Add hover preview functionality
-            img.addEventListener('mouseenter', (e) => {
-                this.showMediaHover(e, media.url, mediaType);
-            });
-            img.addEventListener('mouseleave', () => {
-                this.hideMediaHover();
-            });
+            if (hasVideoURL && videoURL) {
+                // Check for video hosting sites that need iframe embed players
+                const isYouTubeURL = videoURL.includes('youtube.com') || videoURL.includes('youtu.be');
+                const isDailyMotionURL = videoURL.includes('dailymotion.com') || videoURL.includes('dai.ly');
+                const isVimeoURL = videoURL.includes('vimeo.com') || videoURL.includes('player.vimeo.com');
+                const isFacebookURL = videoURL.includes('facebook.com');
+                const isTwitterURL = videoURL.includes('twitter.com') || videoURL.includes('x.com');
+                const isTikTokURL = videoURL.includes('tiktok.com');
+                const isBilibiliURL = videoURL.includes('bilibili.com');
+                
+                if (isYouTubeURL) {
+                    // Use YouTube iframe embed player for YouTube URLs
+                    const videoId = this.extractYouTubeVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://www.youtube.com/embed/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid YouTube URL');
+                    }
+                } else if (isDailyMotionURL) {
+                    // Use DailyMotion iframe embed player for DailyMotion URLs
+                    const videoId = this.extractDailyMotionVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://www.dailymotion.com/embed/video/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid DailyMotion URL');
+                    }
+                } else if (isVimeoURL) {
+                    // Use Vimeo iframe embed player for Vimeo URLs
+                    const videoId = this.extractVimeoVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://player.vimeo.com/video/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid Vimeo URL');
+                    }
+                } else if (isFacebookURL) {
+                    // Facebook videos - use Facebook embed player
+                    // Facebook URLs are complex, use the full URL as embed
+                    const iframe = document.createElement('iframe');
+                    iframe.className = 'card-img-top';
+                    iframe.style.height = '300px';
+                    iframe.style.width = '100%';
+                    iframe.style.border = 'none';
+                    iframe.allow = 'autoplay; fullscreen';
+                    iframe.allowFullscreen = true;
+                    // Facebook embed format: convert share URL to embed URL
+                    // Example: https://www.facebook.com/share/v/1An8zKZyid/ -> needs special handling
+                    // For now, try to use the URL directly or show a link
+                    iframe.src = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoURL)}&show_text=false&width=476`;
+                    card.appendChild(iframe);
+                } else if (isTwitterURL) {
+                    // Twitter/X videos - extract tweet ID and use Twitter embed
+                    const tweetId = this.extractTwitterTweetId(videoURL);
+                    if (tweetId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.src = `https://platform.twitter.com/embed/Tweet.html?id=${tweetId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid Twitter/X URL');
+                    }
+                } else if (isTikTokURL) {
+                    // TikTok videos - use TikTok embed player
+                    // TikTok embed format: https://www.tiktok.com/embed/v2/{videoId}
+                    // Extract video ID from URL like: https://www.tiktok.com/@username/video/1234567890
+                    const videoId = this.extractTikTokVideoId(videoURL);
+                    if (videoId) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'encrypted-media';
+                        iframe.src = `https://www.tiktok.com/embed/v2/${videoId}`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid TikTok URL');
+                    }
+                } else if (isBilibiliURL) {
+                    // Bilibili videos - use Bilibili embed player
+                    // Bilibili embed format: https://player.bilibili.com/player.html?bvid={bvid}
+                    const bvid = this.extractBilibiliVideoId(videoURL);
+                    if (bvid) {
+                        const iframe = document.createElement('iframe');
+                        iframe.className = 'card-img-top';
+                        iframe.style.height = '300px';
+                        iframe.style.width = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'autoplay; fullscreen';
+                        iframe.allowFullscreen = true;
+                        iframe.src = `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0`;
+                        card.appendChild(iframe);
+                    } else {
+                        this.createVideoErrorDiv(card, 'Invalid Bilibili URL');
+                    }
+                } else {
+                    // Use HTML5 video player for direct video URLs (direct video files)
+                    const video = document.createElement('video');
+                    video.className = 'card-img-top';
+                    video.style.height = '300px';
+                    video.style.objectFit = 'contain';
+                    video.style.backgroundColor = this.getMediaCardBackgroundColor();
+                    video.controls = true;
+                    video.preload = 'metadata';
+                    
+                    const source = document.createElement('source');
+                    source.src = videoURL;
+                    source.type = 'video/mp4'; // Default to mp4, could be enhanced to detect type
+                    video.appendChild(source);
+                    
+                    card.appendChild(video);
+                }
+            } else {
+                // Display image for other media types
+                const img = document.createElement('img');
+                img.className = 'card-img-top';
+                img.style.height = '300px';
+                img.style.objectFit = 'contain';
+                img.style.backgroundColor = this.getMediaCardBackgroundColor();
+                img.alt = `${mediaType} option ${index + 1}`;
+                img.onerror = () => {
+                    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+                };
+                
+                // Add hover preview functionality for images
+                img.addEventListener('mouseenter', (e) => {
+                    this.showMediaHover(e, media.url, mediaType);
+                });
+                img.addEventListener('mouseleave', () => {
+                    this.hideMediaHover();
+                });
+                
+                card.appendChild(img);
+            }
             
             const cardBody = document.createElement('div');
             cardBody.className = 'card-body d-flex flex-column';
@@ -4691,20 +4848,79 @@ class GameCollectionManager {
             title.className = 'card-title';
             title.textContent = `${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} ${index + 1}`;
             
-            const region = document.createElement('p');
-            region.className = 'card-text text-muted small';
-            region.textContent = `Region: ${media.region || 'Unknown'}`;
+            // Add image metadata (region and resolution) - only for non-video media
+            let metadataDiv = null;
+            if (!hasVideoURL || !videoURL) {
+                metadataDiv = document.createElement('div');
+                metadataDiv.className = 'image-metadata';
+                metadataDiv.style.fontSize = '0.75rem';
+                metadataDiv.style.color = '#6c757d';
+                metadataDiv.style.marginTop = '4px';
+                
+                const resolutionInfo = document.createElement('div');
+                resolutionInfo.className = 'resolution-info';
+                resolutionInfo.textContent = 'Loading...';
+                
+                const regionInfo = document.createElement('div');
+                regionInfo.className = 'region-info';
+                if (media.region) {
+                    regionInfo.textContent = `Region: ${media.region}`;
+                }
+                
+                metadataDiv.appendChild(resolutionInfo);
+                if (media.region) {
+                    metadataDiv.appendChild(regionInfo);
+                }
+                
+                // Add image load handler to update resolution (set before img.src to ensure it fires)
+                const img = card.querySelector('img');
+                if (img) {
+                    img.onload = () => {
+                        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                            resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                        } else {
+                            resolutionInfo.textContent = 'Resolution: Unknown';
+                        }
+                    };
+                    
+                    // Set image source after handlers are attached
+                    img.src = media.url;
+                }
+            }
             
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'btn btn-primary btn-sm mt-auto';
             downloadBtn.textContent = 'Download & Replace';
-            downloadBtn.onclick = () => this.downloadAndReplaceMedia(game, mediaType, media);
+            downloadBtn.onclick = () => {
+                // If this is video type with VideoURL in LaunchBox results, open YouTube preview modal instead
+                if (mediaType === 'video' && (media.videoURL || media.VideoURL || media.video_url)) {
+                    const videoURL = media.videoURL || media.VideoURL || media.video_url;
+                    if (videoURL) {
+                        // Create a video object for the player
+                        const video = {
+                            url: videoURL,
+                            title: game.name || 'Game Video Preview',
+                            game: game
+                        };
+                        // Store the current video for the player
+                        this.currentYouTubeVideo = video;
+                        // Open YouTube player modal (works for both YouTube and other video URLs)
+                        this.openYouTubePlayerModal(video);
+                        return;
+                    }
+                }
+                // For non-video types, proceed with normal download
+                this.downloadAndReplaceMedia(game, mediaType, media);
+            };
             
             cardBody.appendChild(title);
-            cardBody.appendChild(region);
+            // Only append metadataDiv if it exists (not for video with VideoURL)
+            if (metadataDiv) {
+                cardBody.appendChild(metadataDiv);
+            }
             cardBody.appendChild(downloadBtn);
             
-            card.appendChild(img);
+            // Append cardBody to card (img/video already appended earlier)
             card.appendChild(cardBody);
             col.appendChild(card);
             contentDiv.appendChild(col);
@@ -9425,8 +9641,14 @@ class GameCollectionManager {
         // Always show media preview content (no need to show/hide section)
         mediaPreviewContent.innerHTML = '';
 
-        // Get media fields from config.json mappings (excluding video from preview)
-        const mediaFields = await this.getMediaFieldsFromConfig();
+        // Get media fields from config.json mappings (including video)
+        // Force refresh to ensure we get the latest fields including video
+        let mediaFields = await this.getMediaFieldsFromConfig(true);
+        
+        // Ensure 'video' is included even if not in config (it's a standard field)
+        if (!mediaFields.includes('video')) {
+            mediaFields.push('video');
+        }
         
         // Process each field only once
         const processedFields = new Set();
@@ -9446,10 +9668,15 @@ class GameCollectionManager {
                 if (field === 'video' || mediaPath.endsWith('.mp4')) {
                     // Add cache-busting parameter to force video refresh
                     const cacheBuster = new Date().getTime();
+                    const videoUrl = `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`;
+                    
+                    // Use preload="metadata" to check if file exists immediately
+                    // This loads only metadata (file info), not the video content
+                    // Video content still loads lazily only when user clicks play
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <video width="450" height="450" controls style="object-fit: contain; background-color: #f8f9fa;">
-                                <source src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" type="video/mp4">
+                            <video width="450" height="450" controls preload="metadata" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
+                                <source src="${videoUrl}" type="video/mp4">
                             </video>
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
@@ -9471,9 +9698,11 @@ class GameCollectionManager {
                         </div>
                     `;
                     
-                    // Add error handler for video
+                    // Add error handler for video - check if file exists
+                    // With preload="metadata", this will fire immediately if file doesn't exist
                     const video = mediaItem.querySelector('video');
                     video.addEventListener('error', () => {
+                        // File doesn't exist - show placeholder instead of player
                         this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                     });
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
@@ -10015,48 +10244,32 @@ class GameCollectionManager {
     }
     
     showGameEditYoutubePreview() {
-        // Get the YouTube URL from the edit modal field
+        // Get the video URL from the edit modal field (supports YouTube, Vimeo, DailyMotion, Facebook, Twitter/X, TikTok, Bilibili, and direct video URLs)
         const youtubeUrlField = document.getElementById('editYoutubeurl');
         if (!youtubeUrlField) {
             return;
         }
         
-        const youtubeUrl = youtubeUrlField.value.trim();
-        if (!youtubeUrl) {
+        const videoUrl = youtubeUrlField.value.trim();
+        if (!videoUrl) {
             return;
         }
         
-        // Validate that it's a YouTube URL
-        if (!youtubeUrl.includes('youtube')) {
-            return;
-        }
-
         // Set flag to prevent YouTube search modal from reopening when player modal closes
         this.suppressYouTubeSearchReopen = true;
         
-        // Create a mock video object for the player
+        // Get the current editing game
+        const currentGame = this.getCurrentEditingGame();
+        
+        // Create a video object for the player (supports all video platforms)
         const video = {
-            url: youtubeUrl,
-            title: 'Game Video Preview',
-            game: this.getCurrentEditingGame() || {}
+            url: videoUrl,
+            title: currentGame?.name || 'Game Video Preview',
+            game: currentGame || {}
         };
         
-        // Store the current video for the player
-        this.currentYouTubeVideo = video;
-        
-        // Show the YouTube player modal
-        const playerModal = new bootstrap.Modal(document.getElementById('youtubePlayerModal'));
-        playerModal.show();
-        
-        // Wait for modal to be fully visible before initializing player
-        setTimeout(() => {
-            // Initialize YouTube player
-            this.initializeYouTubePlayer(youtubeUrl);
-            
-            // Initialize player controls
-            this.initializePlayerControls();
-            
-        }, 300);
+        // Use the openYouTubePlayerModal function which now supports all video platforms
+        this.openYouTubePlayerModal(video);
     }
     
     initializeDeleteVideoButton(game) {
@@ -10360,7 +10573,7 @@ class GameCollectionManager {
         // Wait for modal to be fully shown before extracting frame
         const modalElement = document.getElementById('videoCroppingModal');
         modalElement.addEventListener('shown.bs.modal', () => {
-            // Extract first frame and setup crop interface after modal is fully shown
+            // Extract middle frame and setup crop interface after modal is fully shown
             this.extractFirstFrameAndSetupCropper(absoluteVideoPath);
         }, { once: true }); // Use once: true to only run this once
         
@@ -10379,10 +10592,10 @@ class GameCollectionManager {
             // Show loading state - find the container by looking for the card body
             const imageContainer = document.querySelector('#videoCroppingModal .card-body .text-center');
             if (imageContainer) {
-                imageContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split"></i> Extracting first frame...</div>';
+                imageContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split"></i> Extracting middle frame...</div>';
             }
             
-            // Call API to extract first frame
+            // Call API to extract middle frame
             const response = await fetch('/api/extract-first-frame', {
                 method: 'POST',
                 headers: {
@@ -10423,10 +10636,10 @@ class GameCollectionManager {
                     throw new Error('Failed to create image element');
                 }
             } else {
-                throw new Error(result.error || 'Failed to extract first frame');
+                throw new Error(result.error || 'Failed to extract middle frame');
             }
         } catch (error) {
-            this.showAlert(`Error extracting first frame: ${error.message}`, 'error');
+            this.showAlert(`Error extracting middle frame: ${error.message}`, 'error');
             
             // Reset container on error
             const imageContainer = document.querySelector('#videoCroppingModal .card-body .text-center');
@@ -20666,16 +20879,76 @@ class GameCollectionManager {
             searchModal.hide();
         }
         
-        // Set video information
-        document.getElementById('youtubeVideoTitle').textContent = video.title;
-        document.getElementById('youtubeVideoDuration').textContent = `Duration: ${video.duration}`;
-        document.getElementById('youtubeVideoChannel').textContent = `Channel: ${video.channel}`;
+        // Detect video platform to update modal title
+        const videoUrl = video.url || '';
+        const isYouTube = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be');
+        const isDailyMotion = videoUrl.includes('dailymotion.com') || videoUrl.includes('dai.ly');
+        const isVimeo = videoUrl.includes('vimeo.com');
+        const isFacebook = videoUrl.includes('facebook.com');
+        const isTwitter = videoUrl.includes('twitter.com') || videoUrl.includes('x.com');
+        const isTikTok = videoUrl.includes('tiktok.com');
+        const isBilibili = videoUrl.includes('bilibili.com');
+        
+        // Update modal title based on platform
+        const modalTitle = document.getElementById('youtubePlayerModalLabel');
+        if (modalTitle) {
+            let platformName = 'Video';
+            if (isYouTube) platformName = 'YouTube';
+            else if (isDailyMotion) platformName = 'DailyMotion';
+            else if (isVimeo) platformName = 'Vimeo';
+            else if (isFacebook) platformName = 'Facebook';
+            else if (isTwitter) platformName = 'Twitter/X';
+            else if (isTikTok) platformName = 'TikTok';
+            else if (isBilibili) platformName = 'Bilibili';
+            
+            modalTitle.innerHTML = `<i class="bi bi-play-circle me-2 text-danger"></i>${platformName} Video Preview`;
+        }
+        
+        // Set video information (handle optional fields gracefully)
+        document.getElementById('youtubeVideoTitle').textContent = video.title || 'Game Video Preview';
+        const durationEl = document.getElementById('youtubeVideoDuration');
+        if (durationEl) {
+            durationEl.textContent = video.duration ? `Duration: ${video.duration}` : '';
+        }
+        const channelEl = document.getElementById('youtubeVideoChannel');
+        if (channelEl) {
+            channelEl.textContent = video.channel ? `Channel: ${video.channel}` : '';
+        }
+        
+        // Show/hide download controls based on platform
+        // Download controls only work with YouTube API for now
+        if (isYouTube) {
+            // Show controls for YouTube (has API support) - remove any display:none
+            const downloadControls = document.getElementById('downloadVideoBtn');
+            const startTimeInputGroup = document.querySelector('#startTimeInput')?.closest('.mb-3');
+            const autoCropCheckboxContainer = document.querySelector('#autoCropCheckbox')?.closest('.mb-3');
+            
+            if (downloadControls) downloadControls.style.display = '';
+            if (startTimeInputGroup) startTimeInputGroup.style.display = '';
+            if (autoCropCheckboxContainer) autoCropCheckboxContainer.style.display = '';
+        } else {
+            // Hide controls for other platforms (no API support)
+            const downloadControls = document.getElementById('downloadVideoBtn');
+            const startTimeInputGroup = document.querySelector('#startTimeInput')?.closest('.mb-3');
+            const autoCropCheckboxContainer = document.querySelector('#autoCropCheckbox')?.closest('.mb-3');
+            
+            if (downloadControls) downloadControls.style.display = 'none';
+            if (startTimeInputGroup) startTimeInputGroup.style.display = 'none';
+            if (autoCropCheckboxContainer) autoCropCheckboxContainer.style.display = 'none';
+        }
         
         // Store video data and game context for download
+        // Use video.game if available (e.g., from LaunchBox), otherwise use currentYouTubeGame
+        const gameContext = video.game || this.currentYouTubeGame;
         this.currentYouTubeVideo = {
             ...video,
-            game: this.currentYouTubeGame  // Use the stored game object
+            game: gameContext
         };
+        
+        // Also update currentYouTubeGame for download functionality
+        if (gameContext) {
+            this.currentYouTubeGame = gameContext;
+        }
         
         // Show player modal
         const playerModal = new bootstrap.Modal(document.getElementById('youtubePlayerModal'));
@@ -20683,11 +20956,17 @@ class GameCollectionManager {
         
         // Wait for modal to be fully visible before initializing player
         setTimeout(() => {
-            // Initialize YouTube player
-            this.initializeYouTubePlayer(video.url);
-            
-            // Initialize player controls
-            this.initializePlayerControls();
+            if (isYouTube) {
+                // For YouTube, use the original flow to ensure proper initialization order
+                // Initialize YouTube player (this is asynchronous and waits for API)
+                this.initializeYouTubePlayer(video.url);
+                
+                // Initialize player controls (event listeners only, don't need to wait for player)
+                this.initializePlayerControls();
+            } else {
+                // For other platforms, use the generic initializeVideoPlayer
+                this.initializeVideoPlayer(video.url);
+            }
             
         }, 300);
     }
@@ -20707,8 +20986,131 @@ class GameCollectionManager {
         return filename.replace(/\.[^.]*$/, ''); // Remove any file extension
     }
 
+    initializeVideoPlayer(videoUrl) {
+        // Detect video hosting site from URL
+        const isYouTubeURL = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be');
+        const isDailyMotionURL = videoUrl.includes('dailymotion.com') || videoUrl.includes('dai.ly');
+        const isVimeoURL = videoUrl.includes('vimeo.com') || videoUrl.includes('player.vimeo.com');
+        const isFacebookURL = videoUrl.includes('facebook.com');
+        const isTwitterURL = videoUrl.includes('twitter.com') || videoUrl.includes('x.com');
+        const isTikTokURL = videoUrl.includes('tiktok.com');
+        const isBilibiliURL = videoUrl.includes('bilibili.com');
+        
+        const playerContainer = document.getElementById('youtubePlayer');
+        if (!playerContainer) {
+            console.error('Player container not found');
+            return;
+        }
+        
+        if (isYouTubeURL) {
+            // Use YouTube IFrame API for YouTube videos (full API support)
+            // Don't clear the container here - let createYouTubePlayer() handle it
+            // This ensures the youtubePlayer div exists for YT.Player to attach to
+            this.initializeYouTubePlayer(videoUrl);
+        } else {
+            // Clear the player container for non-YouTube videos
+            playerContainer.innerHTML = '';
+            
+            if (isDailyMotionURL) {
+                // Use DailyMotion iframe embed
+                const videoId = this.extractDailyMotionVideoId(videoUrl);
+                if (videoId) {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+                    iframe.allowFullscreen = true;
+                    iframe.src = `https://www.dailymotion.com/embed/video/${videoId}`;
+                    playerContainer.appendChild(iframe);
+                } else {
+                    this.showPlayerError('Invalid DailyMotion URL');
+                }
+            } else if (isVimeoURL) {
+                // Use Vimeo iframe embed
+                const videoId = this.extractVimeoVideoId(videoUrl);
+                if (videoId) {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+                    iframe.allowFullscreen = true;
+                    iframe.src = `https://player.vimeo.com/video/${videoId}`;
+                    playerContainer.appendChild(iframe);
+                } else {
+                    this.showPlayerError('Invalid Vimeo URL');
+                }
+            } else if (isFacebookURL) {
+                // Use Facebook iframe embed
+                const iframe = document.createElement('iframe');
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                iframe.allow = 'autoplay; fullscreen';
+                iframe.allowFullscreen = true;
+                iframe.src = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=false&width=476`;
+                playerContainer.appendChild(iframe);
+            } else if (isTwitterURL) {
+                // Use Twitter/X iframe embed
+                const tweetId = this.extractTwitterTweetId(videoUrl);
+                if (tweetId) {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    iframe.src = `https://platform.twitter.com/embed/Tweet.html?id=${tweetId}`;
+                    playerContainer.appendChild(iframe);
+                } else {
+                    this.showPlayerError('Invalid Twitter/X URL');
+                }
+            } else if (isTikTokURL) {
+                // Use TikTok iframe embed
+                const videoId = this.extractTikTokVideoId(videoUrl);
+                if (videoId) {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    iframe.allow = 'encrypted-media';
+                    iframe.src = `https://www.tiktok.com/embed/v2/${videoId}`;
+                    playerContainer.appendChild(iframe);
+                } else {
+                    this.showPlayerError('Invalid TikTok URL');
+                }
+            } else if (isBilibiliURL) {
+                // Use Bilibili iframe embed
+                const bvid = this.extractBilibiliVideoId(videoUrl);
+                if (bvid) {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    iframe.allow = 'autoplay; fullscreen';
+                    iframe.allowFullscreen = true;
+                    iframe.src = `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0`;
+                    playerContainer.appendChild(iframe);
+                } else {
+                    this.showPlayerError('Invalid Bilibili URL');
+                }
+            } else {
+                // Fallback: try HTML5 video player for direct video URLs
+                const video = document.createElement('video');
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.controls = true;
+                video.preload = 'metadata';
+                const source = document.createElement('source');
+                source.src = videoUrl;
+                source.type = 'video/mp4';
+                video.appendChild(source);
+                playerContainer.appendChild(video);
+            }
+        }
+    }
+
     initializeYouTubePlayer(videoUrl) {
-        // Extract video ID from URL
+        // Extract video ID from URL (YouTube-specific)
         const videoId = this.extractYouTubeVideoId(videoUrl);
         if (!videoId) {
             this.showPlayerError('Invalid YouTube URL');
@@ -20834,6 +21236,125 @@ class GameCollectionManager {
         return null;
     }
 
+    extractDailyMotionVideoId(url) {
+        // Handle different DailyMotion URL formats
+        // Examples: 
+        // https://www.dailymotion.com/video/x7abc123
+        // https://dai.ly/x7abc123
+        // https://www.dailymotion.com/embed/video/x7abc123
+        const patterns = [
+            /(?:dailymotion\.com\/video\/|dailymotion\.com\/embed\/video\/|dai\.ly\/)([^\/\?\n&#]+)/,
+            /dai\.ly\/([^\/\?\n&#]+)/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                const videoId = match[1];
+                return videoId;
+            }
+        }
+        
+        return null;
+    }
+
+    extractVimeoVideoId(url) {
+        // Handle different Vimeo URL formats
+        // Examples:
+        // https://vimeo.com/123456789
+        // https://player.vimeo.com/video/123456789
+        // https://vimeo.com/123456789?autoplay=1
+        const patterns = [
+            /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/,
+            /vimeo\.com\/(\d+)/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        
+        return null;
+    }
+
+    extractTwitterTweetId(url) {
+        // Handle Twitter/X URL formats
+        // Examples:
+        // https://twitter.com/user/status/1234567890123456789
+        // https://x.com/user/status/1234567890123456789
+        // https://twitter.com/i/status/1234567890123456789
+        const patterns = [
+            /(?:twitter\.com|x\.com)\/.*\/status\/(\d+)/,
+            /(?:twitter\.com|x\.com)\/i\/status\/(\d+)/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        
+        return null;
+    }
+
+    extractTikTokVideoId(url) {
+        // Handle TikTok URL formats
+        // Examples:
+        // https://www.tiktok.com/@username/video/1234567890123456789
+        // https://vm.tiktok.com/ABC123/
+        const patterns = [
+            /tiktok\.com\/@[^\/]+\/video\/(\d+)/,
+            /tiktok\.com\/.*\/video\/(\d+)/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        
+        return null;
+    }
+
+    extractBilibiliVideoId(url) {
+        // Handle Bilibili URL formats
+        // Examples:
+        // https://www.bilibili.com/video/BV1vQtSebEqZ/
+        // https://www.bilibili.com/video/av123456789
+        // Extract BV number (preferred) or av number
+        const bvPattern = /bilibili\.com\/video\/(BV[a-zA-Z0-9]+)/i;
+        const avPattern = /bilibili\.com\/video\/av(\d+)/i;
+        
+        const bvMatch = url.match(bvPattern);
+        if (bvMatch && bvMatch[1]) {
+            return bvMatch[1];
+        }
+        
+        const avMatch = url.match(avPattern);
+        if (avMatch && avMatch[1]) {
+            return `av${avMatch[1]}`;
+        }
+        
+        return null;
+    }
+
+    createVideoErrorDiv(card, message) {
+        // Helper function to create error div for video embed failures
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'card-img-top';
+        errorDiv.style.height = '300px';
+        errorDiv.style.display = 'flex';
+        errorDiv.style.alignItems = 'center';
+        errorDiv.style.justifyContent = 'center';
+        errorDiv.style.backgroundColor = this.getMediaCardBackgroundColor();
+        errorDiv.innerHTML = `<div class="text-center text-muted"><i class="bi bi-exclamation-triangle"></i><br>${message}</div>`;
+        card.appendChild(errorDiv);
+    }
+
     initializePlayerControls() {
         const getTimeBtn = document.getElementById('getCurrentTimeBtn');
         if (getTimeBtn && !getTimeBtn.hasAttribute('data-listener-attached')) {
@@ -20879,6 +21400,16 @@ class GameCollectionManager {
         }
         
         this.youtubePlayer = null;
+        
+        // Remove listener attributes so they can be reattached next time
+        const getTimeBtn = document.getElementById('getCurrentTimeBtn');
+        if (getTimeBtn) {
+            getTimeBtn.removeAttribute('data-listener-attached');
+        }
+        const downloadBtn = document.getElementById('downloadVideoBtn');
+        if (downloadBtn) {
+            downloadBtn.removeAttribute('data-listener-attached');
+        }
         
         // Return to the YouTube search results modal unless suppressed (e.g., during download)
         if (!this.suppressYouTubeSearchReopen) {
