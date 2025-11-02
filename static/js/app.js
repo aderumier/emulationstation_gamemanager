@@ -11713,7 +11713,7 @@ class GameCollectionManager {
     
     async populateDatscrapperFieldCheckboxes() {
         try {
-            // Get DAT scraper mappings from config
+            // Get DAT scraper mappings from config (always fetch fresh from scrappers.json)
             const response = await fetch('/api/config');
             const config = await response.json();
             
@@ -11723,8 +11723,12 @@ class GameCollectionManager {
             // Clear existing checkboxes
             container.innerHTML = '';
             
-            if (config.datscrapper && config.datscrapper.mapping) {
-                const mappings = config.datscrapper.mapping;
+            // Get mapping from scrappers config (datscrapper is in scrappers_config, not main config)
+            // The API merges scrappers_config into the response, so check both possible locations
+            const datscrapperConfig = config.datscrapper || config.scrappers?.datscrapper || {};
+            const mappings = datscrapperConfig.mapping || {};
+            
+            if (mappings && Object.keys(mappings).length > 0) {
                 
                 // Create a row for the checkboxes
                 const row = document.createElement('div');
@@ -11750,7 +11754,7 @@ class GameCollectionManager {
                     col.innerHTML = `
                         <div class="form-check mb-2">
                             <input class="form-check-input datscrapper-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${gamelistField}" ${isChecked ? 'checked' : ''}>
-                            <label class="form-check-label" for="${checkboxId}">${this.getFieldDisplayName(datField)} (${gamelistField})</label>
+                            <label class="form-check-label" for="${checkboxId}">${gamelistField}</label>
                         </div>
                     `;
                     

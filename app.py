@@ -5238,9 +5238,12 @@ def list_rom_systems():
 def get_config():
     """Get or update application configuration"""
     if request.method == 'GET':
+        # Reload scrappers_config on each GET to ensure we have the latest mappings
+        # This makes the DAT Scrapper checkboxes truly dynamic based on scrappers.json
+        current_scrappers_config = load_scrappers_config()
         # Include scrapers configuration and systems configuration in the response
         full_config = config.copy()
-        full_config.update(scrappers_config)
+        full_config.update(current_scrappers_config)
         full_config['systems'] = load_systems_config()
         return jsonify(full_config)
     elif request.method == 'PUT':
@@ -5249,13 +5252,77 @@ def get_config():
             if not new_config:
                 return jsonify({'error': 'No configuration data provided'}), 400
             
+            # Handle scrappers config updates (keys like 'datscrapper.mapping', 'launchbox.mapping', etc.)
+            scrappers_needs_save = False
+            current_scrappers_config = load_scrappers_config()
+            
             # Update config with new values
             for key, value in new_config.items():
-                if key in config:
+                # Check if this is a scrappers config key (e.g., 'datscrapper.mapping')
+                if '.' in key:
+                    parts = key.split('.', 1)
+                    scraper_name = parts[0]
+                    field_path = parts[1]
+                    
+                    # Check if this scraper exists in scrappers config
+                    if scraper_name in current_scrappers_config:
+                        # Navigate the nested structure (e.g., 'datscrapper.mapping.description' -> datscrapper['mapping']['description'])
+                        field_parts = field_path.split('.')
+                        target = current_scrappers_config[scraper_name]
+                        
+                        # Navigate to the parent dict (all but last part)
+                        for part in field_parts[:-1]:
+                            if part not in target:
+                                target[part] = {}
+                            target = target[part]
+                        
+                        # Update the final field - merge dicts if both are dicts, otherwise replace
+                        final_key = field_parts[-1]
+                        if isinstance(value, dict):
+                            if final_key not in target:
+                                target[final_key] = {}
+                            if isinstance(target[final_key], dict):
+                                # Merge dictionaries
+                                target[final_key].update(value)
+                            else:
+                                # Replace with new dict
+                                target[final_key] = value
+                        else:
+                            target[final_key] = value
+                        
+                        scrappers_needs_save = True
+                    elif scraper_name in ['datscrapper', 'launchbox', 'igdb', 'mobygames', 'screenscraper', 'steam', 'steamgriddb']:
+                        # Create new scraper entry if it doesn't exist
+                        current_scrappers_config[scraper_name] = {}
+                        field_parts = field_path.split('.')
+                        target = current_scrappers_config[scraper_name]
+                        
+                        # Navigate to the parent dict
+                        for part in field_parts[:-1]:
+                            target[part] = {}
+                            target = target[part]
+                        
+                        # Set the final field
+                        if isinstance(value, dict):
+                            target[field_parts[-1]] = value
+                        else:
+                            target[field_parts[-1]] = value
+                        
+                        scrappers_needs_save = True
+                elif key in config:
+                    # Regular config update
                     if isinstance(value, dict) and isinstance(config[key], dict):
                         config[key].update(value)
                     else:
                         config[key] = value
+            
+            # Save scrappers config if it was modified
+            if scrappers_needs_save:
+                with open('var/config/scrappers.json', 'w', encoding='utf-8') as f:
+                    json.dump(current_scrappers_config, f, indent=4)
+                # Reload global scrappers_config
+                global scrappers_config
+                scrappers_config = current_scrappers_config
             
             # Save updated config to file
             with open('var/config/config.json', 'w') as f:
@@ -24479,10 +24546,14 @@ def run_datscrapper_task(system_name, task_id, selected_games=None, selected_tex
                         print(f"🔧 DEBUG: No text fields selected, skipping field extraction")
                     
                     print(f"🔧 DEBUG: Extracted text fields: {text_fields}")
+                    print(f"🔧 DEBUG: selected_text_fields: {selected_text_fields}")
+                    print(f"🔧 DEBUG: text_field_mapping: {text_field_mapping}")
+                    print(f"🔧 DEBUG: overwrite_text_fields: {overwrite_text_fields}")
                     
                     # Apply text fields if any were found
                     if text_fields:
                         print(f"🔧 DEBUG: Before update - game fields: {dict(game)}")
+                        game_updated = False
                         
                         # Check if we should overwrite existing fields
                         if not overwrite_text_fields:
@@ -24490,19 +24561,35 @@ def run_datscrapper_task(system_name, task_id, selected_games=None, selected_tex
                             for field, value in text_fields.items():
                                 if not game.get(field):
                                     game[field] = value
+                                    game_updated = True
                                     print(f"🔧 DEBUG: Updated empty field {field}: {value}")
                                 else:
                                     print(f"🔧 DEBUG: Skipped non-empty field {field}: {game.get(field)}")
                         else:
                             # Overwrite all fields
-                            game.update(text_fields)
-                            print(f"🔧 DEBUG: Overwrote all fields: {text_fields}")
+                            for field, value in text_fields.items():
+                                old_value = game.get(field)
+                                game[field] = value
+                                game_updated = True
+                                print(f"🔧 DEBUG: Overwrote field {field}: '{old_value}' -> '{value}'")
                         
                         print(f"🔧 DEBUG: After update - game fields: {dict(game)}")
-                        updated_count += 1
-                        print(f"✅ Updated {len(text_fields)} text fields for {display_name}")
+                        if game_updated:
+                            updated_count += 1
+                            print(f"✅ Updated {len(text_fields)} text fields for {display_name}")
+                        else:
+                            print(f"⚠️  No fields were actually updated for {display_name} (all fields already had values or overwrite disabled)")
                     else:
                         print(f"⚠️  No text fields extracted for {display_name}")
+                        print(f"🔧 DEBUG: This could mean:")
+                        print(f"  - selected_text_fields is empty: {not selected_text_fields}")
+                        print(f"  - DAT entry has no matching fields")
+                        if selected_text_fields:
+                            print(f"  - Checking each selected field:")
+                            for dat_field, gamelist_field in text_field_mapping.items():
+                                if gamelist_field in selected_text_fields:
+                                    value = getattr(dat_entry, dat_field, None)
+                                    print(f"    - {dat_field} -> {gamelist_field}: value='{value}', has_value={bool(value)}")
                     
                     processed_count += 1
                 else:
@@ -24522,13 +24609,13 @@ def run_datscrapper_task(system_name, task_id, selected_games=None, selected_tex
         
         logger.info(f"✅ DAT Scrapper task completed for {system_name}: {processed_count} processed, {updated_count} updated")
         
-        # Save the updated gamelist
-        if updated_count > 0:
-            save_gamelist_xml(gamelist_path, all_games)
-            logger.info(f"💾 Saved updated gamelist for {system_name}")
-            
-            # Notify clients of gamelist update
-            notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+        # Save the updated gamelist (always save, even if updated_count is 0, to ensure changes are persisted)
+        print(f"🔧 DEBUG: Saving gamelist - updated_count: {updated_count}, processed_count: {processed_count}")
+        save_gamelist_xml(gamelist_path, all_games)
+        logger.info(f"💾 Saved gamelist for {system_name} (updated: {updated_count}, processed: {processed_count})")
+        
+        # Notify clients of gamelist update
+        notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
         
         return True
         
