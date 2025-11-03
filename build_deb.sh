@@ -79,6 +79,10 @@ cp -r pyrate_limiter debian/opt/gamemanager/
 # Tools and plugins
 mkdir -p debian/opt/gamemanager/tools
 cp tools/yt-dlp debian/opt/gamemanager/tools/yt-dlp
+if [ -f "tools/deno" ]; then
+    cp tools/deno debian/opt/gamemanager/tools/deno
+    chmod +x debian/opt/gamemanager/tools/deno
+fi
 cp -r tools/yt-dlp-plugins debian/opt/gamemanager/tools/yt-dlp-plugins
 
 # Fix paths in config.json for production environment

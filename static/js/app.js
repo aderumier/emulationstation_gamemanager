@@ -4341,6 +4341,11 @@ class GameCollectionManager {
                     <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                         <small class="text-center flex-grow-1">${field}</small>
                         <div class="d-flex gap-1">
+                            ${field === 'video' ? `
+                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-youtube"></i>
+                            </button>
+                            ` : ''}
                             ${field === 'fanart' ? `
                             <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-image"></i>
@@ -10016,6 +10021,11 @@ class GameCollectionManager {
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
+                                ${field === 'video' ? `
+                                <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                    <i class="bi bi-youtube"></i>
+                                </button>
+                                ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
@@ -10182,6 +10192,11 @@ class GameCollectionManager {
                     <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                         <small class="text-center flex-grow-1">${field}</small>
                         <div class="d-flex gap-1">
+                            ${field === 'video' ? `
+                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-youtube"></i>
+                            </button>
+                            ` : ''}
                             ${field === 'fanart' ? `
                             <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-image"></i>
@@ -21243,27 +21258,15 @@ class GameCollectionManager {
             channelEl.textContent = video.channel ? `Channel: ${video.channel}` : '';
         }
         
-        // Show/hide download controls based on platform
-        // Download controls only work with YouTube API for now
-        if (isYouTube) {
-            // Show controls for YouTube (has API support) - remove any display:none
-            const downloadControls = document.getElementById('downloadVideoBtn');
-            const startTimeInputGroup = document.querySelector('#startTimeInput')?.closest('.mb-3');
-            const autoCropCheckboxContainer = document.querySelector('#autoCropCheckbox')?.closest('.mb-3');
-            
-            if (downloadControls) downloadControls.style.display = '';
-            if (startTimeInputGroup) startTimeInputGroup.style.display = '';
-            if (autoCropCheckboxContainer) autoCropCheckboxContainer.style.display = '';
-        } else {
-            // Hide controls for other platforms (no API support)
-            const downloadControls = document.getElementById('downloadVideoBtn');
-            const startTimeInputGroup = document.querySelector('#startTimeInput')?.closest('.mb-3');
-            const autoCropCheckboxContainer = document.querySelector('#autoCropCheckbox')?.closest('.mb-3');
-            
-            if (downloadControls) downloadControls.style.display = 'none';
-            if (startTimeInputGroup) startTimeInputGroup.style.display = 'none';
-            if (autoCropCheckboxContainer) autoCropCheckboxContainer.style.display = 'none';
-        }
+        // Show download controls for all video platforms
+        // These controls work with any video URL (YouTube, Steam, LaunchBox, etc.)
+        const downloadControls = document.getElementById('downloadVideoBtn');
+        const startTimeInputGroup = document.querySelector('#startTimeInput')?.closest('.mb-3');
+        const autoCropCheckboxContainer = document.querySelector('#autoCropCheckbox')?.closest('.mb-3');
+        
+        if (downloadControls) downloadControls.style.display = '';
+        if (startTimeInputGroup) startTimeInputGroup.style.display = '';
+        if (autoCropCheckboxContainer) autoCropCheckboxContainer.style.display = '';
         
         // Store video data and game context for download
         // Use video.game if available (e.g., from LaunchBox), otherwise use currentYouTubeGame
@@ -21430,6 +21433,9 @@ class GameCollectionManager {
                 video.controls = true;
                 video.preload = 'metadata';
                 
+                // Store video element for time tracking
+                this.currentVideoElement = video;
+                
                 // Check if URL is HLS manifest (.m3u8) or DASH manifest (.mpd)
                 if (videoUrl.includes('.m3u8')) {
                     // HLS manifest - use HLS.js for playback (required for Chrome/Firefox, Safari has native support)
@@ -21447,6 +21453,8 @@ class GameCollectionManager {
                             video.play().catch(err => {
                                 console.log('Auto-play prevented:', err);
                             });
+                            // Start time tracking for non-YouTube videos
+                            this.updateCurrentTimeDisplay();
                         });
                         
                         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -21476,6 +21484,10 @@ class GameCollectionManager {
                         source.type = 'application/x-mpegURL';
                         video.appendChild(source);
                         console.log('Using Safari native HLS support');
+                        // Start time tracking for non-YouTube videos
+                        video.addEventListener('loadedmetadata', () => {
+                            this.updateCurrentTimeDisplay();
+                        });
                     } else {
                         // HLS.js not available and browser doesn't support HLS natively
                         console.error('HLS.js not available and browser does not support HLS natively');
@@ -21492,6 +21504,10 @@ class GameCollectionManager {
                     if (typeof dashjs !== 'undefined') {
                         const player = dashjs.MediaPlayer().create();
                         player.initialize(video, videoUrl, true);
+                        // Start time tracking for non-YouTube videos
+                        video.addEventListener('loadedmetadata', () => {
+                            this.updateCurrentTimeDisplay();
+                        });
                     } else {
                         console.warn('DASH.js not available, video may not play');
                         this.showPlayerError('DASH video requires dash.js library');
@@ -21503,12 +21519,27 @@ class GameCollectionManager {
                     source.src = videoUrl;
                     source.type = 'video/mp4';
                     video.appendChild(source);
+                    // Start time tracking for non-YouTube videos
+                    video.addEventListener('loadedmetadata', () => {
+                        this.updateCurrentTimeDisplay();
+                    });
                 }
                 
                 // Add error handler
                 video.addEventListener('error', (e) => {
                     console.error('Steam video playback error:', e);
                     this.showPlayerError('Failed to play Steam video. The video may require additional libraries or may not be playable in this browser.');
+                });
+                
+                // Add play/pause event listeners for time tracking
+                video.addEventListener('play', () => {
+                    this.updateCurrentTimeDisplay();
+                });
+                video.addEventListener('pause', () => {
+                    if (this.currentTimeInterval) {
+                        clearInterval(this.currentTimeInterval);
+                        this.currentTimeInterval = null;
+                    }
                 });
                 
                 playerContainer.appendChild(video);
@@ -21523,6 +21554,26 @@ class GameCollectionManager {
                 source.src = videoUrl;
                 source.type = 'video/mp4';
                 video.appendChild(source);
+                
+                // Store video element for time tracking
+                this.currentVideoElement = video;
+                
+                // Start time tracking for non-YouTube videos
+                video.addEventListener('loadedmetadata', () => {
+                    this.updateCurrentTimeDisplay();
+                });
+                
+                // Add play/pause event listeners for time tracking
+                video.addEventListener('play', () => {
+                    this.updateCurrentTimeDisplay();
+                });
+                video.addEventListener('pause', () => {
+                    if (this.currentTimeInterval) {
+                        clearInterval(this.currentTimeInterval);
+                        this.currentTimeInterval = null;
+                    }
+                });
+                
                 playerContainer.appendChild(video);
             }
         }
@@ -21855,10 +21906,33 @@ class GameCollectionManager {
     }
 
     getCurrentPlayerTime() {
+        // Try YouTube player first
         if (this.youtubePlayer && this.youtubePlayer.getCurrentTime) {
             const currentTime = Math.floor(this.youtubePlayer.getCurrentTime());
             document.getElementById('startTimeInput').value = currentTime;
+            return;
         }
+        
+        // Try HTML5 video element (for non-YouTube videos)
+        if (this.currentVideoElement) {
+            const currentTime = Math.floor(this.currentVideoElement.currentTime);
+            document.getElementById('startTimeInput').value = currentTime;
+            return;
+        }
+        
+        // Try to find video element in the player container
+        const playerContainer = document.getElementById('youtubePlayer');
+        if (playerContainer) {
+            const videoElement = playerContainer.querySelector('video');
+            if (videoElement && !isNaN(videoElement.currentTime)) {
+                const currentTime = Math.floor(videoElement.currentTime);
+                document.getElementById('startTimeInput').value = currentTime;
+                this.currentVideoElement = videoElement; // Store for future use
+                return;
+            }
+        }
+        
+        console.warn('Could not get current time - no player or video element found');
     }
 
     async autoSearchAndDownload() {
@@ -21894,19 +21968,28 @@ class GameCollectionManager {
     }
 
     async downloadYouTubeVideo() {
-        // Suppress reopening of YouTube search while we transition to tasks
-        this.suppressYouTubeSearchReopen = true;
-        
-        // Stop YouTube player if it's running
-        if (this.youtubePlayer && this.youtubePlayer.stopVideo) {
-            try {
-                this.youtubePlayer.stopVideo();
-            } catch (e) {
-            }
+        // Prevent multiple simultaneous calls
+        if (this.downloadingVideo) {
+            console.log('Download already in progress, ignoring duplicate call');
+            return;
         }
         
-        // Clean up YouTube player resources
-        this.cleanupYouTubePlayer();
+        this.downloadingVideo = true;
+        
+        try {
+            // Suppress reopening of YouTube search while we transition to tasks
+            this.suppressYouTubeSearchReopen = true;
+            
+            // Stop YouTube player if it's running
+            if (this.youtubePlayer && this.youtubePlayer.stopVideo) {
+                try {
+                    this.youtubePlayer.stopVideo();
+                } catch (e) {
+                }
+            }
+            
+            // Clean up YouTube player resources
+            this.cleanupYouTubePlayer();
         
         // Force close all modals first - before any async operations
         try {
@@ -21929,126 +22012,135 @@ class GameCollectionManager {
         } catch (e) {
         }
         
-        const startTime = parseInt(document.getElementById('startTimeInput').value) || 0;
-        
-        if (!this.currentYouTubeVideo) {
-            this.showAlert('Missing video information', 'error');
-            return;
-        }
-        
-        // Get the current game from the YouTube player modal context
-        // We'll use the game that was passed when opening the player modal
-
-        let currentGame = null;
-        
-        // Try to get game from currentYouTubeVideo first
-        if (this.currentYouTubeVideo.game) {
-            currentGame = this.currentYouTubeVideo.game;
-
-        }
-        // Fallback to currentYouTubeGame
-        else if (this.currentYouTubeGame) {
-            currentGame = this.currentYouTubeGame;
-
-        }
-        // Last resort: try to get from edit modal
-        else if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
-            currentGame = this.games[this.editingGameIndex];
-
-        }
-        
-        if (!currentGame) {
-
-            this.showAlert('No game context found for YouTube download', 'error');
-            return;
-        }
-        
-                                // currentGame object available for debugging if needed
-        
-        if (!currentGame) {
-            this.showAlert('No game selected', 'error');
-            return;
-        }
-
-        // Check if system is loaded
-        if (!this.currentSystem) {
-            this.showAlert('No system selected', 'error');
-            return;
-        }
-        
-        const romBasename = this.getRomBasename(currentGame.path);
-        const outputFilename = `${romBasename}.mp4`;
-        
-        // Update the YouTube URL field in the game object and edit modal
-        if (this.currentYouTubeVideo.url) {
+            const startTime = parseInt(document.getElementById('startTimeInput').value) || 0;
             
-            // Update the game object
-            currentGame.youtubeurl = this.currentYouTubeVideo.url;
+            if (!this.currentYouTubeVideo) {
+                this.showAlert('Missing video information', 'error');
+                this.downloadingVideo = false;
+                return;
+            }
             
-            // Update the edit modal field if it's open
-            const editModal = document.getElementById('editGameModal');
-            if (editModal && editModal.classList.contains('show')) {
-                const youtubeurlField = document.getElementById('editYoutubeurl');
-                if (youtubeurlField) {
-                    youtubeurlField.value = this.currentYouTubeVideo.url;
+            // Get the current game from the YouTube player modal context
+            // We'll use the game that was passed when opening the player modal
+
+            let currentGame = null;
+            
+            // Try to get game from currentYouTubeVideo first
+            if (this.currentYouTubeVideo.game) {
+                currentGame = this.currentYouTubeVideo.game;
+
+            }
+            // Fallback to currentYouTubeGame
+            else if (this.currentYouTubeGame) {
+                currentGame = this.currentYouTubeGame;
+
+            }
+            // Last resort: try to get from edit modal
+            else if (this.editingGameIndex >= 0 && this.editingGameIndex < this.games.length) {
+                currentGame = this.games[this.editingGameIndex];
+
+            }
+            
+            if (!currentGame) {
+
+                this.showAlert('No game context found for YouTube download', 'error');
+                this.downloadingVideo = false;
+                return;
+            }
+            
+                                    // currentGame object available for debugging if needed
+            
+            if (!currentGame) {
+                this.showAlert('No game selected', 'error');
+                this.downloadingVideo = false;
+                return;
+            }
+
+            // Check if system is loaded
+            if (!this.currentSystem) {
+                this.showAlert('No system selected', 'error');
+                this.downloadingVideo = false;
+                return;
+            }
+        
+            const romBasename = this.getRomBasename(currentGame.path);
+            const outputFilename = `${romBasename}.mp4`;
+            
+            // Update the YouTube URL field in the game object and edit modal
+            // Note: We don't save the YouTube URL here anymore - it will be saved after the video download completes
+            // This prevents multiple gamelist updates during download
+            if (this.currentYouTubeVideo.url) {
+                // Update the game object
+                currentGame.youtubeurl = this.currentYouTubeVideo.url;
+                
+                // Update the edit modal field if it's open
+                const editModal = document.getElementById('editGameModal');
+                if (editModal && editModal.classList.contains('show')) {
+                    const youtubeurlField = document.getElementById('editYoutubeurl');
+                    if (youtubeurlField) {
+                        youtubeurlField.value = this.currentYouTubeVideo.url;
+                    }
                 }
+                
+                // Mark the game as modified - but don't save yet
+                // The save will happen after the video download completes (via task completion handler)
+                this.markGameAsModified(currentGame);
             }
             
-            // Mark the game as modified so changes can be saved
-            this.markGameAsModified(currentGame);
-            
-            // Auto-save the YouTube URL change to gamelist.xml
-            try {
-                await this.saveGameChanges();
-            } catch (error) {
-                console.warn('Failed to auto-save YouTube URL change:', error);
-            }
-        }
-        
-        // Debug logging
+            // Debug logging
 
-        // Get auto crop setting from checkbox
-        const autoCropCheckbox = document.getElementById('autoCropCheckbox');
-        const autoCrop = autoCropCheckbox ? autoCropCheckbox.checked : false;
-        
-        // Create the request body
-        const requestBody = {
-            video_url: this.currentYouTubeVideo.url,
-            start_time: startTime,
-            output_filename: outputFilename,
-            system_name: this.currentSystem,
-            rom_file: currentGame.path,  // Pass the ROM file path directly
-            auto_crop: autoCrop  // Include auto crop setting
-        };
-        
-        try {
-            const response = await fetch('/api/youtube/download', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
+            // Get auto crop setting from checkbox
+            const autoCropCheckbox = document.getElementById('autoCropCheckbox');
+            const autoCrop = autoCropCheckbox ? autoCropCheckbox.checked : false;
             
-            if (response.ok) {
-                const data = await response.json();
-                this.showAlert(`Video download started! ${data.message}`, 'success');
+            // Create the request body
+            const requestBody = {
+                video_url: this.currentYouTubeVideo.url,
+                start_time: startTime,
+                output_filename: outputFilename,
+                system_name: this.currentSystem,
+                rom_file: currentGame.path,  // Pass the ROM file path directly
+                auto_crop: autoCrop  // Include auto crop setting
+            };
+            
+            try {
+                const response = await fetch('/api/youtube/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
                 
-                // Ensure suppression remains true until after switching tab
-                this.suppressYouTubeSearchReopen = true;
-                
-                // Switch to task management tab to show download progress
-                this.switchToTaskManagementTab();
-                
-                // After switching, allow reopening in future flows
-                setTimeout(() => { this.suppressYouTubeSearchReopen = false; }, 1000);
-            } else {
-                const errorData = await response.json();
-                this.showAlert(`Download failed: ${errorData.error}`, 'error');
-                this.suppressYouTubeSearchReopen = false;
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showAlert(`Video download started! ${data.message}`, 'success');
+                    
+                    // Ensure suppression remains true until after switching tab
+                    this.suppressYouTubeSearchReopen = true;
+                    
+                    // Switch to task management tab to show download progress
+                    this.switchToTaskManagementTab();
+                    
+                    // After switching, allow reopening in future flows
+                    setTimeout(() => { this.suppressYouTubeSearchReopen = false; }, 1000);
+                } else {
+                    const errorData = await response.json();
+                    this.showAlert(`Download failed: ${errorData.error}`, 'error');
+                    this.suppressYouTubeSearchReopen = false;
+                }
+            } catch (error) {
+                this.showAlert('Download failed: Network error', 'error');
+            } finally {
+                // Reset the downloading flag after a delay to prevent immediate re-clicks
+                setTimeout(() => {
+                    this.downloadingVideo = false;
+                }, 2000);
             }
         } catch (error) {
-            this.showAlert('Download failed: Network error', 'error');
+            console.error('Error in downloadYouTubeVideo:', error);
+            this.showAlert('Download failed: Unexpected error', 'error');
+            this.downloadingVideo = false;
         }
     }
     updateCurrentTimeDisplay() {
@@ -22058,10 +22150,30 @@ class GameCollectionManager {
         }
         
         this.currentTimeInterval = setInterval(() => {
+            let currentTime = null;
+            
+            // Try YouTube player first
             if (this.youtubePlayer && this.youtubePlayer.getCurrentTime) {
-                const currentTime = Math.floor(this.youtubePlayer.getCurrentTime());
-                
-                // Auto-update the start time input field
+                currentTime = Math.floor(this.youtubePlayer.getCurrentTime());
+            }
+            // Try HTML5 video element (for non-YouTube videos)
+            else if (this.currentVideoElement && !isNaN(this.currentVideoElement.currentTime)) {
+                currentTime = Math.floor(this.currentVideoElement.currentTime);
+            }
+            // Try to find video element in the player container
+            else {
+                const playerContainer = document.getElementById('youtubePlayer');
+                if (playerContainer) {
+                    const videoElement = playerContainer.querySelector('video');
+                    if (videoElement && !isNaN(videoElement.currentTime)) {
+                        currentTime = Math.floor(videoElement.currentTime);
+                        this.currentVideoElement = videoElement; // Store for future use
+                    }
+                }
+            }
+            
+            // Auto-update the start time input field if we have a current time
+            if (currentTime !== null) {
                 const startTimeInput = document.getElementById('startTimeInput');
                 if (startTimeInput) {
                     startTimeInput.value = currentTime;

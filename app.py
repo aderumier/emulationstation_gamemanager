@@ -18101,11 +18101,6 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     '--extractor-args', 'youtube:player-client=mweb',
                     '--extractor-args', f'youtubepot-bgutilhttp:base_url={youtube_po_token_provider}'
                 ])
-            elif mode != 'po' and is_youtube_url and not enable_youtube_po_token:
-                # Explicitly disable PO token provider when option is disabled (use web client to avoid auto-detection)
-                cmd.extend([
-                    '--extractor-args', 'youtube:player-client=web'
-                ])
             elif mode == 'sections':
                 # Sections mode: download only the specific time segment
                 cmd.extend([
@@ -18170,6 +18165,14 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         if is_steam_store:
             task.update_progress(f"  🎮 Steam Store URL detected, using playlist index: {playlist_index}")
         task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+        
+        # Add yt-dlp directory to PATH
+        yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+        env = os.environ.copy()
+        current_path = env.get('PATH', '')
+        if yt_dlp_dir not in current_path:
+            env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+        
         process = subprocess.Popen(
             download_cmd,
             stdout=subprocess.PIPE,
@@ -18177,7 +18180,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
             text=True,
             cwd=temp_videos_dir,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            env=env
         )
         
         # Read output line by line to show real-time progress
@@ -18270,6 +18274,14 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 except Exception:
                     pass
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                
+                # Add yt-dlp directory to PATH
+                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                env = os.environ.copy()
+                current_path = env.get('PATH', '')
+                if yt_dlp_dir not in current_path:
+                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+                
                 process = subprocess.Popen(
                     download_cmd,
                     stdout=subprocess.PIPE,
@@ -18277,7 +18289,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     text=True,
                     cwd=temp_videos_dir,
                     bufsize=1,
-                    universal_newlines=True
+                    universal_newlines=True,
+                    env=env
                 )
                 # Read output again
                 stdout_lines = []
@@ -18353,6 +18366,14 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                 
                 download_cmd = build_download_cmd(first_mode, use_cookies=True)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                
+                # Add yt-dlp directory to PATH
+                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                env = os.environ.copy()
+                current_path = env.get('PATH', '')
+                if yt_dlp_dir not in current_path:
+                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+                
                 process = subprocess.Popen(
                     download_cmd,
                     stdout=subprocess.PIPE,
@@ -18360,7 +18381,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     text=True,
                     cwd=temp_videos_dir,
                     bufsize=1,
-                    universal_newlines=True
+                    universal_newlines=True,
+                    env=env
                 )
                 # Read output again
                 stdout_lines = []
@@ -18452,6 +18474,14 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     pass
                 download_cmd = build_download_cmd('po', use_cookies=po_use_cookies)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                
+                # Add yt-dlp directory to PATH
+                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                env = os.environ.copy()
+                current_path = env.get('PATH', '')
+                if yt_dlp_dir not in current_path:
+                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+                
                 process = subprocess.Popen(
                     download_cmd,
                     stdout=subprocess.PIPE,
@@ -18459,7 +18489,8 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                     text=True,
                     cwd=temp_videos_dir,
                     bufsize=1,
-                    universal_newlines=True
+                    universal_newlines=True,
+                    env=env
                 )
                 # Read output again
                 stdout_lines = []
@@ -18526,14 +18557,23 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
                         
                 download_cmd = build_download_cmd('po', use_cookies=True)
                 task.update_progress(f"yt-dlp command: {' '.join(download_cmd)}")
+                
+                # Add yt-dlp directory to PATH
+                yt_dlp_dir = os.path.dirname(os.path.abspath(yt_dlp_path))
+                env = os.environ.copy()
+                current_path = env.get('PATH', '')
+                if yt_dlp_dir not in current_path:
+                    env['PATH'] = f"{yt_dlp_dir}:{current_path}"
+                
                 process = subprocess.Popen(
                     download_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                            cwd=temp_videos_dir,
+                    cwd=temp_videos_dir,
                     bufsize=1,
-                    universal_newlines=True
+                    universal_newlines=True,
+                    env=env
                 )
                 # Read output again
                 stdout_lines = []
