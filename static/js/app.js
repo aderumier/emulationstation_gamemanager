@@ -4059,6 +4059,10 @@ class GameCollectionManager {
                     // For now, we'll trust the API response
                     // If video is missing but should be there, it might not be in media_fields config
                 }
+                // Ensure 'manual' is included for PDF previews (it's a standard field)
+                if (!data.fields.includes('manual')) {
+                    data.fields.push('manual');
+                }
                 this.mediaFieldsCache = data.fields;
                 return this.mediaFieldsCache;
             } else {
@@ -4066,7 +4070,7 @@ class GameCollectionManager {
             }
         } catch (error) {
             // Fallback to default media fields if API call fails (video is not in fallback as it's optional)
-            const fallbackFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'boxback', 'thumbnail'];
+            const fallbackFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'thumbnail'];
             this.mediaFieldsCache = fallbackFields;
             return this.mediaFieldsCache;
         }
@@ -4294,11 +4298,13 @@ class GameCollectionManager {
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
-                    // PDF file - show PDF logo
+                    // PDF file - show preview of first page as JPG
+                    const cacheBuster = new Date().getTime();
+                    const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(mediaPath)}?v=${cacheBuster}`;
+                    
                     mediaItem.innerHTML = `
-                        <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;">
-                            <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
-                            <small style="color: #6c757d; text-align: center;">PDF Document</small>
+                        <div style="position: relative;">
+                            <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="this.onerror=null; this.src=''; this.alt='PDF preview failed'; this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;\\'><i class=\\'bi bi-file-earmark-pdf\\' style=\\'font-size: 48px; color: #dc3545; margin-bottom: 8px;\\'></i><small style=\\'color: #6c757d; text-align: center;\\'>PDF Document</small></div>'">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -4315,6 +4321,34 @@ class GameCollectionManager {
                             </div>
                         </div>
                     `;
+                    
+                    // Add error handler for PDF preview image
+                    const img = mediaItem.querySelector('img');
+                    if (img) {
+                        img.addEventListener('error', () => {
+                            // If preview fails, show PDF icon placeholder
+                            const parentDiv = img.parentElement;
+                            parentDiv.innerHTML = `
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;">
+                                    <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
+                                    <small style="color: #6c757d; text-align: center;">PDF Document</small>
+                                    <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        // Add hover preview functionality for PDF preview
+                        img.addEventListener('load', () => {
+                            img.addEventListener('mouseenter', (e) => {
+                                this.showMediaHover(e, pdfPreviewUrl, field);
+                            });
+                            img.addEventListener('mouseleave', () => {
+                                this.hideMediaHover();
+                            });
+                        });
+                    }
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
@@ -10063,13 +10097,18 @@ class GameCollectionManager {
         // Always show media preview content (no need to show/hide section)
         mediaPreviewContent.innerHTML = '';
 
-        // Get media fields from config.json mappings (including video)
+        // Get media fields from config.json mappings (including video and manual)
         // Force refresh to ensure we get the latest fields including video
         let mediaFields = await this.getMediaFieldsFromConfig(true);
         
         // Ensure 'video' is included even if not in config (it's a standard field)
         if (!mediaFields.includes('video')) {
             mediaFields.push('video');
+        }
+        
+        // Ensure 'manual' is included even if not in config (it's a standard field for PDF previews)
+        if (!mediaFields.includes('manual')) {
+            mediaFields.push('manual');
         }
         
         // Process each field only once
@@ -10201,11 +10240,18 @@ class GameCollectionManager {
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
-                    // PDF file - show PDF logo
+                    // PDF file - show preview of first page as JPG
+                    // Clean the mediaPath (remove leading ./ if present)
+                    let cleanMediaPath = mediaPath;
+                    if (cleanMediaPath.startsWith('./')) {
+                        cleanMediaPath = cleanMediaPath.substring(2);
+                    }
+                    const cacheBuster = new Date().getTime();
+                    const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    
                     mediaItem.innerHTML = `
-                        <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;">
-                            <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
-                            <small style="color: #6c757d; text-align: center;">PDF Document</small>
+                        <div style="position: relative;">
+                            <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('PDF preview failed for:', '${cleanMediaPath}');">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -10235,6 +10281,37 @@ class GameCollectionManager {
                             </div>
                         </div>
                     `;
+                    
+                    // Add error handler for PDF preview image
+                    const img = mediaItem.querySelector('img');
+                    if (img) {
+                        img.addEventListener('error', (e) => {
+                            console.error('PDF preview image failed to load:', pdfPreviewUrl, e);
+                            // If preview fails, show PDF icon placeholder
+                            const parentDiv = img.parentElement;
+                            if (parentDiv) {
+                                parentDiv.innerHTML = `
+                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;">
+                                        <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
+                                        <small style="color: #6c757d; text-align: center;">PDF Document</small>
+                                        <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        });
+                        
+                        // Add hover preview functionality for PDF preview
+                        img.addEventListener('load', () => {
+                            img.addEventListener('mouseenter', (e) => {
+                                this.showMediaHover(e, pdfPreviewUrl, field);
+                            });
+                            img.addEventListener('mouseleave', () => {
+                                this.hideMediaHover();
+                            });
+                        });
+                    }
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
@@ -10336,8 +10413,8 @@ class GameCollectionManager {
             } else {
                 // Media missing - show placeholder with upload functionality
                 const placeholderSize = '150px'; // Use same size for all media types including video
-                const iconClass = field === 'video' ? 'bi-camera-video' : 'bi-cloud-upload';
-                const uploadText = field === 'video' ? 'Double-click<br>to upload video' : 'Double-click<br>to upload';
+                const iconClass = field === 'video' ? 'bi-camera-video' : field === 'manual' ? 'bi-file-earmark-pdf' : 'bi-cloud-upload';
+                const uploadText = field === 'video' ? 'Double-click<br>to upload video' : field === 'manual' ? 'Double-click<br>to upload PDF' : 'Double-click<br>to upload';
                 
                 mediaItem.innerHTML = `
                     <div class="media-placeholder" style="width: ${placeholderSize}; height: ${placeholderSize}; background-color: #ffffff; border: 2px dashed #dee2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6c757d; font-size: 0.8rem; text-align: center; cursor: pointer; transition: all 0.2s ease;">

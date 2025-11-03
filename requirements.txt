@@ -28,6 +28,9 @@ python-dotenv>=1.0.0
 # Image manipulation
 Wand>=0.6.0
 
+# PDF processing (installed via Debian package: python3-pymupdf)
+# PyMuPDF>=1.23.0
+
 # IGDB API integration (using httpx directly)
 # Note: pyrate_limiter is deployed locally in the app directory
 

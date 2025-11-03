@@ -19572,6 +19572,10 @@ def get_media_fields():
         if 'video' not in field_names:
             field_names.append('video')
         
+        # Ensure 'manual' is always included for PDF previews
+        if 'manual' not in field_names:
+            field_names.append('manual')
+        
         return jsonify({
             'success': True,
             'fields': field_names
@@ -19581,6 +19585,115 @@ def get_media_fields():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/pdf-preview/<system_name>/<path:pdf_path>')
+@login_required
+def get_pdf_preview(system_name, pdf_path):
+    """Convert first page of PDF to JPG and cache it"""
+    try:
+        # Import pymupdf directly as recommended in the documentation
+        # See https://pymupdf.readthedocs.io/en/latest/recipes-images.html
+        import pymupdf
+        
+        from PIL import Image
+        import hashlib
+        import io
+        
+        # Sanitize path (remove leading ./ or /)
+        pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
+        
+        # Construct full PDF path
+        full_pdf_path = os.path.join('roms', system_name, pdf_path)
+        
+        # Normalize path to handle any path separators
+        full_pdf_path = os.path.normpath(full_pdf_path)
+        
+        # Additional security check - ensure path doesn't escape roms directory
+        # Convert to absolute path for comparison
+        abs_roms = os.path.abspath('roms')
+        abs_pdf = os.path.abspath(full_pdf_path)
+        if not abs_pdf.startswith(abs_roms):
+            return jsonify({'error': 'Invalid PDF path'}), 400
+        
+        if not os.path.exists(full_pdf_path):
+            print(f"PDF file not found: {full_pdf_path}")
+            return jsonify({'error': 'PDF file not found'}), 404
+        
+        # Create cache directory
+        cache_dir = os.path.join('var', 'cache', 'manual', system_name)
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Generate cache filename based on PDF path hash
+        pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()
+        cache_filename = f"{pdf_hash}.jpg"
+        cache_path = os.path.join(cache_dir, cache_filename)
+        
+        # Check if cached image exists and is newer than PDF
+        if os.path.exists(cache_path):
+            pdf_mtime = os.path.getmtime(full_pdf_path)
+            cache_mtime = os.path.getmtime(cache_path)
+            if cache_mtime >= pdf_mtime:
+                # Return cached image
+                return send_file(cache_path, mimetype='image/jpeg')
+        
+        # Open PDF and convert first page to image
+        # Using pymupdf.open() as per documentation examples
+        # See https://pymupdf.readthedocs.io/en/latest/recipes-images.html
+        pdf_doc = pymupdf.open(full_pdf_path)
+        if len(pdf_doc) == 0:
+            pdf_doc.close()
+            return jsonify({'error': 'PDF has no pages'}), 400
+        
+        # Get first page
+        page = pdf_doc[0]
+        
+        # Render page to pixmap (use 2x zoom for better quality)
+        # Using dpi parameter as recommended in documentation
+        # See https://pymupdf.readthedocs.io/en/latest/recipes-images.html#how-to-increase-image-resolution
+        zoom = 2.0
+        mat = pymupdf.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat)
+        
+        # Convert to PIL Image
+        img_data = pix.tobytes("ppm")
+        img = Image.open(io.BytesIO(img_data))
+        
+        # Convert to RGB if necessary (some PDFs might have alpha channel)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Resize to reasonable size (max 800px width/height)
+        max_size = 800
+        if img.width > max_size or img.height > max_size:
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        
+        # Save to cache
+        img.save(cache_path, 'JPEG', quality=85)
+        
+        # Close PDF
+        pdf_doc.close()
+        
+        # Return cached image
+        return send_file(cache_path, mimetype='image/jpeg')
+        
+    except ImportError as e:
+        # Provide more detailed error information
+        import sys
+        python_path = sys.executable
+        python_version = sys.version
+        error_msg = (
+            f'PyMuPDF (fitz) not found. '
+            f'Python: {python_path}, Version: {python_version}. '
+            f'Install with: apt install python3-pymupdf or pip3 install pymupdf. '
+            f'Error: {str(e)}'
+        )
+        print(f"PDF preview import error: {error_msg}")
+        return jsonify({'error': error_msg}), 500
+    except Exception as e:
+        print(f"Error generating PDF preview: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to generate PDF preview: {str(e)}'}), 500
 
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])

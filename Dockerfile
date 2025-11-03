@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y \
     python3-dotenv \
     python3-wand \
     python3-jellyfish \
+    python3-pymupdf \
     # Application dependencies
     imagemagick \
     ffmpeg \
@@ -54,7 +55,7 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     usermod -aG sudo appuser
 
 # Copy the .deb package
-ARG DEB_FILE=gamemanager_2.8.5-1_all.deb
+ARG DEB_FILE=gamemanager_2.9.0-1_all.deb
 COPY ${DEB_FILE} .
 
 # Extract the .deb package manually (skip postinst script for Docker)
@@ -245,6 +246,6 @@ CMD ["/opt/gamemanager/start.sh"]
 # Labels for metadata
 LABEL maintainer="GameManager Team <admin@gamemanager.local>"
 LABEL description="Game Collection Management System with LaunchBox integration"
-LABEL version="2.8.5-1"
+LABEL version="2.9.0-1"
 LABEL org.opencontainers.image.source="https://github.com/aderumier/emulationstation_gamemanager"
 LABEL org.opencontainers.image.description="Flask-based web application for managing game collections with metadata and media from LaunchBox database"
