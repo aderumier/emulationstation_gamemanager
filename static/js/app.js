@@ -4297,23 +4297,25 @@ class GameCollectionManager {
                     
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
-                } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
-                    // PDF file - check if file exists first, then show preview of first page as JPG
+                } else if (mediaPath.toLowerCase().endsWith('.pdf') || mediaPath.toLowerCase().endsWith('.cbz')) {
+                    // PDF or CBZ file - check if file exists first, then show preview
                     // Clean the mediaPath (remove leading ./ if present)
                     let cleanMediaPath = mediaPath;
                     if (cleanMediaPath.startsWith('./')) {
                         cleanMediaPath = cleanMediaPath.substring(2);
                     }
                     
-                    // Check if PDF file exists before displaying preview
+                    const isCBZ = mediaPath.toLowerCase().endsWith('.cbz');
+                    
+                    // Check if file exists before displaying preview
                     const cacheBuster = new Date().getTime();
-                    const pdfUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    const fileUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                     
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaContent.appendChild(mediaItem);
                     
                     // Check if file exists first
-                    fetch(pdfUrl, { method: 'HEAD' })
+                    fetch(fileUrl, { method: 'HEAD' })
                         .then(response => {
                             if (!response.ok || response.status === 404) {
                                 // File doesn't exist - show placeholder immediately
@@ -4321,12 +4323,14 @@ class GameCollectionManager {
                                 return;
                             }
                             
-                            // File exists - show PDF preview
-                            const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                            // File exists - show preview (PDF or CBZ)
+                            const previewUrl = isCBZ 
+                                ? `/api/cbz-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`
+                                : `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                             
                             mediaItem.innerHTML = `
                                 <div style="position: relative;">
-                                    <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('PDF preview failed for:', '${cleanMediaPath}');">
+                                    <img src="${previewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('${isCBZ ? 'CBZ' : 'PDF'} preview failed for:', '${cleanMediaPath}');">
                                     <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                         <i class="bi bi-arrow-clockwise"></i>
                                     </div>
@@ -4335,9 +4339,11 @@ class GameCollectionManager {
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
                                         ${field === 'manual' ? `
+                                        ${!isCBZ ? `
                                         <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </button>
+                                        ` : ''}
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
@@ -4353,18 +4359,18 @@ class GameCollectionManager {
                                 </div>
                             `;
                             
-                            // Add error handler for PDF preview image
+                            // Add error handler for PDF/CBZ preview image
                             const img = mediaItem.querySelector('img');
                             if (img) {
                                 img.addEventListener('error', () => {
-                                    // If preview fails, show file missing placeholder (PDF might not exist even if HEAD passed)
+                                    // If preview fails, show file missing placeholder (file might not exist even if HEAD passed)
                                     this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                                 });
                                 
-                                // Add hover preview functionality for PDF preview
+                                // Add hover preview functionality for PDF/CBZ preview
                                 img.addEventListener('load', () => {
                                     img.addEventListener('mouseenter', (e) => {
-                                        this.showMediaHover(e, pdfPreviewUrl, field);
+                                        this.showMediaHover(e, previewUrl, field);
                                     });
                                     img.addEventListener('mouseleave', () => {
                                         this.hideMediaHover();
@@ -4404,7 +4410,7 @@ class GameCollectionManager {
                             this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                         });
                     
-                    // Skip the rest of the loop iteration since we handled PDF asynchronously
+                    // Skip the rest of the loop iteration since we handled PDF/CBZ asynchronously
                     return;
                 } else {
                     // Add cache-busting parameter to force image refresh
@@ -4595,8 +4601,8 @@ class GameCollectionManager {
         }
         
         // Ensure it's a PDF file
-        if (!pdfPath.toLowerCase().endsWith('.pdf')) {
-            console.warn('Path does not end with .pdf:', pdfPath);
+        if (!pdfPath.toLowerCase().endsWith('.pdf') && !pdfPath.toLowerCase().endsWith('.cbz')) {
+            console.warn('Path does not end with .pdf or .cbz:', pdfPath);
             // Still try to proceed, might be a false negative
         }
         
@@ -10591,23 +10597,25 @@ class GameCollectionManager {
                     
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
-                } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
-                    // PDF file - check if file exists first, then show preview of first page as JPG
+                } else if (mediaPath.toLowerCase().endsWith('.pdf') || mediaPath.toLowerCase().endsWith('.cbz')) {
+                    // PDF or CBZ file - check if file exists first, then show preview
                     // Clean the mediaPath (remove leading ./ if present)
                     let cleanMediaPath = mediaPath;
                     if (cleanMediaPath.startsWith('./')) {
                         cleanMediaPath = cleanMediaPath.substring(2);
                     }
                     
-                    // Check if PDF file exists before displaying preview
+                    const isCBZ = mediaPath.toLowerCase().endsWith('.cbz');
+                    
+                    // Check if file exists before displaying preview
                     const cacheBuster = new Date().getTime();
-                    const pdfUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    const fileUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                     
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaPreviewContent.appendChild(mediaItem);
                     
                     // Check if file exists first
-                    fetch(pdfUrl, { method: 'HEAD' })
+                    fetch(fileUrl, { method: 'HEAD' })
                         .then(response => {
                             if (!response.ok || response.status === 404) {
                                 // File doesn't exist - show placeholder immediately
@@ -10615,12 +10623,14 @@ class GameCollectionManager {
                                 return;
                             }
                             
-                            // File exists - show PDF preview
-                            const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                            // File exists - show preview (PDF or CBZ)
+                            const previewUrl = isCBZ 
+                                ? `/api/cbz-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`
+                                : `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                             
                             mediaItem.innerHTML = `
                                 <div style="position: relative;">
-                                    <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('PDF preview failed for:', '${cleanMediaPath}');">
+                                    <img src="${previewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('${isCBZ ? 'CBZ' : 'PDF'} preview failed for:', '${cleanMediaPath}');">
                                     <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                         <i class="bi bi-arrow-clockwise"></i>
                                     </div>
@@ -10642,9 +10652,11 @@ class GameCollectionManager {
                                         </button>
                                         ` : ''}
                                         ${field === 'manual' ? `
+                                        ${!isCBZ ? `
                                         <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </button>
+                                        ` : ''}
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
@@ -10660,19 +10672,19 @@ class GameCollectionManager {
                                 </div>
                             `;
                             
-                            // Add error handler for PDF preview image
+                            // Add error handler for PDF/CBZ preview image
                             const img = mediaItem.querySelector('img');
                             if (img) {
                                 img.addEventListener('error', (e) => {
-                                    console.error('PDF preview image failed to load:', pdfPreviewUrl, e);
-                                    // If preview fails, show file missing placeholder (PDF might not exist even if HEAD passed)
+                                    console.error(`${isCBZ ? 'CBZ' : 'PDF'} preview image failed to load:`, previewUrl, e);
+                                    // If preview fails, show file missing placeholder (file might not exist even if HEAD passed)
                                     this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                                 });
                                 
-                                // Add hover preview functionality for PDF preview
+                                // Add hover preview functionality for PDF/CBZ preview
                                 img.addEventListener('load', () => {
                                     img.addEventListener('mouseenter', (e) => {
-                                        this.showMediaHover(e, pdfPreviewUrl, field);
+                                        this.showMediaHover(e, previewUrl, field);
                                     });
                                     img.addEventListener('mouseleave', () => {
                                         this.hideMediaHover();
@@ -10713,7 +10725,7 @@ class GameCollectionManager {
                             this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                         });
                     
-                    // Skip the rest of the loop iteration since we handled PDF asynchronously
+                    // Skip the rest of the loop iteration since we handled PDF/CBZ asynchronously
                     return;
                 } else {
                     // Add cache-busting parameter to force image refresh
@@ -10819,7 +10831,7 @@ class GameCollectionManager {
                 // Media missing - show placeholder with upload functionality
                 const placeholderSize = '150px'; // Use same size for all media types including video
                 const iconClass = field === 'video' ? 'bi-camera-video' : field === 'manual' ? 'bi-file-earmark-pdf' : 'bi-cloud-upload';
-                const uploadText = field === 'video' ? 'Double-click<br>to upload video' : field === 'manual' ? 'Double-click<br>to upload PDF' : 'Double-click<br>to upload';
+                const uploadText = field === 'video' ? 'Double-click<br>to upload video' : field === 'manual' ? 'Double-click<br>to upload PDF/CBZ' : 'Double-click<br>to upload';
                 
                 mediaItem.innerHTML = `
                     <div class="media-placeholder" style="width: ${placeholderSize}; height: ${placeholderSize}; background-color: #ffffff; border: 2px dashed #dee2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6c757d; font-size: 0.8rem; text-align: center; cursor: pointer; transition: all 0.2s ease;">

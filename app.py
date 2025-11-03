@@ -9630,8 +9630,15 @@ def download_multiscraper_media_endpoint():
                 
                 media_config = config['media_fields'][media_type]
                 target_dir = media_config.get('directory', f'media/{media_type}')
-                # For manual (PDF) type, always use .pdf extension regardless of config
-                target_extension = '.pdf' if media_type == 'manual' else media_config.get('target_extension', '.pdf')
+                # For manual type, determine extension from URL or default to .pdf
+                if media_type == 'manual':
+                    # Check if URL indicates CBZ
+                    if direct_pdf_url and (direct_pdf_url.lower().endswith('.cbz') or '.cbz' in direct_pdf_url.lower()):
+                        target_extension = '.cbz'
+                    else:
+                        target_extension = '.pdf'
+                else:
+                    target_extension = media_config.get('target_extension', '.pdf')
                 
                 if not target_dir.startswith('media/'):
                     target_dir = f'media/{target_dir}'
@@ -10302,9 +10309,13 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         media_config = config['media_fields'][media_type]
         target_dir = media_config.get('directory', f'media/{media_type}')
-        # For manual (PDF) type, always use .pdf extension regardless of config
+        # For manual type, determine extension from URL or default to .pdf
         if media_type == 'manual':
-            target_extension = '.pdf'
+            # Check if URL indicates CBZ or PDF
+            if media_url and (media_url.lower().endswith('.cbz') or '.cbz' in media_url.lower()):
+                target_extension = '.cbz'
+            else:
+                target_extension = '.pdf'
         else:
             target_extension = media_config.get('target_extension', '.png')
         
@@ -10335,7 +10346,7 @@ def download_and_save_media(media_url, game, media_type, system_name):
             f.write(response.content)
         print(f"🔧 DEBUG: File saved to {target_path}")
         
-        # For manual (PDF) type, skip image processing - PDFs should not be converted/resized
+        # For manual (PDF/CBZ) type, skip image processing - these files should not be converted/resized
         if media_type != 'manual':
             # Convert and/or resize image in a single operation (optimized)
             from game_utils import should_process_field, convert_and_resize_image_replace
@@ -19810,6 +19821,82 @@ def get_pdf_preview_remote():
         import traceback
         print(traceback.format_exc())
         return jsonify({'error': f'Failed to generate PDF preview: {str(e)}'}), 500
+
+@app.route('/api/cbz-preview/<system_name>/<path:cbz_path>')
+@login_required
+def get_cbz_preview(system_name, cbz_path):
+    """Extract first image from CBZ file and serve as JPG"""
+    try:
+        from PIL import Image
+        import io
+        import zipfile
+        
+        # Sanitize path (remove leading ./ or /)
+        cbz_path = cbz_path.replace('..', '').lstrip('/').lstrip('./')
+        
+        # Construct full CBZ path
+        full_cbz_path = os.path.join('roms', system_name, cbz_path)
+        
+        # Normalize path
+        full_cbz_path = os.path.normpath(full_cbz_path)
+        
+        # Security check
+        abs_roms = os.path.abspath('roms')
+        abs_cbz = os.path.abspath(full_cbz_path)
+        if not abs_cbz.startswith(abs_roms):
+            return jsonify({'error': 'Invalid CBZ path'}), 400
+        
+        if not os.path.exists(full_cbz_path):
+            print(f"CBZ file not found: {full_cbz_path}")
+            return jsonify({'error': 'CBZ file not found'}), 404
+        
+        # Open CBZ file (ZIP archive)
+        with zipfile.ZipFile(full_cbz_path, 'r') as cbz_file:
+            # Get list of files in the archive, sorted by name
+            file_list = sorted(cbz_file.namelist())
+            
+            # Find first image file (jpg, jpeg, png)
+            first_image = None
+            for filename in file_list:
+                lower_name = filename.lower()
+                if (lower_name.endswith('.jpg') or lower_name.endswith('.jpeg') or 
+                    lower_name.endswith('.png') or lower_name.endswith('.webp')):
+                    # Skip hidden files and directories
+                    if not os.path.basename(filename).startswith('.'):
+                        first_image = filename
+                        break
+            
+            if not first_image:
+                return jsonify({'error': 'No image found in CBZ file'}), 400
+            
+            # Extract first image to memory
+            image_data = cbz_file.read(first_image)
+            img = Image.open(io.BytesIO(image_data))
+            
+            # Convert to RGB if necessary
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Resize to reasonable size (max 800px width/height)
+            max_size = 800
+            if img.width > max_size or img.height > max_size:
+                img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            
+            # Save to memory buffer and return
+            img_buffer = io.BytesIO()
+            img.save(img_buffer, 'JPEG', quality=85)
+            img_buffer.seek(0)
+            
+            # Return image directly from memory
+            return send_file(img_buffer, mimetype='image/jpeg')
+        
+    except zipfile.BadZipFile:
+        return jsonify({'error': 'Invalid CBZ file (not a valid ZIP archive)'}), 400
+    except Exception as e:
+        print(f"Error generating CBZ preview: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'error': f'Failed to generate CBZ preview: {str(e)}'}), 500
 
 @app.route('/api/pdf-preview/<system_name>/<path:pdf_path>')
 @login_required
