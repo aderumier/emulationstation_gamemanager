@@ -9610,8 +9610,8 @@ def download_multiscraper_media_endpoint():
             except Exception as e:
                 print(f"❌ Error downloading ScreenScraper video: {e}")
                 return jsonify({'error': f'Failed to download video: {str(e)}'}), 500
-        # For ScreenScraper PDFs (manual/map), download with Referer header
-        elif (media_type == 'manual' or media_type == 'map') and screenscraper_id and screenscraper_system_id:
+        # For ScreenScraper PDFs (manual/map/magazine), download with Referer header
+        elif (media_type == 'manual' or media_type == 'map' or media_type == 'magazine') and screenscraper_id and screenscraper_system_id:
             # Construct direct ScreenScraper PDF URL
             # Extract region from media_url if available, otherwise default to 'us'
             region = 'us'
@@ -9647,8 +9647,8 @@ def download_multiscraper_media_endpoint():
                 
                 media_config = config['media_fields'][media_type]
                 target_dir = media_config.get('directory', f'media/{media_type}')
-                # For manual/map types, determine extension from URL or default to .pdf
-                if media_type == 'manual' or media_type == 'map':
+                # For manual/map/magazine types, determine extension from URL or default to .pdf
+                if media_type == 'manual' or media_type == 'map' or media_type == 'magazine':
                     # Check if URL indicates CBZ
                     if direct_pdf_url and (direct_pdf_url.lower().endswith('.cbz') or '.cbz' in direct_pdf_url.lower()):
                         target_extension = '.cbz'
@@ -10326,8 +10326,8 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         media_config = config['media_fields'][media_type]
         target_dir = media_config.get('directory', f'media/{media_type}')
-        # For manual/map types, determine extension from URL or default to .pdf
-        if media_type == 'manual' or media_type == 'map':
+        # For manual/map/magazine types, determine extension from URL or default to .pdf
+        if media_type == 'manual' or media_type == 'map' or media_type == 'magazine':
             # Check if URL indicates CBZ or PDF
             if media_url and (media_url.lower().endswith('.cbz') or '.cbz' in media_url.lower()):
                 target_extension = '.cbz'
