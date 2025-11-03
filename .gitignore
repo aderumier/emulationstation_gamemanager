@@ -162,3 +162,6 @@ var/config/credentials.enc
 var/config/youtube_cookie.txt
 *.backup.*
 screenscraper_test.txt
+
+# Tools - exclude large binaries
+tools/deno
