@@ -4312,12 +4312,18 @@ class GameCollectionManager {
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
+                                ${field === 'manual' ? `
+                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </button>
+                                ` : `
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
                                 <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-download"></i>
                                 </button>
+                                `}
                             </div>
                         </div>
                     `;
@@ -4517,6 +4523,179 @@ class GameCollectionManager {
         });
     }
     
+    async openPDFViewerModal(game, field, mediaPath) {
+        // Always use the game's field value directly, not the passed mediaPath (which might be wrong)
+        // This ensures we get the actual PDF path from the game object
+        let pdfPath = game[field] || '';
+        
+        // Clean the path (remove leading ./ if present)
+        if (pdfPath.startsWith('./')) {
+            pdfPath = pdfPath.substring(2);
+        }
+        
+        // Remove any query parameters or fragments that might have been added
+        pdfPath = pdfPath.split('?')[0].split('#')[0];
+        
+        if (!pdfPath || !pdfPath.trim()) {
+            alert('No PDF file available for this game.');
+            return;
+        }
+        
+        // Ensure it's a PDF file
+        if (!pdfPath.toLowerCase().endsWith('.pdf')) {
+            console.warn('Path does not end with .pdf:', pdfPath);
+            // Still try to proceed, might be a false negative
+        }
+        
+        // Construct PDF URL - use the API endpoint with proper CORS headers for EmbedPDF
+        // This ensures the PDF can be loaded by EmbedPDF's Web Workers
+        const pathParts = pdfPath.split('/').map(part => encodeURIComponent(part));
+        const encodedPath = pathParts.join('/');
+        const pdfUrl = `/api/pdf/${this.currentSystem}/${encodedPath}`;
+        
+        // Also create a full URL for debugging
+        const fullUrl = window.location.origin + pdfUrl;
+        
+        console.log('Opening PDF viewer:');
+        console.log('  Game field value:', game[field]);
+        console.log('  Cleaned PDF path:', pdfPath);
+        console.log('  PDF URL:', pdfUrl);
+        console.log('  Full URL:', fullUrl);
+        
+        // Update modal title
+        const modalTitle = document.getElementById('pdfViewerModalLabel');
+        if (modalTitle) {
+            modalTitle.innerHTML = `<i class="bi bi-file-earmark-pdf"></i> PDF Viewer - ${game.name || 'Manual'}`;
+        }
+        
+        // Clear container
+        const container = document.getElementById('pdf-viewer-container');
+        if (container) {
+            container.innerHTML = '<div class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading PDF...</span></div></div>';
+        }
+        
+        // Show modal
+        const modalElement = document.getElementById('pdfViewerModal');
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+        
+        // Wait for modal to be shown, then initialize EmbedPDF
+        const initializePDFHandler = async () => {
+            // Wait for EmbedPDF to be available
+            const waitForEmbedPDF = () => {
+                return new Promise((resolve, reject) => {
+                    if (typeof window.EmbedPDF !== 'undefined' && window.EmbedPDF !== null) {
+                        resolve();
+                        return;
+                    }
+                    
+                    // Listen for the ready event
+                    const readyHandler = () => {
+                        window.removeEventListener('embedpdf-ready', readyHandler);
+                        resolve();
+                    };
+                    window.addEventListener('embedpdf-ready', readyHandler);
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        window.removeEventListener('embedpdf-ready', readyHandler);
+                        reject(new Error('EmbedPDF loading timeout'));
+                    }, 5000);
+                });
+            };
+            
+            try {
+                await waitForEmbedPDF();
+            } catch (error) {
+                console.error('EmbedPDF not available:', error);
+                container.innerHTML = '<div class="alert alert-danger m-3">PDF viewer library not loaded. Please refresh the page.</div>';
+                return;
+            }
+            
+            console.log('EmbedPDF available, initializing with URL:', pdfUrl);
+            
+            // Verify PDF file exists first
+            try {
+                const response = await fetch(pdfUrl, { method: 'HEAD', credentials: 'include' });
+                console.log('PDF HEAD response:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`PDF file not found (${response.status})`);
+                }
+                const contentType = response.headers.get('content-type');
+                console.log('PDF Content-Type:', contentType);
+                if (!contentType || !contentType.includes('pdf')) {
+                    console.warn('Warning: Content-Type is not PDF:', contentType);
+                }
+            } catch (error) {
+                console.error('PDF file check failed:', error);
+                container.innerHTML = `<div class="alert alert-danger m-3">PDF file not found or not accessible.<br><small>URL: ${pdfUrl}</small><br><small>Full URL: ${fullUrl}</small><br><small>Error: ${error.message}</small></div>`;
+                return;
+            }
+            
+            // Clear container
+            container.innerHTML = '';
+            
+            // Initialize EmbedPDF - following the official documentation pattern
+            // See https://www.embedpdf.com/docs/snippet/introduction
+            // Use full URL as EmbedPDF may require absolute URLs
+            try {
+                console.log('Initializing EmbedPDF with full URL:', fullUrl);
+                
+                // Simple initialization as per documentation - use full URL
+                const viewer = window.EmbedPDF.init({
+                    type: 'container',
+                    target: container,
+                    src: fullUrl
+                });
+                
+                console.log('PDF viewer initialized:', viewer);
+                
+                // Store instance for cleanup if needed
+                container._epdfInstance = viewer;
+                
+                // Check if EmbedPDF is actually loading the PDF
+                // EmbedPDF might show "loading PDF document..." if there's an issue
+                setTimeout(() => {
+                    const embedpdfContainer = container.querySelector('embedpdf-container');
+                    if (embedpdfContainer) {
+                        // Check if there's still a loading message
+                        const loadingText = embedpdfContainer.textContent || embedpdfContainer.innerText || '';
+                        if (loadingText.includes('loading') || loadingText.includes('Loading')) {
+                            console.warn('PDF still loading after 5 seconds');
+                            console.log('EmbedPDF container content:', embedpdfContainer.innerHTML.substring(0, 200));
+                            
+                            // Try to access the viewer API if available
+                            if (viewer && typeof viewer.load === 'function') {
+                                console.log('Attempting to reload PDF...');
+                                try {
+                                    viewer.load(fullUrl);
+                                } catch (e) {
+                                    console.error('Error reloading:', e);
+                                }
+                            }
+                        }
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                console.error('Error initializing PDF viewer:', error);
+                container.innerHTML = `<div class="alert alert-danger m-3">Error loading PDF: ${error.message}<br><small>PDF URL: ${pdfUrl}</small><br><small>Full URL: ${fullUrl}</small></div>`;
+            }
+        };
+        
+        modalElement.addEventListener('shown.bs.modal', initializePDFHandler, { once: true });
+        
+        // Clean up on modal close
+        modalElement.addEventListener('hidden.bs.modal', function cleanupPDF() {
+            const container = document.getElementById('pdf-viewer-container');
+            if (container && container._epdfInstance) {
+                // Clean up EmbedPDF instance if needed
+                container.innerHTML = '';
+                delete container._epdfInstance;
+            }
+        }, { once: true });
+    }
+
     async openLaunchBoxMediaModal(game, mediaType) {
         // Set modal title and game info
         document.getElementById('launchboxMediaGameName').textContent = game.name;
@@ -10272,12 +10451,18 @@ class GameCollectionManager {
                                     <i class="bi bi-badge-ad"></i>
                                 </button>
                                 ` : ''}
+                                ${field === 'manual' ? `
+                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </button>
+                                ` : `
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
                                 <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-download"></i>
                                 </button>
+                                `}
                             </div>
                         </div>
                     `;

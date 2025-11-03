@@ -3928,6 +3928,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- PDF Viewer Modal -->
+    <div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-labelledby="pdfViewerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="pdfViewerModalLabel">
+                        <i class="bi bi-file-earmark-pdf"></i> PDF Viewer
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="padding: 0;">
+                    <div id="pdf-viewer-container" style="height: 80vh; width: 100%; min-height: 500px; position: relative;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -3944,6 +3964,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     
     <!-- HLS.js for HLS video playback (Steam videos) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <!-- EmbedPDF for PDF viewing -->
+    <script type="module">
+        (async () => {
+            try {
+                const EmbedPDF = await import('https://snippet.embedpdf.com/embedpdf.js');
+                window.EmbedPDF = EmbedPDF.default || EmbedPDF;
+                console.log('EmbedPDF loaded successfully');
+                // Trigger a custom event when EmbedPDF is ready
+                window.dispatchEvent(new CustomEvent('embedpdf-ready'));
+            } catch (error) {
+                console.error('Failed to load EmbedPDF:', error);
+                window.EmbedPDF = null;
+            }
+        })();
+    </script>
     
     <style>
         .match-card {

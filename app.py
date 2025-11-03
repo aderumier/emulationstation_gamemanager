@@ -5194,6 +5194,16 @@ def index():
 @app.route('/roms/<path:filename>')
 def serve_rom_file(filename):
     """Serve ROM files and media"""
+    from flask import Response
+    
+    # Check if it's a PDF and set proper content type with CORS headers
+    if filename.lower().endswith('.pdf'):
+        response = send_from_directory(ROMS_FOLDER, filename, mimetype='application/pdf')
+        # Add CORS headers for PDF files to allow EmbedPDF to load them
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
     return send_from_directory(ROMS_FOLDER, filename)
 
 @app.route('/var/temp/<path:filename>')
@@ -19585,6 +19595,40 @@ def get_media_fields():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/pdf/<system_name>/<path:pdf_path>')
+def serve_pdf_for_viewer(system_name, pdf_path):
+    """Serve PDF files for EmbedPDF viewer with proper CORS headers"""
+    try:
+        # Sanitize path (remove leading ./ or /)
+        pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
+        
+        # Construct full PDF path
+        full_pdf_path = os.path.join('roms', system_name, pdf_path)
+        
+        # Normalize path
+        full_pdf_path = os.path.normpath(full_pdf_path)
+        
+        # Security check
+        abs_roms = os.path.abspath('roms')
+        abs_pdf = os.path.abspath(full_pdf_path)
+        if not abs_pdf.startswith(abs_roms):
+            return jsonify({'error': 'Invalid PDF path'}), 400
+        
+        if not os.path.exists(full_pdf_path):
+            return jsonify({'error': 'PDF file not found'}), 404
+        
+        # Serve PDF with CORS headers for EmbedPDF
+        response = send_file(full_pdf_path, mimetype='application/pdf')
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Range'
+        response.headers['Accept-Ranges'] = 'bytes'
+        return response
+        
+    except Exception as e:
+        print(f"Error serving PDF: {e}")
+        return jsonify({'error': f'Failed to serve PDF: {str(e)}'}), 500
 
 @app.route('/api/pdf-preview/<system_name>/<path:pdf_path>')
 @login_required
