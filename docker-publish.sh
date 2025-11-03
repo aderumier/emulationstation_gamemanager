@@ -70,7 +70,10 @@ dockerhub_login() {
 # Function to build the image
 build_image() {
     print_status "Building Docker image: ${IMAGE_NAME}:${VERSION}"
-    if docker build -t ${IMAGE_NAME}:${VERSION} .; then
+    # Determine the .deb file name based on version
+    DEB_FILE="gamemanager_${VERSION}-1_all.deb"
+    print_status "Using .deb package: ${DEB_FILE}"
+    if docker build --build-arg DEB_FILE=${DEB_FILE} -t ${IMAGE_NAME}:${VERSION} .; then
         print_success "Image built successfully"
     else
         print_error "Failed to build image"

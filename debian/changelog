@@ -1,3 +1,14 @@
+gamemanager (2.9.1-1) unstable; urgency=medium
+
+  * Add map field support to media preview with PDF/CBZ preview
+  * Add magazine field support to media preview with PDF/CBZ preview
+  * Fix config cache issue - reload config dynamically in API endpoints
+  * Enable caching for media fields API to avoid unnecessary requests
+  * Support PDF and CBZ file previews for map and magazine fields
+  * Include PDF/CBZ viewer button and multiscraper download for map/magazine
+
+ -- aderumier <aderumier@example.com>  Mon, 28 Oct 2025 14:50:00 +0000
+
 gamemanager (2.8.3-1) unstable; urgency=medium
 
   * Complete ScreenScraper optimization for all scenarios
