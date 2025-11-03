@@ -9575,8 +9575,8 @@ def download_multiscraper_media_endpoint():
                 
                 print(f"✅ ScreenScraper video saved to: {file_path}")
                 
-                # Update gamelist with the media path
-                relative_path = os.path.relpath(file_path, os.path.join('roms', system_name))
+                # Update gamelist with the media path (must start with ./ like other media downloads)
+                relative_path = os.path.join('.', target_dir, media_filename)
                 game[media_type] = relative_path.replace('\\', '/')
                 
                 success = True

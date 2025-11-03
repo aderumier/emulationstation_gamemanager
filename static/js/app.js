@@ -4182,38 +4182,117 @@ class GameCollectionManager {
                 const mediaPath = game[field];
                 
                 if (field === 'video' || mediaPath.endsWith('.mp4')) {
-                    // Add cache-busting parameter to force video refresh
+                    // Check if video file exists before displaying player
+                    // Use HEAD request to check file existence
                     const cacheBuster = new Date().getTime();
-                    mediaItem.innerHTML = `
-                        <div style="position: relative;">
-                            <video width="450" height="450" controls style="object-fit: contain; background-color: #f8f9fa;">
-                                <source src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" type="video/mp4">
-                            </video>
-                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </div>
-                            <div class="media-delete-overlay" style="position: absolute; top: 4px; left: 4px; background: rgba(220,53,69,0.8); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease; cursor: pointer;" title="Delete video">
-                                <i class="bi bi-trash"></i>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
-                            <small class="text-center flex-grow-1">${field}</small>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
+                    const videoUrl = `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`;
                     
-                    // Add error handler for video
-                    const video = mediaItem.querySelector('video');
-                    video.addEventListener('error', () => {
-                        this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
-                    });
+                    // Append mediaItem to DOM immediately (will be updated asynchronously)
+                    mediaContent.appendChild(mediaItem);
+                    
+                    // Check if file exists first
+                    fetch(videoUrl, { method: 'HEAD' })
+                        .then(response => {
+                            if (!response.ok || response.status === 404) {
+                                // File doesn't exist - show placeholder immediately
+                                this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                return;
+                            }
+                            
+                            // File exists - show video player
+                            mediaItem.innerHTML = `
+                                <div style="position: relative;">
+                                    <video width="450" height="450" controls preload="metadata" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
+                                        <source src="${videoUrl}" type="video/mp4">
+                                    </video>
+                                    <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </div>
+                                    <div class="media-delete-overlay" style="position: absolute; top: 4px; left: 4px; background: rgba(220,53,69,0.8); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease; cursor: pointer;" title="Delete video">
+                                        <i class="bi bi-trash"></i>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                                    <small class="text-center flex-grow-1">${field}</small>
+                                    <div class="d-flex gap-1">
+                                        ${field === 'video' ? `
+                                        <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                            <i class="bi bi-youtube"></i>
+                                        </button>
+                                        ` : ''}
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            // Add error handler as fallback in case video fails to load after HEAD check
+                            const video = mediaItem.querySelector('video');
+                            if (video) {
+                                video.addEventListener('error', () => {
+                                    // File doesn't exist - show placeholder instead of player
+                                    this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                });
+                            }
+                            
+                            // Add hover effects for replace overlay
+                            mediaItem.addEventListener('mouseenter', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '1';
+                                }
+                                if (deleteOverlay) {
+                                    deleteOverlay.style.opacity = '1';
+                                }
+                            });
+                            
+                            mediaItem.addEventListener('mouseleave', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '0';
+                                }
+                                if (deleteOverlay) {
+                                    deleteOverlay.style.opacity = '0';
+                                }
+                            });
+                            
+                            // Add click handlers for overlays
+                            const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                            if (replaceOverlay) {
+                                replaceOverlay.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    this.uploadMediaForGame(game, field);
+                                });
+                            }
+                            
+                            // Add delete button functionality for videos
+                            const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                            if (deleteOverlay) {
+                                deleteOverlay.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    this.deleteMediaForGame(game, field);
+                                });
+                            }
+                            
+                            // Add click functionality for media selection
+                            mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
+                            
+                            mediaItem.style.cursor = 'pointer';
+                            mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
+                        })
+                        .catch(() => {
+                            // Network error or file doesn't exist - show placeholder
+                            this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                        });
+                    
+                    // Skip the rest of the loop iteration since we handled video asynchronously
+                    return;
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
                     // PDF file - show PDF logo
                     mediaItem.innerHTML = `
@@ -4239,9 +4318,11 @@ class GameCollectionManager {
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
+                    const imageUrl = `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`;
+                    
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -4272,14 +4353,22 @@ class GameCollectionManager {
                         </div>
                     `;
                     
-                    // Add hover preview functionality for images
+                    // Add error handler for image - check if file exists
                     const img = mediaItem.querySelector('img');
                     if (img) {
-                        img.addEventListener('mouseenter', (e) => {
-                            this.showMediaHover(e, `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`, field);
+                        img.addEventListener('error', () => {
+                            // File doesn't exist - show placeholder instead of broken image
+                            this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                         });
-                        img.addEventListener('mouseleave', () => {
-                            this.hideMediaHover();
+                        
+                        // Add hover preview functionality for images (only if image loaded successfully)
+                        img.addEventListener('load', () => {
+                            img.addEventListener('mouseenter', (e) => {
+                                this.showMediaHover(e, imageUrl, field);
+                            });
+                            img.addEventListener('mouseleave', () => {
+                                this.hideMediaHover();
+                            });
                         });
                     }
                 }
@@ -9999,50 +10088,118 @@ class GameCollectionManager {
                 const mediaPath = game[field];
                 
                 if (field === 'video' || mediaPath.endsWith('.mp4')) {
-                    // Add cache-busting parameter to force video refresh
+                    // Check if video file exists before displaying player
+                    // Use HEAD request to check file existence
                     const cacheBuster = new Date().getTime();
                     const videoUrl = `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`;
                     
-                    // Use preload="metadata" to check if file exists immediately
-                    // This loads only metadata (file info), not the video content
-                    // Video content still loads lazily only when user clicks play
-                    mediaItem.innerHTML = `
-                        <div style="position: relative;">
-                            <video width="450" height="450" controls preload="metadata" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
-                                <source src="${videoUrl}" type="video/mp4">
-                            </video>
-                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </div>
-                            <div class="media-delete-overlay" style="position: absolute; top: 4px; left: 4px; background: rgba(220,53,69,0.8); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease; cursor: pointer;" title="Delete video">
-                                <i class="bi bi-trash"></i>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
-                            <small class="text-center flex-grow-1">${field}</small>
-                            <div class="d-flex gap-1">
-                                ${field === 'video' ? `
-                                <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                    <i class="bi bi-youtube"></i>
-                                </button>
-                                ` : ''}
-                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
+                    // Append mediaItem to DOM immediately (will be updated asynchronously)
+                    mediaPreviewContent.appendChild(mediaItem);
                     
-                    // Add error handler for video - check if file exists
-                    // With preload="metadata", this will fire immediately if file doesn't exist
-                    const video = mediaItem.querySelector('video');
-                    video.addEventListener('error', () => {
-                        // File doesn't exist - show placeholder instead of player
-                        this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
-                    });
+                    // Check if file exists first
+                    fetch(videoUrl, { method: 'HEAD' })
+                        .then(response => {
+                            if (!response.ok || response.status === 404) {
+                                // File doesn't exist - show placeholder immediately
+                                this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                return;
+                            }
+                            
+                            // File exists - show video player
+                            mediaItem.innerHTML = `
+                                <div style="position: relative;">
+                                    <video width="450" height="450" controls preload="metadata" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
+                                        <source src="${videoUrl}" type="video/mp4">
+                                    </video>
+                                    <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </div>
+                                    <div class="media-delete-overlay" style="position: absolute; top: 4px; left: 4px; background: rgba(220,53,69,0.8); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease; cursor: pointer;" title="Delete video">
+                                        <i class="bi bi-trash"></i>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                                    <small class="text-center flex-grow-1">${field}</small>
+                                    <div class="d-flex gap-1">
+                                        ${field === 'video' ? `
+                                        <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                            <i class="bi bi-youtube"></i>
+                                        </button>
+                                        ` : ''}
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            // Add error handler as fallback in case video fails to load after HEAD check
+                            const video = mediaItem.querySelector('video');
+                            if (video) {
+                                video.addEventListener('error', () => {
+                                    // File doesn't exist - show placeholder instead of player
+                                    this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                });
+                            }
+                            
+                            // Add hover effects to show replace and delete overlays
+                            mediaItem.addEventListener('mouseenter', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '1';
+                                }
+                                if (deleteOverlay) {
+                                    deleteOverlay.style.opacity = '1';
+                                }
+                            });
+                            
+                            mediaItem.addEventListener('mouseleave', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '0';
+                                }
+                                if (deleteOverlay) {
+                                    deleteOverlay.style.opacity = '0';
+                                }
+                            });
+                            
+                            // Add click handlers for overlays
+                            const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                            if (replaceOverlay) {
+                                replaceOverlay.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    this.uploadMediaForGame(game, field);
+                                });
+                            }
+                            
+                            // Add delete button functionality for videos
+                            const deleteOverlay = mediaItem.querySelector('.media-delete-overlay');
+                            if (deleteOverlay) {
+                                deleteOverlay.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    this.deleteVideoForGame(game, field);
+                                });
+                            }
+                            
+                            // Add click functionality for media selection
+                            mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
+                            
+                            mediaItem.style.cursor = 'pointer';
+                            mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
+                        })
+                        .catch(() => {
+                            // Network error or file doesn't exist - show placeholder
+                            this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                        });
+                    
+                    // Skip the rest of the loop iteration since we handled video asynchronously
+                    return;
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
                     // PDF file - show PDF logo
                     mediaItem.innerHTML = `
@@ -10263,8 +10420,13 @@ class GameCollectionManager {
                 </div>
             </div>
             <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
-                <small class="text-center flex-grow-1" style="color: #dc3545; font-weight: bold;">${field} (Missing)</small>
+                <small class="text-center flex-grow-1">${field}</small>
                 <div class="d-flex gap-1">
+                    ${field === 'video' ? `
+                    <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                        <i class="bi bi-youtube"></i>
+                    </button>
+                    ` : ''}
                     ${field === 'fanart' ? `
                     <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                         <i class="bi bi-image"></i>
@@ -10273,6 +10435,14 @@ class GameCollectionManager {
                         <i class="bi bi-google"></i>
                     </button>
                     ` : ''}
+                    ${field === 'marquee' ? `
+                    <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                        <i class="bi bi-badge-ad"></i>
+                    </button>
+                    ` : ''}
+                    <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-search"></i>
+                    </button>
                     <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-download"></i>
                     </button>
