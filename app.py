@@ -9593,6 +9593,76 @@ def download_multiscraper_media_endpoint():
             except Exception as e:
                 print(f"❌ Error downloading ScreenScraper video: {e}")
                 return jsonify({'error': f'Failed to download video: {str(e)}'}), 500
+        # For ScreenScraper PDFs (manual), download with Referer header
+        elif media_type == 'manual' and screenscraper_id and screenscraper_system_id:
+            # Construct direct ScreenScraper PDF URL
+            # Extract region from media_url if available, otherwise default to 'us'
+            region = 'us'
+            if media_url:
+                import re
+                match = re.search(r'manuel\(([^)]+)\)', media_url)
+                if match:
+                    region = match.group(1)
+            
+            direct_pdf_url = f"https://www.screenscraper.fr/medias/{screenscraper_system_id}/{screenscraper_id}/manuel({region}).pdf"
+            
+            # Construct Referer header URL
+            referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
+            
+            # Set headers with Referer and browser User-Agent
+            headers = {
+                'Referer': referer_url,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            
+            print(f"📥 Downloading ScreenScraper PDF with Referer: {direct_pdf_url}")
+            
+            # Download the PDF with Referer header
+            import requests
+            try:
+                response = requests.get(direct_pdf_url, headers=headers, stream=True, timeout=30)
+                response.raise_for_status()
+                
+                # Get media field configuration
+                config_path = os.path.join('var', 'config', 'config.json')
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                media_config = config['media_fields'][media_type]
+                target_dir = media_config.get('directory', f'media/{media_type}')
+                # For manual (PDF) type, always use .pdf extension regardless of config
+                target_extension = '.pdf' if media_type == 'manual' else media_config.get('target_extension', '.pdf')
+                
+                if not target_dir.startswith('media/'):
+                    target_dir = f'media/{target_dir}'
+                
+                # Create target directory
+                full_target_dir = os.path.join('roms', system_name, target_dir)
+                os.makedirs(full_target_dir, exist_ok=True)
+                
+                # Generate filename with .pdf extension
+                media_filename = create_media_filename(game.get('path', ''), target_extension)
+                file_path = os.path.join(full_target_dir, media_filename)
+                
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                
+                # Save the PDF file directly (no conversion, just download)
+                with open(file_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                print(f"✅ ScreenScraper PDF saved to: {file_path}")
+                
+                # Update gamelist with the media path (must start with ./ like other media downloads)
+                relative_path = os.path.join('.', target_dir, media_filename)
+                game[media_type] = relative_path.replace('\\', '/')
+                
+                success = True
+            except Exception as e:
+                print(f"❌ Error downloading ScreenScraper PDF: {e}")
+                return jsonify({'error': f'Failed to download PDF: {str(e)}'}), 500
         else:
             # For non-ScreenScraper videos or non-video media, use normal download
             success = download_and_save_media(media_url, game, media_type, system_name)
@@ -10232,7 +10302,11 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         media_config = config['media_fields'][media_type]
         target_dir = media_config.get('directory', f'media/{media_type}')
-        target_extension = media_config.get('target_extension', '.png')
+        # For manual (PDF) type, always use .pdf extension regardless of config
+        if media_type == 'manual':
+            target_extension = '.pdf'
+        else:
+            target_extension = media_config.get('target_extension', '.png')
         
         print(f"🔧 DEBUG: Media config - target_dir: {target_dir}, target_extension: {target_extension}")
         
@@ -10261,27 +10335,31 @@ def download_and_save_media(media_url, game, media_type, system_name):
             f.write(response.content)
         print(f"🔧 DEBUG: File saved to {target_path}")
         
-        # Convert and/or resize image in a single operation (optimized)
-        from game_utils import should_process_field, convert_and_resize_image_replace
-        print(f"🔧 DEBUG: Checking processing for media_type: {media_type}")
-        print(f"🔧 DEBUG: Config media_fields: {config.get('media_fields', {}).get(media_type, 'NOT_FOUND')}")
-        should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
-        print(f"🔧 DEBUG: should_process: {should_process}, target_extension: {target_extension}, target_width: {target_width}, target_height: {target_height}")
-        
-        if should_process:
-            print(f"🔧 DEBUG: Processing media - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
-            processed_path, process_status = convert_and_resize_image_replace(
-                target_path, target_extension, target_width, target_height
-            )
-            print(f"🔧 DEBUG: Processing result - status: {process_status}")
-            if process_status in ["converted", "resized", "converted_and_resized"]:
-                target_path = processed_path
-                media_filename = os.path.basename(target_path)
-                print(f"🔧 DEBUG: Processed media: {process_status} - {media_filename}")
-            elif process_status == "failed":
-                print(f"🔧 DEBUG: Failed to process media, keeping original: {media_filename}")
+        # For manual (PDF) type, skip image processing - PDFs should not be converted/resized
+        if media_type != 'manual':
+            # Convert and/or resize image in a single operation (optimized)
+            from game_utils import should_process_field, convert_and_resize_image_replace
+            print(f"🔧 DEBUG: Checking processing for media_type: {media_type}")
+            print(f"🔧 DEBUG: Config media_fields: {config.get('media_fields', {}).get(media_type, 'NOT_FOUND')}")
+            should_process, target_extension, target_width, target_height = should_process_field(media_type, config)
+            print(f"🔧 DEBUG: should_process: {should_process}, target_extension: {target_extension}, target_width: {target_width}, target_height: {target_height}")
+            
+            if should_process:
+                print(f"🔧 DEBUG: Processing media - convert: {bool(target_extension)}, resize: {target_width}x{target_height}")
+                processed_path, process_status = convert_and_resize_image_replace(
+                    target_path, target_extension, target_width, target_height
+                )
+                print(f"🔧 DEBUG: Processing result - status: {process_status}")
+                if process_status in ["converted", "resized", "converted_and_resized"]:
+                    target_path = processed_path
+                    media_filename = os.path.basename(target_path)
+                    print(f"🔧 DEBUG: Processed media: {process_status} - {media_filename}")
+                elif process_status == "failed":
+                    print(f"🔧 DEBUG: Failed to process media, keeping original: {media_filename}")
+            else:
+                print(f"🔧 DEBUG: No processing needed for field: {media_type}")
         else:
-            print(f"🔧 DEBUG: No processing needed for field: {media_type}")
+            print(f"🔧 DEBUG: Skipping image processing for PDF (manual) type")
         
         # Update game data
         relative_path = os.path.join('.', target_dir, media_filename)
@@ -19630,17 +19708,119 @@ def serve_pdf_for_viewer(system_name, pdf_path):
         print(f"Error serving PDF: {e}")
         return jsonify({'error': f'Failed to serve PDF: {str(e)}'}), 500
 
+@app.route('/api/pdf-preview-remote', methods=['POST'])
+@login_required
+def get_pdf_preview_remote():
+    """Convert first page of remote PDF URL to JPG on-the-fly"""
+    try:
+        data = request.get_json()
+        if not data or not data.get('url'):
+            return jsonify({'error': 'URL is required'}), 400
+        
+        pdf_url = data.get('url')
+        
+        # Import pymupdf
+        import pymupdf
+        from PIL import Image
+        import io
+        import requests
+        
+        # Check if this is a ScreenScraper URL and add Referer header if needed
+        headers = {}
+        if 'screenscraper.fr' in pdf_url or 'screenscraper.fr' in pdf_url:
+            # Extract game ID and system ID from URL
+            # Format: https://www.screenscraper.fr/medias/<system_id>/<game_id>/manuel(us).pdf
+            try:
+                import re
+                match = re.search(r'/medias/(\d+)/(\d+)/', pdf_url)
+                if match:
+                    screenscraper_system_id = match.group(1)
+                    screenscraper_id = match.group(2)
+                    # Construct Referer header URL
+                    referer_url = f"https://www.screenscraper.fr/gameinfos.php?gameid={screenscraper_id}&action=onglet&zone=gameinfosmedias"
+                    headers = {
+                        'Referer': referer_url,
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+            except Exception as e:
+                print(f"Warning: Could not extract ScreenScraper IDs from URL: {e}")
+        
+        # Download PDF from remote URL with headers if needed
+        response = requests.get(pdf_url, headers=headers, timeout=10, stream=True)
+        if response.status_code != 200:
+            return jsonify({'error': f'Failed to fetch PDF: {response.status_code}'}), 404
+        
+        # Read PDF into memory
+        pdf_data = io.BytesIO()
+        for chunk in response.iter_content(chunk_size=8192):
+            pdf_data.write(chunk)
+        pdf_data.seek(0)
+        
+        # Open PDF from memory
+        pdf_doc = pymupdf.open(stream=pdf_data.read(), filetype='pdf')
+        if len(pdf_doc) == 0:
+            pdf_doc.close()
+            return jsonify({'error': 'PDF has no pages'}), 400
+        
+        # Get first page
+        page = pdf_doc[0]
+        
+        # Render page to pixmap
+        zoom = 2.0
+        mat = pymupdf.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat)
+        
+        # Convert to PIL Image
+        img_data = pix.tobytes("ppm")
+        img = Image.open(io.BytesIO(img_data))
+        
+        # Convert to RGB if necessary
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Resize to reasonable size
+        max_size = 800
+        if img.width > max_size or img.height > max_size:
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        
+        # Save to memory buffer and return
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, 'JPEG', quality=85)
+        img_buffer.seek(0)
+        
+        # Close PDF
+        pdf_doc.close()
+        
+        # Return image directly from memory
+        return send_file(img_buffer, mimetype='image/jpeg')
+        
+    except ImportError as e:
+        import sys
+        python_path = sys.executable
+        python_version = sys.version
+        error_msg = (
+            f'PyMuPDF not found. '
+            f'Python: {python_path}, Version: {python_version}. '
+            f'Install with: apt install python3-pymupdf or pip3 install pymupdf. '
+            f'Error: {str(e)}'
+        )
+        return jsonify({'error': error_msg}), 500
+    except Exception as e:
+        print(f"Error generating PDF preview from remote URL: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'error': f'Failed to generate PDF preview: {str(e)}'}), 500
+
 @app.route('/api/pdf-preview/<system_name>/<path:pdf_path>')
 @login_required
 def get_pdf_preview(system_name, pdf_path):
-    """Convert first page of PDF to JPG and cache it"""
+    """Convert first page of PDF to JPG on-the-fly"""
     try:
         # Import pymupdf directly as recommended in the documentation
         # See https://pymupdf.readthedocs.io/en/latest/recipes-images.html
         import pymupdf
         
         from PIL import Image
-        import hashlib
         import io
         
         # Sanitize path (remove leading ./ or /)
@@ -19662,23 +19842,6 @@ def get_pdf_preview(system_name, pdf_path):
         if not os.path.exists(full_pdf_path):
             print(f"PDF file not found: {full_pdf_path}")
             return jsonify({'error': 'PDF file not found'}), 404
-        
-        # Create cache directory
-        cache_dir = os.path.join('var', 'cache', 'manual', system_name)
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        # Generate cache filename based on PDF path hash
-        pdf_hash = hashlib.md5(pdf_path.encode()).hexdigest()
-        cache_filename = f"{pdf_hash}.jpg"
-        cache_path = os.path.join(cache_dir, cache_filename)
-        
-        # Check if cached image exists and is newer than PDF
-        if os.path.exists(cache_path):
-            pdf_mtime = os.path.getmtime(full_pdf_path)
-            cache_mtime = os.path.getmtime(cache_path)
-            if cache_mtime >= pdf_mtime:
-                # Return cached image
-                return send_file(cache_path, mimetype='image/jpeg')
         
         # Open PDF and convert first page to image
         # Using pymupdf.open() as per documentation examples
@@ -19711,14 +19874,16 @@ def get_pdf_preview(system_name, pdf_path):
         if img.width > max_size or img.height > max_size:
             img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
         
-        # Save to cache
-        img.save(cache_path, 'JPEG', quality=85)
+        # Save to memory buffer and return directly
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, 'JPEG', quality=85)
+        img_buffer.seek(0)
         
         # Close PDF
         pdf_doc.close()
         
-        # Return cached image
-        return send_file(cache_path, mimetype='image/jpeg')
+        # Return image directly from memory
+        return send_file(img_buffer, mimetype='image/jpeg')
         
     except ImportError as e:
         # Provide more detailed error information

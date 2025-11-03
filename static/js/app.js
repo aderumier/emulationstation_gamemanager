@@ -4298,63 +4298,114 @@ class GameCollectionManager {
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
-                    // PDF file - show preview of first page as JPG
+                    // PDF file - check if file exists first, then show preview of first page as JPG
+                    // Clean the mediaPath (remove leading ./ if present)
+                    let cleanMediaPath = mediaPath;
+                    if (cleanMediaPath.startsWith('./')) {
+                        cleanMediaPath = cleanMediaPath.substring(2);
+                    }
+                    
+                    // Check if PDF file exists before displaying preview
                     const cacheBuster = new Date().getTime();
-                    const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(mediaPath)}?v=${cacheBuster}`;
+                    const pdfUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                     
-                    mediaItem.innerHTML = `
-                        <div style="position: relative;">
-                            <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="this.onerror=null; this.src=''; this.alt='PDF preview failed'; this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;\\'><i class=\\'bi bi-file-earmark-pdf\\' style=\\'font-size: 48px; color: #dc3545; margin-bottom: 8px;\\'></i><small style=\\'color: #6c757d; text-align: center;\\'>PDF Document</small></div>'">
-                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
-                            <small class="text-center flex-grow-1">${field}</small>
-                            <div class="d-flex gap-1">
-                                ${field === 'manual' ? `
-                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </button>
-                                ` : `
-                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                                `}
-                            </div>
-                        </div>
-                    `;
+                    // Append mediaItem to DOM immediately (will be updated asynchronously)
+                    mediaContent.appendChild(mediaItem);
                     
-                    // Add error handler for PDF preview image
-                    const img = mediaItem.querySelector('img');
-                    if (img) {
-                        img.addEventListener('error', () => {
-                            // If preview fails, show PDF icon placeholder
-                            const parentDiv = img.parentElement;
-                            parentDiv.innerHTML = `
-                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;">
-                                    <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
-                                    <small style="color: #6c757d; text-align: center;">PDF Document</small>
+                    // Check if file exists first
+                    fetch(pdfUrl, { method: 'HEAD' })
+                        .then(response => {
+                            if (!response.ok || response.status === 404) {
+                                // File doesn't exist - show placeholder immediately
+                                this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                return;
+                            }
+                            
+                            // File exists - show PDF preview
+                            const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                            
+                            mediaItem.innerHTML = `
+                                <div style="position: relative;">
+                                    <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('PDF preview failed for:', '${cleanMediaPath}');">
                                     <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                         <i class="bi bi-arrow-clockwise"></i>
                                     </div>
                                 </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                                    <small class="text-center flex-grow-1">${field}</small>
+                                    <div class="d-flex gap-1">
+                                        ${field === 'manual' ? `
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
+                                            <i class="bi bi-file-earmark-pdf"></i>
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        ` : `
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                        `}
+                                    </div>
+                                </div>
                             `;
-                        });
-                        
-                        // Add hover preview functionality for PDF preview
-                        img.addEventListener('load', () => {
-                            img.addEventListener('mouseenter', (e) => {
-                                this.showMediaHover(e, pdfPreviewUrl, field);
+                            
+                            // Add error handler for PDF preview image
+                            const img = mediaItem.querySelector('img');
+                            if (img) {
+                                img.addEventListener('error', () => {
+                                    // If preview fails, show file missing placeholder (PDF might not exist even if HEAD passed)
+                                    this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                });
+                                
+                                // Add hover preview functionality for PDF preview
+                                img.addEventListener('load', () => {
+                                    img.addEventListener('mouseenter', (e) => {
+                                        this.showMediaHover(e, pdfPreviewUrl, field);
+                                    });
+                                    img.addEventListener('mouseleave', () => {
+                                        this.hideMediaHover();
+                                    });
+                                });
+                            }
+                            
+                            // Add click functionality for media selection
+                            mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
+                            
+                            // Add double-click functionality for uploading/replacing media
+                            mediaItem.addEventListener('dblclick', (e) => {
+                                e.stopPropagation();
+                                this.uploadMediaForGame(game, field);
                             });
-                            img.addEventListener('mouseleave', () => {
-                                this.hideMediaHover();
+                            
+                            // Add hover effects to show replace overlay
+                            mediaItem.addEventListener('mouseenter', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '1';
+                                }
                             });
+                            
+                            mediaItem.addEventListener('mouseleave', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '0';
+                                }
+                            });
+                            
+                            mediaItem.style.cursor = 'pointer';
+                            mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
+                        })
+                        .catch(() => {
+                            // Network error or file doesn't exist - show placeholder
+                            this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                         });
-                    }
+                    
+                    // Skip the rest of the loop iteration since we handled PDF asynchronously
+                    return;
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
@@ -4491,9 +4542,11 @@ class GameCollectionManager {
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
+                            ${field !== 'manual' ? `
                             <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-download"></i>
                             </button>
+                            ` : ''}
                         </div>
                     </div>
                 `;
@@ -5142,21 +5195,131 @@ class GameCollectionManager {
                 img.style.height = '300px';
                 img.style.objectFit = 'contain';
                 img.style.backgroundColor = this.getMediaCardBackgroundColor();
-                img.src = result.url;
-                img.alt = `${mediaType} from ${result.source}`;
-                img.onerror = () => {
-                    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
-                };
                 
-                // Add hover preview functionality for images
-                img.addEventListener('mouseenter', (e) => {
-                    this.showMediaHover(e, result.url, mediaType);
-                });
-                img.addEventListener('mouseleave', () => {
-                    this.hideMediaHover();
-                });
-                
-                card.appendChild(img);
+                // For manual (PDF) type, use PDF preview endpoint to show first page
+                if (mediaType === 'manual') {
+                    // Determine the actual PDF URL
+                    let pdfUrl = result.url;
+                    
+                    // For ScreenScraper, construct the direct PDF URL from system ID and game ID
+                    // Format: https://www.screenscraper.fr/medias/<system_id>/<game_id>/manuel(us).pdf
+                    const isScreenScraper = result.source && result.source.toLowerCase().includes('screenscraper');
+                    if (isScreenScraper && result.screenscraperid && result.screenscraper_system_id) {
+                        // Construct ScreenScraper PDF URL - try different region variants
+                        // ScreenScraper uses format: manuel(us), manuel(eu), manuel(jp), etc.
+                        const region = result.region || 'us';
+                        pdfUrl = `https://www.screenscraper.fr/medias/${result.screenscraper_system_id}/${result.screenscraperid}/manuel(${region}).pdf`;
+                    }
+                    
+                    // Skip if URL doesn't look like a PDF (unless it's ScreenScraper which we just constructed)
+                    if (!isScreenScraper && (!pdfUrl || (!pdfUrl.toLowerCase().endsWith('.pdf') && !pdfUrl.toLowerCase().includes('.pdf')))) {
+                        // Not a valid PDF URL, fall through to regular image handling
+                        img.src = result.url || '';
+                        img.alt = `${mediaType} from ${result.source}`;
+                        img.onerror = () => {
+                            img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+                        };
+                        card.appendChild(img);
+                    } else {
+                        // Use remote PDF preview endpoint to generate preview from URL (server-side)
+                        const previewUrl = '/api/pdf-preview-remote';
+                        
+                        // Set up image with loading state
+                        img.style.display = 'block';
+                        img.src = ''; // Start with empty src
+                        img.alt = `PDF Manual from ${result.source}`;
+                        
+                        // Show loading placeholder
+                        const loadingPlaceholder = document.createElement('div');
+                        loadingPlaceholder.className = 'card-img-top';
+                        loadingPlaceholder.style.height = '300px';
+                        loadingPlaceholder.style.display = 'flex';
+                        loadingPlaceholder.style.alignItems = 'center';
+                        loadingPlaceholder.style.justifyContent = 'center';
+                        loadingPlaceholder.style.flexDirection = 'column';
+                        loadingPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                        loadingPlaceholder.innerHTML = `
+                            <div class="spinner-border text-primary" role="status" style="margin-bottom: 1rem;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div style="text-align: center; color: #6c757d; font-weight: 500;">Loading PDF preview...</div>
+                        `;
+                        card.appendChild(loadingPlaceholder);
+                        
+                        // Fetch PDF preview from remote URL (server-side call only)
+                        fetch(previewUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({ url: pdfUrl })
+                        })
+                        .then(response => {
+                            if (response.ok) {
+                                // Get the image blob and create object URL
+                                return response.blob();
+                            } else {
+                                throw new Error(`Failed to generate preview: ${response.status}`);
+                            }
+                        })
+                        .then(blob => {
+                            const blobUrl = URL.createObjectURL(blob);
+                            // Remove loading placeholder and show image
+                            card.removeChild(loadingPlaceholder);
+                            img.src = blobUrl;
+                            img.style.display = 'block';
+                            card.appendChild(img);
+                            
+                            // Add hover preview functionality
+                            img.addEventListener('mouseenter', (e) => {
+                                this.showMediaHover(e, blobUrl, mediaType);
+                            });
+                            img.addEventListener('mouseleave', () => {
+                                this.hideMediaHover();
+                            });
+                            
+                            // Clean up blob URL when card is removed (if needed)
+                            card._pdfBlobUrl = blobUrl;
+                        })
+                        .catch(error => {
+                            console.error('Failed to load PDF preview:', error);
+                            // Remove loading placeholder and show error placeholder
+                            card.removeChild(loadingPlaceholder);
+                            const errorPlaceholder = document.createElement('div');
+                            errorPlaceholder.className = 'card-img-top';
+                            errorPlaceholder.style.height = '300px';
+                            errorPlaceholder.style.display = 'flex';
+                            errorPlaceholder.style.alignItems = 'center';
+                            errorPlaceholder.style.justifyContent = 'center';
+                            errorPlaceholder.style.flexDirection = 'column';
+                            errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                            errorPlaceholder.innerHTML = `
+                                <i class="bi bi-file-earmark-pdf" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
+                                <div style="text-align: center; color: #6c757d; font-weight: 500;">PDF Manual</div>
+                                <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-top: 0.5rem;">Preview unavailable</div>
+                            `;
+                            card.appendChild(errorPlaceholder);
+                        });
+                    }
+                } else {
+                    // Regular image
+                    img.src = result.url;
+                    img.alt = `${mediaType} from ${result.source}`;
+                    img.onerror = () => {
+                        img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
+                    };
+                    
+                    // Add hover preview functionality for images
+                    img.addEventListener('mouseenter', (e) => {
+                        this.showMediaHover(e, result.url, mediaType);
+                    });
+                    img.addEventListener('mouseleave', () => {
+                        this.hideMediaHover();
+                    });
+                    
+                    card.appendChild(img);
+                }
             }
             
             const cardBody = document.createElement('div');
@@ -5229,9 +5392,19 @@ class GameCollectionManager {
                     return;
                 }
                 // For non-video types or ScreenScraper videos, proceed with normal download
-                // For ScreenScraper videos, pass screenscraperid and system_id to use direct download with Referer
-                if (mediaType === 'video' && videoURL && isScreenScraper && result.screenscraperid && result.screenscraper_system_id) {
-                    this.downloadMultiscraperMedia(result.url, game, mediaType, result.screenscraperid, result.screenscraper_system_id);
+                // For ScreenScraper videos and manuals, pass screenscraperid and system_id to use direct download with Referer
+                if ((mediaType === 'video' && videoURL && isScreenScraper) || (mediaType === 'manual' && isScreenScraper)) {
+                    if (result.screenscraperid && result.screenscraper_system_id) {
+                        // For ScreenScraper manuals, construct the direct PDF URL
+                        let downloadUrl = result.url;
+                        if (mediaType === 'manual') {
+                            const region = result.region || 'us';
+                            downloadUrl = `https://www.screenscraper.fr/medias/${result.screenscraper_system_id}/${result.screenscraperid}/manuel(${region}).pdf`;
+                        }
+                        this.downloadMultiscraperMedia(downloadUrl, game, mediaType, result.screenscraperid, result.screenscraper_system_id);
+                    } else {
+                        this.downloadMultiscraperMedia(result.url, game, mediaType);
+                    }
                 } else {
                     this.downloadMultiscraperMedia(result.url, game, mediaType);
                 }
@@ -5259,7 +5432,7 @@ class GameCollectionManager {
                 system_name: this.currentSystem
             };
             
-            // Add ScreenScraper IDs for video downloads
+            // Add ScreenScraper IDs for video and manual downloads (needed for Referer headers)
             if (screenscraperId && screenscraperSystemId) {
                 requestBody.screenscraper_id = screenscraperId;
                 requestBody.screenscraper_system_id = screenscraperSystemId;
@@ -10419,84 +10592,129 @@ class GameCollectionManager {
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
                 } else if (mediaPath.toLowerCase().endsWith('.pdf')) {
-                    // PDF file - show preview of first page as JPG
+                    // PDF file - check if file exists first, then show preview of first page as JPG
                     // Clean the mediaPath (remove leading ./ if present)
                     let cleanMediaPath = mediaPath;
                     if (cleanMediaPath.startsWith('./')) {
                         cleanMediaPath = cleanMediaPath.substring(2);
                     }
+                    
+                    // Check if PDF file exists before displaying preview
                     const cacheBuster = new Date().getTime();
-                    const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                    const pdfUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                     
-                    mediaItem.innerHTML = `
-                        <div style="position: relative;">
-                            <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('PDF preview failed for:', '${cleanMediaPath}');">
-                            <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
-                            <small class="text-center flex-grow-1">${field}</small>
-                            <div class="d-flex gap-1">
-                                ${field === 'fanart' ? `
-                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                    <i class="bi bi-image"></i>
-                                </button>
-                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-google"></i>
-                                </button>
-                                ` : ''}
-                                ${field === 'marquee' ? `
-                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                    <i class="bi bi-badge-ad"></i>
-                                </button>
-                                ` : ''}
-                                ${field === 'manual' ? `
-                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </button>
-                                ` : `
-                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                                `}
-                            </div>
-                        </div>
-                    `;
+                    // Append mediaItem to DOM immediately (will be updated asynchronously)
+                    mediaPreviewContent.appendChild(mediaItem);
                     
-                    // Add error handler for PDF preview image
-                    const img = mediaItem.querySelector('img');
-                    if (img) {
-                        img.addEventListener('error', (e) => {
-                            console.error('PDF preview image failed to load:', pdfPreviewUrl, e);
-                            // If preview fails, show PDF icon placeholder
-                            const parentDiv = img.parentElement;
-                            if (parentDiv) {
-                                parentDiv.innerHTML = `
-                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 150px; height: 150px; background-color: ${this.getMediaCardBackgroundColor()}; border: 2px dashed #dee2e6; border-radius: 8px;">
-                                        <i class="bi bi-file-earmark-pdf" style="font-size: 48px; color: #dc3545; margin-bottom: 8px;"></i>
-                                        <small style="color: #6c757d; text-align: center;">PDF Document</small>
-                                        <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
-                                            <i class="bi bi-arrow-clockwise"></i>
-                                        </div>
-                                    </div>
-                                `;
+                    // Check if file exists first
+                    fetch(pdfUrl, { method: 'HEAD' })
+                        .then(response => {
+                            if (!response.ok || response.status === 404) {
+                                // File doesn't exist - show placeholder immediately
+                                this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                return;
                             }
-                        });
-                        
-                        // Add hover preview functionality for PDF preview
-                        img.addEventListener('load', () => {
-                            img.addEventListener('mouseenter', (e) => {
-                                this.showMediaHover(e, pdfPreviewUrl, field);
+                            
+                            // File exists - show PDF preview
+                            const pdfPreviewUrl = `/api/pdf-preview/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
+                            
+                            mediaItem.innerHTML = `
+                                <div style="position: relative;">
+                                    <img src="${pdfPreviewUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" onerror="console.error('PDF preview failed for:', '${cleanMediaPath}');">
+                                    <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
+                                    <small class="text-center flex-grow-1">${field}</small>
+                                    <div class="d-flex gap-1">
+                                        ${field === 'fanart' ? `
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                            <i class="bi bi-image"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-google"></i>
+                                        </button>
+                                        ` : ''}
+                                        ${field === 'marquee' ? `
+                                        <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                            <i class="bi bi-badge-ad"></i>
+                                        </button>
+                                        ` : ''}
+                                        ${field === 'manual' ? `
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
+                                            <i class="bi bi-file-earmark-pdf"></i>
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        ` : `
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                        `}
+                                    </div>
+                                </div>
+                            `;
+                            
+                            // Add error handler for PDF preview image
+                            const img = mediaItem.querySelector('img');
+                            if (img) {
+                                img.addEventListener('error', (e) => {
+                                    console.error('PDF preview image failed to load:', pdfPreviewUrl, e);
+                                    // If preview fails, show file missing placeholder (PDF might not exist even if HEAD passed)
+                                    this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
+                                });
+                                
+                                // Add hover preview functionality for PDF preview
+                                img.addEventListener('load', () => {
+                                    img.addEventListener('mouseenter', (e) => {
+                                        this.showMediaHover(e, pdfPreviewUrl, field);
+                                    });
+                                    img.addEventListener('mouseleave', () => {
+                                        this.hideMediaHover();
+                                    });
+                                });
+                            }
+                            
+                            // Add click functionality for media selection
+                            mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
+                            
+                            // Add double-click functionality for uploading/replacing media
+                            mediaItem.addEventListener('dblclick', (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.uploadMediaForGame(game, field);
                             });
-                            img.addEventListener('mouseleave', () => {
-                                this.hideMediaHover();
+                            
+                            // Add hover effects to show replace overlay
+                            mediaItem.addEventListener('mouseenter', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '1';
+                                }
                             });
+                            
+                            mediaItem.addEventListener('mouseleave', () => {
+                                const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
+                                if (replaceOverlay) {
+                                    replaceOverlay.style.opacity = '0';
+                                }
+                            });
+                            
+                            mediaItem.style.cursor = 'pointer';
+                            mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
+                        })
+                        .catch(() => {
+                            // Network error or file doesn't exist - show placeholder
+                            this.showFileMissingPlaceholder(mediaItem, field, mediaPath, game);
                         });
-                    }
+                    
+                    // Skip the rest of the loop iteration since we handled PDF asynchronously
+                    return;
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
@@ -10526,9 +10744,11 @@ class GameCollectionManager {
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
+                                ${field !== 'manual' ? `
                                 <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-download"></i>
                                 </button>
+                                ` : ''}
                             </div>
                         </div>
                     `;
@@ -10632,9 +10852,11 @@ class GameCollectionManager {
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
+                            ${field !== 'manual' ? `
                             <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-download"></i>
                             </button>
+                            ` : ''}
                         </div>
                     </div>
                 `;
@@ -10705,9 +10927,11 @@ class GameCollectionManager {
                     <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-search"></i>
                     </button>
+                    ${field !== 'manual' ? `
                     <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-download"></i>
                     </button>
+                    ` : ''}
                 </div>
             </div>
         `;
