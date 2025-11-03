@@ -6200,9 +6200,26 @@ def manage_media_fields():
     """Manage media fields configuration"""
     try:
         if request.method == 'GET':
-            # Return all media fields
-            media_fields = config.get('media_fields', {})
-            return jsonify({'success': True, 'media_fields': media_fields})
+            # Return all media fields - reload config to ensure we have latest version
+            current_config = load_config()
+            media_fields = current_config.get('media_fields', {})
+            # Get field names as array (for frontend compatibility)
+            field_names = list(media_fields.keys())
+            
+            # Ensure 'video' is always included as it's a standard field
+            if 'video' not in field_names:
+                field_names.append('video')
+            
+            # Ensure 'manual' is always included for PDF previews
+            if 'manual' not in field_names:
+                field_names.append('manual')
+            
+            # Return both formats for compatibility
+            return jsonify({
+                'success': True, 
+                'media_fields': media_fields,
+                'fields': field_names  # Frontend expects this
+            })
         
         elif request.method == 'POST':
             # Add new media field
@@ -9593,8 +9610,8 @@ def download_multiscraper_media_endpoint():
             except Exception as e:
                 print(f"❌ Error downloading ScreenScraper video: {e}")
                 return jsonify({'error': f'Failed to download video: {str(e)}'}), 500
-        # For ScreenScraper PDFs (manual), download with Referer header
-        elif media_type == 'manual' and screenscraper_id and screenscraper_system_id:
+        # For ScreenScraper PDFs (manual/map), download with Referer header
+        elif (media_type == 'manual' or media_type == 'map') and screenscraper_id and screenscraper_system_id:
             # Construct direct ScreenScraper PDF URL
             # Extract region from media_url if available, otherwise default to 'us'
             region = 'us'
@@ -9630,8 +9647,8 @@ def download_multiscraper_media_endpoint():
                 
                 media_config = config['media_fields'][media_type]
                 target_dir = media_config.get('directory', f'media/{media_type}')
-                # For manual type, determine extension from URL or default to .pdf
-                if media_type == 'manual':
+                # For manual/map types, determine extension from URL or default to .pdf
+                if media_type == 'manual' or media_type == 'map':
                     # Check if URL indicates CBZ
                     if direct_pdf_url and (direct_pdf_url.lower().endswith('.cbz') or '.cbz' in direct_pdf_url.lower()):
                         target_extension = '.cbz'
@@ -10309,8 +10326,8 @@ def download_and_save_media(media_url, game, media_type, system_name):
         
         media_config = config['media_fields'][media_type]
         target_dir = media_config.get('directory', f'media/{media_type}')
-        # For manual type, determine extension from URL or default to .pdf
-        if media_type == 'manual':
+        # For manual/map types, determine extension from URL or default to .pdf
+        if media_type == 'manual' or media_type == 'map':
             # Check if URL indicates CBZ or PDF
             if media_url and (media_url.lower().endswith('.cbz') or '.cbz' in media_url.lower()):
                 target_extension = '.cbz'
@@ -10346,8 +10363,8 @@ def download_and_save_media(media_url, game, media_type, system_name):
             f.write(response.content)
         print(f"🔧 DEBUG: File saved to {target_path}")
         
-        # For manual (PDF/CBZ) type, skip image processing - these files should not be converted/resized
-        if media_type != 'manual':
+        # For manual/map (PDF/CBZ) types, skip image processing - these files should not be converted/resized
+        if media_type != 'manual' and media_type != 'map':
             # Convert and/or resize image in a single operation (optimized)
             from game_utils import should_process_field, convert_and_resize_image_replace
             print(f"🔧 DEBUG: Checking processing for media_type: {media_type}")
@@ -19662,7 +19679,9 @@ def get_media_mappings():
 def get_media_fields():
     """Get all media fields from config.json"""
     try:
-        media_fields = config.get('media_fields', {})
+        # Reload config to ensure we have the latest version (in case config.json was modified)
+        current_config = load_config()
+        media_fields = current_config.get('media_fields', {})
         # Get all field names, including video
         field_names = list(media_fields.keys())
         
@@ -19685,9 +19704,117 @@ def get_media_fields():
             'error': str(e)
         }), 500
 
+def convert_cbz_to_pdf_response(cbz_path):
+    """Convert CBZ file to PDF on-the-fly and return as response"""
+    try:
+        import pymupdf
+        from PIL import Image
+        import io
+        import zipfile
+        import tempfile
+        
+        # Open CBZ file (ZIP archive)
+        with zipfile.ZipFile(cbz_path, 'r') as cbz_file:
+            # Get list of files in the archive, sorted by name
+            file_list = sorted(cbz_file.namelist())
+            
+            # Filter to only image files, sorted
+            image_files = []
+            for filename in file_list:
+                lower_name = filename.lower()
+                if (lower_name.endswith('.jpg') or lower_name.endswith('.jpeg') or 
+                    lower_name.endswith('.png') or lower_name.endswith('.webp')):
+                    # Skip hidden files and directories
+                    if not os.path.basename(filename).startswith('.'):
+                        image_files.append(filename)
+            
+            if not image_files:
+                return jsonify({'error': 'No images found in CBZ file'}), 400
+            
+            # Create a new PDF document
+            pdf_doc = pymupdf.open()
+            
+            # Add each image as a page in the PDF
+            for image_file in image_files:
+                try:
+                    # Extract image to memory
+                    image_data = cbz_file.read(image_file)
+                    img = Image.open(io.BytesIO(image_data))
+                    
+                    # Convert to RGB if necessary
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save image to temporary bytes
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format='PNG')
+                    img_bytes.seek(0)
+                    
+                    # Create PDF page with image
+                    page_rect = pymupdf.Rect(0, 0, img.width, img.height)
+                    page = pdf_doc.new_page(width=img.width, height=img.height)
+                    
+                    # Insert image into page
+                    page.insert_image(page_rect, stream=img_bytes.getvalue())
+                    
+                except Exception as e:
+                    print(f"Warning: Failed to add image {image_file} to PDF: {e}")
+                    continue
+            
+            if len(pdf_doc) == 0:
+                pdf_doc.close()
+                return jsonify({'error': 'Failed to create PDF from CBZ'}), 500
+            
+            # Save PDF to temporary file
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf', prefix='cbz_')
+            try:
+                pdf_doc.save(temp_path)
+                pdf_doc.close()
+                
+                # Read the temporary PDF
+                with open(temp_path, 'rb') as f:
+                    pdf_data = f.read()
+                
+                # Delete temporary file
+                os.close(temp_fd)
+                os.unlink(temp_path)
+                
+                # Return PDF as response with CORS headers
+                from flask import Response
+                response = Response(
+                    pdf_data,
+                    mimetype='application/pdf',
+                    headers={
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                        'Access-Control-Allow-Headers': 'Content-Type, Range',
+                        'Accept-Ranges': 'bytes',
+                        'Content-Length': str(len(pdf_data))
+                    }
+                )
+                return response
+            except Exception as e:
+                pdf_doc.close()
+                if os.path.exists(temp_path):
+                    try:
+                        os.close(temp_fd)
+                        os.unlink(temp_path)
+                    except:
+                        pass
+                raise e
+                
+    except zipfile.BadZipFile:
+        return jsonify({'error': 'Invalid CBZ file (not a valid ZIP archive)'}), 400
+    except Exception as e:
+        print(f"Error converting CBZ to PDF: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'error': f'Failed to convert CBZ to PDF: {str(e)}'}), 500
+
 @app.route('/api/pdf/<system_name>/<path:pdf_path>')
+@login_required
 def serve_pdf_for_viewer(system_name, pdf_path):
-    """Serve PDF files for EmbedPDF viewer with proper CORS headers"""
+    """Serve PDF files for EmbedPDF viewer with proper CORS headers. Converts CBZ to PDF on-the-fly if needed."""
     try:
         # Sanitize path (remove leading ./ or /)
         pdf_path = pdf_path.replace('..', '').lstrip('/').lstrip('./')
@@ -19706,6 +19833,13 @@ def serve_pdf_for_viewer(system_name, pdf_path):
         
         if not os.path.exists(full_pdf_path):
             return jsonify({'error': 'PDF file not found'}), 404
+        
+        # Check if it's a CBZ file - convert to PDF on-the-fly
+        # Also support PDF/CBZ paths for map field (same as manual)
+        if pdf_path.lower().endswith('.cbz'):
+            return convert_cbz_to_pdf_response(full_pdf_path)
+        elif not pdf_path.lower().endswith('.pdf'):
+            return jsonify({'error': 'File is not a PDF or CBZ'}), 400
         
         # Serve PDF with CORS headers for EmbedPDF
         response = send_file(full_pdf_path, mimetype='application/pdf')

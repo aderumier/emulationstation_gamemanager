@@ -86,7 +86,8 @@
         "manual": {
             "directory": "manuals",
             "extensions": [
-                ".pdf"
+                ".pdf",
+                ".cbz"
             ]
         },
         "boxback": {
@@ -106,6 +107,16 @@
                 ".jpg",
                 ".jpeg"
             ]
+        },
+        "map": {
+            "directory": "maps",
+            "extensions": [
+                ".pdf",
+                ".cbz"
+            ],
+            "target_extension": "",
+            "width": 0,
+            "height": 0
         }
     },
     "2dboxgenerator": {

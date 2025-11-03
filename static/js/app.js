@@ -4297,8 +4297,8 @@ class GameCollectionManager {
                     
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
-                } else if (mediaPath.toLowerCase().endsWith('.pdf') || mediaPath.toLowerCase().endsWith('.cbz')) {
-                    // PDF or CBZ file - check if file exists first, then show preview
+                } else if (field === 'manual' || field === 'map' || mediaPath.toLowerCase().endsWith('.pdf') || mediaPath.toLowerCase().endsWith('.cbz')) {
+                    // PDF or CBZ file (or manual/map field) - check if file exists first, then show preview
                     // Clean the mediaPath (remove leading ./ if present)
                     let cleanMediaPath = mediaPath;
                     if (cleanMediaPath.startsWith('./')) {
@@ -4338,12 +4338,10 @@ class GameCollectionManager {
                                 <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
-                                        ${field === 'manual' ? `
-                                        ${!isCBZ ? `
-                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
+                                        ${field === 'manual' || field === 'map' ? `
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="${isCBZ ? 'CBZ Viewer' : 'PDF Viewer'}" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </button>
-                                        ` : ''}
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
@@ -4548,7 +4546,7 @@ class GameCollectionManager {
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
-                            ${field !== 'manual' ? `
+                            ${field !== 'manual' && field !== 'map' ? `
                             <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-download"></i>
                             </button>
@@ -4623,8 +4621,9 @@ class GameCollectionManager {
         
         // Update modal title
         const modalTitle = document.getElementById('pdfViewerModalLabel');
+        const isCBZ = pdfPath.toLowerCase().endsWith('.cbz');
         if (modalTitle) {
-            modalTitle.innerHTML = `<i class="bi bi-file-earmark-pdf"></i> PDF Viewer - ${game.name || 'Manual'}`;
+            modalTitle.innerHTML = `<i class="bi bi-file-earmark-pdf"></i> ${isCBZ ? 'CBZ' : 'PDF'} Viewer - ${game.name || 'Manual'}`;
         }
         
         // Clear container
@@ -5202,8 +5201,8 @@ class GameCollectionManager {
                 img.style.objectFit = 'contain';
                 img.style.backgroundColor = this.getMediaCardBackgroundColor();
                 
-                // For manual (PDF) type, use PDF preview endpoint to show first page
-                if (mediaType === 'manual') {
+                // For manual/map (PDF/CBZ) types, use PDF/CBZ preview endpoint to show first page
+                if (mediaType === 'manual' || mediaType === 'map') {
                     // Determine the actual PDF URL
                     let pdfUrl = result.url;
                     
@@ -5398,12 +5397,12 @@ class GameCollectionManager {
                     return;
                 }
                 // For non-video types or ScreenScraper videos, proceed with normal download
-                // For ScreenScraper videos and manuals, pass screenscraperid and system_id to use direct download with Referer
-                if ((mediaType === 'video' && videoURL && isScreenScraper) || (mediaType === 'manual' && isScreenScraper)) {
+                // For ScreenScraper videos and manuals/maps, pass screenscraperid and system_id to use direct download with Referer
+                if ((mediaType === 'video' && videoURL && isScreenScraper) || ((mediaType === 'manual' || mediaType === 'map') && isScreenScraper)) {
                     if (result.screenscraperid && result.screenscraper_system_id) {
-                        // For ScreenScraper manuals, construct the direct PDF URL
+                        // For ScreenScraper manuals/maps, construct the direct PDF URL
                         let downloadUrl = result.url;
-                        if (mediaType === 'manual') {
+                        if (mediaType === 'manual' || mediaType === 'map') {
                             const region = result.region || 'us';
                             downloadUrl = `https://www.screenscraper.fr/medias/${result.screenscraper_system_id}/${result.screenscraperid}/manuel(${region}).pdf`;
                         }
@@ -10456,8 +10455,8 @@ class GameCollectionManager {
         mediaPreviewContent.innerHTML = '';
 
         // Get media fields from config.json mappings (including video and manual)
-        // Force refresh to ensure we get the latest fields including video
-        let mediaFields = await this.getMediaFieldsFromConfig(true);
+        // Use cache to avoid unnecessary API calls
+        let mediaFields = await this.getMediaFieldsFromConfig(false);
         
         // Ensure 'video' is included even if not in config (it's a standard field)
         if (!mediaFields.includes('video')) {
@@ -10468,6 +10467,9 @@ class GameCollectionManager {
         if (!mediaFields.includes('manual')) {
             mediaFields.push('manual');
         }
+        
+        // Note: 'map' should only be included if it's in config.json, which it should be via the API
+        // No need to force-add it like manual/video
         
         // Process each field only once
         const processedFields = new Set();
@@ -10597,8 +10599,8 @@ class GameCollectionManager {
                     
                     // Skip the rest of the loop iteration since we handled video asynchronously
                     return;
-                } else if (mediaPath.toLowerCase().endsWith('.pdf') || mediaPath.toLowerCase().endsWith('.cbz')) {
-                    // PDF or CBZ file - check if file exists first, then show preview
+                } else if (field === 'manual' || field === 'map' || mediaPath.toLowerCase().endsWith('.pdf') || mediaPath.toLowerCase().endsWith('.cbz')) {
+                    // PDF or CBZ file (or manual/map field) - check if file exists first, then show preview
                     // Clean the mediaPath (remove leading ./ if present)
                     let cleanMediaPath = mediaPath;
                     if (cleanMediaPath.startsWith('./')) {
@@ -10651,12 +10653,10 @@ class GameCollectionManager {
                                             <i class="bi bi-badge-ad"></i>
                                         </button>
                                         ` : ''}
-                                        ${field === 'manual' ? `
-                                        ${!isCBZ ? `
-                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="PDF Viewer" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
+                                        ${field === 'manual' || field === 'map' ? `
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="${isCBZ ? 'CBZ Viewer' : 'PDF Viewer'}" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </button>
-                                        ` : ''}
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
@@ -10756,7 +10756,7 @@ class GameCollectionManager {
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
-                                ${field !== 'manual' ? `
+                                ${field !== 'manual' && field !== 'map' ? `
                                 <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-download"></i>
                                 </button>
@@ -10830,8 +10830,8 @@ class GameCollectionManager {
             } else {
                 // Media missing - show placeholder with upload functionality
                 const placeholderSize = '150px'; // Use same size for all media types including video
-                const iconClass = field === 'video' ? 'bi-camera-video' : field === 'manual' ? 'bi-file-earmark-pdf' : 'bi-cloud-upload';
-                const uploadText = field === 'video' ? 'Double-click<br>to upload video' : field === 'manual' ? 'Double-click<br>to upload PDF/CBZ' : 'Double-click<br>to upload';
+                const iconClass = field === 'video' ? 'bi-camera-video' : (field === 'manual' || field === 'map') ? 'bi-file-earmark-pdf' : 'bi-cloud-upload';
+                const uploadText = field === 'video' ? 'Double-click<br>to upload video' : (field === 'manual' || field === 'map') ? 'Double-click<br>to upload PDF/CBZ' : 'Double-click<br>to upload';
                 
                 mediaItem.innerHTML = `
                     <div class="media-placeholder" style="width: ${placeholderSize}; height: ${placeholderSize}; background-color: #ffffff; border: 2px dashed #dee2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6c757d; font-size: 0.8rem; text-align: center; cursor: pointer; transition: all 0.2s ease;">
@@ -10864,7 +10864,7 @@ class GameCollectionManager {
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
-                            ${field !== 'manual' ? `
+                            ${field !== 'manual' && field !== 'map' ? `
                             <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-download"></i>
                             </button>
@@ -10939,7 +10939,7 @@ class GameCollectionManager {
                     <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-search"></i>
                     </button>
-                    ${field !== 'manual' ? `
+                    ${field !== 'manual' && field !== 'map' ? `
                     <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-download"></i>
                     </button>
