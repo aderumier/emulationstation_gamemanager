@@ -16730,6 +16730,7 @@ def extract_from_embedded_json(html_text):
                     'thumbnail': thumbnail,
                     'duration': 'Unknown',
                     'channel': channel[:50] + '...' if len(channel) > 50 else channel,
+                    'quality': None,  # Quality not available from this extraction method
                     'url': f"https://www.youtube.com/watch?v={video_id}"
                 })
         
@@ -16809,6 +16810,9 @@ def extract_from_html_enhanced(soup):
                 if not thumbnail:
                     thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
                 
+                # Extract quality/resolution (not typically available from HTML parsing)
+                quality = None
+                
                 # Extract channel
                 channel = "Unknown Channel"
                 channel_selectors = [
@@ -16830,6 +16834,7 @@ def extract_from_html_enhanced(soup):
                     'thumbnail': thumbnail,
                     'duration': 'Unknown',
                     'channel': channel[:50] + '...' if len(channel) > 50 else channel,
+                    'quality': quality,
                     'url': f"https://www.youtube.com/watch?v={video_id}"
                 })
                 
