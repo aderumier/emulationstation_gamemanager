@@ -12,13 +12,10 @@ ENV FLASK_ENV=production
 WORKDIR /opt/gamemanager
 
 # Install system dependencies and .deb package dependencies
-RUN apt-get update && apt-get install -y \
-    # Python and development tools
+# Optimized: removed development tools and unnecessary utilities
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Python runtime (removed dev tools: python3-pip, python3-venv, python3-dev, python3-setuptools)
     python3 \
-    python3-pip \
-    python3-venv \
-    python3-dev \
-    python3-setuptools \
     # .deb package dependencies
     python3-flask \
     python3-flask-login \
@@ -41,18 +38,15 @@ RUN apt-get update && apt-get install -y \
     imagemagick \
     ffmpeg \
     yt-dlp \
-    git \
     curl \
     wget \
-    # Additional utilities
-    procps \
-    htop \
-    nano \
-    && rm -rf /var/lib/apt/lists/*
+    # dpkg-deb needed for .deb extraction
+    dpkg \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser && \
-    usermod -aG sudo appuser
+# Create non-root user for security (removed sudo group - not needed in container)
+RUN useradd --create-home --shell /bin/bash appuser
 
 # Copy the .deb package
 ARG DEB_FILE=gamemanager_2.9.1-1_all.deb
