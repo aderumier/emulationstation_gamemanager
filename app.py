@@ -16935,6 +16935,43 @@ def extract_video_from_renderer(renderer):
         if published_text and 'simpleText' in published_text:
             published_time = published_text['simpleText']
         
+        # Extract quality/resolution from badges (e.g., "HD", "4K")
+        quality = None
+        badges = renderer.get('badges', [])
+        for badge in badges:
+            badge_label = badge.get('metadataBadgeRenderer', {}).get('label', '')
+            if badge_label:
+                # Check for quality indicators (HD, 4K, 8K, etc.)
+                quality_lower = badge_label.lower()
+                if '4k' in quality_lower or '2160p' in quality_lower:
+                    quality = '4K'
+                elif '8k' in quality_lower or '4320p' in quality_lower:
+                    quality = '8K'
+                elif 'hd' in quality_lower or '1080p' in quality_lower:
+                    quality = '1080p'
+                elif '720p' in quality_lower:
+                    quality = '720p'
+                elif '480p' in quality_lower:
+                    quality = '480p'
+                elif '360p' in quality_lower:
+                    quality = '360p'
+        
+        # Also check for qualityBadges field
+        if not quality:
+            quality_badges = renderer.get('qualityBadges', [])
+            for qb in quality_badges:
+                qb_label = qb.get('metadataBadgeRenderer', {}).get('label', '')
+                if qb_label:
+                    quality_lower = qb_label.lower()
+                    if '4k' in quality_lower or '2160p' in quality_lower:
+                        quality = '4K'
+                    elif '8k' in quality_lower or '4320p' in quality_lower:
+                        quality = '8K'
+                    elif 'hd' in quality_lower or '1080p' in quality_lower:
+                        quality = '1080p'
+                    elif '720p' in quality_lower:
+                        quality = '720p'
+        
         # Get thumbnail from YouTube's service if not available
         if not thumbnail:
             thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
@@ -16947,6 +16984,7 @@ def extract_video_from_renderer(renderer):
             'channel': channel[:50] + '...' if len(channel) > 50 else channel,
             'view_count': view_count,
             'published_time': published_time,
+            'quality': quality,
             'url': f"https://www.youtube.com/watch?v={video_id}"
         }
     except Exception as e:
@@ -16982,6 +17020,43 @@ def extract_video_from_compact_renderer(renderer):
         if published_text and 'simpleText' in published_text:
             published_time = published_text['simpleText']
         
+        # Extract quality/resolution from badges (e.g., "HD", "4K")
+        quality = None
+        badges = renderer.get('badges', [])
+        for badge in badges:
+            badge_label = badge.get('metadataBadgeRenderer', {}).get('label', '')
+            if badge_label:
+                # Check for quality indicators (HD, 4K, 8K, etc.)
+                quality_lower = badge_label.lower()
+                if '4k' in quality_lower or '2160p' in quality_lower:
+                    quality = '4K'
+                elif '8k' in quality_lower or '4320p' in quality_lower:
+                    quality = '8K'
+                elif 'hd' in quality_lower or '1080p' in quality_lower:
+                    quality = '1080p'
+                elif '720p' in quality_lower:
+                    quality = '720p'
+                elif '480p' in quality_lower:
+                    quality = '480p'
+                elif '360p' in quality_lower:
+                    quality = '360p'
+        
+        # Also check for qualityBadges field
+        if not quality:
+            quality_badges = renderer.get('qualityBadges', [])
+            for qb in quality_badges:
+                qb_label = qb.get('metadataBadgeRenderer', {}).get('label', '')
+                if qb_label:
+                    quality_lower = qb_label.lower()
+                    if '4k' in quality_lower or '2160p' in quality_lower:
+                        quality = '4K'
+                    elif '8k' in quality_lower or '4320p' in quality_lower:
+                        quality = '8K'
+                    elif 'hd' in quality_lower or '1080p' in quality_lower:
+                        quality = '1080p'
+                    elif '720p' in quality_lower:
+                        quality = '720p'
+        
         # Get thumbnail from YouTube's service if not available
         if not thumbnail:
             thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
@@ -16994,6 +17069,7 @@ def extract_video_from_compact_renderer(renderer):
             'channel': channel[:50] + '...' if len(channel) > 50 else channel,
             'view_count': view_count,
             'published_time': published_time,
+            'quality': quality,
             'url': f"https://www.youtube.com/watch?v={video_id}"
         }
     except Exception as e:

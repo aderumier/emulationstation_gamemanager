@@ -22042,6 +22042,15 @@ class GameCollectionManager {
         durationDiv.className = 'youtube-video-duration';
         durationDiv.innerHTML = `<i class="bi bi-clock"></i> ${video.duration}`;
         
+        // Create quality/resolution if available
+        if (video.quality) {
+            const qualityDiv = document.createElement('div');
+            qualityDiv.className = 'youtube-video-quality';
+            qualityDiv.style.cssText = 'color: #28a745; font-weight: 600;';
+            qualityDiv.innerHTML = `<i class="bi bi-camera-video"></i> ${video.quality}`;
+            metaDiv.appendChild(qualityDiv);
+        }
+        
         // Create views
         const viewsDiv = document.createElement('div');
         viewsDiv.className = 'youtube-video-views';
