@@ -27043,9 +27043,6 @@ if __name__ == '__main__':
     else:
         print("⚠️  yt-dlp binary not available, YouTube downloads may fail")
     
-    # Sync gamelist.xml files from ROMs to var/gamelists
-    sync_all_gamelists()
-    
     # Clean up any remaining temporary files from previous runs
     cleanup_temp_files()
     
