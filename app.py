@@ -5013,6 +5013,113 @@ def get_cache_statistics():
         'total_games': len(global_metadata_cache),
         'memory_usage_mb': memory_usage_mb
     }
+def count_all_games_batch(systems_list):
+    """Count games for all systems at once using grep with glob pattern.
+    
+    This uses grep directly with glob wildcard to count across all gamelist.xml
+    files simultaneously, which is much faster than reading files individually.
+    """
+    system_counts = {}
+    
+    try:
+        # Use grep with glob pattern to count </game> tags in all gamelist.xml files at once
+        # Pattern: var/gamelists/*/gamelist.xml
+        gamelist_glob = os.path.join(GAMELISTS_FOLDER, '*', 'gamelist.xml')
+        
+        # Use sh with glob expansion to process all files
+        result = subprocess.run(
+            ['sh', '-c', 
+             f'for f in {gamelist_glob}; do [ -f "$f" ] && count=$(grep -c "</game>" "$f" 2>/dev/null || echo 0) && echo "${{count}}:$f"; done'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            # Parse output: "count:/path/to/var/gamelists/system/gamelist.xml"
+            for line in result.stdout.strip().split('\n'):
+                if not line or ':' not in line:
+                    continue
+                try:
+                    count_str, file_path = line.split(':', 1)
+                    game_count = int(count_str)
+                    # Extract system name from path
+                    # Path format: var/gamelists/system_name/gamelist.xml
+                    path_parts = file_path.split(os.sep)
+                    if 'gamelists' in path_parts:
+                        idx = path_parts.index('gamelists')
+                        if idx + 1 < len(path_parts):
+                            system_name = path_parts[idx + 1]
+                            system_counts[system_name] = game_count
+                except (ValueError, IndexError):
+                    continue
+        
+        # Now count hidden games using same glob approach
+        hidden_result = subprocess.run(
+            ['sh', '-c',
+             f'for f in {gamelist_glob}; do [ -f "$f" ] && count=$(grep -c "<hidden>true</hidden>" "$f" 2>/dev/null || echo 0) && echo "${{count}}:$f"; done'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if hidden_result.returncode == 0:
+            # Subtract hidden games from counts
+            for line in hidden_result.stdout.strip().split('\n'):
+                if not line or ':' not in line:
+                    continue
+                try:
+                    count_str, file_path = line.split(':', 1)
+                    hidden_count = int(count_str)
+                    path_parts = file_path.split(os.sep)
+                    if 'gamelists' in path_parts:
+                        idx = path_parts.index('gamelists')
+                        if idx + 1 < len(path_parts):
+                            system_name = path_parts[idx + 1]
+                            if system_name in system_counts:
+                                system_counts[system_name] = max(0, system_counts[system_name] - hidden_count)
+                except (ValueError, IndexError):
+                    continue
+        
+    except subprocess.TimeoutExpired:
+        print("Timeout counting games with grep")
+    except Exception as e:
+        print(f"Error using grep to count games: {e}")
+        # Fallback to individual file reading if grep fails
+        for system_name in systems_list:
+            system_counts[system_name] = count_games_in_gamelist_fallback(get_gamelist_path(system_name))
+    
+    # Ensure all requested systems have counts (set to 0 if missing)
+    for system_name in systems_list:
+        if system_name not in system_counts:
+            system_counts[system_name] = 0
+    
+    return system_counts
+
+def count_games_in_gamelist_fallback(file_path):
+    """Fallback function to count games using simple string matching.
+    Used when grep-based batch counting fails.
+    """
+    try:
+        if not os.path.exists(file_path):
+            return 0
+        
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            return 0
+        
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        game_count = content.count('</game>')
+        hidden_count = content.count('<hidden>true</hidden>')
+        visible_count = game_count - hidden_count
+        
+        return max(0, visible_count)
+    except Exception as e:
+        print(f"Error counting games in gamelist: {file_path} - {e}")
+        return 0
+
 def parse_gamelist_xml(file_path):
     """Parse gamelist.xml file and return list of games"""
     try:
@@ -5219,22 +5326,26 @@ def list_rom_systems():
     """List all available ROM systems"""
     systems = []
     try:
+        # Collect all system names first
+        system_names = []
         for system_name in os.listdir(ROMS_FOLDER):
             system_path = os.path.join(ROMS_FOLDER, system_name)
             if os.path.isdir(system_path):
-                # Count games from var/<system>/gamelist.xml instead of roms/<system>/gamelist.xml
-                gamelist_path = get_gamelist_path(system_name)
-                rom_count = 0
-                if os.path.exists(gamelist_path):
-                    # Parse the actual gamelist.xml to get real count
-                    games = parse_gamelist_xml(gamelist_path)
-                    rom_count = len(games)
-                
-                systems.append({
-                    'name': system_name,
-                    'rom_count': rom_count,
-                    'path': system_path
-                })
+                system_names.append(system_name)
+        
+        # Count games for all systems at once using batch processing
+        system_counts = count_all_games_batch(system_names)
+        
+        # Build systems list with counts
+        for system_name in system_names:
+            system_path = os.path.join(ROMS_FOLDER, system_name)
+            rom_count = system_counts.get(system_name, 0)
+            
+            systems.append({
+                'name': system_name,
+                'rom_count': rom_count,
+                'path': system_path
+            })
     except Exception as e:
         print(f"Error listing ROM systems: {e}")
     
@@ -19810,6 +19921,44 @@ def convert_cbz_to_pdf_response(cbz_path):
         import traceback
         print(traceback.format_exc())
         return jsonify({'error': f'Failed to convert CBZ to PDF: {str(e)}'}), 500
+
+@app.route('/api/cbz/<system_name>/<path:cbz_path>')
+@login_required
+def serve_cbz_file(system_name, cbz_path):
+    """Serve CBZ files directly for JSZip viewer with proper CORS headers."""
+    try:
+        # Sanitize path (remove leading ./ or /)
+        cbz_path = cbz_path.replace('..', '').lstrip('/').lstrip('./')
+        
+        # Construct full CBZ path
+        full_cbz_path = os.path.join('roms', system_name, cbz_path)
+        
+        # Normalize path
+        full_cbz_path = os.path.normpath(full_cbz_path)
+        
+        # Security check
+        abs_roms = os.path.abspath('roms')
+        abs_cbz = os.path.abspath(full_cbz_path)
+        if not abs_cbz.startswith(abs_roms):
+            return jsonify({'error': 'Invalid CBZ path'}), 400
+        
+        if not os.path.exists(full_cbz_path):
+            return jsonify({'error': 'CBZ file not found'}), 404
+        
+        if not cbz_path.lower().endswith('.cbz'):
+            return jsonify({'error': 'File is not a CBZ file'}), 400
+        
+        # Serve CBZ file with CORS headers
+        response = send_file(full_cbz_path, mimetype='application/zip')
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Range'
+        response.headers['Accept-Ranges'] = 'bytes'
+        return response
+        
+    except Exception as e:
+        print(f"Error serving CBZ: {e}")
+        return jsonify({'error': f'Failed to serve CBZ: {str(e)}'}), 500
 
 @app.route('/api/pdf/<system_name>/<path:pdf_path>')
 @login_required

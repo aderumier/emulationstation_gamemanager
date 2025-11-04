@@ -4598,10 +4598,39 @@ class GameCollectionManager {
             return;
         }
         
-        // Ensure it's a PDF file
+        // Ensure it's a PDF or CBZ file
         if (!pdfPath.toLowerCase().endsWith('.pdf') && !pdfPath.toLowerCase().endsWith('.cbz')) {
             console.warn('Path does not end with .pdf or .cbz:', pdfPath);
             // Still try to proceed, might be a false negative
+        }
+        
+        // Check if it's a CBZ file
+        const isCBZ = pdfPath.toLowerCase().endsWith('.cbz');
+        
+        // Update modal title
+        const modalTitle = document.getElementById('pdfViewerModalLabel');
+        if (modalTitle) {
+            modalTitle.innerHTML = `<i class="bi bi-file-earmark-${isCBZ ? 'image' : 'pdf'}"></i> ${isCBZ ? 'CBZ' : 'PDF'} Viewer - ${game.name || 'Manual'}`;
+        }
+        
+        // Clear container
+        const container = document.getElementById('pdf-viewer-container');
+        if (container) {
+            container.innerHTML = '<div class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+        }
+        
+        // Show modal
+        const modalElement = document.getElementById('pdfViewerModal');
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+        
+        // If CBZ, use CBZ viewer instead of PDF viewer
+        if (isCBZ) {
+            const initializeCBZHandler = async () => {
+                await this.openCBZViewer(game, field, pdfPath, container);
+            };
+            modalElement.addEventListener('shown.bs.modal', initializeCBZHandler, { once: true });
+            return;
         }
         
         // Construct PDF URL - use the API endpoint with proper CORS headers for EmbedPDF
@@ -4618,24 +4647,6 @@ class GameCollectionManager {
         console.log('  Cleaned PDF path:', pdfPath);
         console.log('  PDF URL:', pdfUrl);
         console.log('  Full URL:', fullUrl);
-        
-        // Update modal title
-        const modalTitle = document.getElementById('pdfViewerModalLabel');
-        const isCBZ = pdfPath.toLowerCase().endsWith('.cbz');
-        if (modalTitle) {
-            modalTitle.innerHTML = `<i class="bi bi-file-earmark-pdf"></i> ${isCBZ ? 'CBZ' : 'PDF'} Viewer - ${game.name || 'Manual'}`;
-        }
-        
-        // Clear container
-        const container = document.getElementById('pdf-viewer-container');
-        if (container) {
-            container.innerHTML = '<div class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading PDF...</span></div></div>';
-        }
-        
-        // Show modal
-        const modalElement = document.getElementById('pdfViewerModal');
-        const modal = new bootstrap.Modal(modalElement);
-        modal.show();
         
         // Wait for modal to be shown, then initialize EmbedPDF
         const initializePDFHandler = async () => {
@@ -4752,6 +4763,192 @@ class GameCollectionManager {
                 delete container._epdfInstance;
             }
         }, { once: true });
+    }
+
+    async openCBZViewer(game, field, cbzPath, container) {
+        // Construct CBZ URL
+        const pathParts = cbzPath.split('/').map(part => encodeURIComponent(part));
+        const encodedPath = pathParts.join('/');
+        const cbzUrl = `/api/cbz/${this.currentSystem}/${encodedPath}`;
+        
+        container.innerHTML = '<div class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading CBZ...</span></div></div>';
+        
+        try {
+            // Check if JSZip is available
+            if (typeof JSZip === 'undefined') {
+                throw new Error('JSZip library not loaded');
+            }
+            
+            // Fetch CBZ file as blob
+            const response = await fetch(cbzUrl, { credentials: 'include' });
+            if (!response.ok) {
+                throw new Error(`Failed to load CBZ file: ${response.status} ${response.statusText}`);
+            }
+            
+            const cbzBlob = await response.blob();
+            
+            // Load CBZ file with JSZip
+            const zip = await JSZip.loadAsync(cbzBlob);
+            
+            // Get all files and filter for images
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+            const imageFiles = Object.keys(zip.files)
+                .filter(filename => {
+                    const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+                    return imageExtensions.includes(ext) && !zip.files[filename].dir;
+                })
+                .sort(); // Sort alphabetically
+            
+            if (imageFiles.length === 0) {
+                throw new Error('No images found in CBZ file');
+            }
+            
+            // Create viewer HTML
+            let viewerHTML = `
+                <div style="position: relative; height: 100%; overflow-y: auto; background: #1a1a1a;">
+                    <div style="position: sticky; top: 0; z-index: 10; background: rgba(0,0,0,0.9); padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="color: #fff; font-weight: bold;">Page <span id="cbz-page-num">1</span> of ${imageFiles.length}</span>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button id="cbz-prev-btn" class="btn btn-sm btn-outline-light" style="min-width: 60px;">
+                                <i class="bi bi-chevron-left"></i> Prev
+                            </button>
+                            <button id="cbz-next-btn" class="btn btn-sm btn-outline-light" style="min-width: 60px;">
+                                Next <i class="bi bi-chevron-right"></i>
+                            </button>
+                            <button id="cbz-fit-btn" class="btn btn-sm btn-outline-light" style="min-width: 80px;">
+                                <span id="cbz-fit-text">Fit Width</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="cbz-image-container" style="text-align: center; padding: 20px; min-height: calc(100% - 60px);">
+                        <div class="spinner-border text-light" role="status">
+                            <span class="visually-hidden">Loading image...</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = viewerHTML;
+            
+            // Load images and store data URLs
+            const imageDataUrls = [];
+            let currentPage = 0;
+            let fitMode = 'width'; // 'width', 'height', 'original'
+            
+            // Load all images
+            container.querySelector('#cbz-image-container').innerHTML = '<div class="text-center text-light p-3">Loading images...</div>';
+            
+            for (let i = 0; i < imageFiles.length; i++) {
+                const file = zip.files[imageFiles[i]];
+                const imageData = await file.async('blob');
+                const dataUrl = URL.createObjectURL(imageData);
+                imageDataUrls.push(dataUrl);
+            }
+            
+            // Display function
+            const displayImage = (pageIndex) => {
+                if (pageIndex < 0 || pageIndex >= imageDataUrls.length) return;
+                
+                currentPage = pageIndex;
+                const imgContainer = container.querySelector('#cbz-image-container');
+                const pageNum = container.querySelector('#cbz-page-num');
+                const prevBtn = container.querySelector('#cbz-prev-btn');
+                const nextBtn = container.querySelector('#cbz-next-btn');
+                
+                if (pageNum) pageNum.textContent = currentPage + 1;
+                if (prevBtn) prevBtn.disabled = currentPage === 0;
+                if (nextBtn) nextBtn.disabled = currentPage === imageDataUrls.length - 1;
+                
+                const img = new Image();
+                img.onload = () => {
+                    let imgHTML = '';
+                    const containerWidth = imgContainer.clientWidth - 40;
+                    const containerHeight = container.clientHeight - 100;
+                    
+                    if (fitMode === 'width') {
+                        imgHTML = `<img src="${imageDataUrls[currentPage]}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" alt="Page ${currentPage + 1}">`;
+                    } else if (fitMode === 'height') {
+                        imgHTML = `<img src="${imageDataUrls[currentPage]}" style="max-height: ${containerHeight}px; width: auto; display: block; margin: 0 auto;" alt="Page ${currentPage + 1}">`;
+                    } else {
+                        imgHTML = `<img src="${imageDataUrls[currentPage]}" style="max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; margin: 0 auto;" alt="Page ${currentPage + 1}">`;
+                    }
+                    
+                    imgContainer.innerHTML = imgHTML;
+                };
+                img.onerror = () => {
+                    imgContainer.innerHTML = `<div class="alert alert-danger m-3">Failed to load image ${currentPage + 1}</div>`;
+                };
+                img.src = imageDataUrls[currentPage];
+            };
+            
+            // Navigation buttons
+            const prevBtn = container.querySelector('#cbz-prev-btn');
+            const nextBtn = container.querySelector('#cbz-next-btn');
+            const fitBtn = container.querySelector('#cbz-fit-btn');
+            const fitText = container.querySelector('#cbz-fit-text');
+            
+            if (prevBtn) {
+                prevBtn.addEventListener('click', () => {
+                    if (currentPage > 0) {
+                        displayImage(currentPage - 1);
+                    }
+                });
+            }
+            
+            if (nextBtn) {
+                nextBtn.addEventListener('click', () => {
+                    if (currentPage < imageDataUrls.length - 1) {
+                        displayImage(currentPage + 1);
+                    }
+                });
+            }
+            
+            if (fitBtn && fitText) {
+                fitBtn.addEventListener('click', () => {
+                    if (fitMode === 'width') {
+                        fitMode = 'height';
+                        fitText.textContent = 'Fit Height';
+                    } else if (fitMode === 'height') {
+                        fitMode = 'original';
+                        fitText.textContent = 'Original';
+                    } else {
+                        fitMode = 'width';
+                        fitText.textContent = 'Fit Width';
+                    }
+                    displayImage(currentPage);
+                });
+            }
+            
+            // Keyboard navigation
+            const handleKeyPress = (e) => {
+                if (e.key === 'ArrowLeft' && currentPage > 0) {
+                    displayImage(currentPage - 1);
+                } else if (e.key === 'ArrowRight' && currentPage < imageDataUrls.length - 1) {
+                    displayImage(currentPage + 1);
+                }
+            };
+            
+            document.addEventListener('keydown', handleKeyPress);
+            
+            // Clean up on modal close
+            const modalElement = document.getElementById('pdfViewerModal');
+            const cleanup = () => {
+                document.removeEventListener('keydown', handleKeyPress);
+                // Revoke object URLs to free memory
+                imageDataUrls.forEach(url => URL.revokeObjectURL(url));
+                modalElement.removeEventListener('hidden.bs.modal', cleanup);
+            };
+            modalElement.addEventListener('hidden.bs.modal', cleanup, { once: true });
+            
+            // Display first image
+            displayImage(0);
+            
+        } catch (error) {
+            console.error('Error loading CBZ:', error);
+            container.innerHTML = `<div class="alert alert-danger m-3">Error loading CBZ file: ${error.message}</div>`;
+        }
     }
 
     async openLaunchBoxMediaModal(game, mediaType) {
