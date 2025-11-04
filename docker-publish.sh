@@ -9,6 +9,7 @@ set -e
 IMAGE_NAME="emulationstation_gamemanager"
 VERSION="2.6.0"
 DOCKERHUB_USERNAME="aderumier"
+FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -69,12 +70,20 @@ dockerhub_login() {
 
 # Function to build the image
 build_image() {
-    print_status "Building Docker image: ${IMAGE_NAME}:${VERSION}"
+    # Ensure username is set for build
+    if [ -z "$DOCKERHUB_USERNAME" ]; then
+        get_dockerhub_username
+    fi
+    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+    print_status "Building Docker image: ${FULL_IMAGE_NAME}:${VERSION}"
     # Determine the .deb file name based on version
     DEB_FILE="gamemanager_${VERSION}-1_all.deb"
     print_status "Using .deb package: ${DEB_FILE}"
-    if docker build --build-arg DEB_FILE=${DEB_FILE} -t ${IMAGE_NAME}:${VERSION} .; then
+    if docker build --build-arg DEB_FILE=${DEB_FILE} -t ${FULL_IMAGE_NAME}:${VERSION} .; then
         print_success "Image built successfully"
+        # Also tag as latest during build
+        docker tag ${FULL_IMAGE_NAME}:${VERSION} ${FULL_IMAGE_NAME}:latest
+        print_status "Tagged as ${FULL_IMAGE_NAME}:latest"
     else
         print_error "Failed to build image"
         exit 1
@@ -84,10 +93,10 @@ build_image() {
 # Function to tag images
 tag_images() {
     print_status "Tagging images..."
+    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
     
-    # Tag for DockerHub
-    docker tag ${IMAGE_NAME}:${VERSION} ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${VERSION}
-    docker tag ${IMAGE_NAME}:${VERSION} ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest
+    # Tag latest (versioned tag already exists from build)
+    docker tag ${FULL_IMAGE_NAME}:${VERSION} ${FULL_IMAGE_NAME}:latest
     
     print_success "Images tagged successfully"
 }
@@ -95,10 +104,11 @@ tag_images() {
 # Function to push images
 push_images() {
     print_status "Pushing images to DockerHub..."
+    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
     
     # Push versioned image
-    print_status "Pushing ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${VERSION}..."
-    if docker push ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${VERSION}; then
+    print_status "Pushing ${FULL_IMAGE_NAME}:${VERSION}..."
+    if docker push ${FULL_IMAGE_NAME}:${VERSION}; then
         print_success "Versioned image pushed successfully"
     else
         print_error "Failed to push versioned image"
@@ -106,8 +116,8 @@ push_images() {
     fi
     
     # Push latest image
-    print_status "Pushing ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest..."
-    if docker push ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest; then
+    print_status "Pushing ${FULL_IMAGE_NAME}:latest..."
+    if docker push ${FULL_IMAGE_NAME}:latest; then
         print_success "Latest image pushed successfully"
     else
         print_error "Failed to push latest image"
@@ -136,9 +146,9 @@ show_usage() {
 # Function to clean up local images
 cleanup() {
     print_status "Cleaning up local images..."
-    docker rmi ${IMAGE_NAME}:${VERSION} 2>/dev/null || true
-    docker rmi ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${VERSION} 2>/dev/null || true
-    docker rmi ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest 2>/dev/null || true
+    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+    docker rmi ${FULL_IMAGE_NAME}:${VERSION} 2>/dev/null || true
+    docker rmi ${FULL_IMAGE_NAME}:latest 2>/dev/null || true
     print_success "Cleanup completed"
 }
 
@@ -203,14 +213,19 @@ main() {
         # Push images
         push_images
         
+        FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
         print_success "All done! Your images are now available on DockerHub:"
-        print_status "  ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${VERSION}"
-        print_status "  ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest"
+        print_status "  ${FULL_IMAGE_NAME}:${VERSION}"
+        print_status "  ${FULL_IMAGE_NAME}:latest"
         echo ""
         print_status "Users can now pull your image with:"
-        print_status "  docker pull ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest"
+        print_status "  docker pull ${FULL_IMAGE_NAME}:latest"
     else
-        print_success "Build completed. Image: ${IMAGE_NAME}:${VERSION}"
+        if [ -z "$DOCKERHUB_USERNAME" ]; then
+            get_dockerhub_username
+        fi
+        FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+        print_success "Build completed. Image: ${FULL_IMAGE_NAME}:${VERSION}"
     fi
 }
 
