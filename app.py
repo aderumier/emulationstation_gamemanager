@@ -5323,15 +5323,14 @@ def serve_temp_file(filename):
 @app.route('/api/rom-systems')
 @login_required
 def list_rom_systems():
-    """List all available ROM systems"""
+    """List all available ROM systems from systems.json configuration"""
     systems = []
     try:
-        # Collect all system names first
-        system_names = []
-        for system_name in os.listdir(ROMS_FOLDER):
-            system_path = os.path.join(ROMS_FOLDER, system_name)
-            if os.path.isdir(system_path):
-                system_names.append(system_name)
+        # Load systems configuration from systems.json
+        current_systems_config = load_systems_config()
+        
+        # Get all system names from systems.json
+        system_names = list(current_systems_config.keys())
         
         # Count games for all systems at once using batch processing
         system_counts = count_all_games_batch(system_names)
