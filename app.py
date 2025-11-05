@@ -5014,80 +5014,63 @@ def get_cache_statistics():
         'memory_usage_mb': memory_usage_mb
     }
 def count_all_games_batch(systems_list):
-    """Count games for all systems at once using grep with glob pattern.
+    """Count games for all systems at once using fast XML parsing with iterparse.
     
-    This uses grep directly with glob wildcard to count across all gamelist.xml
-    files simultaneously, which is much faster than reading files individually.
+    This uses lxml.etree.iterparse for memory-efficient streaming XML parsing,
+    which is faster and more reliable than grep-based string matching.
     """
     system_counts = {}
     
     try:
-        # Use grep with glob pattern to count </game> tags in all gamelist.xml files at once
-        # Pattern: var/gamelists/*/gamelist.xml
-        gamelist_glob = os.path.join(GAMELISTS_FOLDER, '*', 'gamelist.xml')
-        
-        # Use sh with glob expansion to process all files
-        result = subprocess.run(
-            ['sh', '-c', 
-             f'for f in {gamelist_glob}; do [ -f "$f" ] && count=$(grep -c "</game>" "$f" 2>/dev/null || echo 0) && echo "${{count}}:$f"; done'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        if result.returncode == 0:
-            # Parse output: "count:/path/to/var/gamelists/system/gamelist.xml"
-            for line in result.stdout.strip().split('\n'):
-                if not line or ':' not in line:
-                    continue
-                try:
-                    count_str, file_path = line.split(':', 1)
-                    game_count = int(count_str)
-                    # Extract system name from path
-                    # Path format: var/gamelists/system_name/gamelist.xml
-                    path_parts = file_path.split(os.sep)
-                    if 'gamelists' in path_parts:
-                        idx = path_parts.index('gamelists')
-                        if idx + 1 < len(path_parts):
-                            system_name = path_parts[idx + 1]
-                            system_counts[system_name] = game_count
-                except (ValueError, IndexError):
-                    continue
-        
-        # Now count hidden games using same glob approach
-        hidden_result = subprocess.run(
-            ['sh', '-c',
-             f'for f in {gamelist_glob}; do [ -f "$f" ] && count=$(grep -c "<hidden>true</hidden>" "$f" 2>/dev/null || echo 0) && echo "${{count}}:$f"; done'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        if hidden_result.returncode == 0:
-            # Subtract hidden games from counts
-            for line in hidden_result.stdout.strip().split('\n'):
-                if not line or ':' not in line:
-                    continue
-                try:
-                    count_str, file_path = line.split(':', 1)
-                    hidden_count = int(count_str)
-                    path_parts = file_path.split(os.sep)
-                    if 'gamelists' in path_parts:
-                        idx = path_parts.index('gamelists')
-                        if idx + 1 < len(path_parts):
-                            system_name = path_parts[idx + 1]
-                            if system_name in system_counts:
-                                system_counts[system_name] = max(0, system_counts[system_name] - hidden_count)
-                except (ValueError, IndexError):
-                    continue
-        
-    except subprocess.TimeoutExpired:
-        print("Timeout counting games with grep")
-    except Exception as e:
-        print(f"Error using grep to count games: {e}")
-        # Fallback to individual file reading if grep fails
+        # Process each system's gamelist.xml file using fast XML parsing
         for system_name in systems_list:
-            system_counts[system_name] = count_games_in_gamelist_fallback(get_gamelist_path(system_name))
+            gamelist_path = get_gamelist_path(system_name)
+            
+            if not os.path.exists(gamelist_path):
+                system_counts[system_name] = 0
+                continue
+            
+            try:
+                # Use iterparse for fast, memory-efficient XML parsing
+                game_count = 0
+                hidden_count = 0
+                
+                # Parse XML using iterparse (streaming parser - very fast)
+                context = ET.iterparse(gamelist_path, events=('start', 'end'))
+                context = iter(context)
+                event, root = next(context)
+                
+                for event, elem in context:
+                    if event == 'start' and elem.tag == 'game':
+                        game_count += 1
+                    elif event == 'end' and elem.tag == 'game':
+                        # Check if this game is hidden
+                        hidden_elem = elem.find('hidden')
+                        if hidden_elem is not None and hidden_elem.text and hidden_elem.text.strip().lower() == 'true':
+                            hidden_count += 1
+                        # Clear element to free memory during streaming
+                        elem.clear()
+                
+                # Calculate visible games (total - hidden)
+                visible_count = max(0, game_count - hidden_count)
+                system_counts[system_name] = visible_count
+                
+            except ET.XMLSyntaxError as e:
+                print(f"XML syntax error in {gamelist_path}: {e}")
+                # Fallback to simple counting
+                system_counts[system_name] = count_games_in_gamelist_fallback(gamelist_path)
+            except Exception as e:
+                print(f"Error parsing {gamelist_path}: {e}")
+                # Fallback to simple counting
+                system_counts[system_name] = count_games_in_gamelist_fallback(gamelist_path)
+    
+    except Exception as e:
+        print(f"Error in batch game counting: {e}")
+        # Fallback to individual file reading if batch processing fails
+        for system_name in systems_list:
+            if system_name not in system_counts:
+                gamelist_path = get_gamelist_path(system_name)
+                system_counts[system_name] = count_games_in_gamelist_fallback(gamelist_path)
     
     # Ensure all requested systems have counts (set to 0 if missing)
     for system_name in systems_list:
