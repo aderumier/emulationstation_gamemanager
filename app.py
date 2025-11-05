@@ -5057,20 +5057,17 @@ def count_all_games_batch(systems_list):
                 
             except ET.XMLSyntaxError as e:
                 print(f"XML syntax error in {gamelist_path}: {e}")
-                # Fallback to simple counting
-                system_counts[system_name] = count_games_in_gamelist_fallback(gamelist_path)
+                system_counts[system_name] = 0
             except Exception as e:
                 print(f"Error parsing {gamelist_path}: {e}")
-                # Fallback to simple counting
-                system_counts[system_name] = count_games_in_gamelist_fallback(gamelist_path)
+                system_counts[system_name] = 0
     
     except Exception as e:
         print(f"Error in batch game counting: {e}")
-        # Fallback to individual file reading if batch processing fails
+        # Set all systems to 0 if batch processing fails
         for system_name in systems_list:
             if system_name not in system_counts:
-                gamelist_path = get_gamelist_path(system_name)
-                system_counts[system_name] = count_games_in_gamelist_fallback(gamelist_path)
+                system_counts[system_name] = 0
     
     # Ensure all requested systems have counts (set to 0 if missing)
     for system_name in systems_list:
