@@ -11402,7 +11402,13 @@ class GameCollectionManager {
     initializeEditModalIgdbSearch() {
         const modalFindIgdbMatchBtn = document.getElementById('modalFindIgdbMatchBtn');
         if (modalFindIgdbMatchBtn) {
-            modalFindIgdbMatchBtn.addEventListener('click', (e) => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the button and replace it to remove all event listeners
+            const newBtn = modalFindIgdbMatchBtn.cloneNode(true);
+            modalFindIgdbMatchBtn.parentNode.replaceChild(newBtn, modalFindIgdbMatchBtn);
+            
+            // Add the event listener to the new button
+            newBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 
@@ -11421,7 +11427,13 @@ class GameCollectionManager {
     initializeEditModalScreenscraperSearch() {
         const modalFindScreenscraperMatchBtn = document.getElementById('modalFindScreenscraperMatchBtn');
         if (modalFindScreenscraperMatchBtn) {
-            modalFindScreenscraperMatchBtn.addEventListener('click', () => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the button and replace it to remove all event listeners
+            const newBtn = modalFindScreenscraperMatchBtn.cloneNode(true);
+            modalFindScreenscraperMatchBtn.parentNode.replaceChild(newBtn, modalFindScreenscraperMatchBtn);
+            
+            // Add the event listener to the new button
+            newBtn.addEventListener('click', () => {
                 this.showGameEditScreenscraperSearch();
             });
         }
@@ -11430,7 +11442,13 @@ class GameCollectionManager {
     initializeEditModalSteamSearch() {
         const modalFindSteamMatchBtn = document.getElementById('modalFindSteamMatchBtn');
         if (modalFindSteamMatchBtn) {
-            modalFindSteamMatchBtn.addEventListener('click', () => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the button and replace it to remove all event listeners
+            const newBtn = modalFindSteamMatchBtn.cloneNode(true);
+            modalFindSteamMatchBtn.parentNode.replaceChild(newBtn, modalFindSteamMatchBtn);
+            
+            // Add the event listener to the new button
+            newBtn.addEventListener('click', () => {
                 this.showGameEditSteamSearch();
             });
         }
@@ -11439,7 +11457,13 @@ class GameCollectionManager {
     initializeEditModalSteamgridSearch() {
         const modalFindSteamgridMatchBtn = document.getElementById('modalFindSteamgridMatchBtn');
         if (modalFindSteamgridMatchBtn) {
-            modalFindSteamgridMatchBtn.addEventListener('click', () => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the button and replace it to remove all event listeners
+            const newBtn = modalFindSteamgridMatchBtn.cloneNode(true);
+            modalFindSteamgridMatchBtn.parentNode.replaceChild(newBtn, modalFindSteamgridMatchBtn);
+            
+            // Add the event listener to the new button
+            newBtn.addEventListener('click', () => {
                 this.showGameEditSteamgridSearch();
             });
         }
@@ -11448,7 +11472,13 @@ class GameCollectionManager {
     initializeEditModalMobygamesSearch() {
         const modalFindMobygamesMatchBtn = document.getElementById('modalFindMobygamesMatchBtn');
         if (modalFindMobygamesMatchBtn) {
-            modalFindMobygamesMatchBtn.addEventListener('click', () => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the button and replace it to remove all event listeners
+            const newBtn = modalFindMobygamesMatchBtn.cloneNode(true);
+            modalFindMobygamesMatchBtn.parentNode.replaceChild(newBtn, modalFindMobygamesMatchBtn);
+            
+            // Add the event listener to the new button
+            newBtn.addEventListener('click', () => {
                 this.showGameEditMobygamesSearch();
             });
         }
@@ -11457,7 +11487,13 @@ class GameCollectionManager {
     initializeEditModalYoutubePreview() {
         const modalPreviewYoutubeBtn = document.getElementById('modalPreviewYoutubeBtn');
         if (modalPreviewYoutubeBtn) {
-            modalPreviewYoutubeBtn.addEventListener('click', () => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the button and replace it to remove all event listeners
+            const newBtn = modalPreviewYoutubeBtn.cloneNode(true);
+            modalPreviewYoutubeBtn.parentNode.replaceChild(newBtn, modalPreviewYoutubeBtn);
+            
+            // Add the event listener to the new button
+            newBtn.addEventListener('click', () => {
                 this.showGameEditYoutubePreview();
             });
         }
