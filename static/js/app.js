@@ -11230,7 +11230,13 @@ class GameCollectionManager {
     initializeEditModalFindBestMatch() {
         const modalFindBestMatchBtn = document.getElementById('modalFindBestMatchBtn');
         if (modalFindBestMatchBtn) {
-            modalFindBestMatchBtn.addEventListener('click', () => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the button and replace it to remove all event listeners
+            const newBtn = modalFindBestMatchBtn.cloneNode(true);
+            modalFindBestMatchBtn.parentNode.replaceChild(newBtn, modalFindBestMatchBtn);
+            
+            // Add the event listener to the new button
+            newBtn.addEventListener('click', () => {
                 this.showGameEditFindBestMatch();
             });
         }
@@ -11246,7 +11252,13 @@ class GameCollectionManager {
         // Add event listener for algorithm change (auto-reload)
         const algorithmSelect = document.getElementById('gameEditSimilarityAlgorithm');
         if (algorithmSelect) {
-            algorithmSelect.addEventListener('change', () => {
+            // Remove any existing event listeners to prevent duplicates
+            // Clone the select and replace it to remove all event listeners
+            const newSelect = algorithmSelect.cloneNode(true);
+            algorithmSelect.parentNode.replaceChild(newSelect, algorithmSelect);
+            
+            // Add the event listener to the new select
+            newSelect.addEventListener('change', () => {
                 this.saveGameEditAlgorithmPreference();
                 // Auto-reload matches when algorithm changes
                 this.reloadGameEditMatches();
