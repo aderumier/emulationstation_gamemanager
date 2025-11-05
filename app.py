@@ -5076,30 +5076,6 @@ def count_all_games_batch(systems_list):
     
     return system_counts
 
-def count_games_in_gamelist_fallback(file_path):
-    """Fallback function to count games using simple string matching.
-    Used when grep-based batch counting fails.
-    """
-    try:
-        if not os.path.exists(file_path):
-            return 0
-        
-        file_size = os.path.getsize(file_path)
-        if file_size == 0:
-            return 0
-        
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
-        
-        game_count = content.count('</game>')
-        hidden_count = content.count('<hidden>true</hidden>')
-        visible_count = game_count - hidden_count
-        
-        return max(0, visible_count)
-    except Exception as e:
-        print(f"Error counting games in gamelist: {file_path} - {e}")
-        return 0
-
 def parse_gamelist_xml(file_path):
     """Parse gamelist.xml file and return list of games"""
     try:
