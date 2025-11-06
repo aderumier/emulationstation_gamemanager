@@ -330,6 +330,8 @@ Manual addition:
 
 Manual video cropping allows you to remove black borders or unwanted areas from game videos by visually selecting the crop area on a video frame.
 
+![Manual Video Cropping](docs/images/video-cropping.png)
+
 **How to Use Manual Video Cropping:**
 
 1. **Open Edit Game Modal** → **Video Preview** tab
@@ -449,6 +451,7 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 #### 3. ScreenScraper
 
 ![ScreenScraper Integration](docs/images/screenscraper-integration.png)
+![ScreenScraper Integration 2](docs/images/screenscraper-integration-2.png)
 
 **Capabilities**:
 - Retro gaming focus
@@ -514,7 +517,7 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 - Preview before download
 
 ### Multiscraper Media Download
-
+![Multiscraper Download Icon](docs/images/multiscraper-download-icon.png)
 ![Multiscraper Download](docs/images/multiscraper-download.png)
 
 **Workflow**:
@@ -661,6 +664,7 @@ The system uses string similarity algorithms to find the best matches. You can s
 6. Video is processed and linked to game
 
 ### LaunchBox Media Download
+![LaunchBox Media Download Icon](docs/images/launchbox-media-download-icon.png)
 
 ![LaunchBox Media Download](docs/images/launchbox-media-download.png)
 
@@ -674,6 +678,8 @@ The system uses string similarity algorithms to find the best matches. You can s
 
 ### Fanart Search
 
+![Fanart Search Icon](docs/images/fanart-search-icon.png)
+
 ![Fanart Search](docs/images/fanart-search.png)
 
 **Features**:
@@ -683,6 +689,7 @@ The system uses string similarity algorithms to find the best matches. You can s
 - Region and resolution information
 
 ### Marquee Search
+![Marquee Search Icon](docs/images/marquee-search-icon.png)
 
 ![Marquee Search](docs/images/marquee-search.png)
 
