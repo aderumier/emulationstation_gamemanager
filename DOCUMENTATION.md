@@ -177,11 +177,17 @@ For detailed installation instructions, see:
 ![Navigation Bar](docs/images/navigation-bar.png)
 
 - **System Selector**: Choose the active ROM system
+
+![System Selection](docs/images/system-selection.png)
+
 - **Configuration Menu**: Access all configuration options
+
 ![Configuration Menu](docs/images/navigation-configuration-menu.png)
 - **Current System Menu**: System-specific operations
+
 ![CurrentSystem Menu](docs/images/navigation-currentsystem-menu.png)
 - **User Menu**: Account settings, Automatic Scrappers preferences and logout
+
 ![User Menu](docs/images/navigation-user-menu.png)
 
 #### 2. Game Grid
