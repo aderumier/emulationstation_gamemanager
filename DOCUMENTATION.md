@@ -86,12 +86,11 @@
 
 ### Prerequisites
 
-- **Operating System**: Linux (Debian 11+, Ubuntu 20.04+), macOS, or Windows
-- **Python**: 3.8 or higher
-- **System Tools**: ImageMagick, FFmpeg, yt-dlp
+- **Operating System**: Linux (Debian 13+, Ubuntu 25.04+)
+- **Python**: 3.11 or higher
 - **Web Browser**: Modern browser with JavaScript enabled
 
-### Quick Start (Docker - Recommended)
+### Docker
 
 ```bash
 # Pull the latest image
@@ -109,16 +108,15 @@ docker run -d \
   aderumier/emulationstation_gamemanager:latest
 ```
 
-![Docker Setup](docs/images/docker-setup.png)
 
 ### Debian/Ubuntu Package Installation
 
 ```bash
 # Download the .deb package
-wget https://github.com/your-repo/gamemanager/releases/download/v2.8.4/gamemanager_2.8.4-1_all.deb
+wget https://github.com/aderumier/emulationstation_gamemanager/releases/download/v2.9.1/gamemanager_2.9.1-1_all.deb
 
 # Install
-sudo dpkg -i gamemanager_2.8.4-1_all.deb
+sudo dpkg -i gamemanager_2.9.1-1_all.deb
 
 # Fix dependencies if needed
 sudo apt-get install -f
@@ -153,14 +151,24 @@ For detailed installation instructions, see:
 
 ![Login Screen](docs/images/login-screen.png)
 
-3. **Configure Your ROM Directory**
+3. **Download the launchbox database && update the local scrappers databases**
+![Cache Configuration](docs/images/cache-configuration.png)
+
+4. **Configure Your ROM Directory**
    - Go to **Configuration → Application Config**
    - Set the ROMs root directory path
    - Configure other settings as needed
 
 ![Configuration](docs/images/configuration.png)
 
-4. **Load a System**
+5. **Configure Your systems**
+   - Go to **Configuration → System Configuration**
+   - Add the game systems that you have in your roms directory
+   
+
+![System Configuration](docs/images/systems-configuration.png)
+
+6. **Load a System**
    - Select a ROM system from the dropdown
    - The game list will automatically load from `roms/<system>/gamelist.xml`
 
@@ -284,13 +292,6 @@ Manual addition:
 - **Videos**: `video`, `video_mp4`, `video_avi`, `video_mov`, `video_mkv`
 - **Other**: Custom media fields as configured
 
-#### Viewing Media
-
-![Media Preview](docs/images/media-preview-detail.png)
-
-- **Grid View**: Thumbnail grid in the preview pane
-- **Hover Tooltip**: Large preview on hover
-- **Edit Modal**: Full media management interface
 
 #### Uploading Media
 
@@ -528,6 +529,7 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 5. Automatic processing and integration
 
 ### Find Best Match
+![Find Best Match Button](docs/images/find-best-match-button.png)
 
 ![Find Best Match](docs/images/find-best-match.png)
 
