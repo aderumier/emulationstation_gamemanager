@@ -1046,7 +1046,121 @@ roms/<system>/media/import/
 - Resolution display
 - Preview before download
 
-### Find Best Match
+### Automatic Scraping
+
+Automatic scraping allows you to quickly scrape metadata and media for selected games using dedicated scraper buttons in the main interface toolbar. Each scraper has its own preferences modal where you can configure what fields to scrape and how to handle existing data.
+
+#### Main Interface Scraper Buttons
+
+![Main Interface Scraper Buttons](docs/images/main-interface-scraper-buttons.png)
+
+The main interface toolbar contains scraper buttons that become enabled when games are selected. These buttons allow you to automatically scrape metadata and media for multiple games at once.
+
+**Available Scraper Buttons**:
+
+1. **LaunchBox** (🔵 Blue button)
+   - Scrapes metadata and media from LaunchBox XML database
+   - Requires LaunchBox Metadata.xml file
+   - Platform-specific matching
+
+2. **IGDB** (🔵 Info button)
+   - Scrapes game information, artwork, and videos from IGDB
+   - Requires IGDB platform configuration
+   - High-quality modern game database
+
+3. **Steam** (🟢 Green button)
+   - Scrapes Steam game metadata and media
+   - Uses Steam API for app discovery
+   - Useful for PC games and Steam releases
+
+4. **SteamGridDB** (🟡 Warning button)
+   - Scrapes Steam game grid artwork
+   - Community-submitted content
+   - Logos and hero images
+
+5. **ScreenScraper** (🟡 Warning button)
+   - Scrapes retro gaming metadata and media
+   - Regional media variants
+   - High-resolution scans
+
+6. **MobyGames** (⚫ Secondary button)
+   - Scrapes extensive game database
+   - Historical game information
+   - Screenshots and box art
+
+7. **DAT Scrapper** (⚫ Dark button)
+   - Validates ROM sets against DAT files
+   - ROM identification and matching
+   - DAT file-based operations
+
+**How to Use Automatic Scraping**:
+
+1. **Select Games**:
+   - Select one or more games from the game grid
+   - Use checkboxes or Ctrl/Cmd+Click for multiple selection
+   - Scraper buttons become enabled when games are selected
+
+2. **Configure Scraper Preferences** (Optional):
+   - Go to **User Menu → Scrap Preferences**
+   - Select the scraper you want to configure (e.g., "Launchbox Scrap Preferences")
+   - Configure:
+     - **Field Selection**: Choose which fields to scrape (text fields, media fields)
+     - **Overwrite Options**: Control whether to overwrite existing data
+     - **Force Download**: Download media even if fields are not empty
+   - Preferences are saved per user and persist across sessions
+
+3. **Click Scraper Button**:
+   - Click the desired scraper button (e.g., "Launchbox", "IGDB")
+   - A confirmation modal may appear showing scraping options
+   - Confirm to start the scraping task
+
+4. **Monitor Progress**:
+   - Task appears in the Task Management panel
+   - Real-time progress updates via WebSocket
+   - View detailed logs by double-clicking the task
+
+5. **Results**:
+   - Metadata and media are automatically downloaded and linked
+   - Games are updated in the grid
+   - Media files appear in media preview
+
+**Scraper Preferences Modals**:
+
+Each scraper has a dedicated preferences modal accessible from **User Menu → Scrap Preferences**. These modals allow you to configure:
+
+- **Field Selection**: 
+  - Choose which text fields to scrape (name, description, developer, etc.)
+  - Choose which media fields to download (images, videos, etc.)
+  - Checkboxes for each available field
+
+- **Overwrite Options**:
+  - **Overwrite Text Fields**: Replace existing text metadata
+  - **Overwrite Media Fields**: Replace existing media files
+  - **Force Download**: Download media even if fields already have content
+
+- **Scraper-Specific Options**:
+  - LaunchBox: Force download, overwrite text fields
+  - IGDB: Overwrite text/media fields, field selection
+  - ScreenScraper: Region preferences, media type selection
+  - Steam: Media type selection
+  - SteamGridDB: Media type selection
+  - MobyGames: Field selection
+  - DAT Scrapper: DAT file operations
+
+**Preferences Persistence**:
+- Preferences are saved per user
+- Settings persist across browser sessions
+- Each scraper has independent preferences
+- Preferences apply to all automatic scraping operations
+
+**Tips**:
+- Configure preferences before bulk scraping to avoid unwanted overwrites
+- Use "Force Download" to refresh media even if it exists
+- Select specific fields to scrape only what you need
+- Check overwrite options carefully to preserve existing data
+- Preferences are user-specific, so each user can have their own settings
+
+#### Find Best Match
 ![Find Best Match Button](docs/images/find-best-match-button.png)
 
 ![Find Best Match](docs/images/find-best-match.png)
@@ -1162,6 +1276,104 @@ The system uses string similarity algorithms to find the best matches. You can s
 - Check alternate names if the primary match doesn't look right
 - Use platform-specific scrapers (MobyGames, IGDB) for more accurate results
 - The system normalizes game names (removes special characters, articles) for better matching
+
+#### 2D Box Generator
+
+![2D Box Generator](docs/images/2d-box-generator.png)
+
+The 2D Box Generator creates box art images by combining multiple source images (front, back, spine) into a single 2D box art image.
+
+**How to Use**:
+
+1. **Access 2D Box Generator**:
+   - Go to **Configuration → 2D Box Generator Configuration**
+   - Or access from game edit modal for individual games
+
+2. **Configure Template**:
+   - Set box art dimensions (width, height)
+   - Configure layout and positioning
+   - Customize template structure
+
+3. **Select Source Images**:
+   - Choose front cover image
+   - Choose back cover image (optional)
+   - Choose spine image (optional)
+
+4. **Generate Box Art**:
+   - Click **"Generate"** to create the 2D box art
+   - Preview the result
+   - Save to the appropriate media field
+
+**Features**:
+- Combine multiple images into single box art
+- Customizable dimensions and layout
+- Template customization
+- Image positioning controls
+- Automatic aspect ratio handling
+
+**Configuration**:
+- Set default dimensions in **Configuration → 2D Box Generator Configuration**
+- Configure image positioning
+- Set template preferences
+- Customize layout structure
+
+**Use Cases**:
+- Creating 2D box art from 3D box scans
+- Combining front/back/spine images
+- Generating custom box art layouts
+- Standardizing box art dimensions
+
+#### Scraper Preferences Configuration
+
+![Scraper Preferences](docs/images/scraper-preferences.png)
+
+Each scraper has a dedicated preferences modal that allows you to configure what data to scrape and how to handle existing information.
+
+**Accessing Preferences**:
+- Go to **User Menu → Scrap Preferences**
+- Select the scraper you want to configure:
+  - Launchbox Scrap Preferences
+  - ScreenScraper Scrap Preferences
+  - IGDB Scrap Preferences
+  - Steam Scrap Preferences
+  - SteamGridDB Scrap Preferences
+  - MobyGames Scrap Preferences
+  - DAT Scrapper Scrap Preferences
+
+**Common Preferences Options**:
+
+1. **Scraping Options**:
+   - **Force Download**: Download media even if fields are not empty
+   - **Overwrite Text Fields**: Replace existing text metadata
+   - **Overwrite Media Fields**: Replace existing media files
+
+2. **Field Selection**:
+   - **Text Fields**: Choose which metadata fields to scrape
+     - Name, Description, Developer, Publisher, Genre, etc.
+   - **Media Fields**: Choose which media types to download
+     - Images, Videos, Manuals, etc.
+
+3. **Scraper-Specific Options**:
+   - **LaunchBox**: Field mapping, region priority
+   - **IGDB**: Media type selection, artwork types
+   - **ScreenScraper**: Region selection, media type preferences
+   - **Steam**: Media type selection
+   - **SteamGridDB**: Grid type selection
+   - **MobyGames**: Field selection
+   - **DAT Scrapper**: DAT file operations
+
+**Saving Preferences**:
+- Click **"Save Preferences"** to store settings
+- Preferences are saved per user
+- Settings apply to all automatic scraping operations
+- Preferences persist across browser sessions
+
+**Tips**:
+- Configure preferences before bulk scraping
+- Use field selection to scrape only needed data
+- Enable overwrite options carefully to preserve existing data
+- Each scraper has independent preferences
+- Preferences are user-specific
 
 ### YouTube Video Download
 
@@ -1353,16 +1565,6 @@ Common media fields included by default:
 - PO Token provider (for age-restricted content)
 - Auto-crop settings
 - Cookie skip duration threshold
-
-### 2D Box Generator Configuration
-
-![2D Box Generator](docs/images/2d-box-generator.png)
-
-**Features**:
-- Configure box art generation from multiple images
-- Set dimensions and layout
-- Template customization
-- Image positioning
 
 ### GUI Preferences
 
