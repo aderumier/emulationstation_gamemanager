@@ -317,6 +317,50 @@ Manual addition:
 
 **Note**: Screenshot feature captures the current video frame using HTML5 Canvas API.
 
+#### Manual Video Cropping
+
+Manual video cropping allows you to remove black borders or unwanted areas from game videos by visually selecting the crop area on a video frame.
+
+**How to Use Manual Video Cropping:**
+
+1. **Open Edit Game Modal** → **Video Preview** tab
+2. Ensure the game has a video file (supports: `video`, `video_mp4`, `video_avi`, `video_mov`, `video_mkv`)
+3. Click the **"Manual Crop"** button (enabled when a video is present)
+4. The **Manual Video Cropping** modal opens:
+   - **Left Panel**: Shows a preview frame extracted from the middle of the video
+   - **Right Panel**: Crop settings and controls
+5. **Select Crop Area**:
+   - Click and drag on the preview image to select the area you want to keep
+   - The crop area is displayed with a selection rectangle
+   - Use the **"Keep Aspect Ratio"** checkbox to maintain proportions
+6. **Adjust Crop Settings**:
+   - View real-time crop dimensions and position in the info panel
+   - Click **"Reset Crop"** to clear the selection and start over
+7. **Apply Crop**:
+   - Click **"Apply Crop"** to process the video
+   - The system will:
+     - Extract the selected crop area from the entire video
+     - Create a new cropped video file
+     - Replace the original video with the cropped version
+     - Update the `gamelist.xml` file with the new video path
+
+**Technical Details:**
+
+- **Frame Extraction**: The system extracts a frame from the middle of the video to use as a preview
+- **Crop Format**: Crop dimensions are specified as `width:height:x:y` (e.g., `1920:1080:0:0`)
+- **Video Processing**: Uses FFmpeg to apply the crop filter to the entire video
+- **File Replacement**: The original video is replaced with the cropped version
+- **Supported Formats**: Works with MP4, AVI, MOV, MKV, and other FFmpeg-supported video formats
+
+**Tips:**
+
+- Extract a representative frame from the middle of the video for accurate cropping
+- Use "Keep Aspect Ratio" to maintain proper video proportions
+- The crop area can be adjusted by dragging the corners or edges of the selection rectangle
+- The preview frame is automatically cleaned up after closing the modal
+
+**Note**: Manual cropping processes the entire video, not just a single frame. The crop area you select is applied to all frames of the video.
+
 #### Deleting Media
 
 - **Single Media**: Click media item → Context menu → Delete
