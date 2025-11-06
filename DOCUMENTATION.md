@@ -489,6 +489,8 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 
 ![Manual Scrap](docs/images/manual-scrap.png)
 
+![Manual Scrap Results](docs/images/manual-scrap-2.png)
+
 1. Select a game
 2. Click **"Manual Scrap"** button
 3. Search for the game across all scrapers
