@@ -390,39 +390,210 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 - **Multiple Media**: Select items → **Delete Selected Media** button
 - Files are removed from disk and `gamelist.xml` is updated
 
-### Media Field Remapping
+### Current System Menu Operations
+
+The **Current System** menu provides system-specific operations for managing games and media files. Access it from the navigation bar.
+
+![CurrentSystem Menu](docs/images/navigation-currentsystem-menu.png)
+
+#### 1. Remap Media Field
 
 ![Remap Media Fields](docs/images/remap-media-fields.png)
 
-**Purpose**: Reorganize media files into different field mappings
+**Purpose**: Reorganize media files by moving them from one media field to another. This is useful when you want to change how media is categorized (e.g., moving all `boxart` files to `image` field).
 
-**Process**:
-1. Go to **Current System → Remap Media Fields**
-2. Select source and target media fields
-3. System moves files and updates `gamelist.xml`
+**How to Use**:
+1. Go to **Current System → Remap Media Field**
+2. Select **Source Media Field**: The field you want to move files from
+3. Select **Target Media Field**: The field you want to move files to
+4. Click **"Remap Media Fields"** to start the process
+5. Task runs in background with real-time progress updates
+
+**What It Does**:
+- Moves all media files from source field directory to target field directory
+- Updates all `gamelist.xml` entries to reference the new field
+- Preserves file names and structure
+- Source field entries are removed after remapping
+
+**Use Cases**:
+- Reorganizing media categorization
+- Consolidating similar media types
+- Fixing incorrectly categorized media
+- Standardizing media field usage across collection
+
+**Note**: This operation affects all games in the current system. The source media field will be empty after remapping.
+
+#### 2. Move Medias
+
+![Move Medias](docs/images/move-medias.png)
+
+**Purpose**: Move media files from their current location to the proper media directory based on the selected media field configuration. This ensures files are organized according to your media field settings.
+
+**How to Use**:
+1. Go to **Current System → Move Medias**
+2. Select **Target Media Field**: The media field to move files to
+3. Click **"Move Medias"** to start the process
 4. Task runs in background with progress updates
 
-### Media Operations
+**What It Does**:
+- Scans all games in the current system
+- Finds media files that are not in the correct directory
+- Moves files to the proper directory based on media field configuration
+- Updates `gamelist.xml` with new file paths
+- Preserves files, only updates references
 
-#### Move Medias
-- Move media files between different media types
-- Preserves files, updates `gamelist.xml` references
+**Use Cases**:
+- Organizing media files after configuration changes
+- Fixing media files in wrong directories
+- Standardizing media file organization
+- Moving files to match new media field structure
 
-#### Resize Medias
-- Batch resize images to configured dimensions
-- Applies to all media in current system
-- Uses ImageMagick for processing
+**Note**: Files are moved, not copied. Original file locations are updated in `gamelist.xml`.
 
-#### Import Medias
-- Import media files from external sources
-- Supports folder scanning and automatic linking
+#### 3. Resize Medias
 
-#### Clean Missing Media Fields
-- Scans all games for missing media files
-- Removes broken references from `gamelist.xml`
-- Select specific field or clean all fields
+![Resize Medias](docs/images/resize-medias.png)
+
+**Purpose**: Batch resize all images for a specific media field to configured dimensions. This ensures uniform image sizes across your collection.
+
+**How to Use**:
+1. Go to **Current System → Resize Medias**
+2. Select **Media Field**: The media field to resize (e.g., `image`, `boxart`, `screenshot`)
+3. Click **"Resize Medias"** to start the process
+4. Task runs in background with progress updates
+
+**What It Does**:
+- Processes all images in the selected media field
+- Resizes images to dimensions configured in Media Fields Configuration
+- Maintains aspect ratio during resizing
+- Uses ImageMagick for high-quality image processing
+- Updates files in place (original files are replaced)
+
+**Requirements**:
+- Media field must have width/height configured in **Configuration → Scraper Configuration → Media Fields**
+- Only applies to image fields (not videos)
+- Requires ImageMagick to be installed
+
+**Use Cases**:
+- Standardizing image sizes across collection
+- Reducing file sizes for storage optimization
+- Ensuring consistent image dimensions
+- Applying new size requirements to existing media
+
+**Note**: Original images are replaced. Make backups if you want to preserve originals.
+
+#### 4. Import Medias
+
+![Import Medias](docs/images/import-medias.png)
+
+**Purpose**: Import media files from a source directory into your game collection's media folders. Useful for bulk importing media files collected separately.
+
+**How to Use**:
+1. Place media files in `roms/<system>/media/import/<source_directory>/`
+2. Go to **Current System → Import Medias**
+3. Select **Source Directory**: Choose from available subdirectories in the import folder
+4. Select **Target Media Field**: Choose which gamelist media field to populate
+5. (Optional) Check **"Overwrite existing media"** to replace existing files
+6. Click **"Import Medias"** to start the process
+7. Task runs in background with progress updates
+
+**Matching Algorithm**:
+The system uses a 4-level matching algorithm to link media files to games:
+
+1. **Exact Filename Match**: Media filename (without extension) = ROM filename (without extension)
+2. **Game Name Match**: Media filename (without extension) = Game name (case-insensitive)
+3. **Normalized with Parentheses**: Both names normalized with parentheses preserved
+4. **Normalized without Parentheses**: Both names normalized with parentheses removed
+
+**What It Does**:
+- Scans source directory for media files
+- Matches files to games using the 4-level algorithm
+- Renames files to match ROM filename + original extension
+- Moves files from source directory to appropriate media directory
+- Updates `gamelist.xml` with new media paths
+- Respects overwrite setting for existing media
+
+**File Structure**:
+```
+roms/<system>/media/import/
+  ├── folder1/
+  │   ├── game1.png
+  │   └── game2.jpg
+  └── folder2/
+      └── game3.png
+```
+
+**Use Cases**:
+- Bulk importing media from external sources
+- Importing media from other emulation frontends
+- Adding media collected manually
+- Migrating media from old collections
+
+**Tips**:
+- Organize files in subdirectories for easier management
+- Use descriptive folder names for different media batches
+- Check overwrite option carefully to avoid losing existing media
+- The system automatically matches files to games by name
+
+#### 5. Clean Missing Media Fields
 
 ![Clean Missing Media](docs/images/clean-missing-media.png)
+
+**Purpose**: Scan all games for missing media files and remove broken references from `gamelist.xml`. This cleans up your gamelist by removing references to files that no longer exist.
+
+**How to Use**:
+1. Go to **Current System → Clean Missing Media Fields**
+2. Select **Media Field**: 
+   - Choose a specific media field to clean (e.g., `image`, `marquee`)
+   - Or select **"Any Field"** to clean all media fields
+3. Click **"Clean Missing Media Fields"** to start
+4. System scans all games and removes broken references
+5. Progress is shown in real-time
+
+**What It Does**:
+- Scans all games in the current system
+- Checks if media files referenced in `gamelist.xml` actually exist
+- Removes media field entries for missing files
+- Updates `gamelist.xml` to remove broken references
+- Preserves valid media references
+
+**Use Cases**:
+- Cleaning up after manual file deletions
+- Removing references to moved or deleted files
+- Fixing broken media links
+- Maintaining clean gamelist.xml files
+- Recovering from file system issues
+
+**Note**: This only removes references from `gamelist.xml`. It does not delete any files. Files that exist but aren't referenced won't be affected.
+
+#### 6. Force Import Gamelist.xml
+
+![Force Import Gamelist](docs/images/force-import-gamelist.png)
+
+**Purpose**: Force a refresh of the game list by re-reading the `gamelist.xml` file from disk. This is useful when you've manually added ROM files or modified the gamelist.xml file outside the application.
+
+**How to Use**:
+1. Ensure ROM files are in `roms/<system>/` directory
+2. (Optional) Manually edit `roms/<system>/gamelist.xml` if needed
+3. Go to **Current System → Force Import Gamelist.xml**
+4. System reloads the gamelist from disk
+5. Game grid updates with current gamelist contents
+
+**What It Does**:
+- Reads `gamelist.xml` from `roms/<system>/gamelist.xml`
+- Parses all game entries
+- Updates the game grid with current data
+- Detects new games added to the file
+- Reflects any manual changes made to gamelist.xml
+
+**Use Cases**:
+- Adding games manually by editing gamelist.xml
+- Refreshing after external tools modify gamelist.xml
+- Recovering from application crashes
+- Syncing with gamelist.xml changes made outside the app
+- Importing games from backup gamelist.xml files
+
+**Note**: This operation reads from disk and may overwrite any unsaved changes in memory. Make sure to save your work before forcing import.
 
 ---
 
