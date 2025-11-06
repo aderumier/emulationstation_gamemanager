@@ -390,6 +390,95 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 - **Multiple Media**: Select items → **Delete Selected Media** button
 - Files are removed from disk and `gamelist.xml` is updated
 
+#### PDF and CBZ Viewer
+
+![PDF Viewer](docs/images/pdf-viewer.png)
+
+The PDF/CBZ viewer allows you to view game manuals, maps, magazines, and other document files directly in your browser without downloading them.
+
+**Supported File Types**:
+- **PDF Files**: Standard PDF documents (`.pdf`)
+- **CBZ Files**: Comic Book ZIP archives (`.cbz`) - commonly used for scanned manuals and documents
+
+**Supported Media Fields**:
+- **manual**: Game manuals and instruction booklets
+- **map**: Game maps and guides
+- **magazine**: Gaming magazines and publications
+- Any custom media field containing PDF or CBZ files
+
+**How to Use the PDF/CBZ Viewer**:
+
+1. **Access from Media Preview**:
+   - Open **Edit Game Modal** → **Media Files** tab
+   - Find a media item with a PDF or CBZ file (shows PDF icon)
+   - Click the **PDF Viewer** button (📄 icon) on the media card
+   - The PDF/CBZ viewer modal opens
+
+2. **Viewing Documents**:
+   - The viewer opens in a full-screen modal
+   - PDF files use the EmbedPDF viewer with:
+     - Page navigation controls
+     - Zoom in/out functionality
+     - Full-screen viewing
+     - Search capabilities
+   - CBZ files use a custom viewer with:
+     - Page-by-page navigation
+     - Image viewing for each page
+     - Zoom controls
+
+3. **Navigation**:
+   - Use the viewer's built-in controls to navigate pages
+   - Zoom in/out using mouse wheel or controls
+   - Close the viewer by clicking the **Close** button or pressing Escape
+
+**Features**:
+
+- **EmbedPDF Integration**: Uses EmbedPDF library for high-quality PDF rendering
+- **CBZ Support**: Full support for CBZ (Comic Book ZIP) archives
+- **Automatic Detection**: Automatically detects PDF/CBZ files in supported media fields
+- **Preview Thumbnails**: Shows preview thumbnails in media cards before opening
+- **Full-Screen Viewing**: Large modal for comfortable document reading
+- **No Download Required**: View documents directly in browser
+- **CORS Support**: Properly configured API endpoints for secure file access
+
+**Technical Details**:
+
+- **PDF Viewer**: Uses [EmbedPDF](https://www.embedpdf.com/) library
+  - Loaded dynamically from CDN
+  - Supports Web Workers for performance
+  - Handles large PDF files efficiently
+  - Provides standard PDF viewing controls
+
+- **CBZ Viewer**: Uses JSZip library
+  - Extracts CBZ archives on-the-fly
+  - Displays images page by page
+  - Supports navigation between pages
+  - Handles image formats (PNG, JPG, etc.)
+
+- **File Access**: 
+  - Files are served through secure API endpoints
+  - Paths are properly encoded for special characters
+  - Supports relative paths from gamelist.xml
+  - Validates file existence before loading
+
+**Use Cases**:
+
+- Viewing game manuals and instruction booklets
+- Reading game maps and strategy guides
+- Browsing gaming magazines
+- Accessing scanned documentation
+- Reviewing game-related PDF documents
+
+**Tips**:
+
+- PDF files work best with standard PDF format
+- CBZ files should contain image files (PNG, JPG) for best results
+- Large files may take a moment to load
+- Use zoom controls for better readability
+- The viewer automatically handles file path encoding
+
+**Note**: The PDF/CBZ viewer requires an active internet connection for loading the EmbedPDF library. CBZ files are processed client-side using JSZip.
+
 ### Current System Menu Operations
 
 The **Current System** menu provides system-specific operations for managing games and media files. Access it from the navigation bar.
