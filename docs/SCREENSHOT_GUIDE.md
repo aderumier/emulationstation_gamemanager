@@ -113,6 +113,14 @@ This guide lists all screenshots needed for the documentation and provides recom
 - Field selection dropdown
 - Validate button
 
+#### manual-video-crop.png
+- Manual Video Cropping modal
+- Video frame preview with crop selection rectangle
+- Crop settings panel visible
+- Crop dimensions and position displayed
+- Keep Aspect Ratio checkbox
+- Reset Crop and Apply Crop buttons
+
 #### image-rotation.png
 - Context menu on image
 - Rotate options visible
@@ -270,6 +278,7 @@ Mark screenshots as you capture them:
 - [ ] remap-media-fields.png
 - [ ] clean-missing-media.png
 - [ ] video-screenshot.png
+- [ ] manual-video-crop.png
 - [ ] image-rotation.png
 - [ ] configuration.png
 - [ ] app-configuration.png
