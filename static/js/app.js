@@ -15533,7 +15533,8 @@ class GameCollectionManager {
                         const igdbPlatform = igdbArray.find(p => p.id == value);
                         return igdbPlatform ? igdbPlatform.name : value;
                     case 'mobygames':
-                        return value;
+                        // Replace underscores with spaces for display
+                        return value ? value.replace(/_/g, ' ') : 'Not set';
                     default:
                         return value;
                 }
@@ -15761,6 +15762,11 @@ class GameCollectionManager {
             existingDropdown.remove();
         }
         
+        // Determine width constraints based on platform type
+        // MobyGames should match LaunchBox, ScreenScraper, and IGDB width
+        const isMobygames = platformType === 'mobygames';
+        const widthConstraint = isMobygames ? 'max-width: 300px;' : '';
+        
         // Create dropdown container
         const dropdown = document.createElement('div');
         dropdown.className = 'platform-dropdown';
@@ -15774,6 +15780,7 @@ class GameCollectionManager {
             max-height: 300px;
             overflow-y: auto;
             min-width: 250px;
+            ${widthConstraint}
         `;
         
         // Create options
@@ -15796,7 +15803,9 @@ class GameCollectionManager {
                     isSelected = option.name === currentValue;
                     break;
                 case 'mobygames':
-                    value = text = option;
+                    value = option;
+                    // Replace underscores with spaces for display, but keep original value
+                    text = option.replace(/_/g, ' ');
                     isSelected = option === currentValue;
                     break;
                 case 'datscrapper':
@@ -15805,10 +15814,13 @@ class GameCollectionManager {
                     break;
             }
             
+            // For MobyGames, allow text wrapping
+            const textStyle = isMobygames ? 'white-space: normal; word-wrap: break-word;' : '';
+            
             return `
                 <div class="dropdown-option ${isSelected ? 'selected' : ''}" 
                      data-value="${value}" 
-                     style="padding: 0.5rem 1rem; cursor: pointer; border-bottom: 1px solid #f8f9fa; ${isSelected ? 'background-color: #e3f2fd;' : ''}"
+                     style="padding: 0.5rem 1rem; cursor: pointer; border-bottom: 1px solid #f8f9fa; ${isSelected ? 'background-color: #e3f2fd;' : ''} ${textStyle}"
                      onmouseover="this.style.backgroundColor='#f8f9fa'" 
                      onmouseout="this.style.backgroundColor='${isSelected ? '#e3f2fd' : 'white'}'">
                     ${text}
@@ -15842,13 +15854,18 @@ class GameCollectionManager {
             const option = e.target.closest('.dropdown-option');
             if (option) {
                 const value = option.dataset.value;
-                const text = option.textContent.trim();
+                let displayText = option.textContent.trim();
+                
+                // For MobyGames, replace underscores with spaces in display text
+                if (platformType === 'mobygames' && value) {
+                    displayText = value.replace(/_/g, ' ');
+                }
                 
                 // Update the field display
                 const displaySpan = fieldElement.querySelector('.platform-display');
-                displaySpan.textContent = value ? text : 'Not set';
+                displaySpan.textContent = value ? displayText : 'Not set';
                 
-                // Save the change
+                // Save the change (use original value with underscores for MobyGames)
                 this.saveInlineField(systemName, fieldType, value);
                 
                 // Remove dropdown
