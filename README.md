@@ -301,29 +301,215 @@ Manual addition:
 
 - **Images**: `image`, `marquee`, `titleshot`, `boxart`, `fanart`, `screenshot`
 - **Videos**: `video`, `video_mp4`, `video_avi`, `video_mov`, `video_mkv`
+- **Documents**: `manual`, `map`, `magazine` (PDF/CBZ files)
 - **Other**: Custom media fields as configured
 
+#### Media Preview and Image Management
 
-#### Uploading Media
+![Media Preview](docs/images/media-preview.png)
+
+The **Media Preview** pane displays all media files for the selected game. It provides a comprehensive interface for viewing, managing, and downloading media files.
+
+**Media Preview Features**:
+
+- **Thumbnail Grid**: All media files displayed as cards with thumbnails
+- **Hover Tooltips**: Large preview images on hover
+- **Field Labels**: Each media card shows the field name (e.g., `image`, `marquee`, `fanart`)
+- **Action Buttons**: Quick access buttons under each media card for scraping and downloading
+- **Context Menu**: Right-click on images for rotate and delete options
+- **Double-Click Upload**: Double-click any media card to upload/replace files
+
+**Image Management Operations**:
+
+##### Uploading Media
 
 1. Open **Edit Game Modal** → **Media Files** tab
-2. Click **Upload** button for the desired media field
-3. Select file from your computer
-4. File is automatically:
+2. Click **Upload** button for the desired media field, or
+3. **Double-click** on any media card to upload/replace
+4. Select file from your computer
+5. File is automatically:
    - Saved to the correct media directory
    - Processed (converted/resized if configured)
    - Linked in `gamelist.xml`
 
 ![Upload Media](docs/images/upload-media.png)
 
-#### Rotating Images
+##### Rotating Images
 
-1. Click on an image in the media preview
+1. **Right-click** on an image in the media preview
 2. Context menu appears
 3. Select **Rotate Left** or **Rotate Right**
 4. Image is rotated and saved atomically
 
 ![Image Rotation](docs/images/image-rotation.png)
+
+**Note**: Rotation is applied immediately and saved to disk. The original file is replaced.
+
+##### Deleting Media
+
+- **Right-click** on a media item → Context menu → **Delete**
+- Or select media and press **Delete** key
+- Files are removed from disk and `gamelist.xml` is updated
+
+**Scraping Buttons Under Images**:
+
+Each image media card displays action buttons at the bottom for quick access to scraping and download features:
+
+##### 1. Multiscraper Download
+
+![Multiscraper Download Icon](docs/images/multiscraper-download-icon.png)
+
+**Button**: Search icon (🔍) - Available on all image fields
+
+**Purpose**: Search across all configured scrapers simultaneously to find media
+
+**How to Use**:
+1. Click the **Multiscraper Download** button (🔍) under any image media card
+2. Modal opens showing results from all scrapers:
+   - LaunchBox
+   - IGDB
+   - ScreenScraper
+   - SteamGridDB
+   - MobyGames
+   - Fanart.tv
+3. Browse available images with previews
+4. Select desired images and click **Download**
+5. Images are automatically processed and linked
+
+**Features**:
+- Multi-source search in one interface
+- Preview before download
+- Region and resolution information
+- Automatic file processing
+
+![Multiscraper Download](docs/images/multiscraper-download.png)
+
+##### 2. LaunchBox Media Download
+
+![LaunchBox Media Download Icon](docs/images/launchbox-media-download-icon.png)
+
+**Button**: Download icon (⬇️) - Available on all image fields
+
+**Purpose**: Download media specifically from LaunchBox database
+
+**How to Use**:
+1. Click the **LaunchBox Download** button (⬇️) under any image media card
+2. Select media types to download (box art, screenshots, etc.)
+3. System searches LaunchBox database
+4. Shows available media with previews
+5. Select and download
+6. Automatic processing and integration
+
+**Features**:
+- Direct LaunchBox database access
+- Multiple media types available
+- Region priority support
+- High-quality scans
+
+![LaunchBox Media Download](docs/images/launchbox-media-download.png)
+
+##### 3. Fanart Search
+
+![Fanart Search Icon](docs/images/fanart-search-icon.png)
+
+**Button**: Image icon (🖼️) - Available on `fanart` field only
+
+**Purpose**: Search Fanart.tv for high-quality game artwork
+
+**How to Use**:
+1. Click the **Fanart Search** button (🖼️) under a `fanart` media card
+2. Modal opens with Fanart.tv search results
+3. Browse high-resolution artwork
+4. Select and download desired images
+5. Images are automatically processed and linked
+
+**Features**:
+- High-resolution images
+- Multiple image types
+- Region and resolution information
+- Professional game artwork
+
+![Fanart Search](docs/images/fanart-search.png)
+
+##### 4. Google Images Search
+
+![Google Images Search Icon](docs/images/google-images-search-icon.png)
+
+**Button**: Google icon (🔍) - Available on `fanart` field only
+
+**Purpose**: Search Google Images for game artwork and fan art
+
+**How to Use**:
+1. Click the **Google Images Search** button (🔍) under a `fanart` media card
+2. Google Images Search modal opens
+3. Game name is pre-filled (editable)
+4. Select **Aspect Ratio** filter (optional):
+   - **Panoramic** (default): Wide landscape images
+   - **Wide**: Landscape format
+   - **Portrait**: Vertical images
+   - **Square**: Square format
+   - **Any**: No filter
+5. Click **Search** or use **"Open in Tab"** to search in new browser tab
+6. Browse search results with thumbnails
+7. Click on any image to download it
+8. Image is automatically downloaded and linked to the game
+
+**Features**:
+- Direct Google Images integration
+- Aspect ratio filtering
+- Large selection of images
+- Full-size image download
+- Open search in new tab option
+- Direct URL download support
+
+**Aspect Ratio Options**:
+- **Panoramic**: Best for fan art backgrounds (wide format)
+- **Wide**: Standard landscape images
+- **Portrait**: Vertical artwork
+- **Square**: Square format images
+- **Any**: All aspect ratios
+
+**Tips**:
+- Use aspect ratio filters to find images matching your needs
+- Panoramic is ideal for fan art backgrounds
+- You can edit the search query to refine results
+- Use "Open in Tab" for advanced Google Images features
+- Direct URL download is available for specific image URLs
+
+![Google Images Search](docs/images/google-images-search.png)
+
+##### 5. Marquee Search
+
+![Marquee Search Icon](docs/images/marquee-search-icon.png)
+
+**Button**: Badge icon (🏷️) - Available on `marquee` field only
+
+**Purpose**: Find and download arcade marquee images
+
+**How to Use**:
+1. Click the **Marquee Search** button (🏷️) under a `marquee` media card
+2. Modal opens with marquee search results
+3. Browse available marquee images
+4. Select and download
+5. Images are automatically processed and linked
+
+**Features**:
+- Specialized for arcade games
+- Multiple sources
+- Region selection
+- High-quality marquee scans
+
+![Marquee Search](docs/images/marquee-search.png)
+
+**Button Summary**:
+
+| Button | Icon | Field | Purpose |
+|--------|------|-------|---------|
+| Multiscraper Download | 🔍 | All image fields | Search all scrapers |
+| LaunchBox Download | ⬇️ | All image fields | Download from LaunchBox |
+| Fanart Search | 🖼️ | `fanart` only | Search Fanart.tv |
+| Google Images Search | 🔍 | `fanart` only | Search Google Images |
+| Marquee Search | 🏷️ | `marquee` only | Search marquee images |
 
 #### Taking Screenshots from Videos
 
@@ -389,6 +575,95 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 - **Single Media**: Click media item → Context menu → Delete
 - **Multiple Media**: Select items → **Delete Selected Media** button
 - Files are removed from disk and `gamelist.xml` is updated
+
+#### PDF and CBZ Viewer
+
+![PDF Viewer](docs/images/pdf-viewer.png)
+
+The PDF/CBZ viewer allows you to view game manuals, maps, magazines, and other document files directly in your browser without downloading them.
+
+**Supported File Types**:
+- **PDF Files**: Standard PDF documents (`.pdf`)
+- **CBZ Files**: Comic Book ZIP archives (`.cbz`) - commonly used for scanned manuals and documents
+
+**Supported Media Fields**:
+- **manual**: Game manuals and instruction booklets
+- **map**: Game maps and guides
+- **magazine**: Gaming magazines and publications
+- Any custom media field containing PDF or CBZ files
+
+**How to Use the PDF/CBZ Viewer**:
+
+1. **Access from Media Preview**:
+   - Open **Edit Game Modal** → **Media Files** tab
+   - Find a media item with a PDF or CBZ file (shows PDF icon)
+   - Click the **PDF Viewer** button (📄 icon) on the media card
+   - The PDF/CBZ viewer modal opens
+
+2. **Viewing Documents**:
+   - The viewer opens in a full-screen modal
+   - PDF files use the EmbedPDF viewer with:
+     - Page navigation controls
+     - Zoom in/out functionality
+     - Full-screen viewing
+     - Search capabilities
+   - CBZ files use a custom viewer with:
+     - Page-by-page navigation
+     - Image viewing for each page
+     - Zoom controls
+
+3. **Navigation**:
+   - Use the viewer's built-in controls to navigate pages
+   - Zoom in/out using mouse wheel or controls
+   - Close the viewer by clicking the **Close** button or pressing Escape
+
+**Features**:
+
+- **EmbedPDF Integration**: Uses EmbedPDF library for high-quality PDF rendering
+- **CBZ Support**: Full support for CBZ (Comic Book ZIP) archives
+- **Automatic Detection**: Automatically detects PDF/CBZ files in supported media fields
+- **Preview Thumbnails**: Shows preview thumbnails in media cards before opening
+- **Full-Screen Viewing**: Large modal for comfortable document reading
+- **No Download Required**: View documents directly in browser
+- **CORS Support**: Properly configured API endpoints for secure file access
+
+**Technical Details**:
+
+- **PDF Viewer**: Uses [EmbedPDF](https://www.embedpdf.com/) library
+  - Loaded dynamically from CDN
+  - Supports Web Workers for performance
+  - Handles large PDF files efficiently
+  - Provides standard PDF viewing controls
+
+- **CBZ Viewer**: Uses JSZip library
+  - Extracts CBZ archives on-the-fly
+  - Displays images page by page
+  - Supports navigation between pages
+  - Handles image formats (PNG, JPG, etc.)
+
+- **File Access**: 
+  - Files are served through secure API endpoints
+  - Paths are properly encoded for special characters
+  - Supports relative paths from gamelist.xml
+  - Validates file existence before loading
+
+**Use Cases**:
+
+- Viewing game manuals and instruction booklets
+- Reading game maps and strategy guides
+- Browsing gaming magazines
+- Accessing scanned documentation
+- Reviewing game-related PDF documents
+
+**Tips**:
+
+- PDF files work best with standard PDF format
+- CBZ files should contain image files (PNG, JPG) for best results
+- Large files may take a moment to load
+- Use zoom controls for better readability
+- The viewer automatically handles file path encoding
+
+**Note**: The PDF/CBZ viewer requires an active internet connection for loading the EmbedPDF library. CBZ files are processed client-side using JSZip.
 
 ### Current System Menu Operations
 
@@ -771,17 +1046,6 @@ roms/<system>/media/import/
 - Resolution display
 - Preview before download
 
-### Multiscraper Media Download
-![Multiscraper Download Icon](docs/images/multiscraper-download-icon.png)
-![Multiscraper Download](docs/images/multiscraper-download.png)
-
-**Workflow**:
-1. Search across all configured scrapers
-2. View all available media options
-3. Select specific images/videos
-4. Download selected items
-5. Automatic processing and integration
-
 ### Find Best Match
 ![Find Best Match Button](docs/images/find-best-match-button.png)
 
@@ -918,43 +1182,6 @@ The system uses string similarity algorithms to find the best matches. You can s
 4. Enable auto-crop if needed
 5. Download clip
 6. Video is processed and linked to game
-
-### LaunchBox Media Download
-![LaunchBox Media Download Icon](docs/images/launchbox-media-download-icon.png)
-
-![LaunchBox Media Download](docs/images/launchbox-media-download.png)
-
-**Process**:
-1. Select game(s)
-2. Choose media type(s) to download
-3. System searches LaunchBox database
-4. Shows available media with previews
-5. Select and download
-6. Automatic processing and integration
-
-### Fanart Search
-
-![Fanart Search Icon](docs/images/fanart-search-icon.png)
-
-![Fanart Search](docs/images/fanart-search.png)
-
-**Features**:
-- Search Fanart.tv for game artwork
-- High-resolution images
-- Multiple image types
-- Region and resolution information
-
-### Marquee Search
-![Marquee Search Icon](docs/images/marquee-search-icon.png)
-
-![Marquee Search](docs/images/marquee-search.png)
-
-**Purpose**: Find and download arcade marquee images
-
-**Features**:
-- Specialized for arcade games
-- Multiple sources
-- Region selection
 
 ---
 
