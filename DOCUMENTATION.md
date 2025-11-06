@@ -528,22 +528,117 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 
 ![Find Best Match](docs/images/find-best-match.png)
 
-**Purpose**: Automatically find and match games with metadata sources
+**Purpose**: Automatically find and match games with metadata sources using intelligent similarity matching algorithms. This feature helps you quickly identify and link your ROM files with accurate metadata from various databases.
 
-**Process**:
-1. Select game(s)
-2. Click **"Find Best Match"**
-3. System searches all scrapers
-4. Matches based on similarity algorithm
-5. Preview matches before applying
+**How to Use Find Best Match:**
 
-**Similarity Algorithms**:
-- Jaro-Winkler (default)
-- Damerau-Levenshtein
-- Levenshtein
-- Jaro
-- Hamming
-- Match Rating
+#### From Main Interface (Bulk Matching)
+
+1. **Select Games**: 
+   - Select one or more games from the game grid (use checkboxes or Ctrl/Cmd+Click)
+   - The **"Find Best Match"** button becomes enabled when games are selected
+
+2. **Choose Scraper Source**:
+   - Click the **"Find Best Match"** dropdown button
+   - Select the scraper source:
+     - **LaunchBox**: Match against LaunchBox metadata database
+     - **MobyGames**: Match against MobyGames database
+     - **DAT Scrapper**: Match against DAT file entries
+     - **Steam**: Match against Steam game database
+     - **IGDB**: Match against IGDB database
+
+3. **Review Matches**:
+   - A modal opens showing match results for each selected game
+   - Each game displays:
+     - **Original Name**: Your ROM file name
+     - **Matched Name**: The best match found in the database
+     - **Similarity Score**: Confidence level (0-100%)
+     - **Database ID**: Unique identifier for the matched entry
+     - **Preview**: Thumbnail or metadata preview if available
+
+4. **Apply Matches**:
+   - Review each match and adjust if needed
+   - Click **"Apply Selected Matches"** to update all games
+   - Or click individual **"Apply"** buttons for specific games
+   - Metadata and media links are automatically updated
+
+#### From Game Edit Modal (Single Game)
+
+1. **Open Edit Game Modal**: Click on a game to edit
+2. **Click "Find Best Match"**: Button located in the game edit modal
+3. **Select Algorithm** (optional): Choose similarity algorithm from dropdown
+4. **Review Matches**: Modal shows top matches with similarity scores
+5. **Select Match**: Click on the desired match to apply it
+6. **Save Changes**: Metadata is updated immediately
+
+**Supported Scrapers:**
+
+- **LaunchBox**: Comprehensive metadata from LaunchBox XML databases
+  - Requires LaunchBox Metadata.xml file
+  - Matches by game name and alternate names
+  - Platform-specific matching based on system configuration
+
+- **MobyGames**: Extensive historical game database
+  - System-specific matching (uses configured MobyGames platform)
+  - High-quality metadata and game information
+  - Supports alternate names and variations
+
+- **DAT Scrapper**: DAT file-based matching
+  - Matches against configured DAT files
+  - Useful for ROM set validation and identification
+
+- **Steam**: Steam game database matching
+  - Matches against Steam app database
+  - Useful for PC games and Steam releases
+
+- **IGDB**: IGDB database matching
+  - Requires IGDB platform configuration
+  - Comprehensive modern game database
+  - High-quality metadata and artwork
+
+**Similarity Algorithms:**
+
+The system uses string similarity algorithms to find the best matches. You can select which algorithm to use:
+
+- **Jaro-Winkler** (default): Best for names with common prefixes
+  - Weighted towards strings that share a common prefix
+  - Good for detecting typos and variations
+  - Recommended for most use cases
+
+- **Damerau-Levenshtein**: Accounts for transpositions
+  - Considers character swaps (e.g., "ab" vs "ba")
+  - Good for detecting common typos
+
+- **Levenshtein**: Classic edit distance algorithm
+  - Measures minimum edits needed to transform one string to another
+  - Good general-purpose matching
+
+- **Jaro**: Similarity based on matching characters
+  - Considers character order and position
+  - Good for names with similar structure
+
+- **Hamming**: Distance between strings of equal length
+  - Only works for strings of the same length
+  - Fast but limited use case
+
+**Features:**
+
+- **Bulk Processing**: Match multiple games simultaneously
+- **Preview Before Apply**: Review all matches before committing changes
+- **Similarity Scoring**: See confidence levels for each match
+- **Alternate Name Matching**: Finds matches even with different naming conventions
+- **Platform-Specific**: Only searches within the configured platform/system
+- **Real-Time Preview**: See metadata previews before applying
+- **Manual Override**: Edit game name manually if automatic matching fails
+
+**Tips:**
+
+- Use **Jaro-Winkler** algorithm for best results with most game names
+- Select multiple games for bulk matching to save time
+- Review similarity scores - matches above 80% are usually reliable
+- Check alternate names if the primary match doesn't look right
+- Use platform-specific scrapers (MobyGames, IGDB) for more accurate results
+- The system normalizes game names (removes special characters, articles) for better matching
 
 ### YouTube Video Download
 
