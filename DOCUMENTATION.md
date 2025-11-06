@@ -483,7 +483,83 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 - Historical game information
 - Screenshots and box art
 
-#### 6. YouTube Integration
+#### 6. Steam
+
+![Steam Integration](docs/images/steam-integration.png)
+
+**Capabilities**:
+- Steam game database matching
+- Steam app metadata and information
+- Game matching via Steam App ID
+- Steam API integration for app discovery
+- Find best match functionality for Steam games
+
+**Setup**:
+1. Steam integration uses the public Steam API (no authentication required)
+2. The system automatically downloads and caches the Steam app list
+3. Steam app index is cached locally in `var/db/steam/appindex.json`
+4. Cache is automatically refreshed every 24 hours
+
+**How It Works**:
+- **App Index**: Downloads complete Steam app database from Steam API
+- **Game Matching**: Matches ROM names against Steam app names
+- **Normalization**: Removes parentheses and special characters for better matching
+- **Exact Matching**: Prioritizes exact matches for fast results
+- **Find Best Match**: Available in Find Best Match dropdown for bulk matching
+
+**Use Cases**:
+- Matching PC games and Steam releases
+- Finding Steam App IDs for games
+- Validating game names against Steam database
+- Bulk matching multiple games against Steam catalog
+
+**Note**: Steam integration is primarily for game matching and identification. For Steam-specific artwork, use SteamGridDB integration.
+
+#### 7. DAT Scrapper
+
+![DAT Scrapper Integration](docs/images/datscrapper-integration.png)
+
+**Capabilities**:
+- DAT file-based game matching
+- ROM set validation and identification
+- Exact ROM filename matching
+- Case-insensitive matching support
+- Find best match functionality for DAT files
+
+**Setup**:
+1. Place DAT files in the configured DAT directory
+2. Configure DAT file mapping in **Configuration → Systems Configuration**
+3. Map each system to its corresponding DAT file
+4. DAT files are automatically loaded when needed
+
+**How It Works**:
+- **DAT File Loading**: Loads DAT files configured for each system
+- **ROM Name Matching**: Matches ROM filenames (without extension) against DAT entries
+- **Direct Matching**: First tries exact filename match
+- **Case-Insensitive**: Falls back to case-insensitive matching if needed
+- **Find Best Match**: Available in Find Best Match dropdown for bulk matching
+
+**DAT File Format**:
+- Supports standard DAT file formats (No-Intro, Redump, etc.)
+- Each DAT entry contains game name and ROM filename
+- System-specific DAT files for accurate matching
+
+**Use Cases**:
+- Validating ROM sets against official DAT files
+- Identifying unknown ROM files
+- Matching ROM filenames to proper game names
+- ROM collection organization and verification
+- Bulk identification of ROM files
+
+**Configuration**:
+- Go to **Configuration → Systems Configuration**
+- Select a system
+- Choose the corresponding DAT file from the dropdown
+- Save configuration
+
+**Note**: DAT Scrapper is essential for ROM set validation and ensuring your collection matches official DAT file specifications.
+
+#### 8. YouTube Integration
 
 ![YouTube Integration](docs/images/youtube-integration.png)
 
