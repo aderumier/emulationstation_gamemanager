@@ -250,11 +250,17 @@ You can double click on a task to see the detailled task log. (Also in Live!)
 
 #### Viewing Games
 
+- **Grid View**: Default view with all columns
+
 ![Game Grid View](docs/images/game-grid-view.png)
 
-- **Grid View**: Default view with all columns
 - **Thumbnail View**: Card-based view with large thumbnails
+
+![Thumbnail View](docs/images/thumbnail-view.png)
+
 - **Toggle**: Use the view switcher in the toolbar
+
+![Game Grid View](docs/images/game-view-switch-button.png)
 
 #### Editing Games
 
