@@ -78,7 +78,6 @@
   - Discord OAuth2 authentication
   - User registration and validation
 
-![Feature Overview](docs/images/features-overview.png)
 
 ---
 
@@ -152,6 +151,7 @@ For detailed installation instructions, see:
 ![Login Screen](docs/images/login-screen.png)
 
 3. **Download the launchbox database && update the local scrappers databases**
+
 ![Cache Configuration](docs/images/cache-configuration.png)
 
 4. **Configure Your ROM Directory**
@@ -159,7 +159,7 @@ For detailed installation instructions, see:
    - Set the ROMs root directory path
    - Configure other settings as needed
 
-![Configuration](docs/images/configuration.png)
+![Configuration](docs/images/app-configuration.png)
 
 5. **Configure Your systems**
    - Go to **Configuration → System Configuration**
@@ -188,13 +188,13 @@ For detailed installation instructions, see:
 
 ![System Selection](docs/images/system-selection.png)
 
-- **Configuration Menu**: Access all configuration options
+- **Configuration Menu**: Access all Application configuration options
 
 ![Configuration Menu](docs/images/navigation-configuration-menu.png)
 - **Current System Menu**: System-specific operations
 
 ![CurrentSystem Menu](docs/images/navigation-currentsystem-menu.png)
-- **User Menu**: Account settings, Automatic Scrappers preferences and logout
+- **User Menu**: Account settings, User Automatic Scrappers preferences and logout
 
 ![User Menu](docs/images/navigation-user-menu.png)
 
@@ -239,6 +239,9 @@ Bottom panel displaying:
 - Task history
 - Cancel buttons for running tasks
 
+You can double click on a task to see the detailled task log. (Also in Live!)
+![Task Detail](docs/images/task-management-log.png)
+
 ---
 
 ## Core Features
@@ -264,6 +267,8 @@ Bottom panel displaying:
 - **Game Information**: Metadata fields, IDs, descriptions
 - **Media Files**: View and manage all media files
 - **Video Preview**: Preview and manage video files
+
+![Video Preview](docs/images/video-preview.png)
 
 #### Adding Games
 
@@ -444,10 +449,6 @@ Manual video cropping allows you to remove black borders or unwanted areas from 
 - Video downloads
 - Company and genre information
 
-**Setup**:
-- See [IGDB Setup Guide](IGDB_SETUP.md)
-- Requires Twitch Developer account
-- Configure Client ID and Secret
 
 #### 3. ScreenScraper
 
