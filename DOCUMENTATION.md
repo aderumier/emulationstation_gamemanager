@@ -822,6 +822,128 @@ The system uses string similarity algorithms to find the best matches. You can s
 - Rate limiting
 - Region priorities
 
+#### Media Fields Configuration
+
+![Media Fields Configuration](docs/images/media-fields-configuration.png)
+
+The Media Fields tab is the first tab in the Scraper Configuration modal. It allows you to define and configure all media fields used in your game collection.
+
+**What are Media Fields?**
+
+Media fields are categories for different types of media files (images, videos, documents) associated with games. Each media field defines:
+- Where files are stored (directory)
+- What file types are accepted (extensions)
+- How files are processed (conversion and resizing)
+
+**Configuring Media Fields:**
+
+1. **Access Media Fields Configuration**:
+   - Go to **Configuration → Scraper Configuration**
+   - Click on the **"Media Fields"** tab (first tab, active by default)
+
+2. **View Existing Media Fields**:
+   - The table displays all configured media fields
+   - Columns show:
+     - **Field Name**: The media field identifier (e.g., `image`, `marquee`, `boxart`)
+     - **Directory**: Subdirectory name where files are stored (e.g., `images`, `marquees`, `boxart`)
+     - **Extensions**: Allowed file extensions (e.g., `png,jpg,jpeg`)
+     - **Target Extension**: Format to convert files to (optional, e.g., `png`)
+     - **Width**: Target width for resizing (optional, 0 = no resize)
+     - **Height**: Target height for resizing (optional, 0 = no resize)
+
+3. **Add a New Media Field**:
+   - Click **"Add Media Field"** button
+   - Enter the field configuration:
+     - **Field Name**: Unique identifier (e.g., `custom_artwork`)
+     - **Directory**: Directory name (e.g., `custom-artwork`)
+     - **Extensions**: Comma-separated list (e.g., `png,jpg,jpeg`)
+     - **Target Extension**: Optional conversion format
+     - **Width/Height**: Optional resize dimensions
+   - Changes are saved automatically
+
+4. **Edit Existing Media Fields**:
+   - Click directly on any cell in the table to edit
+   - Changes are saved automatically when you:
+     - Click away from the cell
+     - Press Enter
+   - Use **"Refresh"** button to reload configuration
+
+5. **Delete Media Fields**:
+   - Click the delete button (trash icon) in the Actions column
+   - Confirm deletion
+   - **Note**: Deleting a media field does not delete the files, only the configuration
+
+**Media Field Properties:**
+
+- **Field Name**: 
+  - Must be unique
+  - Used in `gamelist.xml` as the field identifier
+  - Examples: `image`, `marquee`, `titleshot`, `boxart`, `fanart`, `screenshot`, `video`
+
+- **Directory**:
+  - Subdirectory name within `roms/<system>/media/`
+  - Files are stored at: `roms/<system>/media/<directory>/<filename>`
+  - Examples: `images`, `marquees`, `titleshots`, `boxart`, `fanart`, `screenshots`, `videos`
+
+- **Extensions**:
+  - Comma-separated list of allowed file extensions
+  - Case-insensitive
+  - Examples: `png,jpg,jpeg` or `mp4,avi,mkv`
+
+- **Target Extension** (Optional):
+  - Format to convert files to during processing
+  - If specified, uploaded/downloaded files are automatically converted
+  - Common values: `png`, `jpg`, `webp`
+  - Leave empty to keep original format
+
+- **Width/Height** (Optional):
+  - Target dimensions for image resizing
+  - Set to `0` to disable resizing for that dimension
+  - If both are set, images are resized maintaining aspect ratio
+  - Only applies to image fields (not videos)
+  - Examples: `1920x1080`, `256x256`, `0x0` (no resize)
+
+**How Media Fields Work:**
+
+1. **File Storage**:
+   - When a file is uploaded or downloaded for a media field, it's saved to:
+     `roms/<system>/media/<directory>/<filename>`
+   - The path is stored in `gamelist.xml` as: `./media/<directory>/<filename>`
+
+2. **Automatic Processing**:
+   - If **Target Extension** is set, files are converted to that format
+   - If **Width/Height** are set, images are resized to those dimensions
+   - Processing happens automatically during:
+     - File uploads
+     - Media downloads from scrapers
+     - Media operations (resize, convert)
+
+3. **Scraper Mappings**:
+   - Each scraper (LaunchBox, IGDB, ScreenScraper, etc.) has its own image types
+   - Media field mappings determine which scraper image types map to which media fields
+   - Configure mappings in other tabs (LaunchBox, IGDB, ScreenScraper, etc.)
+
+**Default Media Fields:**
+
+Common media fields included by default:
+- **image**: Game thumbnail/icon (`images/`, `png,jpg,jpeg`)
+- **marquee**: Arcade marquee artwork (`marquees/`, `png,jpg,jpeg`)
+- **titleshot**: Title screen screenshot (`titleshots/`, `png,jpg,jpeg`)
+- **boxart**: Box art image (`boxart/`, `png,jpg,jpeg`)
+- **fanart**: Fan art/background (`fanart/`, `png,jpg,jpeg`)
+- **screenshot**: In-game screenshot (`screenshots/`, `png,jpg,jpeg`)
+- **video**: Gameplay video (`videos/`, `mp4,avi,mkv,mov`)
+
+**Tips:**
+
+- Use descriptive field names that match your collection organization
+- Set target extensions for consistency (e.g., convert all images to PNG)
+- Configure width/height for uniform image sizes
+- Keep extensions list comprehensive to accept various file formats
+- Directory names should be lowercase and use hyphens or underscores
+- Media fields are system-wide - they apply to all systems
+- Changes take effect immediately for new uploads/downloads
+
 ### Video Configuration
 
 ![Video Configuration](docs/images/video-configuration.png)
