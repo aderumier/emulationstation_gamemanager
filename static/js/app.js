@@ -1675,8 +1675,7 @@ class GameCollectionManager {
         });
         document.getElementById('applyManualScrapResults').addEventListener('click', async () => await this.applyManualScrapResults());
         
-        // IGDB test connection button
-        document.getElementById('testIgdbConnectionBtn').addEventListener('click', async () => await this.testIgdbConnection());
+        // IGDB test connection button - removed (IGDB credentials section removed from UI)
         
         // ScreenScraper test connection button
         const testScreenscraperBtn = document.getElementById('testScreenscraperConnectionBtn');
@@ -16921,10 +16920,6 @@ class GameCollectionManager {
         // Load IGDB mappings data before opening modal
         this.loadIgdbMappingsData();
         
-        // Load IGDB credentials
-        this.loadIgdbCredentialsStatus();
-        this.loadIgdbCredentialsValues();
-        
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('igdbConfigModal'));
         modal.show();
@@ -16940,9 +16935,6 @@ class GameCollectionManager {
             } else {
                 this.showAlert('Failed to load IGDB mappings data', 'danger');
             }
-            
-            // Load IGDB credentials values
-            await this.loadIgdbCredentialsValues();
         } catch (error) {
             this.showAlert('Error loading IGDB mappings data', 'danger');
         }
@@ -17520,13 +17512,7 @@ class GameCollectionManager {
             });
         }
         
-        // IGDB credentials save button
-        const saveIgdbCredentialsBtn = document.getElementById('saveIgdbCredentialsBtn');
-        if (saveIgdbCredentialsBtn) {
-            saveIgdbCredentialsBtn.addEventListener('click', () => {
-                this.saveIgdbCredentials();
-            });
-        }
+        // IGDB credentials save button - removed (IGDB credentials section removed from UI)
     }
     
     initializeScreenscraperConfigModal() {
