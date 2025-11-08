@@ -343,6 +343,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openCleanMissingMediasModal">
                             <i class="bi bi-trash me-2"></i>Clean Missing Media Fields
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openClearFieldModal">
+                            <i class="bi bi-x-circle me-2"></i>Clear Field
+                        </a></li>
                         <li><a class="dropdown-item" href="#" id="forceImportGamelistBtn">
                             Force Import Gamelist.xml
                         </a></li>
@@ -4257,6 +4260,51 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Field Modal -->
+    <div class="modal fade" id="clearFieldModal" tabindex="-1" aria-labelledby="clearFieldModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="clearFieldModalLabel">
+                        <i class="bi bi-x-circle me-2"></i>Clear Field
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This will empty the selected field for all games in the current system's gamelist.xml.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="clearFieldSelect" class="form-label">Field to Clear</label>
+                        <select class="form-select" id="clearFieldSelect">
+                            <option value="">Select field...</option>
+                        </select>
+                        <div class="form-text">Select a field from the current gamelist.xml to clear for all games.</div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This operation will:
+                        <ul class="mb-0 mt-2">
+                            <li>Remove the selected field from all games in the current system</li>
+                            <li>This action cannot be undone</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" id="clearFieldBtn" disabled>
+                        <i class="bi bi-x-circle me-2"></i>Clear Field
+                    </button>
                 </div>
             </div>
         </div>

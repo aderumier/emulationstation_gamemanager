@@ -12663,6 +12663,23 @@ class GameCollectionManager {
             });
         }
 
+        // Add event listener for Clear Field modal
+        const openClearFieldModal = document.getElementById('openClearFieldModal');
+        if (openClearFieldModal) {
+            openClearFieldModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openClearFieldModal();
+            });
+        }
+
+        // Add event listener for clear field button
+        const clearFieldBtn = document.getElementById('clearFieldBtn');
+        if (clearFieldBtn) {
+            clearFieldBtn.addEventListener('click', () => {
+                this.clearField();
+            });
+        }
+
         // Add event listener for confirm clean missing medias button
         const confirmCleanMissingMediasBtn = document.getElementById('confirmCleanMissingMediasBtn');
         if (confirmCleanMissingMediasBtn) {
@@ -14963,6 +14980,121 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error starting clean missing medias task:', error);
             this.showAlert('Error starting clean missing medias task: ' + error.message, 'danger');
+        }
+    }
+
+    // Clear Field Methods
+    async openClearFieldModal() {
+        try {
+            if (!this.currentSystem) {
+                this.showAlert('Please select a system first', 'warning');
+                return;
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('clearFieldModal'));
+            modal.show();
+            
+            // Load fields from gamelist.xml
+            await this.loadClearFieldFields();
+            
+            // Setup button state
+            this.setupClearFieldButton();
+            
+        } catch (error) {
+            console.error('Error opening clear field modal:', error);
+            this.showAlert('Error opening clear field modal', 'danger');
+        }
+    }
+
+    async loadClearFieldFields() {
+        try {
+            const response = await fetch('/api/clear-field/fields', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ system_name: this.currentSystem })
+            });
+            
+            const data = await response.json();
+            const fieldSelect = document.getElementById('clearFieldSelect');
+            
+            if (data.success && data.fields) {
+                fieldSelect.innerHTML = '<option value="">Select field...</option>';
+                data.fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    fieldSelect.appendChild(option);
+                });
+            } else {
+                fieldSelect.innerHTML = '<option value="">No fields found</option>';
+            }
+        } catch (error) {
+            console.error('Error loading fields:', error);
+            this.showAlert('Error loading fields', 'danger');
+        }
+    }
+
+    setupClearFieldButton() {
+        const fieldSelect = document.getElementById('clearFieldSelect');
+        const clearBtn = document.getElementById('clearFieldBtn');
+        
+        const updateButton = () => {
+            clearBtn.disabled = !fieldSelect.value;
+        };
+        
+        fieldSelect.addEventListener('change', updateButton);
+        updateButton();
+    }
+
+    async clearField() {
+        const fieldName = document.getElementById('clearFieldSelect').value;
+        
+        if (!fieldName) {
+            this.showAlert('Please select a field to clear', 'warning');
+            return;
+        }
+        
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/clear-field', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    field_name: fieldName
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert(`Successfully cleared field "${fieldName}" for all games`, 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('clearFieldModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Reload the gamelist and refresh the grid
+                await this.forceReloadCurrentSystem();
+            } else {
+                this.showAlert(result.error || 'Failed to clear field', 'danger');
+            }
+        } catch (error) {
+            console.error('Error clearing field:', error);
+            this.showAlert('Error clearing field: ' + error.message, 'danger');
         }
     }
 

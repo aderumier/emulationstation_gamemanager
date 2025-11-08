@@ -1,3 +1,16 @@
+gamemanager (2.9.2-1) unstable; urgency=medium
+
+  * Add "Clear Field" feature under Current System menu
+  * Remove similarity search fallback from IGDB scraping (direct match only)
+  * Fix systems combobox to list from roms/<system> directories
+  * Remove fallback for ROM path in media download (fail explicitly)
+  * Add Automatic Scraping documentation section
+  * Move Find Best Match and 2D Box Generator to Automatic Scraping section
+  * Add documentation for main interface scraper buttons
+  * Add documentation for scraper preferences modals
+
+ -- aderumier <aderumier@example.com>  Sat, 08 Nov 2025 11:08:40 +0100
+
 gamemanager (2.9.1-1) unstable; urgency=medium
 
   * Add map field support to media preview with PDF/CBZ preview

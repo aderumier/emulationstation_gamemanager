@@ -5279,14 +5279,21 @@ def serve_temp_file(filename):
 @app.route('/api/rom-systems')
 @login_required
 def list_rom_systems():
-    """List all available ROM systems from systems.json configuration"""
+    """List all available ROM systems from roms/<system> directories"""
     systems = []
     try:
-        # Load systems configuration from systems.json
-        current_systems_config = load_systems_config()
+        # Scan roms directory for system folders
+        if not os.path.exists(ROMS_FOLDER):
+            return jsonify(systems)
         
-        # Get all system names from systems.json
-        system_names = list(current_systems_config.keys())
+        # Get all directories in roms folder
+        system_names = []
+        for item in os.listdir(ROMS_FOLDER):
+            system_path = os.path.join(ROMS_FOLDER, item)
+            if os.path.isdir(system_path):
+                # Skip directories that start with + (like +aftermarket, +budget, etc.)
+                if not item.startswith('+'):
+                    system_names.append(item)
         
         # Count games for all systems at once using batch processing
         system_counts = count_all_games_batch(system_names)
@@ -5303,6 +5310,8 @@ def list_rom_systems():
             })
     except Exception as e:
         print(f"Error listing ROM systems: {e}")
+        import traceback
+        traceback.print_exc()
     
     # Sort systems alphabetically by name
     systems.sort(key=lambda x: x['name'].lower())
@@ -8700,6 +8709,100 @@ def get_remap_target_fields():
         
     except Exception as e:
         print(f"Error getting target fields: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/clear-field/fields', methods=['POST'])
+@login_required
+def get_clear_field_fields():
+    """Get all fields from current gamelist.xml"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        if not system_name:
+            return jsonify({'error': 'System name required'}), 400
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Get all unique field names from all games
+        all_fields = set()
+        for game in games:
+            for field_name in game.keys():
+                # Exclude standard fields that shouldn't be cleared
+                if field_name not in ['name', 'path', 'id']:
+                    all_fields.add(field_name)
+        
+        return jsonify({
+            'success': True,
+            'fields': sorted(list(all_fields))
+        })
+        
+    except Exception as e:
+        print(f"Error getting fields: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/clear-field', methods=['POST'])
+@login_required
+def clear_field_endpoint():
+    """Clear a specific field for all games in a system"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        field_name = data.get('field_name')
+        
+        if not system_name:
+            return jsonify({'error': 'System name required'}), 400
+        
+        if not field_name:
+            return jsonify({'error': 'Field name required'}), 400
+        
+        # Prevent clearing critical fields
+        if field_name in ['name', 'path', 'id']:
+            return jsonify({'error': f'Cannot clear critical field: {field_name}'}), 400
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Clear the field for all games
+        cleared_count = 0
+        for game in games:
+            if field_name in game:
+                del game[field_name]
+                cleared_count += 1
+        
+        # Save the updated gamelist
+        write_gamelist_xml(games, gamelist_path)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cleared field "{field_name}" for {cleared_count} games',
+            'cleared_count': cleared_count
+        })
+        
+    except Exception as e:
+        print(f"Error clearing field: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/remap-media-fields/validate', methods=['POST'])
@@ -16069,12 +16172,10 @@ def download_media_from_url(media_url, game_name, system_name, media_type='fanar
                 file_extension = '.jpg'  # Default fallback
         
         # Create filename: <romfilename_without_extension>.<extension>
-        if rom_filename_without_extension:
-            media_filename = f"{rom_filename_without_extension}{file_extension}"
-        else:
-            # Fallback: use game name if ROM path not found
-            safe_game_name = "".join(c for c in game_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            media_filename = f"{safe_game_name}{file_extension}"
+        if not rom_filename_without_extension:
+            return {'success': False, 'error': f'ROM path not found for game "{game_name}" in system "{system_name}". Cannot determine media filename.'}
+        
+        media_filename = f"{rom_filename_without_extension}{file_extension}"
         
         print(f"🔧 DEBUG: Generated media filename: {media_filename}")
         
@@ -22967,11 +23068,7 @@ async def process_game_async_local(game, igdb_platform_id, igdb_config, company_
                     print(f"❌ Platform {igdb_platform_id} not found in index or empty normalized name")
                     igdb_game = None
                 
-                # If no direct match found, fall back to similarity search
-                if not igdb_game:
-                    print(f"🔄 No direct match found, falling back to similarity search...")
-                    search_results = global_igdb_service.search_games_by_name(game_name, igdb_platform_id, limit=1)
-                    igdb_game = search_results[0] if search_results else None
+                # No fallback - only direct matches are accepted
             else:
                 igdb_game = None
         
