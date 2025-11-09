@@ -246,9 +246,9 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
     if 'note' in game_data and isinstance(game_data['note'], dict):
         if 'text' in game_data['note']:
             note_text = game_data['note']['text']
-            # Normalize rating from 0-20 scale to 0-1 scale
-            from app import normalize_rating
-            text_info['rating'] = normalize_rating(note_text, 0, 20)
+            # Normalize rating from 0-20 scale to 0-5 scale
+            from app import normalize_rating_to_5_scale
+            text_info['rating'] = normalize_rating_to_5_scale(note_text, 20)
     
     # Extract players from joueurs.text, handle range values like '1-2'
     if 'joueurs' in game_data and isinstance(game_data['joueurs'], dict):
