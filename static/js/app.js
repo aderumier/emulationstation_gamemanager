@@ -25,6 +25,7 @@ class GameCollectionManager {
         this.modifiedGames = new Set();
         this.mediaPreviewEnabled = false;
         this.showingMediaPreview = false; // Flag to prevent multiple simultaneous media preview calls
+        this.navigatingBetweenGames = false; // Flag to prevent modal repopulation during navigation
         this.currentMediaPreviewGame = null; // Track current game shown in media preview
         this.uploadInProgress = false; // Track if upload is in progress
         this.selectedGames = [];
