@@ -23347,8 +23347,8 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                         developer_name = global_igdb_service.get_company_name(igdb_value) if global_igdb_service else None
                         value = developer_name if developer_name else f"Company {igdb_value}"
                     elif igdb_field in ['rating', 'total_rating']:
-                        # Normalize rating from 0-100 scale to 0-1 scale
-                        value = normalize_rating(igdb_value, 0, 100)
+                        # Normalize rating from 0-100 scale to 0-5 scale
+                        value = normalize_rating_to_5_scale(igdb_value, 100)
                     else:
                         value = str(igdb_value)
                 
