@@ -7,9 +7,21 @@ set -e
 
 # Configuration
 IMAGE_NAME="emulationstation_gamemanager"
-VERSION="2.6.0"
 DOCKERHUB_USERNAME="aderumier"
 FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+
+# Get version from git tag (like build_deb.sh)
+if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+    # We're on a tag, use it as version
+    GIT_TAG=$(git describe --tags --exact-match HEAD)
+    # Remove 'v' prefix if present for version
+    VERSION=${GIT_TAG#v}
+    echo "🏷️  Using git tag: $GIT_TAG -> version: $VERSION"
+else
+    # Not on a tag, use default or prompt
+    VERSION="2.6.0"
+    echo "⚠️  Not on a git tag, using default version: $VERSION"
+fi
 
 # Colors for output
 RED='\033[0;31m'
