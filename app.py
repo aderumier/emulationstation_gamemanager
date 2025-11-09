@@ -5996,43 +5996,28 @@ def get_missing_systems():
         current_systems_config = load_systems_config()
         configured_systems = set(current_systems_config.keys())
         
-        # ROM file extensions (optimized as set for faster lookup)
-        ROM_EXTENSIONS = {'.zip', '.7z', '.rar', '.iso', '.bin', '.cue', '.chd', '.gcm', '.wbfs', '.ciso', '.wad', '.nsp', '.xci', '.3ds', '.cia', '.nds', '.gba', '.gb', '.gbc', '.nes', '.smc', '.sfc', '.md', '.gen', '.sms', '.gg', '.pce', '.sgx', '.ws', '.wsc', '.ngp', '.ngc', '.vb', '.lynx', '.jag', '.a26', '.a52', '.a78', '.col', '.int', '.cv', '.sg', '.fds', '.msx', '.c64', '.amiga', '.pc', '.dos', '.win', '.mac', '.linux', '.android', '.ios', '.psp', '.psvita', '.psx', '.ps2', '.ps3', '.ps4', '.xbox', '.xbox360', '.xboxone', '.wii', '.wiiu', '.switch', '.ds', '.3ds', '.gb', '.gbc', '.gba', '.nds', '.wsquashfs'}
-        
         # Get all systems from roms/ directory
         rom_systems = []
         if os.path.exists(ROMS_FOLDER):
             for system_name in os.listdir(ROMS_FOLDER):
                 system_path = os.path.join(ROMS_FOLDER, system_name)
                 # Skip if not a directory or already configured
-                if not os.path.isdir(system_path) or system_name in configured_systems:
+                if not os.path.isdir(system_path):
                     continue
                 
-                # Count ROM files in the directory (stop after 5 for performance)
-                rom_count = 0
-                try:
-                    for root, dirs, files in os.walk(system_path):
-                        for file in files:
-                            # Check if file has a ROM extension
-                            if any(file.lower().endswith(ext) for ext in ROM_EXTENSIONS):
-                                rom_count += 1
-                                # Stop counting after 5 ROMs for performance
-                                if rom_count >= 5:
-                                    break
-                        # Break outer loop if we've reached 5 ROMs
-                        if rom_count >= 5:
-                            break
-                except Exception as e:
-                    print(f"Error counting ROMs in {system_path}: {e}")
+                # Skip directories that start with + (like +aftermarket, +budget, etc.)
+                if system_name.startswith('+'):
                     continue
                 
-                # Only include systems that have at least 1 ROM
-                if rom_count > 0:
-                    rom_systems.append({
-                        'name': system_name,
-                        'rom_count': rom_count,
-                        'path': system_path
-                    })
+                # Skip if already configured
+                if system_name in configured_systems:
+                    continue
+                
+                # Add system to list (no ROM counting needed)
+                rom_systems.append({
+                    'name': system_name,
+                    'path': system_path
+                })
         
         # Sort by name
         rom_systems.sort(key=lambda x: x['name'].lower())
@@ -6043,6 +6028,9 @@ def get_missing_systems():
             'count': len(rom_systems)
         })
     except Exception as e:
+        print(f"Error getting missing systems: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to get missing systems: {str(e)}'}), 500
 
 @app.route('/api/systems', methods=['GET', 'POST', 'PUT', 'DELETE'])
@@ -6209,9 +6197,10 @@ def manage_systems():
                     # Convert to string if it's not already
                     igdb_platform = str(igdb_platform)
             
-            # Check if system exists
+            # Check if system exists - if not, create it (allow creating via PUT)
             if system_name not in current_systems_config:
-                return jsonify({'error': 'System not found'}), 404
+                # System doesn't exist, create it with the provided values
+                current_systems_config[system_name] = {}
             
             # Update system in systems config
             current_systems_config[system_name] = {
@@ -14008,7 +13997,13 @@ def move_rom(system_name):
             print(f"Updating gamelist for {system_name}")
             print(f"  Original game_path: {game_path}")
             print(f"  New path: {new_path}")
-            update_gamelist_after_move(system_name, game_path, new_path, system_rom_dir)
+            # Calculate new relative path
+            new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+            if not new_relative.startswith('./'):
+                new_relative = './' + new_relative
+            # Use batch function with single entry
+            path_updates = {game_path: new_relative}
+            update_gamelist_after_move_batch(system_name, path_updates, system_rom_dir)
             print(f"Gamelist update completed")
             
             return jsonify({
@@ -14026,8 +14021,13 @@ def move_rom(system_name):
         print(f"Error in move_rom: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
-def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
-    """Update gamelist after moving a ROM file"""
+def update_gamelist_after_move_batch(system_name, path_updates):
+    """Batch update gamelist after moving multiple ROM files
+    
+    Args:
+        system_name: Name of the system
+        path_updates: Dictionary mapping old_path -> new_path (both should already be in relative format like "./myrom.zip")
+    """
     try:
         # Load gamelist from var/gamelists
         gamelist_path = get_gamelist_path(system_name)
@@ -14036,46 +14036,20 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
         
         games = parse_gamelist_xml(gamelist_path)
         
-        # Handle the old_path - it might already be relative or absolute
-        if old_path.startswith('./'):
-            # It's already a relative path from the gamelist perspective
-            old_relative = old_path
-        else:
-            # It's an absolute path, convert to relative
-            old_relative = os.path.relpath(old_path, system_rom_dir).replace('\\', '/')
-            if not old_relative.startswith('./'):
-                old_relative = './' + old_relative
-        
-        # Calculate new relative path
-        new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
-        if not new_relative.startswith('./'):
-            new_relative = './' + new_relative
-        
-        print(f"Updating gamelist: {old_relative} -> {new_relative}")
-        
-        # Update game paths in gamelist
-        updated = False
-        print(f"Checking {len(games)} games for path matching...")
-        for i, game in enumerate(games):
+        # Update all paths in a single pass
+        updated_count = 0
+        for game in games:
             current_path = game.get('path', '')
-            print(f"  Game {i}: path='{current_path}', name='{game.get('name', 'NO_NAME')}'")
             
-            if current_path == old_relative:
-                game['path'] = new_relative
-                updated = True
-                print(f"  ✅ MATCH FOUND! Updated game path: {current_path} -> {new_relative}")
-            elif current_path and current_path.startswith('./') and old_relative.startswith('./'):
-                # Also check if the path matches without the './' prefix
-                current_without_prefix = current_path[2:] if current_path.startswith('./') else current_path
-                old_without_prefix = old_relative[2:] if old_relative.startswith('./') else old_relative
-                if current_without_prefix == old_without_prefix:
-                    game['path'] = new_relative
-                    updated = True
-                    print(f"  ✅ MATCH FOUND (without prefix)! Updated game path: {current_path} -> {new_relative}")
+            # Check direct match
+            if current_path in path_updates:
+                game['path'] = path_updates[current_path]
+                updated_count += 1
+                continue
         
-        if updated:
+        if updated_count > 0:
             # Save updated gamelist to var/gamelists
-            print(f"Saving updated gamelist to: {gamelist_path}")
+            print(f"Saving updated gamelist to: {gamelist_path} ({updated_count} paths updated)")
             write_gamelist_xml(games, gamelist_path)
             
             # Sync to roms directory
@@ -14084,15 +14058,12 @@ def update_gamelist_after_move(system_name, old_path, new_path, system_rom_dir):
             
             # Notify clients
             notify_gamelist_updated(system_name, len(games))
-            print(f"Gamelist updated successfully for {system_name} - both var/gamelists and roms directories")
+            print(f"Gamelist updated successfully for {system_name} - {updated_count} paths updated")
         else:
-            print(f"No matching game found for path: {old_relative}")
-            print(f"Available paths in gamelist:")
-            for i, game in enumerate(games[:5]):  # Show first 5 games
-                print(f"  {i}: {game.get('path', 'NO_PATH')}")
+            print(f"No matching games found for any of the {len(path_updates)} path updates")
             
     except Exception as e:
-        print(f"Error updating gamelist after move: {e}")
+        print(f"Error batch updating gamelist after move: {e}")
 
 @app.route('/api/rom-system/<system_name>/move-roms-bulk', methods=['POST'])
 @login_required
@@ -14131,9 +14102,10 @@ def move_roms_bulk(system_name):
         if not os.path.isdir(full_destination_path):
             return jsonify({'error': 'Destination is not a directory'}), 400
         
-        # Process each game
+        # Process each game - collect path updates for batch processing
         moved_games = []
         failed_games = []
+        path_updates = {}  # Dictionary: old_path -> new_path
         
         for game_data in games:
             game_path = game_data.get('path', '')
@@ -14170,19 +14142,26 @@ def move_roms_bulk(system_name):
                 print(f"Moving file from {full_game_path} to {new_path}")
                 shutil.move(full_game_path, new_path)
                 
-                # Update the gamelist for this game
-                print(f"Updating gamelist for {game_name}")
-                update_gamelist_after_move(system_name, game_path, new_path, system_rom_dir)
+                # Store path update for batch processing
+                new_relative = os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+                if not new_relative.startswith('./'):
+                    new_relative = './' + new_relative
+                path_updates[game_path] = new_relative
                 
                 moved_games.append({
                     'name': game_name,
                     'old_path': game_path,
-                    'new_path': os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+                    'new_path': new_relative
                 })
                 
             except Exception as e:
                 print(f"Error moving {game_name}: {e}")
                 failed_games.append({'name': game_name, 'error': str(e)})
+        
+        # Batch update gamelist for all moved games (save once at the end)
+        if path_updates:
+            print(f"Batch updating gamelist for {len(path_updates)} moved games")
+            update_gamelist_after_move_batch(system_name, path_updates)
         
         # Prepare response
         response_data = {
@@ -17347,6 +17326,19 @@ def scan_rom_endpoint(system_name):
     global current_task_id
     
     try:
+        # Check if system is configured with extensions before starting scan
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        rom_extensions = system_config.get('extensions', [])
+        
+        if not rom_extensions:
+            return jsonify({
+                'success': False,
+                'error': f"System '{system_name}' is not configured with file extensions. Please configure the system first.",
+                'needs_configuration': True,
+                'system_name': system_name
+            }), 400
+        
         # Add task to queue instead of starting directly
         task = add_task_to_queue('rom_scan', {
             'system_name': system_name
@@ -17572,8 +17564,10 @@ def run_rom_scan_task(system_name):
         rom_extensions = system_config.get('extensions', [])
         
         if not rom_extensions:
-            # Default extensions if system not found in config
-            rom_extensions = ['.zip', '.ZIP', '.7z', '.7Z']
+            # No fallback - system must be configured with extensions
+            task.update_progress(f"❌ System '{system_name}' is not configured with file extensions. Please configure the system first.")
+            task.complete(False, f"System '{system_name}' is not configured with file extensions. Please configure the system in System Configuration.")
+            return
         
         # Add M3U extension for playlist files
         rom_extensions.append('.m3u')

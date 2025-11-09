@@ -115,26 +115,6 @@ def normalize_game_name(name, remove_paranthesis=True, remove_articles=True):
 
     return normalized
 
-def convert_image_to_png(input_path: str, output_path: str) -> bool:
-    """
-    Convert an image file to PNG format using ImageMagick.
-    
-    Args:
-        input_path: Path to the input image file
-        output_path: Path for the output PNG file
-        
-    Returns:
-        True if conversion successful, False otherwise
-    """
-    try:
-        # Use ImageMagick convert command to convert to PNG
-        cmd = ['convert', input_path, output_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return result.returncode == 0
-    except Exception as e:
-        print(f"Error converting image to PNG: {e}")
-        return False
-
 def should_process_field(field_name: str, config: dict) -> tuple[bool, str, int, int]:
     """
     Check if a media field should be converted and/or resized based on configuration.
@@ -182,6 +162,7 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
     """
     Convert and/or resize an image file in a single operation and return the new file path and status.
     The original file is replaced with the processed version.
+    Uses ImageMagick for processing.
     
     Args:
         file_path: Path to the image file to process
@@ -197,10 +178,10 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
         - "converted_and_resized": File was both converted and resized
         - "failed": Processing failed
     """
+    import subprocess
+    import os
+    
     try:
-        from PIL import Image
-        import os
-        
         # Determine if we need to change the file extension
         current_extension = os.path.splitext(file_path)[1].lower()
         needs_conversion = target_extension and current_extension != target_extension.lower()
@@ -212,95 +193,157 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
         if not needs_conversion and not needs_resize:
             return file_path, "already_correct"
         
-        # Open the image
-        with Image.open(file_path) as img:
-            original_width, original_height = img.size
-            processed_img = img
-            
-            # Resize if needed
-            if needs_resize:
-                # Calculate new dimensions
-                if target_width > 0 and target_height > 0:
-                    # Both width and height specified - resize to exact dimensions
-                    new_width, new_height = target_width, target_height
-                elif target_height > 0:
-                    # Only height specified - maintain aspect ratio
+        # Get original image dimensions for resize check (only if resize is needed)
+        original_width = 0
+        original_height = 0
+        if needs_resize:
+            try:
+                # Use ImageMagick identify to get dimensions
+                identify_cmd = ['identify', '-format', '%wx%h', file_path]
+                result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    dimensions = result.stdout.strip().split('x')
+                    if len(dimensions) == 2:
+                        original_width = int(dimensions[0])
+                        original_height = int(dimensions[1])
+            except Exception as e:
+                print(f"⚠️ Warning: Could not get image dimensions: {e}")
+        
+        # Determine the output file path
+        if needs_conversion:
+            # Create new path with target extension
+            base_path = os.path.splitext(file_path)[0]
+            output_path = base_path + target_extension
+        else:
+            # Use temporary file for in-place operations, then replace original
+            base_path = os.path.splitext(file_path)[0]
+            output_path = base_path + '.tmp' + current_extension
+        
+        # Build ImageMagick convert command
+        cmd = ['convert', file_path]
+        
+        # Handle transparency for JPEG conversion
+        if needs_conversion and target_extension and target_extension.lower() in ['.jpg', '.jpeg']:
+            # Check if image has transparency (RGBA, LA, or P mode)
+            try:
+                identify_alpha_cmd = ['identify', '-format', '%[channels]', file_path]
+                alpha_result = subprocess.run(identify_alpha_cmd, capture_output=True, text=True, timeout=10)
+                if alpha_result.returncode == 0 and 'a' in alpha_result.stdout.lower():
+                    # Image has alpha channel, add white background and remove alpha
+                    cmd.extend(['-background', 'white', '-alpha', 'remove'])
+            except Exception:
+                # If we can't determine, assume it might have transparency and add the flags anyway
+                cmd.extend(['-background', 'white', '-alpha', 'remove'])
+        
+        # Add resize operation if needed
+        if needs_resize:
+            if target_width > 0 and target_height > 0:
+                # Both width and height specified - resize to exact dimensions
+                resize_spec = f"{target_width}x{target_height}"
+                new_width = target_width
+                new_height = target_height
+            elif target_height > 0:
+                # Only height specified - maintain aspect ratio
+                resize_spec = f"x{target_height}"
+                if original_width > 0 and original_height > 0:
                     aspect_ratio = original_width / original_height
                     new_width = int(target_height * aspect_ratio)
                     new_height = target_height
-                elif target_width > 0:
-                    # Only width specified - maintain aspect ratio
+                else:
+                    new_width = 0
+                    new_height = target_height
+            elif target_width > 0:
+                # Only width specified - maintain aspect ratio
+                resize_spec = f"{target_width}x"
+                if original_width > 0 and original_height > 0:
                     aspect_ratio = original_height / original_width
                     new_height = int(target_width * aspect_ratio)
                     new_width = target_width
                 else:
-                    new_width, new_height = original_width, original_height
-                
+                    new_width = target_width
+                    new_height = 0
+            else:
+                resize_spec = None
+                new_width = original_width
+                new_height = original_height
+            
+            if resize_spec:
                 # Check if resize is actually needed
-                if new_width != original_width or new_height != original_height:
-                    processed_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                    resize_msg = f"resized from {original_width}x{original_height} to {new_width}x{new_height}"
+                if original_width > 0 and original_height > 0:
+                    if new_width == original_width and new_height == original_height:
+                        # Already correct size - check if we still need conversion
+                        if not needs_conversion:
+                            return file_path, "already_correct"
+                        resize_msg = "no resize needed (already correct size)"
+                    else:
+                        cmd.extend(['-resize', resize_spec])
+                        resize_msg = f"resized from {original_width}x{original_height} to {new_width}x{new_height}"
                 else:
-                    resize_msg = "no resize needed (already correct size)"
-            else:
-                new_width, new_height = original_width, original_height
-                resize_msg = "no resize needed"
-            
-            # Determine the output file path
-            if needs_conversion:
-                # Create new path with target extension
-                base_path = os.path.splitext(file_path)[0]
-                output_path = base_path + target_extension
-            else:
-                # Keep the same path
+                    # Can't determine dimensions, proceed with resize
+                    cmd.extend(['-resize', resize_spec])
+                    resize_msg = f"resized to {resize_spec}"
+        else:
+            resize_msg = "no resize needed"
+        
+        # Add quality setting for JPEG
+        if needs_conversion and target_extension and target_extension.lower() in ['.jpg', '.jpeg']:
+            cmd.extend(['-quality', '95'])
+        
+        # Add PNG optimization
+        if needs_conversion and target_extension and target_extension.lower() == '.png':
+            cmd.extend(['-strip'])
+        
+        # Add output file
+        cmd.append(output_path)
+        
+        # Execute ImageMagick convert command
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        
+        if result.returncode != 0:
+            print(f"❌ ImageMagick convert failed: {result.stderr}")
+            return file_path, "failed"
+        
+        # If we used a temporary file for in-place operation, replace original
+        if not needs_conversion and output_path != file_path:
+            try:
+                os.replace(output_path, file_path)
                 output_path = file_path
+            except Exception as e:
+                print(f"⚠️ Warning: Could not replace original file: {e}")
+                return file_path, "failed"
+        
+        # Delete the original file if we created a new one with different extension
+        if needs_conversion and output_path != file_path:
+            try:
+                os.remove(file_path)
+                print(f"🗑️ Removed original file: {os.path.basename(file_path)}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not remove original file {file_path}: {e}")
+        
+        # Determine status message
+        if needs_conversion and needs_resize:
+            status = "converted_and_resized"
+            print(f"✅ Converted to {target_extension} and {resize_msg}")
+        elif needs_conversion:
+            status = "converted"
+            print(f"✅ Converted to {target_extension}")
+        elif needs_resize:
+            status = "resized"
+            print(f"✅ {resize_msg.capitalize()}")
+        else:
+            status = "already_correct"
+        
+        return output_path, status
             
-            # Save the processed image
-            if target_extension and target_extension.lower() == '.jpg':
-                # For JPEG, convert to RGB if needed and save with quality settings
-                if processed_img.mode in ('RGBA', 'LA', 'P'):
-                    # Create white background for transparency
-                    rgb_img = Image.new('RGB', processed_img.size, (255, 255, 255))
-                    if processed_img.mode == 'P':
-                        processed_img = processed_img.convert('RGBA')
-                    rgb_img.paste(processed_img, mask=processed_img.split()[-1] if processed_img.mode == 'RGBA' else None)
-                    processed_img = rgb_img
-                processed_img.save(output_path, 'JPEG', quality=95, optimize=True)
-            elif target_extension and target_extension.lower() == '.png':
-                # For PNG, save with optimization
-                processed_img.save(output_path, 'PNG', optimize=True)
-            else:
-                # For other formats or no conversion, save with default settings
-                processed_img.save(output_path, quality=95, optimize=True)
-            
-            # Delete the original file if we created a new one with different extension
-            if needs_conversion and output_path != file_path:
-                try:
-                    os.remove(file_path)
-                    print(f"🗑️ Removed original file: {os.path.basename(file_path)}")
-                except Exception as e:
-                    print(f"⚠️ Warning: Could not remove original file {file_path}: {e}")
-            
-            # Determine status message
-            if needs_conversion and needs_resize:
-                status = "converted_and_resized"
-                print(f"✅ Converted to {target_extension} and {resize_msg}")
-            elif needs_conversion:
-                status = "converted"
-                print(f"✅ Converted to {target_extension}")
-            elif needs_resize:
-                status = "resized"
-                print(f"✅ {resize_msg.capitalize()}")
-            else:
-                status = "already_correct"
-            
-            return output_path, status
-            
+    except subprocess.TimeoutExpired:
+        print(f"❌ Error processing image: ImageMagick command timed out")
+        return file_path, "failed"
+    except FileNotFoundError:
+        print(f"❌ Error processing image: ImageMagick not found. Please install ImageMagick.")
+        return file_path, "failed"
     except Exception as e:
         error_msg = str(e)
-        if "cannot identify image file" in error_msg:
-            print(f"❌ Error processing image: Downloaded file is not a valid image format")
-        elif "No such file or directory" in error_msg:
+        if "No such file or directory" in error_msg:
             print(f"❌ Error processing image: File not found: {file_path}")
         else:
             print(f"❌ Error processing image: {error_msg}")
