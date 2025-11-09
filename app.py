@@ -14379,6 +14379,29 @@ def apply_manual_scrap(system_name):
         app.logger.error(f'Error in manual scrap: {str(e)}')
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
 
+def normalize_rating(rating_value, min_scale, max_scale):
+    """
+    Normalize rating from any scale to 0-1 scale with 2 decimal places.
+    
+    Args:
+        rating_value: The rating value (can be int, float, or string)
+        min_scale: Minimum value of the original scale
+        max_scale: Maximum value of the original scale
+    
+    Returns:
+        String representation of normalized rating (0.00-1.00) or original value if conversion fails
+    """
+    try:
+        rating_float = float(rating_value)
+        # Normalize to 0-1 scale
+        normalized = (rating_float - min_scale) / (max_scale - min_scale)
+        # Clamp to 0-1 range
+        normalized = max(0.0, min(1.0, normalized))
+        # Format to 2 decimal places
+        return f"{normalized:.2f}"
+    except (ValueError, TypeError, ZeroDivisionError):
+        return str(rating_value) if rating_value is not None else ''
+
 async def scrape_igdb_manual(game, system_name, system_config, target_media_type=None):
     """Scrape IGDB data for manual scrap using local database (no API calls)"""
     try:
@@ -14499,14 +14522,9 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             except Exception as e:
                 print(f"Error getting publisher/developer information: {e}")
             
-            # Extract rating from total_rating
+            # Extract rating from total_rating (IGDB uses 0-100 scale)
             if igdb_game.get('total_rating'):
-                try:
-                    # Convert rating from 0-100 scale to string
-                    rating_value = int(igdb_game['total_rating'])
-                    text_fields['rating'] = str(rating_value)
-                except (ValueError, TypeError):
-                    pass
+                text_fields['rating'] = normalize_rating(igdb_game['total_rating'], 0, 100)
             
             # Extract players from player_perspectives or game_modes
             if igdb_game.get('player_perspectives'):
@@ -15061,10 +15079,11 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
                 if genre_names:
                     text_fields['genre'] = '/'.join(genre_names)
             
-            # Extract rating from note.text
+            # Extract rating from note.text (ScreenScraper uses 0-20 scale)
             if detailed_data.get('note') and isinstance(detailed_data['note'], dict):
                 if 'text' in detailed_data['note']:
-                    text_fields['rating'] = detailed_data['note']['text']
+                    note_text = detailed_data['note']['text']
+                    text_fields['rating'] = normalize_rating(note_text, 0, 20)
             
             # Extract players from joueurs.text
             if detailed_data.get('joueurs') and isinstance(detailed_data['joueurs'], dict):
@@ -15261,7 +15280,8 @@ def extract_launchbox_text_fields(game_data, mapping_config):
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
             elif field_name == 'CommunityRating':
-                text_fields['rating'] = text
+                # LaunchBox CommunityRating uses 0-5 scale
+                text_fields['rating'] = normalize_rating(text, 0, 5)
             elif field_name in ['MaxPlayers', 'Players']:
                 text_fields['players'] = text
     
