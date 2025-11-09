@@ -1,3 +1,13 @@
+gamemanager (2.9.4-1) unstable; urgency=medium
+
+  * Fix game edit modal navigation: prevent modal reload with empty fields
+  * Fix editGame to reuse existing modal instance when navigating
+  * Reorganize MobyGames preferences modal: split text fields into local DB and remote API columns
+  * Rename "Media Fields" to "Remote API Media Fields" in MobyGames preferences
+  * Fix Select All/Deselect All buttons to include media fields in MobyGames preferences
+
+ -- aderumier <aderumier@example.com>  Sat, 09 Nov 2025 20:14:00 +0100
+
 gamemanager (2.9.2-1) unstable; urgency=medium
 
   * Add "Clear Field" feature under Current System menu
