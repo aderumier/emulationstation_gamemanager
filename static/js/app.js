@@ -24502,7 +24502,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Load application version
+async function loadAppVersion() {
+    try {
+        const response = await fetch('/api/version');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.version) {
+                const versionElement = document.getElementById('app-version');
+                if (versionElement) {
+                    versionElement.textContent = `v${data.version}`;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading app version:', error);
+    }
+}
+
 // Initialize the game manager when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.gameManager = new GameCollectionManager();
+    // Load version on page load
+    loadAppVersion();
 });

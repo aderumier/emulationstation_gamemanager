@@ -5318,6 +5318,37 @@ def list_rom_systems():
     
     return jsonify(systems)
 
+@app.route('/api/version', methods=['GET'])
+def get_version():
+    """Get application version from git tag"""
+    try:
+        # Try to get version from git tag
+        result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'], 
+                              capture_output=True, text=True, timeout=2, cwd=os.path.dirname(os.path.abspath(__file__)))
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            # Remove 'v' prefix if present
+            if version.startswith('v'):
+                version = version[1:]
+            return jsonify({'success': True, 'version': version})
+    except Exception as e:
+        pass
+    
+    # Fallback: try to read from debian control file
+    try:
+        control_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'debian', 'DEBIAN', 'control')
+        if os.path.exists(control_path):
+            with open(control_path, 'r') as f:
+                for line in f:
+                    if line.startswith('Version:'):
+                        version = line.split(':', 1)[1].strip().split('-')[0]  # Get version part before '-1'
+                        return jsonify({'success': True, 'version': version})
+    except Exception as e:
+        pass
+    
+    # Final fallback
+    return jsonify({'success': True, 'version': 'unknown'})
+
 @app.route('/api/config', methods=['GET', 'PUT'])
 @login_required
 def get_config():
