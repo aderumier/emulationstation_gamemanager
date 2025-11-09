@@ -14548,9 +14548,16 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             except Exception as e:
                 print(f"Error getting publisher/developer information: {e}")
             
-            # Extract rating from total_rating (IGDB uses 0-100 scale)
+            # Extract rating from total_rating (IGDB uses 0-100 scale, divide by 2)
             if igdb_game.get('total_rating'):
-                text_fields['rating'] = normalize_rating(igdb_game['total_rating'], 0, 100)
+                try:
+                    rating_float = float(igdb_game['total_rating'])
+                    # Divide by 2 to convert 0-100 scale to 0-50 scale
+                    normalized_rating = rating_float / 2.0
+                    # Format to 2 decimal places
+                    text_fields['rating'] = f"{normalized_rating:.2f}"
+                except (ValueError, TypeError):
+                    pass
             
             # Extract players from player_perspectives or game_modes
             if igdb_game.get('player_perspectives'):
@@ -15105,11 +15112,18 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
                 if genre_names:
                     text_fields['genre'] = '/'.join(genre_names)
             
-            # Extract rating from note.text (ScreenScraper uses 0-20 scale)
+            # Extract rating from note.text (ScreenScraper uses 0-20 scale, divide by 2)
             if detailed_data.get('note') and isinstance(detailed_data['note'], dict):
                 if 'text' in detailed_data['note']:
                     note_text = detailed_data['note']['text']
-                    text_fields['rating'] = normalize_rating(note_text, 0, 20)
+                    try:
+                        rating_float = float(note_text)
+                        # Divide by 2 to convert 0-20 scale to 0-10 scale
+                        normalized_rating = rating_float / 2.0
+                        # Format to 2 decimal places
+                        text_fields['rating'] = f"{normalized_rating:.2f}"
+                    except (ValueError, TypeError):
+                        pass
             
             # Extract players from joueurs.text
             if detailed_data.get('joueurs') and isinstance(detailed_data['joueurs'], dict):
