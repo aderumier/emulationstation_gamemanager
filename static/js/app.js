@@ -6580,9 +6580,15 @@ class GameCollectionManager {
                     // When navigating, refresh grid but don't hide modal or show alert
                     // Store the current editingGamePath before refresh
                     const currentPath = this.editingGamePath;
+                    // Set a flag to prevent modal repopulation during navigation
+                    this.navigatingBetweenGames = true;
                     await this.refreshGridData();
                     // Restore editingGamePath after refresh (it might have been cleared)
                     this.editingGamePath = currentPath;
+                    // Clear the flag after a short delay to allow editGame to complete
+                    setTimeout(() => {
+                        this.navigatingBetweenGames = false;
+                    }, 100);
                 }
             } else {
                 const errorText = await response.text();
