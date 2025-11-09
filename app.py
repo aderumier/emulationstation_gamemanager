@@ -4262,9 +4262,16 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config, selected_text_
                 except (ValueError, TypeError):
                     pass
             
-            # Special handling for moby_score -> rating normalization (0-10 scale to 0-1 scale)
+            # Special handling for moby_score -> rating normalization (0-10 scale to 0-5 scale by dividing by 2)
             if mobygames_field == 'moby_score' and gamelist_field == 'rating':
-                value = normalize_rating(value, 0, 10)
+                try:
+                    score_float = float(value)
+                    # Divide by 2 to convert 0-10 scale to 0-5 scale
+                    normalized_score = score_float / 2.0
+                    # Format to 2 decimal places
+                    value = f"{normalized_score:.2f}"
+                except (ValueError, TypeError):
+                    value = str(value) if value is not None else ''
             
             text_fields[gamelist_field] = value
     
@@ -25445,8 +25452,15 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                         # Apply field-specific transformations
                         final_value = value
                         if mobygames_field == 'moby_score' and gamelist_field == 'rating':
-                            # Normalize moby_score from 0-10 scale to 0-1 scale
-                            final_value = normalize_rating(value, 0, 10)
+                            # Normalize moby_score from 0-10 scale to 0-5 scale by dividing by 2
+                            try:
+                                score_float = float(value)
+                                # Divide by 2 to convert 0-10 scale to 0-5 scale
+                                normalized_score = score_float / 2.0
+                                # Format to 2 decimal places
+                                final_value = f"{normalized_score:.2f}"
+                            except (ValueError, TypeError):
+                                final_value = str(value) if value is not None else ''
                         elif mobygames_field == 'genres' and gamelist_field == 'genre':
                             # Join genres with comma
                             if isinstance(value, list):
