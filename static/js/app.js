@@ -12740,9 +12740,9 @@ class GameCollectionManager {
 
     }
 
-    openCacheConfigurationModal() {
+    async openCacheConfigurationModal() {
         // Load cache information before opening modal
-        this.loadCacheInformation();
+        await this.loadCacheInformation();
         
         // Open the modal
         const modal = new bootstrap.Modal(document.getElementById('cacheConfigurationModal'));
@@ -18892,14 +18892,18 @@ class GameCollectionManager {
                         document.getElementById('cacheAltNamesCount').textContent = data.cache_stats.games_with_alternate_names.toLocaleString();
                         document.getElementById('cacheGameImagesCount').textContent = data.cache_stats.total_images.toLocaleString();
                     } else {
+                        document.getElementById('cacheGamesCount').textContent = '-';
+                        document.getElementById('cacheAltNamesCount').textContent = '-';
+                        document.getElementById('cacheGameImagesCount').textContent = '-';
                     }
                 } else {
-                    document.getElementById('metadataXmlDate').textContent = 'Error';
-                    document.getElementById('metadataXmlDate').className = 'badge bg-danger';
-                    document.getElementById('cacheStatus').textContent = 'Error';
-                    document.getElementById('cacheStatus').className = 'badge bg-danger';
+                    // Metadata.xml not found or empty
+                    document.getElementById('metadataXmlDate').textContent = 'Not Available';
+                    document.getElementById('metadataXmlDate').className = 'badge bg-warning';
+                    document.getElementById('cacheStatus').textContent = 'Not Available';
+                    document.getElementById('cacheStatus').className = 'badge bg-warning';
                     
-                    // Reset cache statistics on error
+                    // Reset cache statistics
                     document.getElementById('cacheGamesCount').textContent = '-';
                     document.getElementById('cacheAltNamesCount').textContent = '-';
                     document.getElementById('cacheGameImagesCount').textContent = '-';
