@@ -3248,7 +3248,12 @@ class GameCollectionManager {
         this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
         await this.populateEditModal(game);
         
-        const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
+        // Get existing modal instance if it exists, otherwise create a new one
+        const modalElement = document.getElementById('editGameModal');
+        let modal = bootstrap.Modal.getInstance(modalElement);
+        if (!modal) {
+            modal = new bootstrap.Modal(modalElement);
+        }
         modal.show();
         
         // Update navigation buttons state
