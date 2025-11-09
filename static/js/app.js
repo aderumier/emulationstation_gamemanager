@@ -9578,17 +9578,18 @@ class GameCollectionManager {
             const response = await fetch('/api/systems');
             const data = await response.json();
             
-            if (data.success && data.systems[this.currentSystem]) {
-                const systemConfig = data.systems[this.currentSystem];
+            if (data.success) {
+                // System may not exist yet (will be created when saving)
+                const systemConfig = data.systems[this.currentSystem] || {};
                 
-                // Set selected values
+                // Set selected values (empty if system doesn't exist)
                 document.getElementById('launchboxMapping').value = systemConfig.launchbox || '';
                 document.getElementById('igdbMapping').value = systemConfig.igdb || '';
                 document.getElementById('mobygamesMapping').value = systemConfig.mobygames || '';
                 document.getElementById('screenscraperMapping').value = systemConfig.screenscraper || '';
                 document.getElementById('datscrapperMapping').value = systemConfig.dat_file || '';
                 
-                // Set extensions value
+                // Set extensions value (empty if system doesn't exist)
                 const extensions = systemConfig.extensions || [];
                 document.getElementById('extensionsMapping').value = extensions.join(', ');
             }
@@ -10103,8 +10104,9 @@ class GameCollectionManager {
                 method: 'POST'
             });
             
+            const romResult = await romResponse.json();
+            
             if (romResponse.ok) {
-                const romResult = await romResponse.json();
                 if (romResult.success) {
                     this.showAlert('ROM scan started. Please wait for completion.', 'info');
                     
@@ -10140,11 +10142,24 @@ class GameCollectionManager {
                         this.showAlert('Error getting ROM scan results', 'danger');
                     }
                 } else {
-                    this.showAlert(romResult.error || 'Error starting ROM scan', 'danger');
+                    // Check if system needs configuration
+                    if (romResult.needs_configuration) {
+                        this.showAlert('System needs to be configured with file extensions. Opening configuration modal...', 'warning');
+                        // Open the Configure Scraper Mappings modal (no scraperType to show all fields)
+                        await this.openScraperConfigModal();
+                    } else {
+                        this.showAlert(romResult.error || 'Error starting ROM scan', 'danger');
+                    }
                 }
             } else {
-                const errorData = await romResponse.json();
-                this.showAlert(errorData.error || 'Error starting ROM scan', 'danger');
+                // Check if system needs configuration from error response
+                if (romResult && romResult.needs_configuration) {
+                    this.showAlert('System needs to be configured with file extensions. Opening configuration modal...', 'warning');
+                    // Open the Configure Scraper Mappings modal (no scraperType to show all fields)
+                    await this.openScraperConfigModal();
+                } else {
+                    this.showAlert(romResult?.error || 'Error starting ROM scan', 'danger');
+                }
             }
         } catch (error) {
             this.showAlert('Error during unified scan: ' + error.message, 'danger');
@@ -16159,7 +16174,6 @@ class GameCollectionManager {
                                                     <input type="checkbox" id="selectAllMissing" class="form-check-input">
                                                 </th>
                                                 <th>System Name</th>
-                                                <th>ROM Count</th>
                                                 <th>Path</th>
                                             </tr>
                                         </thead>
@@ -16168,14 +16182,9 @@ class GameCollectionManager {
                                                 <tr>
                                                     <td>
                                                         <input type="checkbox" class="form-check-input missing-system-checkbox" 
-                                                               value="${system.name}" data-rom-count="${system.rom_count}">
+                                                               value="${system.name}">
                                                     </td>
                                                     <td><strong>${system.name}</strong></td>
-                                                    <td>
-                                                        <span class="badge ${system.rom_count > 0 ? 'bg-success' : 'bg-secondary'}">
-                                                            ${system.rom_count} ROMs
-                                                        </span>
-                                                    </td>
                                                     <td><code>${system.path}</code></td>
                                                 </tr>
                                             `).join('')}
@@ -16422,7 +16431,6 @@ class GameCollectionManager {
         const modal = new bootstrap.Modal(modalElement);
         
         // Load all data BEFORE showing the modal
-        await this.loadMediaFieldsData();
         await this.loadLaunchboxMappingsData();
         await this.loadIgdbMappingsData();
         await this.loadScreenscraperMappingsData();
@@ -16437,7 +16445,7 @@ class GameCollectionManager {
         
         modal.show();
         
-        // Reset all tabs and activate the first tab (Media Fields)
+        // Reset all tabs and activate the first tab (LaunchBox)
         setTimeout(() => {
             // Remove active class from all tab buttons
             const allTabButtons = document.querySelectorAll('#scraperConfigTabs .nav-link');
@@ -16452,9 +16460,9 @@ class GameCollectionManager {
                 pane.classList.remove('active', 'show');
             });
             
-            // Activate the first tab (Media Fields)
-            const firstTabButton = document.getElementById('media-fields-tab');
-            const firstTabPane = document.getElementById('media-fields');
+            // Activate the first tab (LaunchBox)
+            const firstTabButton = document.getElementById('launchbox-tab');
+            const firstTabPane = document.getElementById('launchbox');
             
             if (firstTabButton && firstTabPane) {
                 firstTabButton.classList.add('active');
@@ -18001,13 +18009,43 @@ class GameCollectionManager {
         
     }
     
-    openAppConfigurationModal() {
+    async openAppConfigurationModal() {
         
         // Load current configuration
         this.loadAppConfiguration();
         
         const modal = new bootstrap.Modal(document.getElementById('appConfigurationModal'));
+        
+        // Load media fields data before showing the modal
+        await this.loadMediaFieldsData();
+        
         modal.show();
+        
+        // Reset all tabs and activate the first tab (Settings)
+        setTimeout(() => {
+            // Remove active class from all tab buttons
+            const allTabButtons = document.querySelectorAll('#appConfigTabs .nav-link');
+            allTabButtons.forEach(button => {
+                button.classList.remove('active');
+                button.setAttribute('aria-selected', 'false');
+            });
+            
+            // Remove active and show classes from all tab panes
+            const allTabPanes = document.querySelectorAll('#appConfigTabContent .tab-pane');
+            allTabPanes.forEach(pane => {
+                pane.classList.remove('active', 'show');
+            });
+            
+            // Activate the first tab (Settings)
+            const firstTabButton = document.getElementById('app-settings-tab');
+            const firstTabPane = document.getElementById('app-settings');
+            
+            if (firstTabButton && firstTabPane) {
+                firstTabButton.classList.add('active');
+                firstTabButton.setAttribute('aria-selected', 'true');
+                firstTabPane.classList.add('active', 'show');
+            }
+        }, 100);
     }
     
     async loadAppConfiguration() {

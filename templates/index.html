@@ -2504,98 +2504,157 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="appConfigForm">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6><i class="bi bi-folder me-2"></i>Directory Paths</h6>
-                                <div class="mb-3">
-                                    <label for="romsRootDirectory" class="form-label">ROMs Root Directory</label>
-                                    <input type="text" class="form-control" id="romsRootDirectory" placeholder="/path/to/roms">
-                                    <div class="form-text">Absolute path to your ROMs directory</div>
-                                </div>
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs" id="appConfigTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="app-settings-tab" data-bs-toggle="tab" data-bs-target="#app-settings" type="button" role="tab" aria-controls="app-settings" aria-selected="true">
+                                <i class="bi bi-gear me-2"></i>Settings
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="app-media-fields-tab" data-bs-toggle="tab" data-bs-target="#app-media-fields" type="button" role="tab" aria-controls="app-media-fields" aria-selected="false">
+                                <i class="bi bi-image me-2"></i>Media Fields
+                            </button>
+                        </li>
+                    </ul>
 
-                            </div>
-                            <div class="col-md-6">
-                                <h6><i class="bi bi-server me-2"></i>Server Settings</h6>
-                                <div class="mb-3">
-                                    <label for="serverHost" class="form-label">Server Host</label>
-                                    <input type="text" class="form-control" id="serverHost" placeholder="0.0.0.0">
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="appConfigTabContent">
+                        <!-- Settings Tab -->
+                        <div class="tab-pane fade show active" id="app-settings" role="tabpanel" aria-labelledby="app-settings-tab">
+                            <form id="appConfigForm" class="mt-3">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6><i class="bi bi-folder me-2"></i>Directory Paths</h6>
+                                        <div class="mb-3">
+                                            <label for="romsRootDirectory" class="form-label">ROMs Root Directory</label>
+                                            <input type="text" class="form-control" id="romsRootDirectory" placeholder="/path/to/roms">
+                                            <div class="form-text">Absolute path to your ROMs directory</div>
+                                        </div>
+
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="bi bi-server me-2"></i>Server Settings</h6>
+                                        <div class="mb-3">
+                                            <label for="serverHost" class="form-label">Server Host</label>
+                                            <input type="text" class="form-control" id="serverHost" placeholder="0.0.0.0">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="serverPort" class="form-label">Server Port</label>
+                                            <input type="number" class="form-control" id="serverPort" placeholder="5000">
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="serverDebug">
+                                            <label class="form-check-label" for="serverDebug">
+                                                Debug Mode
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="serverPort" class="form-label">Server Port</label>
-                                    <input type="number" class="form-control" id="serverPort" placeholder="5000">
+                                
+                                
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <h6><i class="bi bi-list-task me-2"></i>Task Management</h6>
+                                        <div class="mb-3">
+                                            <label for="maxTasksToKeep" class="form-label">Max Tasks to Keep</label>
+                                            <input type="number" class="form-control" id="maxTasksToKeep" placeholder="30">
+                                            <div class="form-text">Number of recent tasks to keep in memory</div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="serverDebug">
-                                    <label class="form-check-label" for="serverDebug">
-                                        Debug Mode
-                                    </label>
+                                
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <h6><i class="bi bi-discord me-2"></i>Discord Configuration</h6>
+                                        <div class="mb-3">
+                                            <label for="discordClientId" class="form-label">Client ID</label>
+                                            <input type="text" class="form-control" id="discordClientId" placeholder="Your Discord Client ID">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discordClientSecret" class="form-label">Client Secret</label>
+                                            <input type="password" class="form-control" id="discordClientSecret" placeholder="Your Discord Client Secret">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discordRedirectUri" class="form-label">Redirect URI</label>
+                                            <input type="text" class="form-control" id="discordRedirectUri" placeholder="http://localhost:5000/discord/callback">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discordBotToken" class="form-label">Bot Token</label>
+                                            <input type="password" class="form-control" id="discordBotToken" placeholder="Your Discord Bot Token">
+                                            <div class="form-text">Required for role verification. Get from Discord Developer Portal → Bot section</div>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="discordAutoCreate">
+                                            <label class="form-check-label" for="discordAutoCreate">
+                                                Auto-create users
+                                            </label>
+                                            <div class="form-text">Automatically create users from Discord authentication</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discordGuildId" class="form-label">Guild ID</label>
+                                            <input type="text" class="form-control" id="discordGuildId" placeholder="Discord Server ID">
+                                            <div class="form-text">Required for auto-creation (Discord server ID)</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discordRoleName" class="form-label">Role Name</label>
+                                            <input type="text" class="form-control" id="discordRoleName" placeholder="Creator">
+                                            <div class="form-text">Required role for auto-creation</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="bi bi-shield-lock me-2"></i>Authentication</h6>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="disableLocalAuth">
+                                            <label class="form-check-label" for="disableLocalAuth">
+                                                Disable Local Authentication
+                                            </label>
+                                            <div class="form-text">Disable username/password login and force Discord authentication only</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Media Fields Tab -->
+                        <div class="tab-pane fade" id="app-media-fields" role="tabpanel" aria-labelledby="app-media-fields-tab">
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <h6>Configured Media Fields</h6>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-primary btn-sm" id="addMediaFieldBtn">
+                                            <i class="bi bi-plus-circle me-1"></i>Add Media Field
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshMediaFieldsBtn">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped table-hover compact-table" id="mediaFieldsTable">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 15%">Field Name</th>
+                                                <th style="width: 20%">Directory</th>
+                                                <th style="width: 25%">Extensions</th>
+                                                <th style="width: 12%">Target Extension</th>
+                                                <th style="width: 10%">Width</th>
+                                                <th style="width: 10%">Height</th>
+                                                <th style="width: 8%">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="mediaFieldsTableBody">
+                                            <!-- Media fields will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-muted small mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    <strong>Tip:</strong> Click on any field in the table to edit it directly. Changes are saved automatically when you click away or press Enter.
                                 </div>
                             </div>
                         </div>
-                        
-                        
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <h6><i class="bi bi-list-task me-2"></i>Task Management</h6>
-                                <div class="mb-3">
-                                    <label for="maxTasksToKeep" class="form-label">Max Tasks to Keep</label>
-                                    <input type="number" class="form-control" id="maxTasksToKeep" placeholder="30">
-                                    <div class="form-text">Number of recent tasks to keep in memory</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <h6><i class="bi bi-discord me-2"></i>Discord Configuration</h6>
-                                <div class="mb-3">
-                                    <label for="discordClientId" class="form-label">Client ID</label>
-                                    <input type="text" class="form-control" id="discordClientId" placeholder="Your Discord Client ID">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="discordClientSecret" class="form-label">Client Secret</label>
-                                    <input type="password" class="form-control" id="discordClientSecret" placeholder="Your Discord Client Secret">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="discordRedirectUri" class="form-label">Redirect URI</label>
-                                    <input type="text" class="form-control" id="discordRedirectUri" placeholder="http://localhost:5000/discord/callback">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="discordBotToken" class="form-label">Bot Token</label>
-                                    <input type="password" class="form-control" id="discordBotToken" placeholder="Your Discord Bot Token">
-                                    <div class="form-text">Required for role verification. Get from Discord Developer Portal → Bot section</div>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="discordAutoCreate">
-                                    <label class="form-check-label" for="discordAutoCreate">
-                                        Auto-create users
-                                    </label>
-                                    <div class="form-text">Automatically create users from Discord authentication</div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="discordGuildId" class="form-label">Guild ID</label>
-                                    <input type="text" class="form-control" id="discordGuildId" placeholder="Discord Server ID">
-                                    <div class="form-text">Required for auto-creation (Discord server ID)</div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="discordRoleName" class="form-label">Role Name</label>
-                                    <input type="text" class="form-control" id="discordRoleName" placeholder="Creator">
-                                    <div class="form-text">Required role for auto-creation</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <h6><i class="bi bi-shield-lock me-2"></i>Authentication</h6>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="disableLocalAuth">
-                                    <label class="form-check-label" for="disableLocalAuth">
-                                        Disable Local Authentication
-                                    </label>
-                                    <div class="form-text">Disable username/password login and force Discord authentication only</div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -3052,12 +3111,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <!-- Tab Navigation -->
                     <ul class="nav nav-tabs" id="scraperConfigTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="media-fields-tab" data-bs-toggle="tab" data-bs-target="#media-fields" type="button" role="tab" aria-controls="media-fields" aria-selected="true">
-                                <i class="bi bi-image me-2"></i>Media Fields
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="launchbox-tab" data-bs-toggle="tab" data-bs-target="#launchbox" type="button" role="tab" aria-controls="launchbox" aria-selected="false">
+                            <button class="nav-link active" id="launchbox-tab" data-bs-toggle="tab" data-bs-target="#launchbox" type="button" role="tab" aria-controls="launchbox" aria-selected="true">
                                 <i class="bi bi-box me-2"></i>LaunchBox
                             </button>
                         </li>
@@ -3095,47 +3149,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
                     <!-- Tab Content -->
                     <div class="tab-content" id="scraperConfigTabContent">
-                        <!-- Media Fields Tab -->
-                        <div class="tab-pane fade show active" id="media-fields" role="tabpanel" aria-labelledby="media-fields-tab">
-                            <div class="mt-3">
-                                <div class="mb-3">
-                                    <h6>Configured Media Fields</h6>
-                                    <div class="d-flex gap-2">
-                                        <button type="button" class="btn btn-primary btn-sm" id="addMediaFieldBtn">
-                                            <i class="bi bi-plus-circle me-1"></i>Add Media Field
-                                        </button>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshMediaFieldsBtn">
-                                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-striped table-hover compact-table" id="mediaFieldsTable">
-                                        <thead>
-                                            <tr>
-                                                <th style="width: 15%">Field Name</th>
-                                                <th style="width: 20%">Directory</th>
-                                                <th style="width: 25%">Extensions</th>
-                                                <th style="width: 12%">Target Extension</th>
-                                                <th style="width: 10%">Width</th>
-                                                <th style="width: 10%">Height</th>
-                                                <th style="width: 8%">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="mediaFieldsTableBody">
-                                            <!-- Media fields will be populated here -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="text-muted small mt-2">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    <strong>Tip:</strong> Click on any field in the table to edit it directly. Changes are saved automatically when you click away or press Enter.
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- LaunchBox Tab -->
-                        <div class="tab-pane fade" id="launchbox" role="tabpanel" aria-labelledby="launchbox-tab">
+                        <div class="tab-pane fade show active" id="launchbox" role="tabpanel" aria-labelledby="launchbox-tab">
                             <div class="mt-3">
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between align-items-center">
