@@ -2339,52 +2339,51 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <!-- Text Fields -->
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-3"><i class="bi bi-file-text me-2"></i>Text Fields</h6>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldTitle" data-field="title" checked>
-                                                <label class="form-check-label" for="mobygamesFieldTitle">Name (Title)</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldDescription" data-field="description">
-                                                <label class="form-check-label" for="mobygamesFieldDescription">Description</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldPublisher" data-field="publisher">
-                                                <label class="form-check-label" for="mobygamesFieldPublisher">Publisher</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldDeveloper" data-field="developer">
-                                                <label class="form-check-label" for="mobygamesFieldDeveloper">Developer</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldMobyScore" data-field="moby_score" checked>
-                                                <label class="form-check-label" for="mobygamesFieldMobyScore">Rating (Moby Score)</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldReleaseYear" data-field="release_year" checked>
-                                                <label class="form-check-label" for="mobygamesFieldReleaseYear">Release Date</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldGenres" data-field="genres" checked>
-                                                <label class="form-check-label" for="mobygamesFieldGenres">Genre</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldNbvotes" data-field="nbvotes">
-                                                <label class="form-check-label" for="mobygamesFieldNbvotes">Number of Votes</label>
-                                            </div>
-                                        </div>
+                                <!-- Local DB Text Fields -->
+                                <div class="col-md-4">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-database me-2"></i>Local DB Text Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldTitle" data-field="title" checked>
+                                        <label class="form-check-label" for="mobygamesFieldTitle">Name (Title)</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldMobyScore" data-field="moby_score" checked>
+                                        <label class="form-check-label" for="mobygamesFieldMobyScore">Rating (Moby Score)</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldReleaseYear" data-field="release_year" checked>
+                                        <label class="form-check-label" for="mobygamesFieldReleaseYear">Release Date</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldGenres" data-field="genres" checked>
+                                        <label class="form-check-label" for="mobygamesFieldGenres">Genre</label>
                                     </div>
                                 </div>
                                 
-                                <!-- Media Fields -->
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-3"><i class="bi bi-image me-2"></i>Media Fields</h6>
+                                <!-- Remote API Text Fields -->
+                                <div class="col-md-4">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-cloud me-2"></i>Remote API Text Fields</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldDescription" data-field="description">
+                                        <label class="form-check-label" for="mobygamesFieldDescription">Description</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldPublisher" data-field="publisher">
+                                        <label class="form-check-label" for="mobygamesFieldPublisher">Publisher</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldDeveloper" data-field="developer">
+                                        <label class="form-check-label" for="mobygamesFieldDeveloper">Developer</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input mobygames-field-checkbox" type="checkbox" id="mobygamesFieldNbvotes" data-field="nbvotes">
+                                        <label class="form-check-label" for="mobygamesFieldNbvotes">Number of Votes</label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Remote API Media Fields -->
+                                <div class="col-md-4">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-image me-2"></i>Remote API Media Fields</h6>
                                     <!-- Dynamic media field checkboxes will be populated here from config -->
                                     <div id="mobygamesMediaFieldsContainer">
                                         <!-- Placeholder for dynamic checkboxes -->
