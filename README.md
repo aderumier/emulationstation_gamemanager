@@ -741,11 +741,11 @@ The **Current System** menu provides system-specific operations for managing gam
 - Processes all images in the selected media field
 - Resizes images to dimensions configured in Media Fields Configuration
 - Maintains aspect ratio during resizing
-- Uses ImageMagick for high-quality image processing
+- Uses ImageMagick for fast and high-quality image processing
 - Updates files in place (original files are replaced)
 
 **Requirements**:
-- Media field must have width/height configured in **Configuration → Scraper Configuration → Media Fields**
+- Media field must have width/height configured in **Configuration → Application Configuration → Media Fields**
 - Only applies to image fields (not videos)
 - Requires ImageMagick to be installed
 
@@ -914,7 +914,7 @@ roms/<system>/media/import/
 - Manual scrap with region selection
 
 **Setup**:
-- Configure credentials in **Configuration → Scraper Configuration**
+- Configure credentials in **Configuration → Application Configuration → Authentication** (for Discord) or **Configuration → Scraper Configuration** (for scraper-specific credentials)
 - Free tier available with rate limiting
 
 #### 4. SteamGridDB
@@ -1403,12 +1403,32 @@ Each scraper has a dedicated preferences modal that allows you to configure what
 
 ![App Configuration](docs/images/app-configuration.png)
 
+The Application Configuration modal contains three tabs:
+
+#### Settings Tab
+
 **Settings**:
 - ROMs root directory
 - Server host and port
 - Debug mode
-- Session settings
-- File upload limits
+- Task management (max tasks to keep)
+
+#### Authentication Tab
+
+**Discord Configuration**:
+- Client ID
+- Client Secret
+- Redirect URI
+- Bot Token
+- Auto-create users settings
+- Guild ID and Role Name
+
+**Authentication Settings**:
+- Disable Local Authentication option
+
+#### Media Fields Tab
+
+See [Media Fields Configuration](#media-fields-configuration) section below for details.
 
 ### System Configuration
 
@@ -1425,18 +1445,23 @@ Each scraper has a dedicated preferences modal that allows you to configure what
 ![Scraper Configuration](docs/images/scraper-configuration.png)
 
 **Configure**:
-- Media field mappings
-- LaunchBox settings
-- IGDB settings
-- ScreenScraper credentials
+- LaunchBox settings and image type mappings
+- IGDB settings and image type mappings
+- ScreenScraper credentials and image type mappings
+- Steam image type mappings
+- SteamGridDB credentials and image type mappings
+- MobyGames field mappings
+- DAT Scrapper field mappings
 - Rate limiting
 - Region priorities
+
+**Note**: Media Fields configuration has been moved to **Application Configuration → Media Fields** tab.
 
 #### Media Fields Configuration
 
 ![Media Fields Configuration](docs/images/media-fields-configuration.png)
 
-The Media Fields tab is the first tab in the Scraper Configuration modal. It allows you to define and configure all media fields used in your game collection.
+The Media Fields tab is located in the Application Configuration modal. It allows you to define and configure all media fields used in your game collection.
 
 **What are Media Fields?**
 
@@ -1448,8 +1473,8 @@ Media fields are categories for different types of media files (images, videos, 
 **Configuring Media Fields:**
 
 1. **Access Media Fields Configuration**:
-   - Go to **Configuration → Scraper Configuration**
-   - Click on the **"Media Fields"** tab (first tab, active by default)
+   - Go to **Configuration → Application Configuration**
+   - Click on the **"Media Fields"** tab (third tab)
 
 2. **View Existing Media Fields**:
    - The table displays all configured media fields
