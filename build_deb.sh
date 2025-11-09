@@ -18,6 +18,8 @@ if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
 else
     # Not on a tag, use control file version
     VERSION=$(grep "^Version:" debian/DEBIAN/control | cut -d' ' -f2)
+    # Extract version number (remove -1 suffix for HTML display)
+    VERSION_NUMBER=${VERSION%-1}
     echo "⚠️  Not on a git tag, using control file version: $VERSION"
 fi
 
