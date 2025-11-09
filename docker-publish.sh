@@ -25,9 +25,8 @@ else
         VERSION=${LAST_TAG#v}
         echo "🏷️  Not on a tag, using last git tag: $LAST_TAG -> version: $VERSION"
     else
-        # No tags found, use default
-        VERSION="2.6.0"
-        echo "⚠️  No git tags found, using default version: $VERSION"
+        echo "❌ Error: No git tags found. Cannot determine version."
+        exit 1
     fi
 fi
 
