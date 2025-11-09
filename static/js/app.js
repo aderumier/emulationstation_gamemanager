@@ -6465,7 +6465,7 @@ class GameCollectionManager {
         }
     }
     
-    async saveGameChangesFromModal() {
+    async saveGameChangesFromModal(skipModalHide = false) {
         if (!this.editingGamePath) return;
 
         const game = this.games.find(g => g.path === this.editingGamePath);
@@ -6548,19 +6548,28 @@ class GameCollectionManager {
                 // Clear modified games since they're now saved
                 this.modifiedGames.clear();
                 
-                this.showAlert('Changes saved directly to gamelist.xml!', 'success');
-                
-                // Refresh the grid to show updated values, respecting current filters
-                await this.refreshGridData();
-                
-                // Move focus away from modal before hiding it
-                const safeElement = document.querySelector('#gamesCount') || document.body;
-                if (safeElement) {
-                    safeElement.focus();
+                if (!skipModalHide) {
+                    this.showAlert('Changes saved directly to gamelist.xml!', 'success');
+                    
+                    // Refresh the grid to show updated values, respecting current filters
+                    await this.refreshGridData();
+                    
+                    // Move focus away from modal before hiding it
+                    const safeElement = document.querySelector('#gamesCount') || document.body;
+                    if (safeElement) {
+                        safeElement.focus();
+                    }
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editGameModal'));
+                    modal.hide();
+                } else {
+                    // When navigating, refresh grid but don't hide modal or show alert
+                    // Store the current editingGamePath before refresh
+                    const currentPath = this.editingGamePath;
+                    await this.refreshGridData();
+                    // Restore editingGamePath after refresh (it might have been cleared)
+                    this.editingGamePath = currentPath;
                 }
-                
-                const modal = bootstrap.Modal.getInstance(document.getElementById('editGameModal'));
-                modal.hide();
             } else {
                 const errorText = await response.text();
                 this.showAlert('Error saving changes to gamelist.xml', 'danger');
