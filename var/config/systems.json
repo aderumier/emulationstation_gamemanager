@@ -3155,5 +3155,15 @@
         "mobygames": "",
         "dat_file": "",
         "extensions": []
+    },
+    "toto": {
+        "launchbox": "3DO Interactive Multiplayer",
+        "screenscraper": "",
+        "igdb": "",
+        "mobygames": "",
+        "dat_file": "",
+        "extensions": [
+            ".toto"
+        ]
     }
 }
