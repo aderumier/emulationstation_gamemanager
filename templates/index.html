@@ -4182,13 +4182,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 // Wait for gameManager to be initialized
                 if (window.gameManager) {
                     await window.gameManager.openCacheConfigurationModal();
-                } else {
-                    // Fallback: if gameManager not ready, wait a bit more
-                    setTimeout(async function() {
-                        if (window.gameManager) {
-                            await window.gameManager.openCacheConfigurationModal();
-                        }
-                    }, 500);
                 }
             }, 500);
         });
