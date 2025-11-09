@@ -1705,7 +1705,8 @@ class GameCollectionManager {
                     editModalInstance.show();
                     
                     // Repopulate the edit modal fields if they're empty
-                    if (this.editingGamePath) {
+                    // Skip if we're navigating between games (to prevent double-loading)
+                    if (this.editingGamePath && !this.navigatingBetweenGames) {
                         const game = this.games.find(g => g.path === this.editingGamePath);
                         if (game) {
                             // Check if fields are empty and repopulate if needed
