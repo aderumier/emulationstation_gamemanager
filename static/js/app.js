@@ -3284,7 +3284,7 @@ class GameCollectionManager {
             const previousGame = this.games[previousIndex];
             if (previousGame) {
                 // Save current game changes before navigating
-                await this.saveGameEdit();
+                await this.saveGameChangesFromModal();
                 // Navigate to previous game
                 await this.editGame(previousGame);
             }
@@ -3301,7 +3301,7 @@ class GameCollectionManager {
             const nextGame = this.games[nextIndex];
             if (nextGame) {
                 // Save current game changes before navigating
-                await this.saveGameEdit();
+                await this.saveGameChangesFromModal();
                 // Navigate to next game
                 await this.editGame(nextGame);
             }
