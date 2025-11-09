@@ -25450,18 +25450,9 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                             continue
                         
                         # Apply field-specific transformations
+                        # Note: moby_score normalization is already done in extract_mobygames_text_fields
                         final_value = value
-                        if mobygames_field == 'moby_score' and gamelist_field == 'rating':
-                            # Normalize moby_score from 0-10 scale to 0-5 scale by dividing by 2
-                            try:
-                                score_float = float(value)
-                                # Divide by 2 to convert 0-10 scale to 0-5 scale
-                                normalized_score = score_float / 2.0
-                                # Format to 2 decimal places
-                                final_value = f"{normalized_score:.2f}"
-                            except (ValueError, TypeError):
-                                final_value = str(value) if value is not None else ''
-                        elif mobygames_field == 'genres' and gamelist_field == 'genre':
+                        if mobygames_field == 'genres' and gamelist_field == 'genre':
                             # Join genres with comma
                             if isinstance(value, list):
                                 final_value = ', '.join(value)
