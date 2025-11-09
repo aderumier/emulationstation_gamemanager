@@ -1561,48 +1561,56 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                                             <!-- Cache Information -->
+                                             <!-- LaunchBox Cache Information -->
                          <div class="card mb-3">
                              <div class="card-header">
-                                 <h6 class="mb-0"><i class="bi bi-info-circle"></i> Cache Information</h6>
+                                 <h6 class="mb-0"><i class="bi bi-box me-2"></i>LaunchBox Cache</h6>
                              </div>
                              <div class="card-body">
                                  <div class="row">
-                                     <div class="col-md-6">
-                                         <p class="mb-2"><strong>Metadata XML Date:</strong></p>
-                                         <span id="metadataXmlDate" class="badge bg-info">Loading...</span>
-                                     </div>
-                                     <div class="col-md-6">
-                                         <p class="mb-2"><strong>Cache Status:</strong></p>
-                                         <span id="cacheStatus" class="badge bg-secondary">Unknown</span>
-                                     </div>
-                                 </div>
-                             </div>
-                         </div>
-                         
-                         <!-- Cache Statistics -->
-                         <div class="card mb-3">
-                             <div class="card-header">
-                                 <h6 class="mb-0"><i class="bi bi-bar-chart"></i> LaunchBox Cache Statistics</h6>
-                             </div>
-                             <div class="card-body">
-                                 <div class="row">
-                                     <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-primary mb-1" id="cacheGamesCount">-</div>
-                                             <small class="text-muted">Games</small>
+                                     <div class="col-md-8">
+                                         <div class="row mb-3">
+                                             <div class="col-md-6">
+                                                 <p class="mb-2"><strong>Metadata XML Date:</strong></p>
+                                                 <span id="metadataXmlDate" class="badge bg-info">Loading...</span>
+                                             </div>
+                                             <div class="col-md-6">
+                                                 <p class="mb-2"><strong>Cache Status:</strong></p>
+                                                 <span id="cacheStatus" class="badge bg-secondary">Unknown</span>
+                                             </div>
+                                         </div>
+                                         <div class="row">
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-primary mb-1" id="cacheGamesCount">-</div>
+                                                     <small class="text-muted">Games</small>
+                                                 </div>
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-success mb-1" id="cacheAltNamesCount">-</div>
+                                                     <small class="text-muted">Alternative Names</small>
+                                                 </div>
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-info mb-1" id="cacheGameImagesCount">-</div>
+                                                     <small class="text-muted">Game Images</small>
+                                                 </div>
+                                             </div>
                                          </div>
                                      </div>
                                      <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-success mb-1" id="cacheAltNamesCount">-</div>
-                                             <small class="text-muted">Alternative Names</small>
+                                         <div class="d-grid gap-2">
+                                             <button type="button" class="btn btn-success" id="updateMetadataBtn">
+                                                 <i class="bi bi-download me-2"></i>Update Metadata.xml
+                                             </button>
                                          </div>
-                                     </div>
-                                     <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-info mb-1" id="cacheGameImagesCount">-</div>
-                                             <small class="text-muted">Game Images</small>
+                                         <div class="mt-2">
+                                             <small class="text-muted">
+                                                 <i class="bi bi-info-circle"></i> 
+                                                 Updating metadata will download the latest version from Launchbox Games Database, replace the current metadata.xml file, and automatically refresh the cache.
+                                             </small>
                                          </div>
                                      </div>
                                  </div>
@@ -1616,32 +1624,49 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                              </div>
                              <div class="card-body">
                                  <div class="row">
-                                     <div class="col-md-6">
-                                         <p class="mb-2"><strong>Cache Date:</strong></p>
-                                         <span id="mobygamesCacheDate" class="badge bg-info">Loading...</span>
-                                     </div>
-                                     <div class="col-md-6">
-                                         <p class="mb-2"><strong>Cache Status:</strong></p>
-                                         <span id="mobygamesCacheStatus" class="badge bg-secondary">Unknown</span>
-                                     </div>
-                                 </div>
-                                 <div class="row mt-3">
-                                     <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-warning mb-1" id="mobygamesEntriesCount">-</div>
-                                             <small class="text-muted">Total Entries</small>
+                                     <div class="col-md-8">
+                                         <div class="row mb-3">
+                                             <div class="col-md-6">
+                                                 <p class="mb-2"><strong>Cache Date:</strong></p>
+                                                 <span id="mobygamesCacheDate" class="badge bg-info">Loading...</span>
+                                             </div>
+                                             <div class="col-md-6">
+                                                 <p class="mb-2"><strong>Cache Status:</strong></p>
+                                                 <span id="mobygamesCacheStatus" class="badge bg-secondary">Unknown</span>
+                                             </div>
+                                         </div>
+                                         <div class="row">
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-warning mb-1" id="mobygamesEntriesCount">-</div>
+                                                     <small class="text-muted">Total Entries</small>
+                                                 </div>
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-info mb-1" id="mobygamesPartitionsCount">-</div>
+                                                     <small class="text-muted">Partitions</small>
+                                                 </div>
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-success mb-1" id="mobygamesFileSize">-</div>
+                                                     <small class="text-muted">File Size</small>
+                                                 </div>
+                                             </div>
                                          </div>
                                      </div>
                                      <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-info mb-1" id="mobygamesPartitionsCount">-</div>
-                                             <small class="text-muted">Partitions</small>
+                                         <div class="d-grid gap-2">
+                                             <button type="button" class="btn btn-warning" id="refreshMobygamesCacheBtn">
+                                                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh MobyGames Cache
+                                             </button>
                                          </div>
-                                     </div>
-                                     <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-success mb-1" id="mobygamesFileSize">-</div>
-                                             <small class="text-muted">File Size</small>
+                                         <div class="mt-2">
+                                             <small class="text-muted">
+                                                 <i class="bi bi-info-circle"></i> 
+                                                 Refreshing will rebuild the MobyGames partitioned index cache from the current database.
+                                             </small>
                                          </div>
                                      </div>
                                  </div>
@@ -1655,89 +1680,50 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                              </div>
                              <div class="card-body">
                                  <div class="row">
-                                     <div class="col-md-6">
-                                         <p class="mb-2"><strong>Cache Date:</strong></p>
-                                         <span id="steamCacheDate" class="badge bg-info">Loading...</span>
-                                     </div>
-                                     <div class="col-md-6">
-                                         <p class="mb-2"><strong>Cache Status:</strong></p>
-                                         <span id="steamCacheStatus" class="badge bg-secondary">Unknown</span>
-                                     </div>
-                                 </div>
-                                 <div class="row mt-3">
-                                     <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-warning mb-1" id="steamEntriesCount">-</div>
-                                             <small class="text-muted">Total Entries</small>
+                                     <div class="col-md-8">
+                                         <div class="row mb-3">
+                                             <div class="col-md-6">
+                                                 <p class="mb-2"><strong>Cache Date:</strong></p>
+                                                 <span id="steamCacheDate" class="badge bg-info">Loading...</span>
+                                             </div>
+                                             <div class="col-md-6">
+                                                 <p class="mb-2"><strong>Cache Status:</strong></p>
+                                                 <span id="steamCacheStatus" class="badge bg-secondary">Unknown</span>
+                                             </div>
+                                         </div>
+                                         <div class="row">
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-warning mb-1" id="steamEntriesCount">-</div>
+                                                     <small class="text-muted">Total Entries</small>
+                                                 </div>
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-info mb-1" id="steamPartitionsCount">-</div>
+                                                     <small class="text-muted">Partitions</small>
+                                                 </div>
+                                             </div>
+                                             <div class="col-md-4">
+                                                 <div class="text-center">
+                                                     <div class="h4 text-success mb-1" id="steamFileSize">-</div>
+                                                     <small class="text-muted">File Size</small>
+                                                 </div>
+                                             </div>
                                          </div>
                                      </div>
                                      <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-info mb-1" id="steamPartitionsCount">-</div>
-                                             <small class="text-muted">Partitions</small>
+                                         <div class="d-grid gap-2">
+                                             <button type="button" class="btn btn-info" id="refreshSteamCacheBtn">
+                                                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh Steam Cache
+                                             </button>
                                          </div>
-                                     </div>
-                                     <div class="col-md-4">
-                                         <div class="text-center">
-                                             <div class="h4 text-success mb-1" id="steamFileSize">-</div>
-                                             <small class="text-muted">File Size</small>
+                                         <div class="mt-2">
+                                             <small class="text-muted">
+                                                 <i class="bi bi-info-circle"></i> 
+                                                 Refreshing will download the latest Steam app database from the API and rebuild the partitioned index cache.
+                                             </small>
                                          </div>
-                                     </div>
-                                 </div>
-                             </div>
-                         </div>
-                    
-                                             <!-- Cache Actions -->
-                         <div class="card">
-                             <div class="card-header">
-                                 <h6 class="mb-0"><i class="bi bi-tools"></i> Cache Actions</h6>
-                             </div>
-                             <div class="card-body">
-                                 <!-- LaunchBox Actions -->
-                                 <div class="mb-3">
-                                     <h6 class="text-primary"><i class="bi bi-box me-2"></i>LaunchBox</h6>
-                                     <div class="d-grid gap-2">
-                                         <button type="button" class="btn btn-success" id="updateMetadataBtn">
-                                             <i class="bi bi-download me-2"></i>Update Metadata.xml
-                                         </button>
-                                     </div>
-                                     <div class="mt-2">
-                                         <small class="text-muted">
-                                             <i class="bi bi-info-circle"></i> 
-                                             Updating metadata will download the latest version from Launchbox Games Database, replace the current metadata.xml file, and automatically refresh the cache.
-                                         </small>
-                                     </div>
-                                 </div>
-                                 
-                                 <!-- MobyGames Actions -->
-                                 <div class="mb-3">
-                                     <h6 class="text-warning"><i class="bi bi-controller me-2"></i>MobyGames</h6>
-                                     <div class="d-grid gap-2">
-                                         <button type="button" class="btn btn-warning" id="refreshMobygamesCacheBtn">
-                                             <i class="bi bi-arrow-clockwise me-2"></i>Refresh MobyGames Cache
-                                         </button>
-                                     </div>
-                                     <div class="mt-2">
-                                         <small class="text-muted">
-                                             <i class="bi bi-info-circle"></i> 
-                                             Refreshing will rebuild the MobyGames partitioned index cache from the current database.
-                                         </small>
-                                     </div>
-                                 </div>
-                                 
-                                 <!-- Steam Actions -->
-                                 <div class="mb-3">
-                                     <h6 class="text-info"><i class="bi bi-steam me-2"></i>Steam</h6>
-                                     <div class="d-grid gap-2">
-                                         <button type="button" class="btn btn-info" id="refreshSteamCacheBtn">
-                                             <i class="bi bi-arrow-clockwise me-2"></i>Refresh Steam Cache
-                                         </button>
-                                     </div>
-                                     <div class="mt-2">
-                                         <small class="text-muted">
-                                             <i class="bi bi-info-circle"></i> 
-                                             Refreshing will download the latest Steam app database from the API and rebuild the partitioned index cache.
-                                         </small>
                                      </div>
                                  </div>
                              </div>
