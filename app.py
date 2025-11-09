@@ -4247,6 +4247,10 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config):
                 except (ValueError, TypeError):
                     pass
             
+            # Special handling for moby_score -> rating normalization (0-10 scale to 0-1 scale)
+            if mobygames_field == 'moby_score' and gamelist_field == 'rating':
+                value = normalize_rating(value, 0, 10)
+            
             text_fields[gamelist_field] = value
     
     return text_fields
