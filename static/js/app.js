@@ -13559,20 +13559,36 @@ class GameCollectionManager {
         
         if (selectAllBtn) {
             selectAllBtn.addEventListener('click', () => {
+                // Select all text field checkboxes
                 fieldCheckboxes.forEach(checkbox => {
                     checkbox.checked = true;
                     const field = checkbox.dataset.field;
                     this.setCookie(`mobygamesField_${field}`, 'true', 365);
+                });
+                // Select all media field checkboxes
+                const mediaFieldCheckboxes = document.querySelectorAll('.mobygames-media-field-checkbox');
+                mediaFieldCheckboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                    const gamelistField = checkbox.dataset.gamelistField;
+                    this.setCookie(`mobygamesMediaField_${gamelistField}`, 'true', 365);
                 });
             });
         }
         
         if (deselectAllBtn) {
             deselectAllBtn.addEventListener('click', () => {
+                // Deselect all text field checkboxes
                 fieldCheckboxes.forEach(checkbox => {
                     checkbox.checked = false;
                     const field = checkbox.dataset.field;
                     this.setCookie(`mobygamesField_${field}`, 'false', 365);
+                });
+                // Deselect all media field checkboxes
+                const mediaFieldCheckboxes = document.querySelectorAll('.mobygames-media-field-checkbox');
+                mediaFieldCheckboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                    const gamelistField = checkbox.dataset.gamelistField;
+                    this.setCookie(`mobygamesMediaField_${gamelistField}`, 'false', 365);
                 });
             });
         }
