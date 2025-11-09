@@ -25421,12 +25421,8 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                         # Apply field-specific transformations
                         final_value = value
                         if mobygames_field == 'moby_score' and gamelist_field == 'rating':
-                            # Convert moby_score to 0-5 scale (assuming moby_score is 0-10)
-                            try:
-                                score = float(value)
-                                final_value = f"{(score / 10.0) * 5.0:.1f}"
-                            except (ValueError, TypeError):
-                                final_value = value
+                            # Normalize moby_score from 0-10 scale to 0-1 scale
+                            final_value = normalize_rating(value, 0, 10)
                         elif mobygames_field == 'genres' and gamelist_field == 'genre':
                             # Join genres with comma
                             if isinstance(value, list):
