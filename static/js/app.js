@@ -1719,6 +1719,34 @@ class GameCollectionManager {
             }
         });
 
+        // Edit game modal navigation buttons
+        document.getElementById('editGamePreviousBtn').addEventListener('click', () => this.navigateToPreviousGame());
+        document.getElementById('editGameNextBtn').addEventListener('click', () => this.navigateToNextGame());
+        
+        // Keyboard navigation in edit game modal (left/right arrows)
+        document.getElementById('editGameModal').addEventListener('keydown', (e) => {
+            // Only handle if modal is visible and focus is not in an input/textarea
+            const modal = document.getElementById('editGameModal');
+            if (modal && modal.classList.contains('show')) {
+                const activeElement = document.activeElement;
+                const isInputFocused = activeElement && (
+                    activeElement.tagName === 'INPUT' || 
+                    activeElement.tagName === 'TEXTAREA' ||
+                    activeElement.isContentEditable
+                );
+                
+                if (!isInputFocused) {
+                    if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        this.navigateToPreviousGame();
+                    } else if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        this.navigateToNextGame();
+                    }
+                }
+            }
+        });
+        
         document.getElementById('clearFiltersBtn').addEventListener('click', async () => await this.clearAllFilters());
         document.getElementById('thumbnailViewBtn').addEventListener('click', () => this.toggleThumbnailView());
         document.getElementById('toggleColumnsPanelBtn').addEventListener('click', () => this.toggleColumnsPanel());
@@ -3220,6 +3248,64 @@ class GameCollectionManager {
         
         const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
         modal.show();
+        
+        // Update navigation buttons state
+        this.updateEditGameNavigationButtons();
+    }
+    
+    updateEditGameNavigationButtons() {
+        const prevBtn = document.getElementById('editGamePreviousBtn');
+        const nextBtn = document.getElementById('editGameNextBtn');
+        
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games || this.games.length === 0) {
+            if (prevBtn) prevBtn.disabled = true;
+            if (nextBtn) nextBtn.disabled = true;
+            return;
+        }
+        
+        // Enable/disable previous button
+        if (prevBtn) {
+            prevBtn.disabled = this.editingGameIndex <= 0;
+        }
+        
+        // Enable/disable next button
+        if (nextBtn) {
+            nextBtn.disabled = this.editingGameIndex >= this.games.length - 1;
+        }
+    }
+    
+    async navigateToPreviousGame() {
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || this.editingGameIndex <= 0) {
+            return;
+        }
+        
+        const previousIndex = this.editingGameIndex - 1;
+        if (previousIndex >= 0 && previousIndex < this.games.length) {
+            const previousGame = this.games[previousIndex];
+            if (previousGame) {
+                // Save current game changes before navigating
+                await this.saveGameEdit();
+                // Navigate to previous game
+                await this.editGame(previousGame);
+            }
+        }
+    }
+    
+    async navigateToNextGame() {
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games || this.editingGameIndex >= this.games.length - 1) {
+            return;
+        }
+        
+        const nextIndex = this.editingGameIndex + 1;
+        if (nextIndex < this.games.length) {
+            const nextGame = this.games[nextIndex];
+            if (nextGame) {
+                // Save current game changes before navigating
+                await this.saveGameEdit();
+                // Navigate to next game
+                await this.editGame(nextGame);
+            }
+        }
     }
 
     async toggleGameHidden(game) {
