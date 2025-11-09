@@ -3606,6 +3606,7 @@ class GameCollectionManager {
         document.getElementById('editName').value = '';
         document.getElementById('editPath').value = '';
         document.getElementById('editDescription').value = '';
+        document.getElementById('editNote').value = '';
         document.getElementById('editGenre').value = '';
         document.getElementById('editDeveloper').value = '';
         document.getElementById('editPublisher').value = '';
@@ -3638,6 +3639,7 @@ class GameCollectionManager {
         document.getElementById('editName').value = game.name || '';
         document.getElementById('editPath').value = game.path || '';
         document.getElementById('editDescription').value = game.desc || '';
+        document.getElementById('editNote').value = game.note || '';
         document.getElementById('editGenre').value = game.genre || '';
         document.getElementById('editDeveloper').value = game.developer || '';
         document.getElementById('editPublisher').value = game.publisher || '';
@@ -6389,6 +6391,7 @@ class GameCollectionManager {
         // Update the game object with form values
         game.name = document.getElementById('editName').value;
         game.desc = document.getElementById('editDescription').value;
+        game.note = document.getElementById('editNote').value;
         game.genre = document.getElementById('editGenre').value;
         game.developer = document.getElementById('editDeveloper').value;
         game.publisher = document.getElementById('editPublisher').value;
