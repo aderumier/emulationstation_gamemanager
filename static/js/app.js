@@ -3250,11 +3250,16 @@ class GameCollectionManager {
         
         // Get existing modal instance if it exists, otherwise create a new one
         const modalElement = document.getElementById('editGameModal');
+        const isModalOpen = modalElement.classList.contains('show');
         let modal = bootstrap.Modal.getInstance(modalElement);
         if (!modal) {
             modal = new bootstrap.Modal(modalElement);
         }
-        modal.show();
+        
+        // Only call show() if modal is not already open (to avoid flickering during navigation)
+        if (!isModalOpen) {
+            modal.show();
+        }
         
         // Update navigation buttons state
         this.updateEditGameNavigationButtons();
