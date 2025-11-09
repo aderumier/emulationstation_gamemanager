@@ -18,9 +18,17 @@ if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
     VERSION=${GIT_TAG#v}
     echo "🏷️  Using git tag: $GIT_TAG -> version: $VERSION"
 else
-    # Not on a tag, use default or prompt
-    VERSION="2.6.0"
-    echo "⚠️  Not on a git tag, using default version: $VERSION"
+    # Not on a tag, use the last git tag
+    LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
+    if [ -n "$LAST_TAG" ]; then
+        # Remove 'v' prefix if present for version
+        VERSION=${LAST_TAG#v}
+        echo "🏷️  Not on a tag, using last git tag: $LAST_TAG -> version: $VERSION"
+    else
+        # No tags found, use default
+        VERSION="2.6.0"
+        echo "⚠️  No git tags found, using default version: $VERSION"
+    fi
 fi
 
 # Colors for output
