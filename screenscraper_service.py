@@ -242,6 +242,14 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
         if genre_names:
             text_info['genre'] = '/'.join(genre_names)
     
+    # Extract rating from note.text (ScreenScraper uses 0-20 scale)
+    if 'note' in game_data and isinstance(game_data['note'], dict):
+        if 'text' in game_data['note']:
+            note_text = game_data['note']['text']
+            # Normalize rating from 0-20 scale to 0-1 scale
+            from app import normalize_rating
+            text_info['rating'] = normalize_rating(note_text, 0, 20)
+    
     # Extract players from joueurs.text, handle range values like '1-2'
     if 'joueurs' in game_data and isinstance(game_data['joueurs'], dict):
         if 'text' in game_data['joueurs']:

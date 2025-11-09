@@ -23012,7 +23012,7 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
             'developer': ', '.join(developer_names) if developer_names else '',
             'publisher': ', '.join(publisher_names) if publisher_names else '',
             'genre': ', '.join(genre_names) if genre_names else '',
-            'rating': str(int(igdb_game.get('total_rating', 0))) if igdb_game.get('total_rating') else '',
+            'rating': normalize_rating(igdb_game.get('total_rating', 0), 0, 100) if igdb_game.get('total_rating') else '',
             'players': str(igdb_game.get('player_perspectives', [0])[0]) if igdb_game.get('player_perspectives') else '',
             'release_date': format_releasedate_to_iso8601(igdb_game.get('first_release_date')) if igdb_game.get('first_release_date') else ''
         }
@@ -23301,6 +23301,9 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                         # Convert single developer ID to name
                         developer_name = global_igdb_service.get_company_name(igdb_value) if global_igdb_service else None
                         value = developer_name if developer_name else f"Company {igdb_value}"
+                    elif igdb_field in ['rating', 'total_rating']:
+                        # Normalize rating from 0-100 scale to 0-1 scale
+                        value = normalize_rating(igdb_value, 0, 100)
                     else:
                         value = str(igdb_value)
                 
@@ -24490,6 +24493,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                         'developer': 'developer',
                         'description': 'desc',  # Map description to desc for gamelist XML
                         'genre': 'genre',
+                        'rating': 'rating',  # Rating is already normalized in extract_text_info
                         'players': 'players'
                     }
                     
