@@ -14552,11 +14552,8 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             if igdb_game.get('total_rating'):
                 try:
                     rating_float = float(igdb_game['total_rating'])
-                    # Convert to percentage (0-1) then divide by 2 to get 0-5 scale
-                    # percentage = rating_float / 100, then percentage / 2 = (rating_float / 100) / 2 = rating_float / 200
-                    # But to get 0-5 scale from 0-100, we divide by 20 (100/5 = 20)
-                    normalized_rating = (rating_float / 100.0) / 2.0 * 10.0  # This gives: (value/100)/2*10 = value/20
-                    # Actually simpler: divide by 20 to convert 0-100 to 0-5
+                    # Convert 0-100 to 0-5 scale: divide by 20 (100/5 = 20)
+                    # percentage = rating_float / 100, then percentage / 2 * 10 = (rating_float / 100) / 2 * 10 = rating_float / 20
                     normalized_rating = rating_float / 20.0
                     # Format to 2 decimal places
                     text_fields['rating'] = f"{normalized_rating:.2f}"
