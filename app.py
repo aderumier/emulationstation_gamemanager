@@ -14499,6 +14499,34 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             except Exception as e:
                 print(f"Error getting publisher/developer information: {e}")
             
+            # Extract rating from total_rating
+            if igdb_game.get('total_rating'):
+                try:
+                    # Convert rating from 0-100 scale to string
+                    rating_value = int(igdb_game['total_rating'])
+                    text_fields['rating'] = str(rating_value)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Extract players from player_perspectives or game_modes
+            if igdb_game.get('player_perspectives'):
+                try:
+                    # player_perspectives is a list of IDs, we can use the first one or count
+                    perspectives = igdb_game['player_perspectives']
+                    if isinstance(perspectives, list) and len(perspectives) > 0:
+                        # For now, just indicate that player perspectives exist
+                        text_fields['players'] = str(len(perspectives))
+                except (ValueError, TypeError):
+                    pass
+            elif igdb_game.get('game_modes'):
+                try:
+                    # game_modes might also indicate player count
+                    modes = igdb_game['game_modes']
+                    if isinstance(modes, list) and len(modes) > 0:
+                        text_fields['players'] = str(len(modes))
+                except (ValueError, TypeError):
+                    pass
+            
             text_end_time = time.time()
             print(f"⏱️ IGDB text field extraction took {text_end_time - text_start_time:.2f} seconds")
         
@@ -15032,6 +15060,29 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
                                 break
                 if genre_names:
                     text_fields['genre'] = '/'.join(genre_names)
+            
+            # Extract rating from note.text
+            if detailed_data.get('note') and isinstance(detailed_data['note'], dict):
+                if 'text' in detailed_data['note']:
+                    text_fields['rating'] = detailed_data['note']['text']
+            
+            # Extract players from joueurs.text
+            if detailed_data.get('joueurs') and isinstance(detailed_data['joueurs'], dict):
+                if 'text' in detailed_data['joueurs']:
+                    players_text = detailed_data['joueurs']['text']
+                    # Handle range values like '1-2' by taking the max
+                    if '-' in players_text:
+                        try:
+                            range_parts = players_text.split('-')
+                            if len(range_parts) == 2:
+                                max_players = int(range_parts[1].strip())
+                                text_fields['players'] = str(max_players)
+                            else:
+                                text_fields['players'] = players_text
+                        except (ValueError, TypeError):
+                            text_fields['players'] = players_text
+                    else:
+                        text_fields['players'] = players_text
         
         # Extract media fields grouped by configured gamelist media fields
         media_fields: Dict[str, List[Dict]] = {}
@@ -15209,6 +15260,10 @@ def extract_launchbox_text_fields(game_data, mapping_config):
                 if text:
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
+            elif field_name == 'CommunityRating':
+                text_fields['rating'] = text
+            elif field_name in ['MaxPlayers', 'Players']:
+                text_fields['players'] = text
     
     return text_fields
 
