@@ -6632,6 +6632,7 @@ class GameCollectionManager {
             'genre': 'Genre',
             'releasedate': 'Release Date',
             'rating': 'Rating',
+            'players': 'Players',
             'nbvotes': 'Number of Votes'
         };
 

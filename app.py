@@ -13631,7 +13631,9 @@ def manual_scrap_game(system_name):
                 'developer': {'current': current_game.get('developer', ''), 'sources': {}},
                 'publisher': {'current': current_game.get('publisher', ''), 'sources': {}},
                 'genre': {'current': current_game.get('genre', ''), 'sources': {}},
-                'releasedate': {'current': current_game.get('releasedate', ''), 'sources': {}}
+                'releasedate': {'current': current_game.get('releasedate', ''), 'sources': {}},
+                'rating': {'current': current_game.get('rating', ''), 'sources': {}},
+                'players': {'current': current_game.get('players', ''), 'sources': {}}
             },
             'media_fields': {}
         }
