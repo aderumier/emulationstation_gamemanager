@@ -4184,16 +4184,31 @@ def get_mobygames_game_data(game, system_name, service=None):
     # Use exact match for scrapper tasks
     return service.find_game_exact(system_name, game_name)
 
-def extract_mobygames_text_fields(mobygames_game, mapping_config):
+def extract_mobygames_text_fields(mobygames_game, mapping_config, selected_text_fields=None):
     """Extract text fields from MobyGames data using common logic"""
     text_fields = {}
     
     if not mobygames_game:
         return text_fields
     
+    # Local database fields (available without API call)
+    local_database_fields = ['title', 'genres', 'release_year', 'moby_score']
+    # API fields (require web scraping)
+    api_fields = ['description', 'publisher', 'developer', 'nbvotes']
+    
     # Check if we need to scrape additional text fields from the website
-    additional_fields = ['description', 'publisher', 'developer', 'nbvotes']
-    needs_scraping = any(field in mapping_config for field in additional_fields)
+    # If selected_text_fields is provided, only check those fields
+    if selected_text_fields:
+        # Check if any selected field requires API scraping
+        needs_scraping = any(field in api_fields for field in selected_text_fields)
+        # Also check if all selected fields are local database fields
+        only_local_fields = all(field in local_database_fields for field in selected_text_fields)
+        # Skip API call if only local database fields are selected
+        if only_local_fields:
+            needs_scraping = False
+    else:
+        # Fallback to original behavior: check mapping_config
+        needs_scraping = any(field in mapping_config for field in api_fields)
     
     additional_data = {}
     if needs_scraping and 'id' in mobygames_game:
@@ -25412,7 +25427,8 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                     mobygames_game['system'] = mobygames_system
                     
                     # Extract text fields using common function
-                    text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping)
+                    # Pass selected_text_fields to skip API calls if only local database fields are selected
+                    text_fields = extract_mobygames_text_fields(mobygames_game, text_field_mapping, selected_text_fields)
                     game_updated = False
                     
                     for gamelist_field, value in text_fields.items():
