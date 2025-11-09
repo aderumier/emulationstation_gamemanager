@@ -3681,6 +3681,9 @@ class GameCollectionManager {
         const modal = new bootstrap.Modal(document.getElementById('editGameModal'));
         modal.show();
         
+        // Update navigation buttons state
+        this.updateEditGameNavigationButtons();
+        
         // Wait for modal to be fully visible, then switch to preview tab
         setTimeout(() => {
             this.switchToPreviewTab();
