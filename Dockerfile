@@ -181,7 +181,7 @@ echo "Copying additional database files to var/db..."
 [ ! -f /opt/gamemanager/var/db/igdb/genres.json ] && touch /opt/gamemanager/var/db/igdb/genres.json
 [ ! -f /opt/gamemanager/var/db/igdb/regions_cache.json ] && touch /opt/gamemanager/var/db/igdb/regions_cache.json
 [ ! -f /opt/gamemanager/var/db/igdb/sample_games.json ] && touch /opt/gamemanager/var/db/igdb/sample_games.json
-[ ! -f /opt/gamemanager/var/db/launchbox/Metadata.xml ] && touch /opt/gamemanager/var/db/launchbox/Metadata.xml
+# Metadata.xml should only be created when downloading metadata, not as an empty file
 [ ! -f /opt/gamemanager/var/db/steam/appindex.json ] && touch /opt/gamemanager/var/db/steam/appindex.json
 
 # Copy MobyGames database files to var/db (always copy to ensure they're in the volume)
