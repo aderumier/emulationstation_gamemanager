@@ -3283,8 +3283,8 @@ class GameCollectionManager {
         if (previousIndex >= 0 && previousIndex < this.games.length) {
             const previousGame = this.games[previousIndex];
             if (previousGame) {
-                // Save current game changes before navigating
-                await this.saveGameChangesFromModal();
+                // Save current game changes before navigating (skip modal hide)
+                await this.saveGameChangesFromModal(true);
                 // Navigate to previous game
                 await this.editGame(previousGame);
             }
@@ -3300,8 +3300,8 @@ class GameCollectionManager {
         if (nextIndex < this.games.length) {
             const nextGame = this.games[nextIndex];
             if (nextGame) {
-                // Save current game changes before navigating
-                await this.saveGameChangesFromModal();
+                // Save current game changes before navigating (skip modal hide)
+                await this.saveGameChangesFromModal(true);
                 // Navigate to next game
                 await this.editGame(nextGame);
             }
