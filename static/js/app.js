@@ -3279,56 +3279,46 @@ class GameCollectionManager {
             return;
         }
         
+        // Store the path of the game we want to navigate to (before saving)
+        const targetIndex = this.editingGameIndex - 1;
+        const targetGame = this.games[targetIndex];
+        if (!targetGame) {
+            return;
+        }
+        const targetPath = targetGame.path;
+        
         // Save current game changes before navigating (skip modal hide)
         await this.saveGameChangesFromModal(true);
         
-        // Re-find the current game index after grid refresh (games array might have been updated)
-        const currentGame = this.games.find(g => g.path === this.editingGamePath);
-        if (!currentGame) {
-            return;
-        }
-        const currentIndex = this.games.findIndex(g => g.path === this.editingGamePath);
-        
-        if (currentIndex <= 0) {
-            return;
-        }
-        
-        const previousIndex = currentIndex - 1;
-        if (previousIndex >= 0 && previousIndex < this.games.length) {
-            const previousGame = this.games[previousIndex];
-            if (previousGame) {
-                // Navigate to previous game
-                await this.editGame(previousGame);
-            }
+        // After grid refresh, find the target game in the updated games array
+        const refreshedTargetGame = this.games.find(g => g.path === targetPath);
+        if (refreshedTargetGame) {
+            // Navigate to previous game using the refreshed game object
+            await this.editGame(refreshedTargetGame);
         }
     }
     
     async navigateToNextGame() {
-        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games) {
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games || this.editingGameIndex >= this.games.length - 1) {
             return;
         }
+        
+        // Store the path of the game we want to navigate to (before saving)
+        const targetIndex = this.editingGameIndex + 1;
+        const targetGame = this.games[targetIndex];
+        if (!targetGame) {
+            return;
+        }
+        const targetPath = targetGame.path;
         
         // Save current game changes before navigating (skip modal hide)
         await this.saveGameChangesFromModal(true);
         
-        // Re-find the current game index after grid refresh (games array might have been updated)
-        const currentGame = this.games.find(g => g.path === this.editingGamePath);
-        if (!currentGame) {
-            return;
-        }
-        const currentIndex = this.games.findIndex(g => g.path === this.editingGamePath);
-        
-        if (currentIndex >= this.games.length - 1) {
-            return;
-        }
-        
-        const nextIndex = currentIndex + 1;
-        if (nextIndex < this.games.length) {
-            const nextGame = this.games[nextIndex];
-            if (nextGame) {
-                // Navigate to next game
-                await this.editGame(nextGame);
-            }
+        // After grid refresh, find the target game in the updated games array
+        const refreshedTargetGame = this.games.find(g => g.path === targetPath);
+        if (refreshedTargetGame) {
+            // Navigate to next game using the refreshed game object
+            await this.editGame(refreshedTargetGame);
         }
     }
 
