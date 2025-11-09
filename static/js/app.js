@@ -3279,12 +3279,24 @@ class GameCollectionManager {
             return;
         }
         
-        const previousIndex = this.editingGameIndex - 1;
+        // Save current game changes before navigating (skip modal hide)
+        await this.saveGameChangesFromModal(true);
+        
+        // Re-find the current game index after grid refresh (games array might have been updated)
+        const currentGame = this.games.find(g => g.path === this.editingGamePath);
+        if (!currentGame) {
+            return;
+        }
+        const currentIndex = this.games.findIndex(g => g.path === this.editingGamePath);
+        
+        if (currentIndex <= 0) {
+            return;
+        }
+        
+        const previousIndex = currentIndex - 1;
         if (previousIndex >= 0 && previousIndex < this.games.length) {
             const previousGame = this.games[previousIndex];
             if (previousGame) {
-                // Save current game changes before navigating (skip modal hide)
-                await this.saveGameChangesFromModal(true);
                 // Navigate to previous game
                 await this.editGame(previousGame);
             }
@@ -3292,16 +3304,28 @@ class GameCollectionManager {
     }
     
     async navigateToNextGame() {
-        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games || this.editingGameIndex >= this.games.length - 1) {
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games) {
             return;
         }
         
-        const nextIndex = this.editingGameIndex + 1;
+        // Save current game changes before navigating (skip modal hide)
+        await this.saveGameChangesFromModal(true);
+        
+        // Re-find the current game index after grid refresh (games array might have been updated)
+        const currentGame = this.games.find(g => g.path === this.editingGamePath);
+        if (!currentGame) {
+            return;
+        }
+        const currentIndex = this.games.findIndex(g => g.path === this.editingGamePath);
+        
+        if (currentIndex >= this.games.length - 1) {
+            return;
+        }
+        
+        const nextIndex = currentIndex + 1;
         if (nextIndex < this.games.length) {
             const nextGame = this.games[nextIndex];
             if (nextGame) {
-                // Save current game changes before navigating (skip modal hide)
-                await this.saveGameChangesFromModal(true);
                 // Navigate to next game
                 await this.editGame(nextGame);
             }
