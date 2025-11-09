@@ -4262,16 +4262,9 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config, selected_text_
                 except (ValueError, TypeError):
                     pass
             
-            # Special handling for moby_score -> rating normalization (0-10 scale to 0-5 scale by dividing by 2)
+            # Special handling for moby_score -> rating normalization (0-10 scale to 0-5 scale)
             if mobygames_field == 'moby_score' and gamelist_field == 'rating':
-                try:
-                    score_float = float(value)
-                    # Divide by 2 to convert 0-10 scale to 0-5 scale
-                    normalized_score = score_float / 2.0
-                    # Format to 2 decimal places
-                    value = f"{normalized_score:.2f}"
-                except (ValueError, TypeError):
-                    value = str(value) if value is not None else ''
+                value = normalize_rating_to_5_scale(value, 10)
             
             text_fields[gamelist_field] = value
     
@@ -14405,9 +14398,35 @@ def apply_manual_scrap(system_name):
         app.logger.error(f'Error in manual scrap: {str(e)}')
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
 
+def normalize_rating_to_5_scale(rating_value, max_scale):
+    """
+    Normalize rating from any scale to 0-5 scale with 2 decimal places.
+    Uses the formula: (rating / max_scale) / 2 * 10 = rating / (max_scale / 5)
+    
+    Args:
+        rating_value: The rating value (can be int, float, or string)
+        max_scale: Maximum value of the original scale (assumes min is 0)
+    
+    Returns:
+        String representation of normalized rating (0.00-5.00) or original value if conversion fails
+    """
+    try:
+        rating_float = float(rating_value)
+        # Convert to 0-5 scale: divide by (max_scale / 5)
+        # Formula: (rating / max_scale) * 5 = rating / (max_scale / 5)
+        divisor = max_scale / 5.0
+        normalized = rating_float / divisor
+        # Clamp to 0-5 range
+        normalized = max(0.0, min(5.0, normalized))
+        # Format to 2 decimal places
+        return f"{normalized:.2f}"
+    except (ValueError, TypeError, ZeroDivisionError):
+        return str(rating_value) if rating_value is not None else ''
+
 def normalize_rating(rating_value, min_scale, max_scale):
     """
     Normalize rating from any scale to 0-1 scale with 2 decimal places.
+    DEPRECATED: Use normalize_rating_to_5_scale instead for consistency.
     
     Args:
         rating_value: The rating value (can be int, float, or string)
@@ -14550,15 +14569,7 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             
             # Extract rating from total_rating (IGDB uses 0-100 scale, normalize to 0-5 scale)
             if igdb_game.get('total_rating'):
-                try:
-                    rating_float = float(igdb_game['total_rating'])
-                    # Convert 0-100 to 0-5 scale: divide by 20 (100/5 = 20)
-                    # percentage = rating_float / 100, then percentage / 2 * 10 = (rating_float / 100) / 2 * 10 = rating_float / 20
-                    normalized_rating = rating_float / 20.0
-                    # Format to 2 decimal places
-                    text_fields['rating'] = f"{normalized_rating:.2f}"
-                except (ValueError, TypeError):
-                    pass
+                text_fields['rating'] = normalize_rating_to_5_scale(igdb_game['total_rating'], 100)
             
             # Extract players from player_perspectives or game_modes
             if igdb_game.get('player_perspectives'):
@@ -15117,15 +15128,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
             if detailed_data.get('note') and isinstance(detailed_data['note'], dict):
                 if 'text' in detailed_data['note']:
                     note_text = detailed_data['note']['text']
-                    try:
-                        rating_float = float(note_text)
-                        # Convert 0-20 to 0-5 scale: divide by 4 (20/5 = 4)
-                        # percentage = rating_float / 20, then percentage / 2 * 10 = (rating_float / 20) / 2 * 10 = rating_float / 4
-                        normalized_rating = rating_float / 4.0
-                        # Format to 2 decimal places
-                        text_fields['rating'] = f"{normalized_rating:.2f}"
-                    except (ValueError, TypeError):
-                        pass
+                    text_fields['rating'] = normalize_rating_to_5_scale(note_text, 20)
             
             # Extract players from joueurs.text
             if detailed_data.get('joueurs') and isinstance(detailed_data['joueurs'], dict):
@@ -15322,8 +15325,8 @@ def extract_launchbox_text_fields(game_data, mapping_config):
                     # Convert to ISO 8601 format
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
             elif field_name == 'CommunityRating':
-                # LaunchBox CommunityRating uses 0-5 scale
-                text_fields['rating'] = normalize_rating(text, 0, 5)
+                # LaunchBox CommunityRating uses 0-5 scale, normalize to 0-5 scale (already correct scale)
+                text_fields['rating'] = normalize_rating_to_5_scale(text, 5)
             elif field_name in ['MaxPlayers', 'Players']:
                 text_fields['players'] = text
     
