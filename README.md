@@ -85,9 +85,24 @@
 
 ### Prerequisites
 
-- **Operating System**: Linux (Debian 13+, Ubuntu 25.04+)
+- **Operating System**: Linux (Debian 13+, Ubuntu 25.04+) for deb install, or any distro docker install
 - **Python**: 3.11 or higher
 - **Web Browser**: Modern browser with JavaScript enabled
+
+
+### Debian/Ubuntu Package Installation
+
+```bash
+# Download the .deb package
+wget https://github.com/aderumier/emulationstation_gamemanager/releases/download/v2.9.3/gamemanager_2.9.3-1_all.deb
+
+# Install
+sudo dpkg -i gamemanager_2.9.3-1_all.deb
+
+# Fix dependencies if needed
+sudo apt-get install -f
+```
+
 
 ### Docker
 
@@ -108,19 +123,6 @@ docker run -d \
 ```
 
 
-### Debian/Ubuntu Package Installation
-
-```bash
-# Download the .deb package
-wget https://github.com/aderumier/emulationstation_gamemanager/releases/download/v2.9.1/gamemanager_2.9.1-1_all.deb
-
-# Install
-sudo dpkg -i gamemanager_2.9.1-1_all.deb
-
-# Fix dependencies if needed
-sudo apt-get install -f
-```
-
 ### Manual Installation
 
 For detailed installation instructions, see:
@@ -134,14 +136,7 @@ For detailed installation instructions, see:
 
 ### First Launch
 
-1. **Start the Application**
-   ```bash
-   python3 app.py
-   # Or using Docker
-   docker compose up
-   ```
-
-2. **Access the Web Interface**
+1. **Access the Web Interface**
    - Open your browser: `http://localhost:5000`
    - Default admin credentials:
      - Username: `admin`
@@ -150,18 +145,18 @@ For detailed installation instructions, see:
 
 ![Login Screen](docs/images/login-screen.png)
 
-3. **Download the launchbox database && update the local scrappers databases**
+2. **Download the launchbox database && update the local scrappers databases**
 
 ![Cache Configuration](docs/images/cache-configuration.png)
 
-4. **Configure Your ROM Directory**
+3. **Configure Your ROM Directory**
    - Go to **Configuration → Application Config**
    - Set the ROMs root directory path
    - Configure other settings as needed
 
 ![Configuration](docs/images/app-configuration.png)
 
-5. **Configure Your systems**
+4. **Configure Your systems**
    - Go to **Configuration → System Configuration**
    - Add the game systems that you have in your roms directory
    
