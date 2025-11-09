@@ -140,8 +140,7 @@ For detailed installation instructions, see:
    - Open your browser: `http://localhost:5000`
    - Default admin credentials:
      - Username: `admin`
-     - Password: `admin123`
-     - ⚠️ **Change immediately after first login!**
+     - **Password Setup**: On first login, you will be prompted to set up a password for the admin account. This is a one-time setup process for security.
 
 ![Login Screen](docs/images/login-screen.png)
 
