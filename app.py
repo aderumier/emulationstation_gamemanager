@@ -14324,43 +14324,19 @@ def apply_manual_scrap(system_name):
                 continue
 
             # Remote URL: download
-            from urllib.parse import urlparse
-            parsed = urlparse(selected_url)
-            
-            # Determine file extension from Content-Type header, not URL
-            # First, make a HEAD request to get Content-Type without downloading the full file
-            try:
-                head_resp = requests.head(selected_url, timeout=30, allow_redirects=True)
-                content_type = head_resp.headers.get('content-type', '').lower()
-            except:
-                # If HEAD fails, we'll check Content-Type after GET
-                content_type = ''
-            
-            # Determine extension from Content-Type
-            if 'jpeg' in content_type or 'jpg' in content_type:
-                guessed_ext = '.jpg'
-            elif 'png' in content_type:
-                guessed_ext = '.png'
-            elif 'webp' in content_type:
-                guessed_ext = '.webp'
-            elif 'gif' in content_type:
-                guessed_ext = '.gif'
-            else:
-                # Fallback: try URL extension, but never use .php
-                url_ext = os.path.splitext(parsed.path)[1].lower()
-                if url_ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
-                    guessed_ext = url_ext
-                else:
-                    guessed_ext = '.png'  # Default to PNG if we can't determine
-            
-            target_ext = ext or guessed_ext
-            target_filename = create_media_filename(rom_path, target_ext)
-            target_path = os.path.join(target_dir, target_filename)
+            target_ext = ext  # Use target_extension from config if configured
+            target_filename = None
+            target_path = None
 
             try:
                 # Check if this is a MobyGames page URL - if so, use the special download function
                 if 'mobygames.com' in selected_url and ('/cover/' in selected_url or '/screenshots/' in selected_url):
                     # This is a MobyGames page URL, use the special download function for full-size images
+                    # Determine extension from target_extension or default to .png
+                    if not target_ext:
+                        target_ext = '.png'
+                    target_filename = create_media_filename(rom_path, target_ext)
+                    target_path = os.path.join(target_dir, target_filename)
                     success = download_mobygames_media_from_url(selected_url, target_path)
                     if success:
                         # Update game field with relative path
@@ -14373,29 +14349,27 @@ def apply_manual_scrap(system_name):
                         download_stats['failed'] += 1
                         print(f'❌ Error downloading MobyGames media {media_field} from {selected_url}')
                 else:
-                    # Regular URL download
+                    # Regular URL download - get Content-Type from response
                     resp = requests.get(selected_url, timeout=30)
                     if resp.status_code == 200:
-                        # Re-check Content-Type from actual response if HEAD didn't work
-                        if not content_type:
-                            content_type = resp.headers.get('content-type', '').lower()
-                            # Re-determine extension if we got Content-Type from GET
-                            if 'jpeg' in content_type or 'jpg' in content_type:
-                                actual_ext = '.jpg'
-                            elif 'png' in content_type:
-                                actual_ext = '.png'
-                            elif 'webp' in content_type:
-                                actual_ext = '.webp'
-                            elif 'gif' in content_type:
-                                actual_ext = '.gif'
-                            else:
-                                actual_ext = target_ext  # Use already determined extension
-                            
-                            # If extension changed, update filename and path
-                            if actual_ext != target_ext and not ext:  # Only if no target_extension was configured
-                                target_ext = actual_ext
-                                target_filename = create_media_filename(rom_path, target_ext)
-                                target_path = os.path.join(target_dir, target_filename)
+                        # Determine file extension from Content-Type header only
+                        content_type = resp.headers.get('content-type', '').lower()
+                        if 'jpeg' in content_type or 'jpg' in content_type:
+                            file_ext = '.jpg'
+                        elif 'png' in content_type:
+                            file_ext = '.png'
+                        elif 'webp' in content_type:
+                            file_ext = '.webp'
+                        elif 'gif' in content_type:
+                            file_ext = '.gif'
+                        else:
+                            # Default to PNG if Content-Type is not recognized
+                            file_ext = '.png'
+                        
+                        # Use target_extension from config if configured, otherwise use Content-Type extension
+                        target_ext = ext or file_ext
+                        target_filename = create_media_filename(rom_path, target_ext)
+                        target_path = os.path.join(target_dir, target_filename)
                         
                         with open(target_path, 'wb') as f:
                             f.write(resp.content)
