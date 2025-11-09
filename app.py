@@ -15113,14 +15113,15 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
                 if genre_names:
                     text_fields['genre'] = '/'.join(genre_names)
             
-            # Extract rating from note.text (ScreenScraper uses 0-20 scale, divide by 2)
+            # Extract rating from note.text (ScreenScraper uses 0-20 scale, normalize to 0-5 scale)
             if detailed_data.get('note') and isinstance(detailed_data['note'], dict):
                 if 'text' in detailed_data['note']:
                     note_text = detailed_data['note']['text']
                     try:
                         rating_float = float(note_text)
-                        # Divide by 2 to convert 0-20 scale to 0-10 scale
-                        normalized_rating = rating_float / 2.0
+                        # Convert 0-20 to 0-5 scale: divide by 4 (20/5 = 4)
+                        # percentage = rating_float / 20, then percentage / 2 * 10 = (rating_float / 20) / 2 * 10 = rating_float / 4
+                        normalized_rating = rating_float / 4.0
                         # Format to 2 decimal places
                         text_fields['rating'] = f"{normalized_rating:.2f}"
                     except (ValueError, TypeError):
