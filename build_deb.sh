@@ -106,6 +106,12 @@ echo "✅ Source files synced successfully"
 echo "🔧 Updating control file with version: $VERSION"
 sed -i "s/^Version: .*/Version: $VERSION/" debian/DEBIAN/control
 
+# Update version in HTML template
+echo "🔧 Updating version in HTML template: $VERSION_NUMBER"
+if [ -f "debian/opt/gamemanager/templates/index.html" ]; then
+    sed -i "s/<version>/$VERSION_NUMBER/g" debian/opt/gamemanager/templates/index.html
+fi
+
 # Verify critical files are updated
 echo "🔍 Verifying critical files..."
 if ! grep -q "get_launchbox_metadata_path" debian/opt/gamemanager/app.py; then
