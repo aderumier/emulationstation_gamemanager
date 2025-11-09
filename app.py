@@ -14326,7 +14326,33 @@ def apply_manual_scrap(system_name):
             # Remote URL: download
             from urllib.parse import urlparse
             parsed = urlparse(selected_url)
-            guessed_ext = os.path.splitext(parsed.path)[1] or '.png'
+            
+            # Determine file extension from Content-Type header, not URL
+            # First, make a HEAD request to get Content-Type without downloading the full file
+            try:
+                head_resp = requests.head(selected_url, timeout=30, allow_redirects=True)
+                content_type = head_resp.headers.get('content-type', '').lower()
+            except:
+                # If HEAD fails, we'll check Content-Type after GET
+                content_type = ''
+            
+            # Determine extension from Content-Type
+            if 'jpeg' in content_type or 'jpg' in content_type:
+                guessed_ext = '.jpg'
+            elif 'png' in content_type:
+                guessed_ext = '.png'
+            elif 'webp' in content_type:
+                guessed_ext = '.webp'
+            elif 'gif' in content_type:
+                guessed_ext = '.gif'
+            else:
+                # Fallback: try URL extension, but never use .php
+                url_ext = os.path.splitext(parsed.path)[1].lower()
+                if url_ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+                    guessed_ext = url_ext
+                else:
+                    guessed_ext = '.png'  # Default to PNG if we can't determine
+            
             target_ext = ext or guessed_ext
             target_filename = create_media_filename(rom_path, target_ext)
             target_path = os.path.join(target_dir, target_filename)
@@ -14350,6 +14376,27 @@ def apply_manual_scrap(system_name):
                     # Regular URL download
                     resp = requests.get(selected_url, timeout=30)
                     if resp.status_code == 200:
+                        # Re-check Content-Type from actual response if HEAD didn't work
+                        if not content_type:
+                            content_type = resp.headers.get('content-type', '').lower()
+                            # Re-determine extension if we got Content-Type from GET
+                            if 'jpeg' in content_type or 'jpg' in content_type:
+                                actual_ext = '.jpg'
+                            elif 'png' in content_type:
+                                actual_ext = '.png'
+                            elif 'webp' in content_type:
+                                actual_ext = '.webp'
+                            elif 'gif' in content_type:
+                                actual_ext = '.gif'
+                            else:
+                                actual_ext = target_ext  # Use already determined extension
+                            
+                            # If extension changed, update filename and path
+                            if actual_ext != target_ext and not ext:  # Only if no target_extension was configured
+                                target_ext = actual_ext
+                                target_filename = create_media_filename(rom_path, target_ext)
+                                target_path = os.path.join(target_dir, target_filename)
+                        
                         with open(target_path, 'wb') as f:
                             f.write(resp.content)
                         
