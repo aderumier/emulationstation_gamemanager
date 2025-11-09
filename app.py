@@ -1527,6 +1527,10 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                             new_value = f"{new_value} {parens_content}"
                         print(f"🔧 DEBUG: Added parentheses from ROM filename: '{best_match[launchbox_field]}' -> '{new_value}'")
                 
+                # Special handling for CommunityRating - normalize to 0-5 scale with 2 decimals
+                if launchbox_field == 'CommunityRating' and gamelist_field == 'rating':
+                    new_value = normalize_rating_to_5_scale(new_value, 5)
+                
                 # Check if we should update this field
                 should_update = False
                 if selected_fields:
