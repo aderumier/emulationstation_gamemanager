@@ -2574,6 +2574,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     headerTooltip: 'Launchbox Database ID for exact matching. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#e8f5e8',
@@ -2598,6 +2600,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     headerTooltip: 'IGDB Database ID for exact matching. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#e8f4fd',
@@ -2614,6 +2618,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     headerTooltip: 'ScreenScraper Database ID for exact matching. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#fff3cd',
@@ -2630,6 +2636,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     headerTooltip: 'Steam App ID for exact matching. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#d1ecf1',
@@ -2646,6 +2654,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     headerTooltip: 'SteamGridDB Game ID for media downloads. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#e2e3e5',
@@ -2662,6 +2672,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     headerTooltip: 'MobyGames Database ID for exact matching. Auto-populated when scraping.',
                     cellStyle: { 
                         backgroundColor: '#f8d7da',
@@ -2679,7 +2691,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: wrapHeaderText
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'desc', 
@@ -2689,7 +2702,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 2,
-                    wrapHeaderText: wrapHeaderText
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'genre', 
@@ -2699,7 +2713,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: wrapHeaderText
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'developer', 
@@ -2709,7 +2724,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: wrapHeaderText
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'publisher', 
@@ -2719,7 +2735,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'rating', 
@@ -2729,7 +2746,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: wrapHeaderText
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'players', 
@@ -2739,7 +2757,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'video', 
@@ -2750,7 +2769,8 @@ class GameCollectionManager {
                     resizable: true, 
                     flex: 1, 
                     cellRenderer: this.mediaCellRenderer,
-                    wrapHeaderText: wrapHeaderText
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true
                 },
                 { 
                     field: 'youtubeurl', 
@@ -2761,6 +2781,7 @@ class GameCollectionManager {
                     resizable: true, 
                     flex: 2,
                     wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     headerTooltip: 'YouTube URL for game videos. Can be edited manually or populated by scraping.',
                     cellStyle: { 
                         backgroundColor: '#fff3cd',
