@@ -503,8 +503,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 .ag-theme-alpine .ag-header-cell {
     height: auto !important;
     min-height: unset !important;
-    display: flex;
-    align-items: stretch;
+    /* Don't override display or align-items as it can affect column width */
 }
 
 /* Rotate column header text vertically (only when enabled) */
@@ -537,8 +536,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 .ag-theme-alpine.vertical-headers .ag-header-cell {
     height: auto !important;
     min-height: unset !important;
-    display: flex;
-    align-items: stretch;
+    /* Don't override display or align-items as it can affect column width */
 }
 
 /* Grid container to fill available space */
