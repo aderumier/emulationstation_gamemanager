@@ -8516,6 +8516,9 @@ class GameCollectionManager {
                 return;
             }
             
+            // Store database type for reload functionality
+            this.lastGlobalMatchDatabaseType = 'mobygames';
+            
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
                 button.disabled = true;
@@ -8586,6 +8589,9 @@ class GameCollectionManager {
                 this.showAlert('Please select at least one game first', 'warning');
                 return;
             }
+            
+            // Store database type for reload functionality
+            this.lastGlobalMatchDatabaseType = 'datscrapper';
             
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
@@ -8658,6 +8664,9 @@ class GameCollectionManager {
                 return;
             }
             
+            // Store database type for reload functionality
+            this.lastGlobalMatchDatabaseType = 'steam';
+            
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
                 button.disabled = true;
@@ -8728,6 +8737,9 @@ class GameCollectionManager {
                 this.showAlert('Please select at least one game first', 'warning');
                 return;
             }
+            
+            // Store database type for reload functionality
+            this.lastGlobalMatchDatabaseType = 'igdb';
             
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
@@ -11561,6 +11573,10 @@ class GameCollectionManager {
             return;
         }
         
+        // Check if modal is already open - if so, just update content without reopening
+        const modalElement = document.getElementById('globalMatchModal');
+        const isModalOpen = modalElement && modalElement.classList.contains('show');
+        
         // Show loading state
         const progressDiv = document.getElementById('globalMatchProgress');
         const tableDiv = document.getElementById('globalMatchTable');
@@ -11571,9 +11587,68 @@ class GameCollectionManager {
         if (emptyDiv) emptyDiv.style.display = 'none';
         
         try {
+            // Determine which database type to use based on which find function was last called
+            // Check the current database type from the stored results or use a default
+            let databaseType = 'launchbox'; // Default
+            if (this.lastGlobalMatchDatabaseType) {
+                databaseType = this.lastGlobalMatchDatabaseType;
+            }
             
-            // Re-run the find best match process
-            await this.findBestMatchForSelected();
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            // Determine API endpoint based on database type
+            let apiEndpoint = '/api/find-best-matches';
+            if (databaseType === 'mobygames') {
+                apiEndpoint = '/api/find-best-matches-mobygames';
+            } else if (databaseType === 'steam') {
+                apiEndpoint = '/api/find-best-matches-steam';
+            } else if (databaseType === 'igdb') {
+                apiEndpoint = '/api/find-best-matches-igdb';
+            } else if (databaseType === 'datscrapper') {
+                apiEndpoint = '/api/find-best-matches-datscrapper';
+            }
+            
+            const response = await fetch(apiEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
+                });
+                this.populateGlobalMatchTable(databaseType);
+            } else {
+                this.showGlobalMatchEmpty();
+                this.showAlert('No matches found for the selected games', 'info');
+            }
+            
+            // Only show modal if it wasn't already open
+            if (!isModalOpen) {
+                this.showGlobalMatchModal();
+            }
             
             // Show success message
             this.showAlert('Global matches reloaded with new similarity algorithm!', 'success');
