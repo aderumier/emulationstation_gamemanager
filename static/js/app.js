@@ -2796,6 +2796,8 @@ class GameCollectionManager {
             // Compact grid configuration
             rowHeight: 28,
             headerHeight: 32,
+            // Auto-adjust header height based on content
+            autoHeaderHeight: true,
             defaultColDef: {
                 sortable: true,
                 filter: true,
