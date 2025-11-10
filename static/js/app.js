@@ -4300,7 +4300,8 @@ class GameCollectionManager {
                 resizable: true,
                 flex: 1,
                 cellRenderer: this.mediaCellRenderer,
-                wrapHeaderText: wrapHeaderText
+                wrapHeaderText: wrapHeaderText,
+                autoHeaderHeight: true
             });
         }
         
