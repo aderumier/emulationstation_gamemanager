@@ -8445,6 +8445,9 @@ class GameCollectionManager {
                 return;
             }
             
+            // Store database type for reload functionality
+            this.lastGlobalMatchDatabaseType = 'launchbox';
+            
             const button = document.getElementById('globalFindBestMatchBtn');
             if (button) {
                 button.disabled = true;
