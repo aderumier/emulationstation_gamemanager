@@ -498,15 +498,19 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 }
 
 /* Ensure header row can expand for autoHeaderHeight */
-.ag-theme-alpine .ag-header-row {
+.ag-theme-alpine .ag-header-row,
+.ag-theme-alpine .ag-header-row[style] {
     height: auto !important;
     min-height: unset !important;
+    max-height: none !important;
 }
 
 /* Ensure header cell can expand for autoHeaderHeight */
-.ag-theme-alpine .ag-header-cell {
+.ag-theme-alpine .ag-header-cell,
+.ag-theme-alpine .ag-header-cell[style] {
     height: auto !important;
     min-height: unset !important;
+    max-height: none !important;
     /* Don't override display or align-items as it can affect column width */
 }
 
