@@ -18672,6 +18672,17 @@ class GameCollectionManager {
                     }
                 });
             }
+            
+            // Force grid to recalculate header heights after updating wrapHeaderText
+            // This ensures autoHeaderHeight recalculates based on the new wrapHeaderText setting
+            setTimeout(() => {
+                if (this.gridApi) {
+                    // Trigger a resize event to force header height recalculation
+                    this.gridApi.sizeColumnsToFit();
+                    // Also try resetting row heights (though this is for rows, it might trigger a refresh)
+                    window.dispatchEvent(new Event('resize'));
+                }
+            }, 100);
         }
     }
     

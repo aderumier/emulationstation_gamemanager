@@ -482,6 +482,13 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     width: 100%;
 }
 
+/* Ensure header text can wrap for autoHeaderHeight to work */
+.ag-theme-alpine .ag-header-cell-label {
+    white-space: normal;
+    word-wrap: break-word;
+    overflow: visible;
+}
+
 /* Rotate column header text vertically (only when enabled) */
 .ag-theme-alpine.vertical-headers .ag-header-cell-label {
     writing-mode: vertical-lr;
@@ -491,8 +498,12 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    /* Remove fixed height to allow autoHeaderHeight to calculate properly */
+    /* height: 100%; */
     width: 100%;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow: visible;
 }
 
 /* Grid container to fill available space */
