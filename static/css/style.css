@@ -472,11 +472,24 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 /* AG Grid theme customizations */
 .ag-theme-alpine {
-    --ag-header-height: 80px;
+    --ag-header-height: 40px;
     --ag-header-background-color: #f8f9fa;
     --ag-header-foreground-color: #495057;
     --ag-font-size: 12px;
     --ag-cell-horizontal-padding: 8px;
+    height: 100%;
+    width: 100%;
+}
+
+/* Rotate column header text vertically */
+.ag-theme-alpine .ag-header-cell-label {
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     height: 100%;
     width: 100%;
 }
