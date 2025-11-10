@@ -2516,7 +2516,13 @@ class GameCollectionManager {
         }
         
         if (!this.mediaMappingsCache) {
+            console.warn('Media mappings cache not ready after 5 seconds, using fallback values');
         }
+
+        // Check if vertical headers are enabled (default: false)
+        const verticalHeadersEnabled = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
+        // wrapHeaderText should be false when vertical headers are enabled
+        const wrapHeaderText = !verticalHeadersEnabled;
 
         // Generate dynamic column definitions
         const baseColumns = [
@@ -2539,7 +2545,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 2,
-                    wrapHeaderText: true,
+                    wrapHeaderText: wrapHeaderText,
                     cellStyle: { 
                         fontWeight: 'bold'
                     },
@@ -2682,7 +2688,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 2,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText
                 },
                 { 
                     field: 'genre', 
@@ -2692,7 +2698,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText
                 },
                 { 
                     field: 'developer', 
@@ -2702,7 +2708,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText
                 },
                 { 
                     field: 'publisher', 
@@ -2722,7 +2728,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText
                 },
                 { 
                     field: 'players', 
@@ -2743,7 +2749,7 @@ class GameCollectionManager {
                     resizable: true, 
                     flex: 1, 
                     cellRenderer: this.mediaCellRenderer,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText
                 },
                 { 
                     field: 'youtubeurl', 
@@ -2753,7 +2759,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 2,
-                    wrapHeaderText: true,
+                    wrapHeaderText: wrapHeaderText,
                     headerTooltip: 'YouTube URL for game videos. Can be edited manually or populated by scraping.',
                     cellStyle: { 
                         backgroundColor: '#fff3cd',
@@ -2812,7 +2818,7 @@ class GameCollectionManager {
                 filter: true,
                 resizable: true,
                 editable: false, // Default to non-editable
-                wrapHeaderText: true, // Enable text wrapping for autoHeaderHeight to work properly
+                wrapHeaderText: wrapHeaderText, // Enable text wrapping for autoHeaderHeight (false when vertical headers enabled)
                 filterParams: {
                     buttons: ['apply', 'reset'],
                     closeOnApply: true
@@ -4284,7 +4290,7 @@ class GameCollectionManager {
                 resizable: true,
                 flex: 1,
                 cellRenderer: this.mediaCellRenderer,
-                wrapHeaderText: true
+                wrapHeaderText: wrapHeaderText
             });
         }
         
@@ -18643,6 +18649,23 @@ class GameCollectionManager {
                 gridElement.classList.add('vertical-headers');
             } else {
                 gridElement.classList.remove('vertical-headers');
+            }
+        }
+        
+        // Update wrapHeaderText on all columns
+        // wrapHeaderText should be false when vertical headers are enabled
+        const wrapHeaderText = !enabled;
+        
+        if (this.gridApi) {
+            // Get all column definitions
+            const allColumns = this.gridApi.getColumns();
+            if (allColumns && allColumns.length > 0) {
+                // Update each column's wrapHeaderText property
+                allColumns.forEach(column => {
+                    if (column) {
+                        this.gridApi.setColumnProperty(column.getColId(), 'wrapHeaderText', wrapHeaderText);
+                    }
+                });
             }
         }
     }
