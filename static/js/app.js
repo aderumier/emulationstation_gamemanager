@@ -4253,6 +4253,9 @@ class GameCollectionManager {
             mediaFields = ['marquee', 'boxart', 'image', 'cartridge', 'fanart', 'titleshot', 'manual', 'boxback', 'thumbnail'];
         }
         
+        // Filter out 'video' since it's already added as a static column
+        mediaFields = mediaFields.filter(field => field !== 'video');
+        
         // Generate column definitions for each media type
         const mediaColumns = [];
         
