@@ -9027,6 +9027,22 @@ class GameCollectionManager {
             });
         }
         
+        // Set default selection to best match if available
+        if (bestMatch && allMatches && allMatches.length > 0) {
+            if (databaseType === 'launchbox') {
+                // For LaunchBox, best match is already first in allMatches
+                if (allMatches.length > 0) {
+                    select.value = allMatches[0].database_id;
+                }
+            } else if (databaseType === 'mobygames' && bestMatch.game_id) {
+                select.value = bestMatch.game_id;
+            } else if (databaseType === 'steam' && bestMatch.appid) {
+                select.value = bestMatch.appid;
+            } else if (databaseType === 'igdb' && bestMatch.id) {
+                select.value = bestMatch.id.toString();
+            }
+        }
+        
         matchCell.appendChild(select);
         row.appendChild(matchCell);
         
