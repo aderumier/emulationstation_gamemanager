@@ -497,14 +497,6 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     height: auto !important;
 }
 
-/* Ensure header container can expand for autoHeaderHeight */
-.ag-theme-alpine .ag-header,
-.ag-theme-alpine .ag-header[style] {
-    height: auto !important;
-    min-height: unset !important;
-    max-height: none !important;
-}
-
 /* Ensure header row can expand for autoHeaderHeight */
 .ag-theme-alpine .ag-header-row,
 .ag-theme-alpine .ag-header-row[style] {
@@ -519,8 +511,6 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     height: auto !important;
     min-height: unset !important;
     max-height: none !important;
-    /* Override any inline style that might set height to 48px */
-    height: auto !important;
     /* Don't override display or align-items as it can affect column width */
 }
 
@@ -544,30 +534,16 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     height: auto !important;
 }
 
-/* Ensure header container can expand for autoHeaderHeight with vertical headers */
-.ag-theme-alpine.vertical-headers .ag-header,
-.ag-theme-alpine.vertical-headers .ag-header[style] {
-    height: auto !important;
-    min-height: unset !important;
-    max-height: none !important;
-}
-
 /* Ensure header row can expand for autoHeaderHeight with vertical headers */
-.ag-theme-alpine.vertical-headers .ag-header-row,
-.ag-theme-alpine.vertical-headers .ag-header-row[style] {
+.ag-theme-alpine.vertical-headers .ag-header-row {
     height: auto !important;
     min-height: unset !important;
-    max-height: none !important;
 }
 
 /* Ensure header cell can expand for autoHeaderHeight with vertical headers */
-.ag-theme-alpine.vertical-headers .ag-header-cell,
-.ag-theme-alpine.vertical-headers .ag-header-cell[style] {
+.ag-theme-alpine.vertical-headers .ag-header-cell {
     height: auto !important;
     min-height: unset !important;
-    max-height: none !important;
-    /* Override any inline style that might set height to 48px */
-    height: auto !important;
     /* Don't override display or align-items as it can affect column width */
 }
 

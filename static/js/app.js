@@ -2877,16 +2877,6 @@ class GameCollectionManager {
         // This ensures autoHeaderHeight works properly
         setTimeout(() => {
             if (this.gridApi) {
-                // Remove any inline height styles that AG Grid might have set
-                const gridElement = document.getElementById('gamesGrid');
-                if (gridElement) {
-                    const headerElements = gridElement.querySelectorAll('.ag-header, .ag-header-row, .ag-header-cell');
-                    headerElements.forEach(el => {
-                        if (el.style.height) {
-                            el.style.height = 'auto';
-                        }
-                    });
-                }
                 // Trigger a resize to force header height recalculation
                 window.dispatchEvent(new Event('resize'));
                 // Also try calling sizeColumnsToFit which might trigger recalculation
