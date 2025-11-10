@@ -210,7 +210,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
             z-index: 10000;
             pointer-events: none;
-            max-width: 600px;
+            max-width: 1200px;
             max-height: 600px;
         }
         
@@ -222,6 +222,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             max-height: 580px;
             object-fit: contain;
             border-radius: 4px;
+        }
+        
+        /* Support for side-by-side image comparison in media hover tooltip */
+        .media-hover-tooltip {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .media-hover-tooltip > div {
+            flex: 1;
+            min-width: 300px;
         }
         
         .thumbnail-loading {
@@ -2748,12 +2759,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                         </div>
                     </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveGuiPreferences">
-                        <i class="bi bi-check-lg me-1"></i>Save Preferences
-                    </button>
                 </div>
             </div>
         </div>

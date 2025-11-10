@@ -44,6 +44,7 @@ class GameCollectionManager {
         this.lastProcessedGame = null;
         this.lastClickedColumn = null; // Track which column was last clicked for double-click behavior
         this.screenscraperSearchInProgress = false; // Track ScreenScraper search progress
+        this.currentManualScrapGame = null; // Track current game shown in manual scrap modal
         
         // Task refresh debouncing
         this.isRefreshingTasks = false; // Flag to prevent overlapping refresh calls
@@ -1696,6 +1697,7 @@ class GameCollectionManager {
         
         // Handle manual scrap modal cancel button
         document.getElementById('manualScrapModal').addEventListener('hidden.bs.modal', () => {
+            this.currentManualScrapGame = null;
             // Only reopen game edit modal if manual scrap was opened from game edit modal
             if (!this.manualScrapFromPreview) {
                 // When manual scrap modal is closed, ensure the game edit modal is still open
@@ -2520,7 +2522,7 @@ class GameCollectionManager {
         }
 
         // Check if vertical headers are enabled (default: false)
-        const verticalHeadersEnabled = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
+        const verticalHeadersEnabled = this.getVerticalHeadersPreference() && !this.thumbnailViewEnabled;
         // wrapHeaderText should be false when vertical headers are enabled
         const wrapHeaderText = !verticalHeadersEnabled;
 
@@ -4284,7 +4286,7 @@ class GameCollectionManager {
     
     async generateDynamicMediaColumns() {
         // Check if vertical headers are enabled (default: false)
-        const verticalHeadersEnabled = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
+        const verticalHeadersEnabled = this.getVerticalHeadersPreference() && !this.thumbnailViewEnabled;
         // wrapHeaderText should be false when vertical headers are enabled
         const wrapHeaderText = !verticalHeadersEnabled;
         
@@ -5684,7 +5686,7 @@ class GameCollectionManager {
                     
                     // Add hover preview functionality for images
                     img.addEventListener('mouseenter', (e) => {
-                        this.showMediaHover(e, result.url, mediaType);
+                        this.showMediaHover(e, result.url, mediaType, game);
                     });
                     img.addEventListener('mouseleave', () => {
                         this.hideMediaHover();
@@ -6012,7 +6014,7 @@ class GameCollectionManager {
                 
                 // Add hover preview functionality for images
                 img.addEventListener('mouseenter', (e) => {
-                    this.showMediaHover(e, media.url, mediaType);
+                    this.showMediaHover(e, media.url, mediaType, game);
                 });
                 img.addEventListener('mouseleave', () => {
                     this.hideMediaHover();
@@ -6684,8 +6686,9 @@ class GameCollectionManager {
             return;
         }
 
-        // Set the game path for manual scraping
+        // Set the game path and game object for manual scraping
         this.currentManualScrapRomPath = game.path;
+        this.currentManualScrapGame = game;
         this.manualScrapSelectedMedia = {};
         
         // Flag to indicate this was opened from media preview pane, not game edit modal
@@ -6744,8 +6747,9 @@ class GameCollectionManager {
             return;
         }
 
-        // Keep rom path and clear previous selections
+        // Keep rom path and game object, clear previous selections
         this.currentManualScrapRomPath = game.path;
+        this.currentManualScrapGame = game;
         this.manualScrapSelectedMedia = {};
         
         // Flag to indicate this was opened from game edit modal, not media preview pane
@@ -6945,13 +6949,13 @@ class GameCollectionManager {
                         </div>
                     </div>
                 `;
-                // Hover full preview like game grid (images only)
+                // Hover full preview with comparison (images only)
                 tile.addEventListener('mouseenter', (ev) => {
                     if (mediaKey !== 'video') {
-                        this.showThumbnailHover(ev, url, mediaKey);
+                        this.showMediaHover(ev, url, mediaKey, this.currentManualScrapGame);
                     }
                 });
-                tile.addEventListener('mouseleave', () => this.hideThumbnailHover());
+                tile.addEventListener('mouseleave', () => this.hideMediaHover());
                 tile.addEventListener('click', () => {
                     // remove highlight from other tiles for this media key
                     card.querySelectorAll('.selectable-media-item').forEach(el => el.classList.remove('border', 'border-primary'));
@@ -18573,9 +18577,12 @@ class GameCollectionManager {
         const savedDarkMode = localStorage.getItem('guiPreferences_darkMode') === 'true';
         document.getElementById('darkModeToggle').checked = savedDarkMode;
         
-        // Load vertical column headers preference (default: false)
-        const savedVerticalHeaders = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
-        document.getElementById('verticalColumnHeadersToggle').checked = savedVerticalHeaders;
+        // Load vertical column headers preference (default: true)
+        const savedVerticalHeaders = this.getVerticalHeadersPreference();
+        const verticalToggle = document.getElementById('verticalColumnHeadersToggle');
+        if (verticalToggle) {
+            verticalToggle.checked = savedVerticalHeaders;
+        }
         
         // Load from localStorage or use default white
         const savedColor = localStorage.getItem('guiPreferences_mediaCardBackgroundColor') || '#ffffff';
@@ -18660,6 +18667,31 @@ class GameCollectionManager {
         return localStorage.getItem('guiPreferences_mediaCardBackgroundColor') || '#ffffff';
     }
     
+    getVerticalHeadersPreference() {
+        const stored = localStorage.getItem('guiPreferences_verticalColumnHeaders');
+        if (stored === null) {
+            localStorage.setItem('guiPreferences_verticalColumnHeaders', 'true');
+            return true;
+        }
+        return stored === 'true';
+    }
+    
+    formatScraperLabel(scraperName) {
+        if (!scraperName) {
+            return 'Unknown';
+        }
+        let label = scraperName;
+        if (typeof label !== 'string') {
+            label = String(label);
+        }
+        return label
+            .replace(/_/g, ' ')
+            .split(' ')
+            .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : '')
+            .join(' ')
+            .trim();
+    }
+    
     applySavedGuiPreferences() {
         // Apply saved media card background color on page load
         const savedColor = this.getMediaCardBackgroundColor();
@@ -18670,14 +18702,15 @@ class GameCollectionManager {
         this.applyDarkMode(savedDarkMode);
         
         // Apply saved vertical column headers on page load (default: false)
-        const savedVerticalHeaders = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
+        const savedVerticalHeaders = this.getVerticalHeadersPreference();
         this.applyVerticalColumnHeaders(savedVerticalHeaders);
     }
     
     applyVerticalColumnHeaders(enabled) {
+        const effectiveEnabled = enabled && !this.thumbnailViewEnabled;
         const gridElement = document.getElementById('gamesGrid');
         if (gridElement) {
-            if (enabled) {
+            if (effectiveEnabled) {
                 gridElement.classList.add('vertical-headers');
             } else {
                 gridElement.classList.remove('vertical-headers');
@@ -18686,7 +18719,7 @@ class GameCollectionManager {
         
         // Update wrapHeaderText on all columns
         // wrapHeaderText should be false when vertical headers are enabled
-        const wrapHeaderText = !enabled;
+        const wrapHeaderText = !effectiveEnabled;
         
         if (this.gridApi) {
             // Get all column definitions
@@ -21019,6 +21052,9 @@ class GameCollectionManager {
             this.clearThumbnailSelection(); // Clear any existing selection
             await this.refreshGridWithNormalView();
         }
+
+        const verticalHeadersPreference = this.getVerticalHeadersPreference();
+        this.applyVerticalColumnHeaders(verticalHeadersPreference);
     }
 
     getMediaFieldsForThumbnail() {
@@ -21296,44 +21332,166 @@ class GameCollectionManager {
         }
     }
     
-    showMediaHover(event, imageUrl, fieldName) {
+    showMediaHover(event, imageUrl, fieldName, game = null) {
         // Remove any existing tooltip
         this.hideMediaHover();
+        
+        // Determine current image value from the existing game data
+        let currentImageValue = null;
+        if (game) {
+            const fieldValue = game[fieldName];
+            if (typeof fieldValue === 'string') {
+                const trimmedValue = fieldValue.trim();
+                if (trimmedValue) {
+                    currentImageValue = trimmedValue;
+                }
+            }
+        }
         
         // Create tooltip element
         const tooltip = document.createElement('div');
         tooltip.className = 'media-hover-tooltip';
         tooltip.id = 'media-hover-tooltip';
         
-        // Create image element
-        const img = document.createElement('img');
-        img.src = imageUrl;
-        img.alt = fieldName;
-        img.style.objectFit = 'contain';
-        img.style.backgroundColor = this.getMediaCardBackgroundColor();
-        img.onerror = () => {
-            tooltip.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No image available</div>`;
-        };
+        // If there's a comparison image, use side-by-side layout
+        if (currentImageValue) {
+            tooltip.style.display = 'flex';
+            tooltip.style.gap = '10px';
+            tooltip.style.maxWidth = '1200px'; // Wider to accommodate two images
+            
+            // Container for new image (from LaunchBox/Multiscraper)
+            const newImageContainer = document.createElement('div');
+            newImageContainer.style.flex = '1';
+            newImageContainer.style.minWidth = '300px';
+            
+            const newImageLabel = document.createElement('div');
+            newImageLabel.textContent = 'New Image';
+            newImageLabel.style.fontSize = '12px';
+            newImageLabel.style.fontWeight = 'bold';
+            newImageLabel.style.marginBottom = '5px';
+            newImageLabel.style.color = '#007bff';
+            newImageContainer.appendChild(newImageLabel);
+            
+            const newImg = document.createElement('img');
+            newImg.src = imageUrl;
+            newImg.alt = fieldName;
+            newImg.style.width = '100%';
+            newImg.style.height = 'auto';
+            newImg.style.maxWidth = '580px';
+            newImg.style.maxHeight = '580px';
+            newImg.style.objectFit = 'contain';
+            newImg.style.backgroundColor = this.getMediaCardBackgroundColor();
+            newImg.style.borderRadius = '4px';
+            newImg.onerror = () => {
+                newImageContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No image available</div>`;
+            };
+            newImageContainer.appendChild(newImg);
+            tooltip.appendChild(newImageContainer);
+        } else {
+            // Single image preview (media preview tab) - simpler layout
+            tooltip.style.maxWidth = '600px';
+            
+            const newImg = document.createElement('img');
+            newImg.src = imageUrl;
+            newImg.alt = fieldName;
+            newImg.style.width = '100%';
+            newImg.style.height = 'auto';
+            newImg.style.maxWidth = '580px';
+            newImg.style.maxHeight = '580px';
+            newImg.style.objectFit = 'contain';
+            newImg.style.backgroundColor = this.getMediaCardBackgroundColor();
+            newImg.style.borderRadius = '4px';
+            newImg.onerror = () => {
+                tooltip.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No image available</div>`;
+            };
+            tooltip.appendChild(newImg);
+        }
+
+        // Container for current image (from gamelist.xml)
+        if (currentImageValue) {
+            const currentImageContainer = document.createElement('div');
+            currentImageContainer.style.flex = '1';
+            currentImageContainer.style.minWidth = '300px';
+            
+            const currentImageLabel = document.createElement('div');
+            currentImageLabel.textContent = 'Current Image';
+            currentImageLabel.style.fontSize = '12px';
+            currentImageLabel.style.fontWeight = 'bold';
+            currentImageLabel.style.marginBottom = '5px';
+            currentImageLabel.style.color = '#6c757d';
+            currentImageContainer.appendChild(currentImageLabel);
+            
+            const currentImg = document.createElement('img');
+            // Construct the full path to the current image
+            let currentImagePath = currentImageValue;
+            if (currentImagePath && currentImagePath.startsWith('./')) {
+                currentImagePath = currentImagePath.substring(2);
+            }
+            if (currentImagePath && !currentImagePath.startsWith('/roms/')) {
+                if (currentImagePath.startsWith('roms/')) {
+                    currentImagePath = `/${currentImagePath}`;
+                } else {
+                    currentImagePath = `/roms/${this.currentSystem}/${currentImagePath}`;
+                }
+            }
+            currentImg.src = currentImagePath;
+            currentImg.alt = `Current ${fieldName}`;
+            currentImg.style.width = '100%';
+            currentImg.style.height = 'auto';
+            currentImg.style.maxWidth = '580px';
+            currentImg.style.maxHeight = '580px';
+            currentImg.style.objectFit = 'contain';
+            currentImg.style.backgroundColor = this.getMediaCardBackgroundColor();
+            currentImg.style.borderRadius = '4px';
+            currentImg.onerror = () => {
+                currentImageContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: #6c757d;">No current image</div>`;
+            };
+            currentImageContainer.appendChild(currentImg);
+            tooltip.appendChild(currentImageContainer);
+        }
         
-        tooltip.appendChild(img);
         document.body.appendChild(tooltip);
         
-        // Position tooltip near mouse cursor
+        // Position tooltip
         const rect = event.target.getBoundingClientRect();
         const tooltipRect = tooltip.getBoundingClientRect();
         
-        let left = rect.right + 10;
-        let top = rect.top;
+        let left, top;
         
-        // Adjust if tooltip would go off screen
-        if (left + tooltipRect.width > window.innerWidth) {
-            left = rect.left - tooltipRect.width - 10;
+        // If there's no comparison image (media preview tab), center tooltip over the image
+        // Otherwise (LaunchBox/Multiscraper modals), position to the side
+        if (!currentImageValue) {
+            // Center tooltip horizontally and position above the image
+            left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+            top = rect.top - tooltipRect.height - 10;
+            
+            // Adjust if tooltip would go off screen
+            if (left < 10) left = 10;
+            if (left + tooltipRect.width > window.innerWidth - 10) {
+                left = window.innerWidth - tooltipRect.width - 10;
+            }
+            if (top < 10) {
+                // If not enough space above, place below the image
+                top = rect.bottom + 10;
+                if (top + tooltipRect.height > window.innerHeight - 10) {
+                    top = window.innerHeight - tooltipRect.height - 10;
+                }
+            }
+        } else {
+            // Position tooltip to the side (for comparison view)
+            left = rect.right + 10;
+            top = rect.top;
+            
+            // Adjust if tooltip would go off screen
+            if (left + tooltipRect.width > window.innerWidth) {
+                left = rect.left - tooltipRect.width - 10;
+            }
+            if (top + tooltipRect.height > window.innerHeight) {
+                top = window.innerHeight - tooltipRect.height - 10;
+            }
+            if (left < 0) left = 10;
+            if (top < 0) top = 10;
         }
-        if (top + tooltipRect.height > window.innerHeight) {
-            top = window.innerHeight - tooltipRect.height - 10;
-        }
-        if (left < 0) left = 10;
-        if (top < 0) top = 10;
         
         tooltip.style.left = left + 'px';
         tooltip.style.top = top + 'px';
@@ -23896,11 +24054,16 @@ class GameCollectionManager {
                         if ('fanart' in imageMappings) {
                             const option = document.createElement('option');
                             option.value = scraperName;
-                            option.textContent = scraperName.charAt(0).toUpperCase() + scraperName.slice(1);
+                            option.textContent = this.formatScraperLabel(scraperName);
                             select.appendChild(option);
                         }
                     }
                 });
+
+                const localOption = document.createElement('option');
+                localOption.value = 'local_images';
+                localOption.textContent = this.formatScraperLabel('local_images');
+                select.appendChild(localOption);
             }
         } catch (error) {
             console.error('Error loading fanart scrapers:', error);
@@ -23974,7 +24137,7 @@ class GameCollectionManager {
                                 <h6 class="card-title">${result.game_name}</h6>
                                 <p class="card-text">
                                     <small class="text-muted">
-                                        <strong>Scraper:</strong> ${result.scraper}<br>
+                                        <strong>Scraper:</strong> ${this.formatScraperLabel(result.scraper || 'Unknown')}<br>
                                         <strong>System:</strong> ${result.platform || 'Unknown'}<br>
                                         <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
                                     </small>
@@ -24008,7 +24171,7 @@ class GameCollectionManager {
                         
                         // Add hover preview functionality
                         img.addEventListener('mouseenter', (e) => {
-                            this.showMediaHover(e, url, 'fanart');
+                            this.showMediaHover(e, url, 'fanart', this.currentFanartSearchGame);
                         });
                         img.addEventListener('mouseleave', () => {
                             this.hideMediaHover();
@@ -24266,11 +24429,16 @@ class GameCollectionManager {
                         if ('marquee' in imageMappings) {
                             const option = document.createElement('option');
                             option.value = scraperName;
-                            option.textContent = scraperName.charAt(0).toUpperCase() + scraperName.slice(1);
+                            option.textContent = this.formatScraperLabel(scraperName);
                             select.appendChild(option);
                         }
                     }
                 });
+
+                const localOption = document.createElement('option');
+                localOption.value = 'local_images';
+                localOption.textContent = this.formatScraperLabel('local_images');
+                select.appendChild(localOption);
             }
         } catch (error) {
             console.error('Error populating marquee scrapers dropdown:', error);
@@ -24351,7 +24519,7 @@ class GameCollectionManager {
                             <div class="card-body d-flex flex-column">
                                 <h6 class="card-title">${result.game_name || 'Unknown Game'}</h6>
                                 <p class="card-text small text-muted flex-grow-1">
-                                    <strong>Scraper:</strong> ${result.scraper || 'Unknown'}<br>
+                                    <strong>Scraper:</strong> ${this.formatScraperLabel(result.scraper || 'Unknown')}<br>
                                     <strong>System:</strong> ${result.platform || 'Unknown'}<br>
                                     <strong>Similarity:</strong> ${(result.similarity_score * 100).toFixed(1)}%
                                 </p>
@@ -24384,7 +24552,7 @@ class GameCollectionManager {
                         
                         // Add hover preview functionality
                         img.addEventListener('mouseenter', (e) => {
-                            this.showMediaHover(e, url, 'marquee');
+                            this.showMediaHover(e, url, 'marquee', this.currentMarqueeSearchGame);
                         });
                         img.addEventListener('mouseleave', () => {
                             this.hideMediaHover();

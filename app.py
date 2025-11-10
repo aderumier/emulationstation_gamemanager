@@ -1529,7 +1529,7 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                 
                 # Special handling for CommunityRating - normalize to 0-5 scale with 2 decimals
                 if launchbox_field == 'CommunityRating' and gamelist_field == 'rating':
-                    new_value = normalize_rating_to_5_scale(new_value, 5)
+                    new_value = normalize_rating(new_value, 5)
                 
                 # Check if we should update this field
                 should_update = False
@@ -4268,7 +4268,7 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config, selected_text_
             
             # Special handling for moby_score -> rating normalization (0-10 scale to 0-5 scale)
             if mobygames_field == 'moby_score' and gamelist_field == 'rating':
-                value = normalize_rating_to_5_scale(value, 10)
+                value = normalize_rating(value, 10)
             
             text_fields[gamelist_field] = value
     
@@ -9691,6 +9691,82 @@ def multiscraper_search_endpoint():
         print(f"Error in multiscraper search: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+def search_local_media_files(system_name, media_type, game_name, direct_match):
+    """Search local media directory for images matching the game name."""
+    results = []
+    try:
+        media_dir = os.path.join('roms', system_name, 'media', f'{media_type}s')
+        if not os.path.isdir(media_dir):
+            print(f"🔧 DEBUG: Local media directory not found: {media_dir}")
+            return results
+
+        from game_utils import normalize_game_name, calculate_similarity
+
+        normalized_search_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
+        if not normalized_search_name and game_name:
+            normalized_search_name = game_name.lower().strip()
+
+        allowed_extensions = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
+        base_system_dir = os.path.join('roms', system_name)
+
+        grouped_entries = {}
+        
+        for root, _, files in os.walk(media_dir):
+            for filename in files:
+                ext = os.path.splitext(filename)[1].lower()
+                if ext not in allowed_extensions:
+                    continue
+
+                base_name = os.path.splitext(filename)[0]
+                normalized_file_name = normalize_game_name(base_name, remove_paranthesis=True, remove_articles=True)
+                if not normalized_file_name:
+                    normalized_file_name = base_name.lower().strip()
+
+                relative_path = os.path.relpath(os.path.join(root, filename), base_system_dir)
+                relative_path = relative_path.replace(os.sep, '/')
+                web_path = f"/roms/{system_name}/{relative_path}"
+                
+                entry_list = grouped_entries.setdefault(normalized_file_name, [])
+                entry_list.append(web_path)
+
+        if not grouped_entries:
+            return results
+
+        for normalized_candidate, entry_list in grouped_entries.items():
+            if direct_match:
+                match_found = False
+                if normalized_search_name and normalized_candidate:
+                    match_found = normalized_candidate == normalized_search_name
+                if not match_found:
+                    continue
+                similarity = 1.0
+            else:
+                if not normalized_search_name or not normalized_candidate:
+                    similarity = 0.0
+                else:
+                    similarity = calculate_similarity(normalized_search_name, normalized_candidate)
+                if similarity < 0.8:
+                    continue
+
+            media_key = f'{media_type}_urls'
+            results.append({
+                'scraper': 'local_images',
+                'scraper_id': 'local_images',
+                'game_name': normalized_candidate,
+                'similarity_score': round(similarity, 4),
+                media_key: entry_list,
+                'platform': 'Local Storage'
+            })
+
+        results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
+    except Exception as e:
+        print(f"🔧 DEBUG: Error searching local images for {media_type}: {e}")
+        import traceback
+        print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
+
+    return results
+
+
 @app.route('/api/download-multiscraper-media', methods=['POST'])
 @login_required
 def download_multiscraper_media_endpoint():
@@ -9729,8 +9805,73 @@ def download_multiscraper_media_endpoint():
         
         print(f"🔧 DEBUG: Found game: {game.get('name')} with path: {game.get('path')}")
         
+        success = False
+        normalized_local_path = media_url.strip()
+        if normalized_local_path.startswith('./'):
+            normalized_local_path = normalized_local_path[2:]
+        if normalized_local_path.startswith('/'):
+            normalized_local_path = normalized_local_path[1:]
+        
+        # Handle local media files (already present under roms/)
+        if normalized_local_path.startswith('roms/'):
+            print(f"🔧 DEBUG: Using local media file: {normalized_local_path}")
+            local_absolute_path = os.path.abspath(normalized_local_path)
+            roms_root = os.path.abspath('roms')
+            if not local_absolute_path.startswith(roms_root):
+                return jsonify({'error': 'Invalid local media path'}), 400
+            if not os.path.exists(local_absolute_path):
+                return jsonify({'error': 'Local media file not found'}), 404
+
+            config_path = os.path.join('var', 'config', 'config.json')
+            if not os.path.exists(config_path):
+                return jsonify({'error': 'Configuration file not found'}), 500
+
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+            media_fields = config.get('media_fields', {})
+            if media_type not in media_fields:
+                return jsonify({'error': f'Unsupported media type: {media_type}'}), 400
+
+            media_config = media_fields.get(media_type, {})
+            target_dir = media_config.get('directory', f'media/{media_type}')
+            if not target_dir.startswith('media/'):
+                target_dir = f'media/{target_dir}'
+
+            source_extension = os.path.splitext(local_absolute_path)[1]
+            if not source_extension:
+                source_extension = '.pdf' if media_type in ('manual', 'map', 'magazine') else '.png'
+
+            full_target_dir = os.path.join('roms', system_name, target_dir)
+            os.makedirs(full_target_dir, exist_ok=True)
+
+            media_filename = create_media_filename(game.get('path', ''), source_extension)
+            target_path = os.path.join(full_target_dir, media_filename)
+
+            print(f"🔧 DEBUG: Copying local media from {local_absolute_path} to {target_path}")
+            shutil.copy2(local_absolute_path, target_path)
+
+            if media_type not in ('manual', 'map', 'magazine'):
+                from game_utils import should_process_field, convert_and_resize_image_replace
+                should_process, conversion_extension, target_width, target_height = should_process_field(media_type, config)
+                if should_process:
+                    processed_path, process_status = convert_and_resize_image_replace(
+                        target_path,
+                        conversion_extension,
+                        target_width,
+                        target_height
+                    )
+                    if process_status in ["converted", "resized", "converted_and_resized"]:
+                        print(f"🔧 DEBUG: Processed local media ({process_status}) -> {processed_path}")
+                        target_path = processed_path
+                        media_filename = os.path.basename(processed_path)
+
+            relative_path = os.path.join('.', target_dir, media_filename).replace('\\', '/')
+            game[media_type] = relative_path
+            success = True
+
         # For ScreenScraper videos, download with Referer header
-        if media_type == 'video' and screenscraper_id and screenscraper_system_id:
+        elif media_type == 'video' and screenscraper_id and screenscraper_system_id:
             # Construct direct ScreenScraper video URL
             direct_video_url = f"https://www.screenscraper.fr/medias/{screenscraper_system_id}/{screenscraper_id}/video.mp4"
             
@@ -9893,6 +10034,10 @@ def search_media_by_scraper(scraper_name, scraper_config, game_name, system_name
     Returns a list of standardized result dicts.
     """
     results = []
+
+    if scraper_name == 'local_images':
+        local_results = search_local_media_files(system_name, media_type, game_name, direct_match)
+        return local_results
 
     try:
         if scraper_name == 'igdb':
@@ -10352,6 +10497,16 @@ def fanart_search_endpoint():
                 import traceback
                 print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
                 continue
+
+        if selected_scraper in ('all', 'local_images'):
+            try:
+                local_results = search_media_by_scraper('local_images', None, game_name, system_name, direct_match, 'fanart')
+                print(f"🔧 DEBUG: Found {len(local_results)} local fanart results")
+                all_fanart_results.extend(local_results)
+            except Exception as e:
+                print(f"🔧 DEBUG: Error searching local images for fanart: {e}")
+                import traceback
+                print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
         
         # Sort results by similarity score (highest first)
         all_fanart_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
@@ -10426,6 +10581,16 @@ def marquee_search_endpoint():
                 import traceback
                 print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
                 continue
+
+        if scraper in ('all', 'local_images'):
+            try:
+                local_results = search_media_by_scraper('local_images', None, game_name, system_name, direct_match, 'marquee')
+                print(f"🔧 DEBUG: Found {len(local_results)} local marquee results")
+                all_marquee_results.extend(local_results)
+            except Exception as e:
+                print(f"🔧 DEBUG: Error searching local images for marquee: {e}")
+                import traceback
+                print(f"🔧 DEBUG: Traceback: {traceback.format_exc()}")
         
         # Sort results by similarity score (highest first)
         all_marquee_results.sort(key=lambda x: x.get('similarity_score', 0.0), reverse=True)
@@ -10915,9 +11080,9 @@ def _get_publisher_string(igdb_game, igdb_service):
     if not publisher_names:
         return 'Unknown Publisher'
     
-    # If multiple publishers, join them (note: may vary by platform)
+    # If multiple publishers, join them
     if len(publisher_names) > 1:
-        return ', '.join(publisher_names) + ' (may vary by platform)'
+        return ', '.join(publisher_names)
     else:
         return publisher_names[0]
 
@@ -14472,48 +14637,22 @@ def apply_manual_scrap(system_name):
         app.logger.error(f'Error in manual scrap: {str(e)}')
         return jsonify({'error': f'Failed to perform manual scrap: {str(e)}'}), 500
 
-def normalize_rating_to_5_scale(rating_value, max_scale):
+def normalize_rating(rating_value, max_scale):
     """
-    Normalize rating from any scale to 0-5 scale with 2 decimal places.
-    Uses the formula: (rating / max_scale) / 2 * 10 = rating / (max_scale / 5)
+    Normalize rating from any scale to decimal format (0.00-1.00).
+    Converts rating to a decimal value where 0.52 = 52%
     
     Args:
         rating_value: The rating value (can be int, float, or string)
         max_scale: Maximum value of the original scale (assumes min is 0)
     
     Returns:
-        String representation of normalized rating (0.00-5.00) or original value if conversion fails
+        String representation of normalized rating as decimal (0.00-1.00) or original value if conversion fails
     """
     try:
         rating_float = float(rating_value)
-        # Convert to 0-5 scale: divide by (max_scale / 5)
-        # Formula: (rating / max_scale) * 5 = rating / (max_scale / 5)
-        divisor = max_scale / 5.0
-        normalized = rating_float / divisor
-        # Clamp to 0-5 range
-        normalized = max(0.0, min(5.0, normalized))
-        # Format to 2 decimal places
-        return f"{normalized:.2f}"
-    except (ValueError, TypeError, ZeroDivisionError):
-        return str(rating_value) if rating_value is not None else ''
-
-def normalize_rating(rating_value, min_scale, max_scale):
-    """
-    Normalize rating from any scale to 0-1 scale with 2 decimal places.
-    DEPRECATED: Use normalize_rating_to_5_scale instead for consistency.
-    
-    Args:
-        rating_value: The rating value (can be int, float, or string)
-        min_scale: Minimum value of the original scale
-        max_scale: Maximum value of the original scale
-    
-    Returns:
-        String representation of normalized rating (0.00-1.00) or original value if conversion fails
-    """
-    try:
-        rating_float = float(rating_value)
-        # Normalize to 0-1 scale
-        normalized = (rating_float - min_scale) / (max_scale - min_scale)
+        # Convert to 0-1 scale: rating / max_scale
+        normalized = rating_float / max_scale
         # Clamp to 0-1 range
         normalized = max(0.0, min(1.0, normalized))
         # Format to 2 decimal places
@@ -14643,7 +14782,7 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
             
             # Extract rating from total_rating (IGDB uses 0-100 scale, normalize to 0-5 scale)
             if igdb_game.get('total_rating'):
-                text_fields['rating'] = normalize_rating_to_5_scale(igdb_game['total_rating'], 100)
+                text_fields['rating'] = normalize_rating(igdb_game['total_rating'], 100)
             
             # Extract players from player_perspectives or game_modes
             if igdb_game.get('player_perspectives'):
@@ -15202,7 +15341,7 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
             if detailed_data.get('note') and isinstance(detailed_data['note'], dict):
                 if 'text' in detailed_data['note']:
                     note_text = detailed_data['note']['text']
-                    text_fields['rating'] = normalize_rating_to_5_scale(note_text, 20)
+                    text_fields['rating'] = normalize_rating(note_text, 20)
             
             # Extract players from joueurs.text
             if detailed_data.get('joueurs') and isinstance(detailed_data['joueurs'], dict):
@@ -15400,7 +15539,7 @@ def extract_launchbox_text_fields(game_data, mapping_config):
                     text_fields['releasedate'] = format_releasedate_to_iso8601(text)
             elif field_name == 'CommunityRating':
                 # LaunchBox CommunityRating uses 0-5 scale, normalize to 0-5 scale (already correct scale)
-                text_fields['rating'] = normalize_rating_to_5_scale(text, 5)
+                text_fields['rating'] = normalize_rating(text, 5)
             elif field_name in ['MaxPlayers', 'Players']:
                 text_fields['players'] = text
     
@@ -23137,7 +23276,7 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
             'developer': ', '.join(developer_names) if developer_names else '',
             'publisher': ', '.join(publisher_names) if publisher_names else '',
             'genre': ', '.join(genre_names) if genre_names else '',
-            'rating': normalize_rating_to_5_scale(igdb_game.get('total_rating', 0), 100) if igdb_game.get('total_rating') else '',
+            'rating': normalize_rating(igdb_game.get('total_rating', 0), 100) if igdb_game.get('total_rating') else '',
             'players': str(igdb_game.get('player_perspectives', [0])[0]) if igdb_game.get('player_perspectives') else '',
             'release_date': format_releasedate_to_iso8601(igdb_game.get('first_release_date')) if igdb_game.get('first_release_date') else ''
         }
@@ -23428,7 +23567,7 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                         value = developer_name if developer_name else f"Company {igdb_value}"
                     elif igdb_field in ['rating', 'total_rating']:
                         # Normalize rating from 0-100 scale to 0-5 scale
-                        value = normalize_rating_to_5_scale(igdb_value, 100)
+                        value = normalize_rating(igdb_value, 100)
                     else:
                         value = str(igdb_value)
                 
