@@ -2546,6 +2546,7 @@ class GameCollectionManager {
                     resizable: true, 
                     flex: 2,
                     wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
                     cellStyle: { 
                         fontWeight: 'bold'
                     },
