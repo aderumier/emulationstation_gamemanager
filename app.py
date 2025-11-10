@@ -10888,6 +10888,39 @@ def find_best_matches_steam_endpoint():
         return jsonify({'error': f'Failed to find Steam matches: {str(e)}'}), 500
 
 
+def _get_publisher_string(igdb_game, igdb_service):
+    """Get publisher string from IGDB game data, handling multiple publishers"""
+    publisher_data = igdb_game.get('publisher')
+    if not publisher_data:
+        return 'Unknown Publisher'
+    
+    # Handle different publisher data formats
+    publisher_ids = []
+    if isinstance(publisher_data, list):
+        publisher_ids = publisher_data
+    elif isinstance(publisher_data, (int, str)):
+        publisher_ids = [publisher_data]
+    
+    if not publisher_ids:
+        return 'Unknown Publisher'
+    
+    # Get publisher names
+    publisher_names = []
+    for pub_id in publisher_ids:
+        if pub_id:
+            pub_name = igdb_service.get_company_name(pub_id)
+            if pub_name:
+                publisher_names.append(pub_name)
+    
+    if not publisher_names:
+        return 'Unknown Publisher'
+    
+    # If multiple publishers, join them (note: may vary by platform)
+    if len(publisher_names) > 1:
+        return ', '.join(publisher_names) + ' (may vary by platform)'
+    else:
+        return publisher_names[0]
+
 @app.route('/api/find-best-matches-igdb', methods=['POST'])
 @login_required
 def find_best_matches_igdb_endpoint():
@@ -10981,7 +11014,7 @@ def find_best_matches_igdb_endpoint():
                         'summary': best_match.get('summary', ''),
                         'first_release_date': best_match.get('first_release_date'),
                         'genres': best_match.get('genres', []),
-                        'publisher': igdb_service.get_company_name(best_match.get('publisher', [0])[0]) if best_match.get('publisher') and isinstance(best_match.get('publisher'), list) and len(best_match.get('publisher')) > 0 else 'Unknown Publisher',
+                        'publisher': self._get_publisher_string(best_match, igdb_service),
                         'similarity_score': best_match.get('_similarity_score', 0.0)
                     },
                     'all_matches': [
@@ -10991,7 +11024,7 @@ def find_best_matches_igdb_endpoint():
                             'summary': match.get('summary', ''),
                             'first_release_date': match.get('first_release_date'),
                             'genres': match.get('genres', []),
-                            'publisher': igdb_service.get_company_name(match.get('publisher', [0])[0]) if match.get('publisher') and isinstance(match.get('publisher'), list) and len(match.get('publisher')) > 0 else 'Unknown Publisher',
+                            'publisher': self._get_publisher_string(match, igdb_service),
                             'similarity_score': match.get('_similarity_score', 0.0)
                         }
                         for match in matches[:5]
