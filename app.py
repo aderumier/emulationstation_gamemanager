@@ -10904,12 +10904,12 @@ def _get_publisher_string(igdb_game, igdb_service):
     if not publisher_ids:
         return 'Unknown Publisher'
     
-    # Get publisher names
+    # Get publisher names using company lookup (same as scraping task)
     publisher_names = []
     for pub_id in publisher_ids:
         if pub_id:
             pub_name = igdb_service.get_company_name(pub_id)
-            if pub_name:
+            if pub_name and not pub_name.startswith('Company '):
                 publisher_names.append(pub_name)
     
     if not publisher_names:
