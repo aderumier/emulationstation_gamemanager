@@ -8958,7 +8958,7 @@ class GameCollectionManager {
             allMatches = result.all_matches || [];
         } else if (databaseType === 'igdb') {
             currentId = result.existing_igdbid || 'None';
-            bestMatch = result.best_match;
+            bestMatch = result.match_data || result.best_match; // Backend returns match_data, fallback to best_match for compatibility
             allMatches = result.all_matches || [];
         }
         
@@ -8998,20 +8998,29 @@ class GameCollectionManager {
         // Add match options
         if (allMatches && allMatches.length > 0) {
             allMatches.forEach((match, matchIndex) => {
+                // Skip invalid matches (missing required fields)
+                if (!match || (databaseType === 'igdb' && !match.id) || (databaseType === 'launchbox' && !match.database_id) || 
+                    (databaseType === 'mobygames' && !match.game_id) || (databaseType === 'steam' && !match.appid)) {
+                    console.warn(`Skipping invalid match at index ${matchIndex}:`, match);
+                    return;
+                }
+                
                 const option = document.createElement('option');
                 
                 if (databaseType === 'launchbox') {
                     option.value = match.database_id;
-                    option.textContent = `${match.name} (${(match.score * 100).toFixed(1)}%)`;
+                    option.textContent = `${match.name || 'Unknown'} (${(match.score * 100).toFixed(1)}%)`;
                 } else if (databaseType === 'mobygames') {
                     option.value = match.game_id;
-                    option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
+                    option.textContent = `${match.name || 'Unknown'} (${(match.similarity_score * 100).toFixed(1)}%)`;
                 } else if (databaseType === 'steam') {
                     option.value = match.appid;
-                    option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
+                    option.textContent = `${match.name || 'Unknown'} (${(match.similarity_score * 100).toFixed(1)}%)`;
                 } else if (databaseType === 'igdb') {
                     option.value = match.id;
-                    option.textContent = `${match.name} (${(match.similarity_score * 100).toFixed(1)}%)`;
+                    const matchName = match.name || 'Unknown';
+                    const similarityScore = match.similarity_score || 0;
+                    option.textContent = `${matchName} (${(similarityScore * 100).toFixed(1)}%)`;
                 }
                 
                 select.appendChild(option);
@@ -9272,9 +9281,17 @@ class GameCollectionManager {
                 scoreA = a.top_matches && a.top_matches.length > 0 ? a.top_matches[0].score : 0;
                 scoreB = b.top_matches && b.top_matches.length > 0 ? b.top_matches[0].score : 0;
             } else if (databaseType === 'mobygames' || databaseType === 'steam' || databaseType === 'igdb') {
-                // Use best_match for consistency
-                scoreA = (a.best_match && a.best_match.similarity_score) ? a.best_match.similarity_score : 0;
-                scoreB = (b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0;
+                // For IGDB, use match_data instead of best_match (backend returns match_data)
+                if (databaseType === 'igdb') {
+                    scoreA = (a.match_data && a.match_data.similarity_score) ? a.match_data.similarity_score : 
+                             ((a.best_match && a.best_match.similarity_score) ? a.best_match.similarity_score : 0);
+                    scoreB = (b.match_data && b.match_data.similarity_score) ? b.match_data.similarity_score : 
+                             ((b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0);
+                } else {
+                    // Use best_match for mobygames and steam
+                    scoreA = (a.best_match && a.best_match.similarity_score) ? a.best_match.similarity_score : 0;
+                    scoreB = (b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0;
+                }
             }
             
             return scoreB - scoreA; // Sort descending (highest first)
