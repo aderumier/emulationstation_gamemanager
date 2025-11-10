@@ -2872,15 +2872,8 @@ class GameCollectionManager {
         // Apply custom CSS class to prevent theme conflicts with popups
         gridDiv.classList.add('game-grid-container');
         
-        // Force header height recalculation after grid is ready
-        // This ensures autoHeaderHeight works properly
-        if (this.gridApi) {
-            // Wait for grid to be fully initialized
-            setTimeout(() => {
-                // Trigger a resize event which forces AG Grid to recalculate header heights
-                window.dispatchEvent(new Event('resize'));
-            }, 100);
-        }
+        // Note: autoHeaderHeight should work automatically
+        // No manual intervention needed - AG Grid handles it when autoHeaderHeight=true
         
         // Prevent browser context menu on the grid
         gridDiv.addEventListener('contextmenu', (event) => {
