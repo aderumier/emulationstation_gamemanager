@@ -10924,8 +10924,8 @@ def find_best_matches_igdb_endpoint():
             return jsonify({'error': f'No IGDB platform configured for system "{system_name}"'}), 400
         
         # Ensure platform cache is available and convert name to ID
-        import asyncio
-        platform_cache = asyncio.run(ensure_igdb_platform_cache())
+        # Use synchronous load function (no API calls needed)
+        platform_cache = load_igdb_platform_cache()
         igdb_platform_id = get_igdb_platform_id(igdb_platform_name_or_id, platform_cache)
         if not igdb_platform_id:
             return jsonify({'error': f"Invalid IGDB platform '{igdb_platform_name_or_id}' for system '{system_name}'"}), 400
