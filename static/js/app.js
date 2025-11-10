@@ -2871,6 +2871,21 @@ class GameCollectionManager {
         // Apply custom CSS class to prevent theme conflicts with popups
         gridDiv.classList.add('game-grid-container');
         
+        // Force header height recalculation after grid is created
+        // This ensures autoHeaderHeight works properly
+        setTimeout(() => {
+            if (this.gridApi) {
+                // Trigger a resize to force header height recalculation
+                window.dispatchEvent(new Event('resize'));
+                // Also try calling sizeColumnsToFit which might trigger recalculation
+                try {
+                    this.gridApi.sizeColumnsToFit();
+                } catch (e) {
+                    // Ignore errors if method doesn't exist
+                }
+            }
+        }, 200);
+        
         // Prevent browser context menu on the grid
         gridDiv.addEventListener('contextmenu', (event) => {
             event.preventDefault();
