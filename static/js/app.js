@@ -4257,6 +4257,11 @@ class GameCollectionManager {
     }
     
     async generateDynamicMediaColumns() {
+        // Check if vertical headers are enabled (default: false)
+        const verticalHeadersEnabled = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
+        // wrapHeaderText should be false when vertical headers are enabled
+        const wrapHeaderText = !verticalHeadersEnabled;
+        
         // Get media fields dynamically from config.json (excluding video since it's handled as a static column)
         let mediaFields;
         try {
