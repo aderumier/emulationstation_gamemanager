@@ -378,9 +378,8 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     box-shadow: 0 0 0 0.3rem rgba(0, 123, 255, 0.35) !important;
 }
 .game-grid-container {
-    height: 600px;
+    /* Height is set by parent container, don't force fixed height here */
     width: 100%;
-    min-height: 400px;
 }
 
 /* Ensure filter popups don't inherit problematic height from theme */
