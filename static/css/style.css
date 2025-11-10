@@ -470,14 +470,9 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     margin-top: 5px;
 }
 
-/* Explicitly unset --ag-header-height at root level to allow autoHeaderHeight to work */
-:root {
-    --ag-header-height: unset !important;
-}
-
 /* AG Grid theme customizations */
 .ag-theme-alpine {
-    /* Header height is automatically calculated when autoHeaderHeight=true in gridOptions */
+    /* Don't set --ag-header-height when using autoHeaderHeight */
     --ag-header-background-color: #f8f9fa;
     --ag-header-foreground-color: #495057;
     --ag-font-size: 12px;
@@ -486,32 +481,10 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     width: 100%;
 }
 
-/* Ensure header text can wrap for autoHeaderHeight to work */
+/* Allow header text to wrap for autoHeaderHeight to work */
 .ag-theme-alpine .ag-header-cell-label {
     white-space: normal;
     word-wrap: break-word;
-    overflow: visible;
-    /* Remove any height constraints to allow autoHeaderHeight to work */
-    min-height: unset !important;
-    max-height: none !important;
-    height: auto !important;
-}
-
-/* Ensure header row can expand for autoHeaderHeight */
-.ag-theme-alpine .ag-header-row,
-.ag-theme-alpine .ag-header-row[style] {
-    height: auto !important;
-    min-height: unset !important;
-    max-height: none !important;
-}
-
-/* Ensure header cell can expand for autoHeaderHeight */
-.ag-theme-alpine .ag-header-cell,
-.ag-theme-alpine .ag-header-cell[style] {
-    height: auto !important;
-    min-height: unset !important;
-    max-height: none !important;
-    /* Don't override display or align-items as it can affect column width */
 }
 
 /* Rotate column header text vertically (only when enabled) */
@@ -519,32 +492,11 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     writing-mode: vertical-lr;
     text-orientation: mixed;
     transform: rotate(180deg);
-    /* white-space: nowrap removed to allow wrapping for autoHeaderHeight */
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Remove fixed height to allow autoHeaderHeight to calculate properly */
     width: 100%;
-    white-space: normal;
-    word-wrap: break-word;
-    overflow: visible;
-    /* Remove any height constraints to allow autoHeaderHeight to work */
-    min-height: unset !important;
-    max-height: none !important;
-    height: auto !important;
-}
-
-/* Ensure header row can expand for autoHeaderHeight with vertical headers */
-.ag-theme-alpine.vertical-headers .ag-header-row {
-    height: auto !important;
-    min-height: unset !important;
-}
-
-/* Ensure header cell can expand for autoHeaderHeight with vertical headers */
-.ag-theme-alpine.vertical-headers .ag-header-cell {
-    height: auto !important;
-    min-height: unset !important;
-    /* Don't override display or align-items as it can affect column width */
+    /* When vertical headers are enabled, wrapHeaderText is false, so text won't wrap */
 }
 
 /* Grid container to fill available space */

@@ -2811,9 +2811,8 @@ class GameCollectionManager {
             domLayout: 'normal',
             // Compact grid configuration
             rowHeight: 28,
-            // Explicitly remove headerHeight to allow autoHeaderHeight to work
-            headerHeight: undefined,
             // Auto-adjust header height based on content
+            // Don't set headerHeight when using autoHeaderHeight
             autoHeaderHeight: true,
             defaultColDef: {
                 sortable: true,
@@ -2873,20 +2872,8 @@ class GameCollectionManager {
         // Apply custom CSS class to prevent theme conflicts with popups
         gridDiv.classList.add('game-grid-container');
         
-        // Force header height recalculation after grid is created
-        // This ensures autoHeaderHeight works properly
-        setTimeout(() => {
-            if (this.gridApi) {
-                // Trigger a resize to force header height recalculation
-                window.dispatchEvent(new Event('resize'));
-                // Also try calling sizeColumnsToFit which might trigger recalculation
-                try {
-                    this.gridApi.sizeColumnsToFit();
-                } catch (e) {
-                    // Ignore errors if method doesn't exist
-                }
-            }
-        }, 200);
+        // Note: autoHeaderHeight should work automatically without manual intervention
+        // AG Grid will calculate header heights based on content when autoHeaderHeight=true
         
         // Prevent browser context menu on the grid
         gridDiv.addEventListener('contextmenu', (event) => {
