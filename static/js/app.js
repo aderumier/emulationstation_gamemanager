@@ -2539,6 +2539,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 2,
+                    wrapHeaderText: true,
                     cellStyle: { 
                         fontWeight: 'bold'
                     },
@@ -2670,7 +2671,8 @@ class GameCollectionManager {
                     sortable: true, 
                     filter: true, 
                     resizable: true, 
-                    flex: 1
+                    flex: 1,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'desc', 
@@ -2679,7 +2681,8 @@ class GameCollectionManager {
                     sortable: true, 
                     filter: true, 
                     resizable: true, 
-                    flex: 2
+                    flex: 2,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'genre', 
@@ -2688,7 +2691,8 @@ class GameCollectionManager {
                     sortable: true, 
                     filter: true, 
                     resizable: true, 
-                    flex: 1
+                    flex: 1,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'developer', 
@@ -2697,7 +2701,8 @@ class GameCollectionManager {
                     sortable: true, 
                     filter: true, 
                     resizable: true, 
-                    flex: 1
+                    flex: 1,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'publisher', 
@@ -2706,7 +2711,8 @@ class GameCollectionManager {
                     sortable: true, 
                     filter: true, 
                     resizable: true, 
-                    flex: 1
+                    flex: 1,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'rating', 
@@ -2715,7 +2721,8 @@ class GameCollectionManager {
                     sortable: true, 
                     filter: true, 
                     resizable: true, 
-                    flex: 1
+                    flex: 1,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'players', 
@@ -2724,7 +2731,8 @@ class GameCollectionManager {
                     sortable: true, 
                     filter: true, 
                     resizable: true, 
-                    flex: 1
+                    flex: 1,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'video', 
@@ -2734,7 +2742,8 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1, 
-                    cellRenderer: this.mediaCellRenderer
+                    cellRenderer: this.mediaCellRenderer,
+                    wrapHeaderText: true
                 },
                 { 
                     field: 'youtubeurl', 
@@ -2744,6 +2753,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 2,
+                    wrapHeaderText: true,
                     headerTooltip: 'YouTube URL for game videos. Can be edited manually or populated by scraping.',
                     cellStyle: { 
                         backgroundColor: '#fff3cd',
@@ -4273,7 +4283,8 @@ class GameCollectionManager {
                 filter: true,
                 resizable: true,
                 flex: 1,
-                cellRenderer: this.mediaCellRenderer
+                cellRenderer: this.mediaCellRenderer,
+                wrapHeaderText: true
             });
         }
         
