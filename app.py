@@ -11014,7 +11014,7 @@ def find_best_matches_igdb_endpoint():
                         'summary': best_match.get('summary', ''),
                         'first_release_date': best_match.get('first_release_date'),
                         'genres': best_match.get('genres', []),
-                        'publisher': self._get_publisher_string(best_match, igdb_service),
+                        'publisher': _get_publisher_string(best_match, igdb_service),
                         'similarity_score': best_match.get('_similarity_score', 0.0)
                     },
                     'all_matches': [
@@ -11024,7 +11024,7 @@ def find_best_matches_igdb_endpoint():
                             'summary': match.get('summary', ''),
                             'first_release_date': match.get('first_release_date'),
                             'genres': match.get('genres', []),
-                            'publisher': self._get_publisher_string(match, igdb_service),
+                            'publisher': _get_publisher_string(match, igdb_service),
                             'similarity_score': match.get('_similarity_score', 0.0)
                         }
                         for match in matches[:5]
