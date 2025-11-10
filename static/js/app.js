@@ -18499,6 +18499,14 @@ class GameCollectionManager {
                 this.applyDarkMode(darkModeToggle.checked);
             });
         }
+        
+        // Add event listener for vertical column headers toggle
+        const verticalHeadersToggle = document.getElementById('verticalColumnHeadersToggle');
+        if (verticalHeadersToggle) {
+            verticalHeadersToggle.addEventListener('change', () => {
+                this.applyVerticalColumnHeaders(verticalHeadersToggle.checked);
+            });
+        }
     }
     
     openGuiPreferencesModal() {
@@ -18514,6 +18522,10 @@ class GameCollectionManager {
         const savedDarkMode = localStorage.getItem('guiPreferences_darkMode') === 'true';
         document.getElementById('darkModeToggle').checked = savedDarkMode;
         
+        // Load vertical column headers preference (default: false)
+        const savedVerticalHeaders = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
+        document.getElementById('verticalColumnHeadersToggle').checked = savedVerticalHeaders;
+        
         // Load from localStorage or use default white
         const savedColor = localStorage.getItem('guiPreferences_mediaCardBackgroundColor') || '#ffffff';
         
@@ -18527,6 +18539,7 @@ class GameCollectionManager {
         try {
             const color = document.getElementById('mediaCardBackgroundColor').value;
             const darkMode = document.getElementById('darkModeToggle').checked;
+            const verticalHeaders = document.getElementById('verticalColumnHeadersToggle').checked;
             
             // Validate color
             if (!/^#[0-9A-F]{6}$/i.test(color)) {
@@ -18537,12 +18550,16 @@ class GameCollectionManager {
             // Save to localStorage
             localStorage.setItem('guiPreferences_mediaCardBackgroundColor', color);
             localStorage.setItem('guiPreferences_darkMode', darkMode.toString());
+            localStorage.setItem('guiPreferences_verticalColumnHeaders', verticalHeaders.toString());
             
             // Apply the new color immediately
             this.applyMediaCardBackgroundColor(color);
             
             // Apply dark mode
             this.applyDarkMode(darkMode);
+            
+            // Apply vertical column headers
+            this.applyVerticalColumnHeaders(verticalHeaders);
             
             // Show success message
             this.showAlert('GUI preferences saved successfully!', 'success');
@@ -18600,6 +18617,21 @@ class GameCollectionManager {
         // Apply saved dark mode on page load
         const savedDarkMode = localStorage.getItem('guiPreferences_darkMode') === 'true';
         this.applyDarkMode(savedDarkMode);
+        
+        // Apply saved vertical column headers on page load (default: false)
+        const savedVerticalHeaders = localStorage.getItem('guiPreferences_verticalColumnHeaders') === 'true';
+        this.applyVerticalColumnHeaders(savedVerticalHeaders);
+    }
+    
+    applyVerticalColumnHeaders(enabled) {
+        const gridElement = document.getElementById('gamesGrid');
+        if (gridElement) {
+            if (enabled) {
+                gridElement.classList.add('vertical-headers');
+            } else {
+                gridElement.classList.remove('vertical-headers');
+            }
+        }
     }
     
     applyDarkMode(enabled) {

@@ -481,8 +481,8 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     width: 100%;
 }
 
-/* Rotate column header text vertically */
-.ag-theme-alpine .ag-header-cell-label {
+/* Rotate column header text vertically (only when enabled) */
+.ag-theme-alpine.vertical-headers .ag-header-cell-label {
     writing-mode: vertical-lr;
     text-orientation: mixed;
     transform: rotate(180deg);
