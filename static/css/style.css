@@ -470,6 +470,11 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     margin-top: 5px;
 }
 
+/* Unset header height CSS variable to allow autoHeaderHeight to work */
+:root {
+    --ag-header-height: unset;
+}
+
 /* AG Grid theme customizations */
 .ag-theme-alpine {
     /* Don't set --ag-header-height when using autoHeaderHeight */
