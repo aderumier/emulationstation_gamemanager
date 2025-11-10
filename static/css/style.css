@@ -487,6 +487,24 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     white-space: normal;
     word-wrap: break-word;
     overflow: visible;
+    /* Remove any height constraints to allow autoHeaderHeight to work */
+    min-height: unset !important;
+    max-height: none !important;
+    height: auto !important;
+}
+
+/* Ensure header row can expand for autoHeaderHeight */
+.ag-theme-alpine .ag-header-row {
+    height: auto !important;
+    min-height: unset !important;
+}
+
+/* Ensure header cell can expand for autoHeaderHeight */
+.ag-theme-alpine .ag-header-cell {
+    height: auto !important;
+    min-height: unset !important;
+    display: flex;
+    align-items: stretch;
 }
 
 /* Rotate column header text vertically (only when enabled) */
@@ -499,11 +517,28 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     align-items: center;
     justify-content: center;
     /* Remove fixed height to allow autoHeaderHeight to calculate properly */
-    /* height: 100%; */
     width: 100%;
     white-space: normal;
     word-wrap: break-word;
     overflow: visible;
+    /* Remove any height constraints to allow autoHeaderHeight to work */
+    min-height: unset !important;
+    max-height: none !important;
+    height: auto !important;
+}
+
+/* Ensure header row can expand for autoHeaderHeight with vertical headers */
+.ag-theme-alpine.vertical-headers .ag-header-row {
+    height: auto !important;
+    min-height: unset !important;
+}
+
+/* Ensure header cell can expand for autoHeaderHeight with vertical headers */
+.ag-theme-alpine.vertical-headers .ag-header-cell {
+    height: auto !important;
+    min-height: unset !important;
+    display: flex;
+    align-items: stretch;
 }
 
 /* Grid container to fill available space */
