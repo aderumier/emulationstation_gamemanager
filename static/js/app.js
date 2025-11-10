@@ -2568,7 +2568,7 @@ class GameCollectionManager {
                 },
                 { 
                     field: 'launchboxid', 
-                    headerName: 'Launchbox ID', 
+                    headerName: 'Launch', 
                     editable: false, 
                     sortable: true, 
                     filter: true, 
@@ -2594,7 +2594,7 @@ class GameCollectionManager {
                 },
                 { 
                     field: 'igdbid', 
-                    headerName: 'IGDB ID', 
+                    headerName: 'IGDB', 
                     editable: false, 
                     sortable: true, 
                     filter: true, 
@@ -2612,7 +2612,7 @@ class GameCollectionManager {
                 },
                 { 
                     field: 'screenscraperid', 
-                    headerName: 'ScreenScraper ID', 
+                    headerName: 'ScreenS', 
                     editable: false, 
                     sortable: true, 
                     filter: true, 
@@ -2630,7 +2630,7 @@ class GameCollectionManager {
                 },
                 { 
                     field: 'steamid', 
-                    headerName: 'Steam ID', 
+                    headerName: 'Steam', 
                     editable: false, 
                     sortable: true, 
                     filter: true, 
@@ -2648,7 +2648,7 @@ class GameCollectionManager {
                 },
                 { 
                     field: 'steamgridid', 
-                    headerName: 'SteamGridDB ID', 
+                    headerName: 'SGrid', 
                     editable: false, 
                     sortable: true, 
                     filter: true, 
@@ -2666,7 +2666,7 @@ class GameCollectionManager {
                 },
                 { 
                     field: 'mobygamesid', 
-                    headerName: 'MobyGames ID', 
+                    headerName: 'Moby', 
                     editable: false, 
                     sortable: true, 
                     filter: true, 
@@ -2774,7 +2774,7 @@ class GameCollectionManager {
                 },
                 { 
                     field: 'youtubeurl', 
-                    headerName: 'YouTube URL', 
+                    headerName: 'Vid url', 
                     editable: true, 
                     sortable: true, 
                     filter: true, 
