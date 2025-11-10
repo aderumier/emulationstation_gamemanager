@@ -472,8 +472,9 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 /* AG Grid theme customizations */
 .ag-theme-alpine {
-    /* --ag-header-height is not set to allow autoHeaderHeight to work */
+    /* Explicitly unset --ag-header-height to allow autoHeaderHeight to work */
     /* Header height is automatically calculated when autoHeaderHeight=true in gridOptions */
+    --ag-header-height: unset !important;
     --ag-header-background-color: #f8f9fa;
     --ag-header-foreground-color: #495057;
     --ag-font-size: 12px;
