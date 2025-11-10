@@ -2678,7 +2678,7 @@ class GameCollectionManager {
                     filter: true, 
                     resizable: true, 
                     flex: 1,
-                    wrapHeaderText: true
+                    wrapHeaderText: wrapHeaderText
                 },
                 { 
                     field: 'desc', 
