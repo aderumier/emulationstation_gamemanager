@@ -10957,7 +10957,7 @@ def find_best_matches_igdb_endpoint():
             
             # Search IGDB for best matches using the configured platform ID
             # The search function will normalize internally using normalize_game_name
-            matches = igdb_service.search_games_by_name(game_name, platform_id=igdb_platform_id, limit=5)
+            matches = igdb_service.search_games_by_name(game_name, platform_id=igdb_platform_id, limit=10)
             
             print(f"🔧 DEBUG IGDB Find Best Match: Found {len(matches)} matches for '{game_name}'")
             if matches:
@@ -14292,7 +14292,7 @@ def apply_manual_scrap(system_name):
             return jsonify({'error': 'Game not found'}), 404
 
         # Update text fields
-        text_fields = ['name','desc','developer','publisher','genre','releasedate']
+        text_fields = ['name','desc','developer','publisher','genre','releasedate','rating','players']
         updated_text_fields = {}
         for field in text_fields:
             selected_source = selections.get(field)
