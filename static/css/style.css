@@ -487,7 +487,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     writing-mode: vertical-lr;
     text-orientation: mixed;
     transform: rotate(180deg);
-    white-space: nowrap;
+    /* white-space: nowrap removed to allow wrapping for autoHeaderHeight */
     display: flex;
     align-items: center;
     justify-content: center;
