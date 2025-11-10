@@ -2802,6 +2802,7 @@ class GameCollectionManager {
                 filter: true,
                 resizable: true,
                 editable: false, // Default to non-editable
+                wrapHeaderText: true, // Enable text wrapping for autoHeaderHeight to work properly
                 filterParams: {
                     buttons: ['apply', 'reset'],
                     closeOnApply: true
