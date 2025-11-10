@@ -23101,47 +23101,29 @@ def populate_gamelist_with_igdb_data(game, igdb_game, igdb_config, company_cache
             elem = game.find(tag_name)
             return elem.text.strip() if elem is not None and elem.text else ""
         
-        # Resolve company IDs to names from involved_companies
-        # Note: involved_companies is excluded from local database to reduce size
-        # Fallback to publisher/developer fields created from reverse mapping (not platform-specific)
+        # Resolve company IDs to names from publisher/developer fields
+        # These fields contain company IDs (or arrays of IDs) that can be resolved using igdb_companies.pkl
         developer_names = []
         publisher_names = []
         
-        if igdb_game.get('involved_companies'):
-            # Use involved_companies if available (from API, not in local DB)
-            for involvement in igdb_game['involved_companies']:
-                company_id = involvement.get('company')
-                is_developer = involvement.get('developer', False)
-                is_publisher = involvement.get('publisher', False)
-                
-                if company_id:
-                    company_name = get_igdb_company_name(company_id, company_cache)
-                    if company_name and not company_name.startswith('Company '):
-                        if is_developer:
-                            developer_names.append(company_name)
-                        if is_publisher:
-                            publisher_names.append(company_name)
-        else:
-            # Fallback: use publisher/developer fields from reverse mapping (not platform-specific)
-            # These fields were created from companies.published/developed arrays in dump.py
-            publisher_data = igdb_game.get('publisher')
-            developer_data = igdb_game.get('developer')
-            
-            if publisher_data:
-                publisher_ids = publisher_data if isinstance(publisher_data, list) else [publisher_data]
-                for pub_id in publisher_ids:
-                    if pub_id:
-                        pub_name = get_igdb_company_name(pub_id, company_cache)
-                        if pub_name and not pub_name.startswith('Company '):
-                            publisher_names.append(pub_name)
-            
-            if developer_data:
-                developer_ids = developer_data if isinstance(developer_data, list) else [developer_data]
-                for dev_id in developer_ids:
-                    if dev_id:
-                        dev_name = get_igdb_company_name(dev_id, company_cache)
-                        if dev_name and not dev_name.startswith('Company '):
-                            developer_names.append(dev_name)
+        publisher_data = igdb_game.get('publisher')
+        developer_data = igdb_game.get('developer')
+        
+        if publisher_data:
+            publisher_ids = publisher_data if isinstance(publisher_data, list) else [publisher_data]
+            for pub_id in publisher_ids:
+                if pub_id:
+                    pub_name = get_igdb_company_name(pub_id, company_cache)
+                    if pub_name and not pub_name.startswith('Company '):
+                        publisher_names.append(pub_name)
+        
+        if developer_data:
+            developer_ids = developer_data if isinstance(developer_data, list) else [developer_data]
+            for dev_id in developer_ids:
+                if dev_id:
+                    dev_name = get_igdb_company_name(dev_id, company_cache)
+                    if dev_name and not dev_name.startswith('Company '):
+                        developer_names.append(dev_name)
         
         # Map IGDB fields to gamelist fields
         # Get genre names from IDs
