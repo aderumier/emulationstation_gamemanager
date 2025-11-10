@@ -10914,6 +10914,24 @@ def find_best_matches_igdb_endpoint():
         
         print(f"🔧 DEBUG IGDB Find Best Match: IGDB service loaded, is_loaded={igdb_service.is_loaded()}")
         
+        # Get system configuration to retrieve IGDB platform ID
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        
+        # Get IGDB platform ID (convert name to ID if needed)
+        igdb_platform_name_or_id = system_config.get('igdb')
+        if not igdb_platform_name_or_id:
+            return jsonify({'error': f'No IGDB platform configured for system "{system_name}"'}), 400
+        
+        # Ensure platform cache is available and convert name to ID
+        import asyncio
+        platform_cache = asyncio.run(ensure_igdb_platform_cache())
+        igdb_platform_id = get_igdb_platform_id(igdb_platform_name_or_id, platform_cache)
+        if not igdb_platform_id:
+            return jsonify({'error': f"Invalid IGDB platform '{igdb_platform_name_or_id}' for system '{system_name}'"}), 400
+        
+        print(f"🔧 DEBUG IGDB Find Best Match: Using platform_id={igdb_platform_id} for system '{system_name}'")
+        
         # Load gamelist to get game details
         gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
@@ -10935,13 +10953,11 @@ def find_best_matches_igdb_endpoint():
             if not game_name:
                 continue
             
-            print(f"🔧 DEBUG IGDB Find Best Match: Searching for '{game_name}'")
+            print(f"🔧 DEBUG IGDB Find Best Match: Searching for '{game_name}' on platform {igdb_platform_id}")
             
-            # Search IGDB for best matches
+            # Search IGDB for best matches using the configured platform ID
             # The search function will normalize internally using normalize_game_name
-            # Use platform_id 18 for NES (Nintendo Entertainment System)
-            platform_id = 18 if system_name.lower() == 'nes' else None
-            matches = igdb_service.search_games_by_name(game_name, platform_id=platform_id, limit=5)
+            matches = igdb_service.search_games_by_name(game_name, platform_id=igdb_platform_id, limit=5)
             
             print(f"🔧 DEBUG IGDB Find Best Match: Found {len(matches)} matches for '{game_name}'")
             if matches:
