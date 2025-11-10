@@ -2795,8 +2795,7 @@ class GameCollectionManager {
             domLayout: 'normal',
             // Compact grid configuration
             rowHeight: 28,
-            headerHeight: 32,
-            // Auto-adjust header height based on content
+            // Auto-adjust header height based on content (headerHeight is ignored when autoHeaderHeight is true)
             autoHeaderHeight: true,
             defaultColDef: {
                 sortable: true,
