@@ -6954,13 +6954,16 @@ class GameCollectionManager {
                         </div>
                     </div>
                 `;
-                // Hover full preview with comparison (images only)
-                tile.addEventListener('mouseenter', (ev) => {
-                    if (mediaKey !== 'video') {
-                        this.showMediaHover(ev, url, mediaKey, this.currentManualScrapGame);
+                // Hover full preview with comparison (images only) - attach to image element only
+                if (mediaKey !== 'video') {
+                    const imageElement = tile.querySelector('.media-preview-item img');
+                    if (imageElement) {
+                        imageElement.addEventListener('mouseenter', (ev) => {
+                            this.showMediaHover(ev, url, mediaKey, this.currentManualScrapGame);
+                        });
+                        imageElement.addEventListener('mouseleave', () => this.hideMediaHover());
                     }
-                });
-                tile.addEventListener('mouseleave', () => this.hideMediaHover());
+                }
                 tile.addEventListener('click', () => {
                     // remove highlight from other tiles for this media key
                     card.querySelectorAll('.selectable-media-item').forEach(el => el.classList.remove('border', 'border-primary'));
