@@ -12616,26 +12616,33 @@ class GameCollectionManager {
     
     handleTaskCompletion(data) {
         
-        // Check if this is a manual crop task completion
-        if (data.task_type === 'manual_crop' && data.success) {
+        // Check if this is a manual crop task completion (success or failure)
+        if (data.task_type === 'manual_crop') {
             
-            // Hide waiting state
+            // Always hide waiting state, even on failure
             this.hideCropWaitingState();
             
-            // Close the crop modal if it's open
-            const modal = bootstrap.Modal.getInstance(document.getElementById('videoCroppingModal'));
-            if (modal) {
-                modal.hide();
-                // Cleanup will be handled by the modal hidden event
-            }
-            
-            // Refresh the video preview if we're editing a game
-            if (this.currentCropGame && this.editingGameIndex >= 0) {
-                // Reload the system to get updated game data
-                this.loadRomSystem(this.currentSystem).then(() => {
-                    // Refresh the video preview
-                    this.showEditGameVideo(this.currentCropGame);
-                });
+            if (data.success) {
+                // Close the crop modal if it's open
+                const modal = bootstrap.Modal.getInstance(document.getElementById('videoCroppingModal'));
+                if (modal) {
+                    modal.hide();
+                    // Cleanup will be handled by the modal hidden event
+                }
+                
+                // Refresh the video preview if we're editing a game
+                if (this.currentCropGame && this.editingGameIndex >= 0) {
+                    // Reload the system to get updated game data
+                    this.loadRomSystem(this.currentSystem).then(() => {
+                        // Refresh the video preview
+                        this.showEditGameVideo(this.currentCropGame);
+                    });
+                }
+            } else {
+                // Task failed - show error message if available
+                if (data.error || data.message) {
+                    this.showAlert(data.error || data.message, 'error');
+                }
             }
         }
         
