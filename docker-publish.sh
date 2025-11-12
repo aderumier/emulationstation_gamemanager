@@ -153,6 +153,7 @@ show_usage() {
     echo "  -v, --version VERSION      Image version (default: 1.6-1)"
     echo "  -b, --build-only          Only build the image, don't push"
     echo "  -p, --push-only           Only push existing images, don't build"
+    echo "  -c, --cleanup             Clean up old Docker images (keeps current version and latest)"
     echo "  -h, --help                Show this help message"
     echo ""
     echo "Examples:"
@@ -162,18 +163,44 @@ show_usage() {
     echo "  $0 -u myusername -p                 # Only push existing images"
 }
 
-# Function to clean up local images
-cleanup() {
-    print_status "Cleaning up local images..."
+# Function to clean up old local images
+cleanup_old_images() {
+    print_status "Cleaning up old Docker images..."
+    
+    # Ensure username is set
+    if [ -z "$DOCKERHUB_USERNAME" ]; then
+        get_dockerhub_username
+    fi
     FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
-    docker rmi ${FULL_IMAGE_NAME}:${VERSION} 2>/dev/null || true
-    docker rmi ${FULL_IMAGE_NAME}:latest 2>/dev/null || true
-    print_success "Cleanup completed"
+    
+    # Get all images for this repository
+    local all_images=$(docker images ${FULL_IMAGE_NAME} --format "{{.Repository}}:{{.Tag}}" 2>/dev/null || true)
+    
+    if [ -z "$all_images" ]; then
+        print_status "No images found to clean up"
+        return
+    fi
+    
+    local cleaned_count=0
+    while IFS= read -r image_tag; do
+        # Skip current version and latest
+        if [[ "$image_tag" != "${FULL_IMAGE_NAME}:${VERSION}" ]] && [[ "$image_tag" != "${FULL_IMAGE_NAME}:latest" ]]; then
+            print_status "Removing old image: $image_tag"
+            docker rmi "$image_tag" 2>/dev/null && ((cleaned_count++)) || true
+        fi
+    done <<< "$all_images"
+    
+    if [ $cleaned_count -gt 0 ]; then
+        print_success "Cleaned up $cleaned_count old image(s)"
+    else
+        print_status "No old images to clean up"
+    fi
 }
 
 # Parse command line arguments
 BUILD_ONLY=false
 PUSH_ONLY=false
+CLEANUP_ONLY=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -191,6 +218,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--push-only)
             PUSH_ONLY=true
+            shift
+            ;;
+        -c|--cleanup)
+            CLEANUP_ONLY=true
             shift
             ;;
         -h|--help)
@@ -214,6 +245,12 @@ main() {
     # Check Docker
     check_docker
     
+    # Handle cleanup-only mode
+    if [ "$CLEANUP_ONLY" = true ]; then
+        cleanup_old_images
+        exit 0
+    fi
+    
     if [ "$PUSH_ONLY" = false ]; then
         # Build image
         build_image
@@ -231,6 +268,9 @@ main() {
         
         # Push images
         push_images
+        
+        # Clean up old local images after successful push
+        cleanup_old_images
         
         FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
         print_success "All done! Your images are now available on DockerHub:"

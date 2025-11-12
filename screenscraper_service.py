@@ -6,6 +6,7 @@ import logging
 import re
 import aiofiles
 import time
+import hashlib
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import urlparse
@@ -247,8 +248,8 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
         if 'text' in game_data['note']:
             note_text = game_data['note']['text']
             # Normalize rating from 0-20 scale to 0-5 scale
-            from app import normalize_rating_to_5_scale
-            text_info['rating'] = normalize_rating_to_5_scale(note_text, 20)
+            from app import normalize_rating
+            text_info['rating'] = normalize_rating(note_text, 20)
     
     # Extract players from joueurs.text, handle range values like '1-2'
     if 'joueurs' in game_data and isinstance(game_data['joueurs'], dict):
@@ -652,18 +653,49 @@ class ScreenScraperService:
         print(f"Failed to search ScreenScraper games after 1 attempt")
         return []
     
-    async def search_game_by_rom_name(self, rom_filename: str, system_name: str) -> Optional[Dict]:
+    def compute_rom_md5(self, rom_path: str) -> Optional[str]:
+        """
+        Compute MD5 hash of a ROM file.
+        
+        Args:
+            rom_path: Full path to the ROM file
+            
+        Returns:
+            MD5 hash as hexadecimal string, or None if file doesn't exist or error occurs
+        """
+        try:
+            if not os.path.exists(rom_path):
+                print(f"⚠️ ROM file not found: {rom_path}")
+                return None
+            
+            md5_hash = hashlib.md5()
+            with open(rom_path, 'rb') as f:
+                # Read file in chunks to handle large files efficiently
+                for chunk in iter(lambda: f.read(4096), b''):
+                    md5_hash.update(chunk)
+            
+            md5_hex = md5_hash.hexdigest()
+            print(f"🔐 Computed MD5 for {os.path.basename(rom_path)}: {md5_hex}")
+            return md5_hex
+        except Exception as e:
+            print(f"❌ Error computing MD5 for {rom_path}: {e}")
+            return None
+    
+    async def search_game_by_rom_name(self, rom_filename: str, system_name: str, md5: Optional[str] = None) -> Optional[Dict]:
         """
         Search for a game using ScreenScraper API and return game data if found.
         
         Args:
             rom_filename: The ROM filename (without path)
             system_name: The system name
+            md5: Optional MD5 hash of the ROM file
             
         Returns:
             Dictionary with 'jeu_id' and 'game_data' if found, None otherwise
         """
         print(f"Searching ScreenScraper for ROM: {rom_filename}, System: {system_name}")
+        if md5:
+            print(f"Using MD5 hash: {md5}")
         
         if not all([self.devid, self.devpassword, self.ssid, self.sspassword]):
             print("ScreenScraper credentials not configured")
@@ -687,6 +719,10 @@ class ScreenScraperService:
             'systemeid': systemeid,
             'output': 'json'
         }
+        
+        # Add MD5 parameter if provided
+        if md5:
+            params['md5'] = md5
         
         for attempt in range(self.retry_attempts):
             try:
@@ -978,6 +1014,44 @@ class ScreenScraperService:
                 
                 # Check if game already has a ScreenScraper ID
                 existing_screenscraper_id = game.get('screenscraperid')
+                existing_md5 = game.get('md5', '').strip()
+                rom_md5 = None
+                
+                # Compute MD5 only if the md5 field is empty (to store it in gamelist)
+                if not existing_md5:
+                    # Construct full ROM path
+                    # game_path is typically like "./manny.zip" or "./roms/nes/Mega Man (USA).nes" or "roms/nes/Mega Man (USA).nes"
+                    # ROM files are stored in roms/<system_name>/ directory
+                    if game_path.startswith('./'):
+                        # Remove leading ./ to get relative path
+                        relative_path = game_path[2:]
+                    else:
+                        relative_path = game_path
+                    
+                    # If path doesn't start with 'roms/', it's relative to the system directory
+                    if not relative_path.startswith('roms/'):
+                        # Path is relative to roms/<system_name>/, e.g., "manny.zip" -> "roms/vsmile/manny.zip"
+                        rom_full_path = os.path.join('roms', system_name, relative_path)
+                    else:
+                        # Path already includes roms/, use as-is
+                        rom_full_path = relative_path
+                    
+                    # Ensure path is absolute
+                    if not os.path.isabs(rom_full_path):
+                        rom_full_path = os.path.abspath(rom_full_path)
+                    
+                    # Compute MD5
+                    rom_md5 = self.compute_rom_md5(rom_full_path)
+                    if rom_md5:
+                        # Store MD5 in game dict for later saving to gamelist
+                        game['md5'] = rom_md5
+                        print(f"💾 Stored MD5 {rom_md5} for {game_name}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Computed MD5 for {game_name}")
+                else:
+                    rom_md5 = existing_md5
+                    print(f"♻️ Using existing MD5 {rom_md5} for {game_name}")
+                
                 if existing_screenscraper_id and str(existing_screenscraper_id).strip() and str(existing_screenscraper_id) != '0':
                     # Use existing ScreenScraper ID directly
                     jeu_id = str(existing_screenscraper_id)
@@ -995,7 +1069,8 @@ class ScreenScraperService:
                         results[game_path] = {
                             'jeu_id': jeu_id,
                             'downloaded_media': {},
-                            'text_info': {}
+                            'text_info': {},
+                            'md5': rom_md5 if rom_md5 else None
                         }
                         print(f"✅ ScreenScraper ID found for {game_name}: {jeu_id}")
                         if detailed_progress_callback:
@@ -1025,7 +1100,8 @@ class ScreenScraperService:
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Searching ScreenScraper for: {game_name}")
                     
-                    search_result = await self.search_game_by_rom_name(rom_filename, system_name)
+                    # Pass MD5 to search function when no screenscraperid exists
+                    search_result = await self.search_game_by_rom_name(rom_filename, system_name, md5=rom_md5)
                     if search_result:
                         jeu_id = search_result['jeu_id']
                         game_data = search_result['game_data']
@@ -1043,7 +1119,8 @@ class ScreenScraperService:
                             results[game_path] = {
                                 'jeu_id': jeu_id,
                                 'downloaded_media': {},
-                                'text_info': {}
+                                'text_info': {},
+                                'md5': rom_md5 if rom_md5 else None
                             }
                             print(f"✅ ScreenScraper ID found for {game_name}: {jeu_id}")
                             if detailed_progress_callback:
@@ -1080,11 +1157,12 @@ class ScreenScraperService:
                         
                         downloaded_media = await self.process_media_downloads(game_data, system_name, media_client, selected_fields, overwrite_media_fields, detailed_progress_callback)
                     
-                    # Store jeu_id, downloaded media, and text information
+                    # Store jeu_id, downloaded media, text information, and MD5
                     results[game_path] = {
                         'jeu_id': jeu_id,
                         'downloaded_media': downloaded_media,
-                        'text_info': text_info
+                        'text_info': text_info,
+                        'md5': rom_md5 if rom_md5 else None
                     }
                     print(f"✅ Successfully processed {game_name} -> ScreenScraper ID: {jeu_id}")
                     print(f"📁 Downloaded media: {list(downloaded_media.keys())}")
@@ -1102,7 +1180,8 @@ class ScreenScraperService:
                     results[game_path] = {
                         'jeu_id': None,
                         'downloaded_media': {},
-                        'text_info': {}
+                        'text_info': {},
+                        'md5': rom_md5 if rom_md5 else None
                     }
                 
                 return search_result

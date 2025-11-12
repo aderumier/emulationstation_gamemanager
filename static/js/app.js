@@ -3779,6 +3779,8 @@ class GameCollectionManager {
         document.getElementById('editScreenscraperId').value = '';
         document.getElementById('editSteamId').value = '';
         document.getElementById('editSteamgridid').value = '';
+        document.getElementById('editMobygamesid').value = '';
+        document.getElementById('editMd5').value = '';
         document.getElementById('editYoutubeurl').value = '';
         
         // Clear favorite and kidgame fields
@@ -3829,6 +3831,7 @@ class GameCollectionManager {
         document.getElementById('editSteamId').value = game.steamid || '';
         document.getElementById('editSteamgridid').value = game.steamgridid || '';
         document.getElementById('editMobygamesid').value = game.mobygamesid || '';
+        document.getElementById('editMd5').value = game.md5 || '';
         document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
         
         // Populate favorite and kidgame fields
@@ -6577,6 +6580,8 @@ class GameCollectionManager {
         game.steamid = document.getElementById('editSteamId').value;
         game.steamgridid = document.getElementById('editSteamgridid').value;
         game.mobygamesid = document.getElementById('editMobygamesid').value;
+        // MD5 is readonly, but we can read it if it was updated elsewhere
+        game.md5 = document.getElementById('editMd5').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
         
         // Handle favorite field (star icon)
@@ -12460,18 +12465,30 @@ class GameCollectionManager {
         
         // Reset button
         const resetBtn = document.getElementById('resetCropBtn');
-        resetBtn.addEventListener('click', () => {
-            if (this.cropper) {
-                this.cropper.reset();
-                this.updateCropInfo();
+        if (resetBtn) {
+            if (resetBtn._resetCropHandler) {
+                resetBtn.removeEventListener('click', resetBtn._resetCropHandler);
             }
-        });
+            resetBtn._resetCropHandler = () => {
+                if (this.cropper) {
+                    this.cropper.reset();
+                    this.updateCropInfo();
+                }
+            };
+            resetBtn.addEventListener('click', resetBtn._resetCropHandler);
+        }
         
         // Apply crop button
         const applyBtn = document.getElementById('applyCropBtn');
-        applyBtn.addEventListener('click', () => {
-            this.applyCropperCrop();
-        });
+        if (applyBtn) {
+            if (applyBtn._applyCropHandler) {
+                applyBtn.removeEventListener('click', applyBtn._applyCropHandler);
+            }
+            applyBtn._applyCropHandler = () => {
+                this.applyCropperCrop();
+            };
+            applyBtn.addEventListener('click', applyBtn._applyCropHandler);
+        }
     }
     
     updateCropInfo() {
@@ -22399,6 +22416,7 @@ class GameCollectionManager {
             const ratingField = document.getElementById('editRating');
             const playersField = document.getElementById('editPlayers');
             const launchboxIdField = document.getElementById('editLaunchboxId');
+            const md5Field = document.getElementById('editMd5');
             const youtubeurlField = document.getElementById('editYoutubeurl');
             
             if (nameField && updatedGame.name) nameField.value = updatedGame.name;
@@ -22409,6 +22427,7 @@ class GameCollectionManager {
             if (ratingField && updatedGame.rating) ratingField.value = updatedGame.rating;
             if (playersField && updatedGame.players) playersField.value = updatedGame.players;
             if (launchboxIdField && updatedGame.launchboxid) launchboxIdField.value = updatedGame.launchboxid;
+            if (md5Field && updatedGame.md5) md5Field.value = updatedGame.md5;
             if (youtubeurlField && updatedGame.youtubeurl) youtubeurlField.value = updatedGame.youtubeurl;
             
         }
@@ -22681,6 +22700,9 @@ class GameCollectionManager {
             return;
         }
         
+        // Get order option
+        const order = document.getElementById('youtubeSearchOrder').value || 'relevance';
+        
         // Show loading state
         this.showYouTubeLoading(true);
         this.showYouTubeResults(false);
@@ -22692,16 +22714,26 @@ class GameCollectionManager {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ query })
+                body: JSON.stringify({ query, order })
             });
             
             if (response.ok) {
                 const data = await response.json();
-                this.displayYouTubeResults(data.results);
+                if (data.success === false) {
+                    // Show error message
+                    this.showAlert(data.error || 'YouTube search failed', 'danger');
+                    this.showYouTubeNoResults(true);
+                } else {
+                    this.displayYouTubeResults(data.results);
+                }
             } else {
-                throw new Error('Search failed');
+                const errorData = await response.json().catch(() => ({ error: 'Search failed' }));
+                this.showAlert(errorData.error || 'YouTube search failed', 'danger');
+                this.showYouTubeNoResults(true);
             }
         } catch (error) {
+            console.error('YouTube search error:', error);
+            this.showAlert('Error performing YouTube search: ' + error.message, 'danger');
             this.showYouTubeNoResults(true);
         } finally {
             this.showYouTubeLoading(false);

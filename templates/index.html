@@ -949,6 +949,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             <input type="text" class="form-control" id="editPath" readonly>
                                         </div>
                                         <div class="mb-3">
+                                            <label for="editMd5" class="form-label">MD5</label>
+                                            <input type="text" class="form-control" id="editMd5" readonly style="font-family: monospace; font-size: 0.9em;">
+                                        </div>
+                                        <div class="mb-3">
                                             <label for="editDescription" class="form-label">Description</label>
                                             <textarea class="form-control" id="editDescription" rows="9"></textarea>
                                         </div>
@@ -2776,7 +2780,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-body">
                     <div class="row mb-3">
-                        <div class="col-md-8">
+                        <div class="col-md-6">
                             <div class="input-group">
                                 <input type="text" id="youtubeSearchInput" class="form-control" placeholder="Search for videos...">
                                 <button class="btn btn-primary" type="button" id="youtubeSearchBtn">
@@ -2784,7 +2788,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </button>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <select id="youtubeSearchOrder" class="form-select">
+                                <option value="relevance">Relevance</option>
+                                <option value="date">Date</option>
+                                <option value="rating">Rating</option>
+                                <option value="title">Title</option>
+                                <option value="viewCount">View Count</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
                             <div class="form-text">Searching for: <span id="youtubeGameName" class="fw-bold"></span></div>
                         </div>
                     </div>

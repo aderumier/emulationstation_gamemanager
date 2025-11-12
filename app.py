@@ -45,6 +45,7 @@ import multiprocessing
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import pickle
 from typing import Dict, List
 import secrets
 from datetime import datetime
@@ -988,6 +989,61 @@ os.makedirs('var/db', exist_ok=True)
 os.makedirs('var/db/launchbox', exist_ok=True)
 os.makedirs('var/db/igdb', exist_ok=True)
 os.makedirs('var/sessions', exist_ok=True)
+
+LOCAL_IMAGE_CACHE_PATH = '/var/cache/local_image.pkl'
+LOCAL_IMAGE_CACHE_TTL_SECONDS = 24 * 60 * 60
+_local_image_cache = None
+_local_image_cache_loaded = False
+
+
+def load_local_image_cache():
+    """Load the local images cache from disk (24h TTL)."""
+    global _local_image_cache, _local_image_cache_loaded
+    if _local_image_cache_loaded and _local_image_cache is not None:
+        return _local_image_cache
+
+    cache_data = {}
+    try:
+        if os.path.exists(LOCAL_IMAGE_CACHE_PATH):
+            with open(LOCAL_IMAGE_CACHE_PATH, 'rb') as cache_file:
+                cache_data = pickle.load(cache_file)
+                print(f"🔧 DEBUG: Loaded local image cache with {len(cache_data)} entries")
+    except Exception as e:
+        print(f"🔧 DEBUG: Failed to load local image cache: {e}")
+        cache_data = {}
+
+    _local_image_cache = cache_data
+    _local_image_cache_loaded = True
+    return cache_data
+
+
+def save_local_image_cache():
+    """Persist the local images cache to disk."""
+    global _local_image_cache
+    try:
+        cache_dir = os.path.dirname(LOCAL_IMAGE_CACHE_PATH)
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
+        with open(LOCAL_IMAGE_CACHE_PATH, 'wb') as cache_file:
+            pickle.dump(_local_image_cache or {}, cache_file)
+        print(f"🔧 DEBUG: Saved local image cache with {len((_local_image_cache or {}))} entries")
+    except Exception as e:
+        print(f"🔧 DEBUG: Failed to save local image cache: {e}")
+
+
+def is_local_image_cache_valid(cache_entry):
+    """Check if a cache entry is still valid (within TTL)."""
+    if not cache_entry:
+        return False
+    timestamp = cache_entry.get('timestamp')
+    if not timestamp:
+        return False
+    age = time.time() - timestamp
+    is_valid = age < LOCAL_IMAGE_CACHE_TTL_SECONDS
+    if not is_valid:
+        print(f"🔧 DEBUG: Local image cache entry expired (age: {age:.1f}s)")
+    return is_valid
+
 
 def get_gamelist_path(system_name):
     """Get the gamelist path for a system, ensuring the directory exists"""
@@ -9692,14 +9748,10 @@ def multiscraper_search_endpoint():
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 def search_local_media_files(system_name, media_type, game_name, direct_match):
-    """Search local media directory for images matching the game name."""
+    """Search local media directory for images matching the game name.
+    Searches in all systems, not just the current one."""
     results = []
     try:
-        media_dir = os.path.join('roms', system_name, 'media', f'{media_type}s')
-        if not os.path.isdir(media_dir):
-            print(f"🔧 DEBUG: Local media directory not found: {media_dir}")
-            return results
-
         from game_utils import normalize_game_name, calculate_similarity
 
         normalized_search_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
@@ -9707,27 +9759,71 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
             normalized_search_name = game_name.lower().strip()
 
         allowed_extensions = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
-        base_system_dir = os.path.join('roms', system_name)
+        roms_base_dir = 'roms'
 
+        cache = load_local_image_cache()
+        cache_key = ('all_systems', media_type)
         grouped_entries = {}
-        
-        for root, _, files in os.walk(media_dir):
-            for filename in files:
-                ext = os.path.splitext(filename)[1].lower()
-                if ext not in allowed_extensions:
+
+        cache_entry = cache.get(cache_key)
+        if is_local_image_cache_valid(cache_entry):
+            grouped_entries = cache_entry.get('data', {})
+            print(f"🔧 DEBUG: Using cached local images index for media_type={media_type} with {len(grouped_entries)} entries")
+        else:
+            if cache_entry:
+                print(f"🔧 DEBUG: Local image cache invalid or expired for media_type={media_type}, rebuilding index")
+            else:
+                print(f"🔧 DEBUG: No local image cache found for media_type={media_type}, building index")
+
+            # Check if roms directory exists
+            if not os.path.isdir(roms_base_dir):
+                print(f"🔧 DEBUG: Roms directory not found: {roms_base_dir}")
+                return results
+
+            grouped_entries = {}
+            
+            # Search in all systems
+            for system_dir in os.listdir(roms_base_dir):
+                system_path = os.path.join(roms_base_dir, system_dir)
+                if not os.path.isdir(system_path):
                     continue
-
-                base_name = os.path.splitext(filename)[0]
-                normalized_file_name = normalize_game_name(base_name, remove_paranthesis=True, remove_articles=True)
-                if not normalized_file_name:
-                    normalized_file_name = base_name.lower().strip()
-
-                relative_path = os.path.relpath(os.path.join(root, filename), base_system_dir)
-                relative_path = relative_path.replace(os.sep, '/')
-                web_path = f"/roms/{system_name}/{relative_path}"
                 
-                entry_list = grouped_entries.setdefault(normalized_file_name, [])
-                entry_list.append(web_path)
+                print(f"🔧 DEBUG: Scanning system '{system_dir}' for local {media_type} media in {system_path}")
+                
+                media_dir = os.path.join(system_path, 'media', f'{media_type}s')
+                if not os.path.isdir(media_dir):
+                    print(f"🔧 DEBUG: No '{media_type}s' directory for system '{system_dir}' at {media_dir}")
+                    continue
+                else:
+                    print(f"🔧 DEBUG: Walking media directory {media_dir} for system '{system_dir}'")
+
+                # Walk through the media directory for this system
+                for root, _, files in os.walk(media_dir):
+                    print(f"🔧 DEBUG: Visiting directory {root} with {len(files)} files")
+                    for filename in files:
+                        ext = os.path.splitext(filename)[1].lower()
+                        if ext not in allowed_extensions:
+                            continue
+
+                        base_name = os.path.splitext(filename)[0]
+                        normalized_file_name = normalize_game_name(base_name, remove_paranthesis=True, remove_articles=True)
+                        if not normalized_file_name:
+                            normalized_file_name = base_name.lower().strip()
+
+                        # Construct relative path from the system directory
+                        relative_path = os.path.relpath(os.path.join(root, filename), system_path)
+                        relative_path = relative_path.replace(os.sep, '/')
+                        web_path = f"/roms/{system_dir}/{relative_path}"
+                        
+                        entry_list = grouped_entries.setdefault(normalized_file_name, [])
+                        entry_list.append(web_path)
+
+            cache[cache_key] = {
+                'timestamp': time.time(),
+                'data': grouped_entries
+            }
+            save_local_image_cache()
+            print(f"🔧 DEBUG: Cached local images index for media_type={media_type} with {len(grouped_entries)} entries")
 
         if not grouped_entries:
             return results
@@ -10549,24 +10645,16 @@ def marquee_search_endpoint():
         # Find scrapers that support marquee
         marquee_scrapers = {}
         for scraper_name, scraper_config in scrappers_config.items():
-            print(f"🔧 DEBUG: Checking scraper: {scraper_name}")
-            print(f"🔧 DEBUG: Scraper config type: {type(scraper_config)}")
-            print(f"🔧 DEBUG: Scraper config keys: {list(scraper_config.keys())}")
-            
+            # Skip if specific scraper is selected and this isn't it
+            if scraper != 'all' and scraper != scraper_name:
+                continue
+                
             if 'image_type_mappings' in scraper_config:
                 image_mappings = scraper_config['image_type_mappings']
-                print(f"🔧 DEBUG: Image mappings for {scraper_name}: {image_mappings}")
                 if 'marquee' in image_mappings:
-                    print(f"🔧 DEBUG: 'marquee' in image_mappings: True")
                     marquee_scrapers[scraper_name] = scraper_config
-                    print(f"🔧 DEBUG: Added {scraper_name} to marquee scrapers")
         
         print(f"🔧 DEBUG: Found marquee scrapers: {list(marquee_scrapers.keys())}")
-        print(f"🔧 DEBUG: Marquee scrapers count: {len(marquee_scrapers)}")
-        
-        # Filter by selected scraper if not 'all'
-        if scraper != 'all' and scraper in marquee_scrapers:
-            marquee_scrapers = {scraper: marquee_scrapers[scraper]}
         
         # Search for marquee using each scraper - via common helper
         all_marquee_results = []
@@ -16300,30 +16388,39 @@ def youtube_search():
     try:
         data = request.get_json()
         search_query = data.get('query', '').strip()
+        order = data.get('order', 'relevance').strip()
         
         if not search_query:
             return jsonify({'error': 'Search query is required'}), 400
         
-        print(f"Searching YouTube API for: {search_query}")
+        # Validate order parameter
+        valid_orders = ['relevance', 'date', 'rating', 'title', 'viewCount']
+        if order not in valid_orders:
+            order = 'relevance'
+        
+        print(f"Searching YouTube API for: {search_query} (order: {order})")
         
         # Get YouTube API key from credentials
         youtube_api_key = get_youtube_api_key()
         if not youtube_api_key:
-            print("YouTube API key not configured, falling back to web scraping")
-            return search_youtube_with_web_scraping(search_query)
+            return jsonify({
+                'success': False,
+                'error': 'YouTube API key is required. Please configure it in the settings.',
+                'query': search_query
+            }), 400
         
         # Search using YouTube Data API v3
         try:
-            # Add "gameplay" to the search query for better results
-            api_query = f"{search_query} gameplay"
+            # Use the search query as-is for better exact matches
+            api_query = search_query
             search_url = "https://www.googleapis.com/youtube/v3/search"
             
             params = {
                 'part': 'snippet',
                 'q': api_query,
                 'type': 'video',
-                'maxResults': 10,
-                'order': 'date',  # Sort by date with most recent videos first
+                'maxResults': 20,  # Increased to get more results
+                'order': order,  # Use order from request
                 'key': youtube_api_key
             }
             
@@ -16802,8 +16899,10 @@ def search_youtube_with_web_scraping(search_query):
     try:
         print(f"Searching YouTube with web scraping: {search_query}")
         
-        # Search directly on YouTube
-        search_url = f"https://www.youtube.com/results?search_query={search_query}+gameplay"
+        # Search directly on YouTube (use query as-is for better exact matches)
+        import urllib.parse
+        encoded_query = urllib.parse.quote_plus(search_query)
+        search_url = f"https://www.youtube.com/results?search_query={encoded_query}"
         
         # Use a realistic user agent to avoid being blocked
         headers = {
@@ -24733,11 +24832,21 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             updated_count = 0
             media_updated_count = 0
             text_updated_count = 0
+            md5_updated_count = 0
             for game in all_games:
                 if game['path'] in results:
                     result = results[game['path']]
                     game['screenscraperid'] = result['jeu_id']
                     updated_count += 1
+                    
+                    # Update MD5 if computed and not already present (only if empty)
+                    computed_md5 = result.get('md5')
+                    if computed_md5:
+                        existing_md5 = game.get('md5', '').strip()
+                        if not existing_md5:
+                            game['md5'] = computed_md5
+                            md5_updated_count += 1
+                            print(f"📝 Updated MD5 for {game['name']}: {computed_md5}")
                     
                     # Update media fields with downloaded files
                     downloaded_media = result.get('downloaded_media', {})
@@ -24799,7 +24908,9 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             write_gamelist_xml(all_games, gamelist_path)
             if updated_count > 0:
                 print(f"✅ Updated {updated_count} games with ScreenScraper IDs")
-            else:
+            if md5_updated_count > 0:
+                print(f"✅ Updated {md5_updated_count} games with MD5 hashes")
+            if updated_count == 0 and md5_updated_count == 0:
                 print("💾 Gamelist saved (no games updated)")
             
             # Complete task
@@ -24808,6 +24919,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                 # Check if task was cancelled
                 if is_cancelled():
                     message = f"ScreenScraper task stopped. Updated {updated_count} games with ScreenScraper IDs"
+                    if md5_updated_count > 0:
+                        message += f" and computed {md5_updated_count} MD5 hashes"
                     if media_updated_count > 0:
                         message += f" and downloaded {media_updated_count} media files"
                     if text_updated_count > 0:
@@ -24816,6 +24929,8 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                     t.complete(True, message)
                 else:
                     message = f"ScreenScraper task completed. Updated {updated_count} games with ScreenScraper IDs"
+                    if md5_updated_count > 0:
+                        message += f" and computed {md5_updated_count} MD5 hashes"
                     if media_updated_count > 0:
                         message += f" and downloaded {media_updated_count} media files"
                     if text_updated_count > 0:
