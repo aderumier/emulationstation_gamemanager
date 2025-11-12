@@ -12356,7 +12356,7 @@ class GameCollectionManager {
         // Initialize Cropper.js with options
         this.cropper = new Cropper(image, {
             aspectRatio: 4 / 3, // Set 4:3 aspect ratio as default
-            viewMode: 0, // Allow crop box to extend beyond the container
+            viewMode: 1, // Restrict crop box to not exceed the size of the canvas (image)
             dragMode: 'move', // Allow moving the crop box
             autoCropArea: 1.0, // Use full area initially, will be adjusted
             restore: false,
