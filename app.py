@@ -22566,12 +22566,18 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
             from game_utils import should_process_field, convert_and_resize_image_replace
             should_process, target_extension, target_width, target_height = should_process_field(gamelist_field, config)
             
+            # Track the final extension to use (may be changed by conversion)
+            final_extension = file_extension
+            
             if should_process:
                 processed_path, process_status = convert_and_resize_image_replace(
                     temp_file_path, target_extension, target_width, target_height
                 )
                 if process_status in ["converted", "resized", "converted_and_resized"]:
                     temp_file_path = processed_path
+                    # Update extension to target_extension if conversion happened
+                    if target_extension:
+                        final_extension = target_extension
                     filename = os.path.basename(temp_file_path)
                     print(f"{emoji} DEBUG: ✅ Processed image: {process_status} - {filename}")
                 elif process_status == "failed":
@@ -22582,7 +22588,8 @@ async def download_igdb_image(image_data, system_name, rom_filename, image_type=
                 print(f"{emoji} DEBUG: ✅ No processing needed for field: {gamelist_field}")
             
             # Determine final filename and path using common function
-            final_filename = create_media_filename(rom_filename, file_extension)
+            # Use final_extension which may have been updated by conversion
+            final_filename = create_media_filename(rom_filename, final_extension)
             final_file_path = os.path.join(media_dir, final_filename)
             
             # Move the temp file to the final file using shutil.move() to handle symlinks
