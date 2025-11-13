@@ -2067,7 +2067,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation', 'import_medias']:
             self.grid_refresh_needed = True
         
         # Clear current task and start next queued task
@@ -3657,11 +3657,37 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
             save_gamelist_xml(gamelist_path, games)
             notify_gamelist_updated(system_name, len(games), updated_count=moved_count)
         
+        # Set system_name in task data for grid refresh
+        task.data = task.data or {}
+        task.data['system_name'] = system_name
+        
         task.complete(True, f"Import completed: {matched_count} matches found, {moved_count} files moved, {skipped_count} skipped, {failed_count} failed")
+        
+        # Emit task completion event for immediate frontend update
+        try:
+            socketio.emit('task_completed', {
+                'task_type': 'import_medias',
+                'success': True,
+                'message': f"Import completed: {matched_count} matches found, {moved_count} files moved, {skipped_count} skipped, {failed_count} failed",
+                'system_name': system_name
+            })
+        except Exception as e:
+            print(f"Error emitting task_completed event: {e}")
         
     except Exception as e:
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
+            
+            # Emit task failure event
+            try:
+                socketio.emit('task_completed', {
+                    'task_type': 'import_medias',
+                    'success': False,
+                    'message': str(e),
+                    'system_name': system_name
+                })
+            except Exception as emit_error:
+                print(f"Error emitting task_completed event: {emit_error}")
         print(f"Error in import medias task: {e}")
         import traceback
         traceback.print_exc()

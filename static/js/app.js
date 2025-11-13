@@ -1067,9 +1067,11 @@ class GameCollectionManager {
             };
             
             const stateJson = JSON.stringify(state);
-            this.setCookie('mainGridState', stateJson);
+            // Save to localStorage for persistence between sessions
+            localStorage.setItem('mainGridState', stateJson);
 
         } catch (error) {
+            console.error('Error saving grid state:', error);
         }
     }
     
@@ -1079,20 +1081,21 @@ class GameCollectionManager {
         }
         
         try {
-            const savedState = this.getCookie('mainGridState');
+            // Load from localStorage
+            const savedState = localStorage.getItem('mainGridState');
             
-            if (!savedState) {
-            } else {
+            if (savedState) {
                 const state = JSON.parse(savedState);
                 
                 // Restore column state using proper AG Grid API
                 if (state.columnState && state.columnState.length > 0) {
                     const success = this.gridApi.applyColumnState({
-                        state: state.columnState
+                        state: state.columnState,
+                        applyOrder: true
                     });
                     
-                    if (success) {
-                    } else {
+                    if (!success) {
+                        console.warn('Grid column state could not be fully restored.');
                     }
                 }
             }
@@ -1102,7 +1105,52 @@ class GameCollectionManager {
             
         } catch (error) {
             // Even on error, enable state saving so the grid can work
+            console.error('Error restoring grid state:', error);
             this.stateSavingEnabled = true;
+        }
+    }
+    
+    resetColumnLayout() {
+        if (!this.gridApi) {
+            this.showAlert('Grid is not initialized', 'warning');
+            return;
+        }
+        
+        if (!confirm('Are you sure you want to reset all column sizes and positions to their defaults? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            // Clear the saved grid state from localStorage
+            localStorage.removeItem('mainGridState');
+            
+            // Get all column definitions to restore default widths
+            const columnDefs = this.gridApi.getColumnDefs();
+            
+            // Reset each column to its initial width
+            columnDefs.forEach(colDef => {
+                if (colDef.field && colDef.initialWidth) {
+                    this.gridApi.setColumnWidth(colDef.field, colDef.initialWidth);
+                }
+            });
+            
+            // Reset column order by applying default order from columnDefs
+            const defaultOrder = columnDefs
+                .filter(col => col.field && col.field !== 'checkbox')
+                .map(col => col.field);
+            
+            if (defaultOrder.length > 0) {
+                this.gridApi.setColumnOrder(defaultOrder);
+            }
+            
+            // Save the reset state (so it persists)
+            this.saveMainGridState();
+            
+            this.showAlert('Column sizes and positions have been reset to defaults', 'success');
+            
+        } catch (error) {
+            console.error('Error resetting column layout:', error);
+            this.showAlert('Error resetting column layout: ' + error.message, 'danger');
         }
     }
 
@@ -2528,7 +2576,7 @@ class GameCollectionManager {
 
         // Generate dynamic column definitions
         const baseColumns = [
-                { 
+                {
                     headerName: '', 
                     field: 'checkbox', 
                     width: 50, 
@@ -2539,14 +2587,16 @@ class GameCollectionManager {
                     sortable: false,
                     filter: false
                 },
-                { 
+                {
                     field: 'name', 
                     headerName: 'Name ✏️', 
                     editable: true, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 2,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 200,
+                    minWidth: 200,
+                    flex: 1,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     cellStyle: { 
@@ -2568,14 +2618,15 @@ class GameCollectionManager {
                     },
 
                 },
-                { 
+                {
                     field: 'launchboxid', 
                     headerName: 'Launch', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 55,
+                    minWidth: 55,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     headerTooltip: 'Launchbox Database ID for exact matching. Auto-populated when scraping.',
@@ -2594,14 +2645,15 @@ class GameCollectionManager {
                         return params.newValue ? parseInt(params.newValue, 10) : null;
                     }
                 },
-                { 
+                {
                     field: 'igdbid', 
                     headerName: 'IGDB', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 55,
+                    minWidth: 55,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     headerTooltip: 'IGDB Database ID for exact matching. Auto-populated when scraping.',
@@ -2612,14 +2664,15 @@ class GameCollectionManager {
                         color: '#000'
                     }
                 },
-                { 
+                {
                     field: 'screenscraperid', 
                     headerName: 'ScreenS', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 55,
+                    minWidth: 55,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     headerTooltip: 'ScreenScraper Database ID for exact matching. Auto-populated when scraping.',
@@ -2630,14 +2683,15 @@ class GameCollectionManager {
                         color: '#000'
                     }
                 },
-                { 
+                {
                     field: 'steamid', 
                     headerName: 'Steam', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 55,
+                    minWidth: 55,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     headerTooltip: 'Steam App ID for exact matching. Auto-populated when scraping.',
@@ -2648,14 +2702,15 @@ class GameCollectionManager {
                         color: '#000'
                     }
                 },
-                { 
+                {
                     field: 'steamgridid', 
                     headerName: 'SGrid', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 55,
+                    minWidth: 55,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     headerTooltip: 'SteamGridDB Game ID for media downloads. Auto-populated when scraping.',
@@ -2666,14 +2721,15 @@ class GameCollectionManager {
                         color: '#000'
                     }
                 },
-                { 
+                {
                     field: 'mobygamesid', 
                     headerName: 'Moby', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 55,
+                    minWidth: 55,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     headerTooltip: 'MobyGames Database ID for exact matching. Auto-populated when scraping.',
@@ -2690,9 +2746,9 @@ class GameCollectionManager {
                     headerName: 'Path', 
                     editable: false,
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 180,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
@@ -2701,9 +2757,9 @@ class GameCollectionManager {
                     headerName: 'Description', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 2,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 260,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
@@ -2712,9 +2768,9 @@ class GameCollectionManager {
                     headerName: 'Genre', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 130,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
@@ -2723,9 +2779,9 @@ class GameCollectionManager {
                     headerName: 'Developer', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 150,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
@@ -2734,9 +2790,9 @@ class GameCollectionManager {
                     headerName: 'Publisher', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 150,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
@@ -2745,9 +2801,10 @@ class GameCollectionManager {
                     headerName: 'Rating', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 50,
+                    minWidth: 50,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
@@ -2756,20 +2813,22 @@ class GameCollectionManager {
                     headerName: 'Players', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 50,
+                    minWidth: 50,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
-                { 
+                {
                     field: 'video', 
                     headerName: 'Video', 
                     editable: false, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 1, 
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 30,
+                    minWidth: 30,
                     cellRenderer: this.mediaCellRenderer,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
@@ -2779,9 +2838,10 @@ class GameCollectionManager {
                     headerName: 'Vid url', 
                     editable: true, 
                     sortable: true, 
-                    filter: true, 
-                    resizable: true, 
-                    flex: 2,
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 70,
+                    minWidth: 70,
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true,
                     headerTooltip: 'YouTube URL for game videos. Can be edited manually or populated by scraping.',
@@ -2817,15 +2877,6 @@ class GameCollectionManager {
                     return 'hidden-game-row';
                 }
                 return null;
-            },
-            // Ensure keyboard navigation respects current filters by resetting index
-            onFilterChanged: () => {
-                try {
-                    const displayed = this.gridApi ? this.gridApi.getDisplayedRowCount() : 0;
-                    this.currentNavigationIndex = displayed > 0 ? 0 : 0;
-                } catch (e) {
-                    // no-op
-                }
             },
             columnDefs: allColumns,
             // Client-side Row Model Configuration (enables sorting)
@@ -2881,12 +2932,21 @@ class GameCollectionManager {
             },
             onFilterChanged: () => {
                 this.saveMainGridState();
+                try {
+                    const displayed = this.gridApi ? this.gridApi.getDisplayedRowCount() : 0;
+                    this.currentNavigationIndex = displayed > 0 ? 0 : 0;
+                } catch (e) {
+                    // no-op
+                }
             },
             onColumnVisible: () => {
                 this.saveMainGridState();
             },
             onColumnPinned: () => {
                 this.saveMainGridState();
+            },
+            onGridReady: () => {
+                this.restoreMainGridState();
             }
         };
 
@@ -4324,7 +4384,8 @@ class GameCollectionManager {
                 sortable: true,
                 filter: true,
                 resizable: true,
-                flex: 1,
+                initialWidth: 40,
+                minWidth: 40,
                 cellRenderer: this.mediaCellRenderer,
                 wrapHeaderText: wrapHeaderText,
                 autoHeaderHeight: true
@@ -12751,6 +12812,23 @@ class GameCollectionManager {
                 this.showAlert(data.message || 'Steam scraping failed', 'error');
             }
         }
+        
+        // Check if this is an import medias task completion
+        if (data.task_type === 'import_medias') {
+            
+            // Refresh the task grid to show updated task status
+            this.refreshTaskGrid();
+            
+            // Note: Grid refresh is handled automatically by the gamelist_updated WebSocket event
+            // which is emitted by notify_gamelist_updated() in the backend
+            
+            // Show appropriate message based on success status
+            if (data.success) {
+                this.showAlert(data.message || 'Import medias completed successfully', 'success');
+            } else {
+                this.showAlert(data.message || 'Import medias failed', 'error');
+            }
+        }
     }
     
     async refreshTaskGrid() {
@@ -18672,6 +18750,14 @@ class GameCollectionManager {
                 this.applyVerticalColumnHeaders(verticalHeadersToggle.checked);
             });
         }
+        
+        // Add event listener for reset column layout button
+        const resetColumnLayoutBtn = document.getElementById('resetColumnLayoutBtn');
+        if (resetColumnLayoutBtn) {
+            resetColumnLayoutBtn.addEventListener('click', () => {
+                this.resetColumnLayout();
+            });
+        }
     }
     
     openGuiPreferencesModal() {
@@ -21212,7 +21298,7 @@ class GameCollectionManager {
                 sortable: true, 
                 filter: true, 
                 resizable: true, 
-                flex: 2,
+                initialWidth: 220,
                 cellStyle: { 
                     fontWeight: 'bold'
                 }
