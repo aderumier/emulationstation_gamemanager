@@ -18595,7 +18595,16 @@ class GameCollectionManager {
         // Load current GUI preferences
         this.loadGuiPreferences();
         
-        const modal = new bootstrap.Modal(document.getElementById('guiPreferencesModal'));
+        const modalElement = document.getElementById('guiPreferencesModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // Auto-save preferences when modal is closed
+        const handleModalClose = () => {
+            this.saveGuiPreferences();
+            modalElement.removeEventListener('hidden.bs.modal', handleModalClose);
+        };
+        modalElement.addEventListener('hidden.bs.modal', handleModalClose, { once: true });
+        
         modal.show();
     }
     
@@ -18646,15 +18655,8 @@ class GameCollectionManager {
             // Apply vertical column headers
             this.applyVerticalColumnHeaders(verticalHeaders);
             
-            // Show success message
-            this.showAlert('GUI preferences saved successfully!', 'success');
-            
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('guiPreferencesModal'));
-            modal.hide();
-            
         } catch (error) {
-            this.showAlert('Error saving GUI preferences', 'danger');
+            console.error('Error saving GUI preferences:', error);
         }
     }
     
@@ -18752,12 +18754,18 @@ class GameCollectionManager {
             // Get all column definitions
             const allColumns = this.gridApi.getColumns();
             if (allColumns && allColumns.length > 0) {
-                // Update each column's wrapHeaderText property
-                allColumns.forEach(column => {
-                    if (column) {
-                        this.gridApi.setColumnProperty(column.getColId(), 'wrapHeaderText', wrapHeaderText);
-                    }
-                });
+                // Get current column definitions
+                const columnDefs = this.gridApi.getColumnDefs();
+                if (columnDefs) {
+                    // Update wrapHeaderText for all columns
+                    columnDefs.forEach(colDef => {
+                        if (colDef) {
+                            colDef.wrapHeaderText = wrapHeaderText;
+                        }
+                    });
+                    // Apply all updates at once
+                    this.gridApi.setColumnDefs(columnDefs);
+                }
             }
             
             // Force grid to recalculate header heights after updating wrapHeaderText
