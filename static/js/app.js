@@ -9894,7 +9894,12 @@ class GameCollectionManager {
             select.innerHTML = '<option value="">Select DAT file...</option>';
             
             if (data.success && data.files) {
-                data.files.forEach(file => {
+                // Sort files alphabetically by filename
+                const sortedFiles = [...data.files].sort((a, b) => {
+                    return a.filename.localeCompare(b.filename, undefined, { numeric: true, sensitivity: 'base' });
+                });
+                
+                sortedFiles.forEach(file => {
                     const option = document.createElement('option');
                     option.value = file.filename;
                     option.textContent = `${file.filename} (${(file.size / 1024).toFixed(1)} KB)`;
@@ -17073,8 +17078,54 @@ class GameCollectionManager {
         
         tbody.innerHTML = '';
         
+        // Check if no LaunchBox media types were loaded
+        if (!launchboxMediaTypes || launchboxMediaTypes.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td colspan="2" class="text-center text-muted py-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>No LaunchBox media types available</strong><br>
+                    <small>Refresh the LaunchBox media types cache to populate the list of available image types.</small>
+                </td>
+            `;
+            tbody.appendChild(row);
+            return;
+        }
+        
+        // Determine all media fields from config.json plus any existing mappings
+        const mediaFieldSet = new Set();
+        if (mediaFields && typeof mediaFields === 'object') {
+            Object.keys(mediaFields).forEach(field => mediaFieldSet.add(field));
+        }
+        if (launchboxMappings && typeof launchboxMappings === 'object') {
+            Object.keys(launchboxMappings).forEach(field => mediaFieldSet.add(field));
+        }
+        
+        const sortedMediaFields = Array.from(mediaFieldSet).sort((a, b) => 
+            a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+        );
+        
+        if (sortedMediaFields.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td colspan="2" class="text-center text-muted py-4">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>No media fields configured</strong><br>
+                    <small>Add media fields in config.json to manage LaunchBox mappings.</small>
+                </td>
+            `;
+            tbody.appendChild(row);
+            return;
+        }
+        
         // Create rows for each media field
-        Object.entries(launchboxMappings).forEach(([mediaField, launchboxTypes]) => {
+        sortedMediaFields.forEach(mediaField => {
+            const mappingValue = launchboxMappings && Object.prototype.hasOwnProperty.call(launchboxMappings, mediaField)
+                ? launchboxMappings[mediaField]
+                : [];
+            const launchboxTypes = Array.isArray(mappingValue)
+                ? [...mappingValue]
+                : (mappingValue ? [mappingValue] : []);
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>
@@ -17087,7 +17138,7 @@ class GameCollectionManager {
                             <select class="form-select form-select-sm" multiple size="4" id="availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px; min-width: 300px;">
                                 ${launchboxMediaTypes.filter(type => !launchboxTypes.includes(type)).map(type => 
                                     `<option value="${type}">${type}</option>`
-                        ).join('')}
+                                ).join('')}
                     </select>
                         </div>
                         <div class="col-2 d-flex flex-column justify-content-center align-items-center">
@@ -17101,7 +17152,7 @@ class GameCollectionManager {
                         <div class="col-5">
                             <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
                             <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto; min-width: 300px;" id="selectedTypes_${mediaField}">
-                                ${launchboxTypes.map((type, index) => 
+                                ${launchboxTypes.map(type => 
                                     `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
                                         <span class="small">${type}</span>
                                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificLaunchboxType('${mediaField}', '${type}')" title="Remove">
@@ -17540,8 +17591,40 @@ class GameCollectionManager {
             return;
         }
         
+        // Determine all media fields from config.json plus any existing mappings
+        const mediaFieldSet = new Set();
+        if (mediaFields && typeof mediaFields === 'object') {
+            Object.keys(mediaFields).forEach(field => mediaFieldSet.add(field));
+        }
+        if (screenscraperMappings && typeof screenscraperMappings === 'object') {
+            Object.keys(screenscraperMappings).forEach(field => mediaFieldSet.add(field));
+        }
+        
+        const sortedMediaFields = Array.from(mediaFieldSet).sort((a, b) => 
+            a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+        );
+        
+        if (sortedMediaFields.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td colspan="2" class="text-center text-muted py-4">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>No media fields configured</strong><br>
+                    <small>Add media fields in config.json to manage ScreenScraper mappings.</small>
+                </td>
+            `;
+            tbody.appendChild(row);
+            return;
+        }
+        
         // Create rows for each media field
-        Object.entries(screenscraperMappings).forEach(([mediaField, screenscraperTypes]) => {
+        sortedMediaFields.forEach(mediaField => {
+            const mappingValue = screenscraperMappings && Object.prototype.hasOwnProperty.call(screenscraperMappings, mediaField)
+                ? screenscraperMappings[mediaField]
+                : [];
+            const screenscraperTypes = Array.isArray(mappingValue)
+                ? [...mappingValue]
+                : (mappingValue ? [mappingValue] : []);
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>

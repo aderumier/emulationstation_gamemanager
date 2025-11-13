@@ -917,7 +917,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
-login_manager.session_protection = 'strong'  # Use strong session protection
+login_manager.session_protection = 'basic'  # Use basic session protection (allows IP changes)
 
 @login_manager.user_loader
 def load_user(user_id):

@@ -108,6 +108,15 @@
                 ".jpeg"
             ],
             "height": 900
+        },
+        "bezel": {
+            "directory": "bezels",
+            "extensions": [
+                ".png"
+            ],
+            "target_extension": "",
+            "width": 0,
+            "height": 0
         }
     },
     "2dboxgenerator": {
