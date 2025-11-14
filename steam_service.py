@@ -81,19 +81,13 @@ class SteamService:
 
     
     def load_app_index(self) -> Optional[List[Dict]]:
-        """Load Steam app index from cache if valid"""
+        """Load Steam app index from cache file (no automatic expiration, manual refresh only)"""
         if not os.path.exists(self.app_index_file):
             return None
         
         try:
             with open(self.app_index_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
-            # Check if cache is still valid
-            cache_time = datetime.fromisoformat(data.get('cached_at', '1970-01-01T00:00:00'))
-            if datetime.now() - cache_time > timedelta(hours=self.cache_retention_hours):
-                logger.info("Steam app index cache expired, will refresh")
-                return None
             
             # Handle both old and new cache formats
             apps = data.get('applist', {}).get('apps', []) or data.get('steam_apps', [])
@@ -320,9 +314,20 @@ class SteamService:
             print("🔧 Building Steam partitioned index at startup...")
             logger.info("🔧 Building Steam partitioned index at startup...")
             
-            # Load Steam apps from cache or API
-            import asyncio
-            apps = asyncio.run(self.get_app_index())
+            # Load Steam apps directly from appindex.json file (bypass expiration check)
+            apps = None
+            try:
+                with open(self.app_index_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # Handle both old and new cache formats
+                apps = data.get('applist', {}).get('apps', []) or data.get('steam_apps', [])
+                if apps:
+                    print(f"📦 Loaded {len(apps)} Steam apps from appindex.json")
+                    logger.info(f"Loaded {len(apps)} Steam apps from appindex.json for index building")
+            except Exception as e:
+                print(f"⚠️ Error loading Steam apps from appindex.json: {e}")
+                logger.warning(f"Error loading Steam apps from appindex.json: {e}")
             
             if apps:
                 self._build_partitioned_index(apps)
