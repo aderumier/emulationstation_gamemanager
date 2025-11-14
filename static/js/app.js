@@ -1121,27 +1121,50 @@ class GameCollectionManager {
         }
         
         try {
-            // Clear the saved grid state from localStorage
+            // Clear the saved grid state from localStorage completely
             localStorage.removeItem('mainGridState');
             
-            // Get all column definitions to restore default widths
+            // Temporarily disable state saving to prevent saving during reset
+            const wasSavingEnabled = this.stateSavingEnabled;
+            this.stateSavingEnabled = false;
+            
+            // Get all column definitions
             const columnDefs = this.gridApi.getColumnDefs();
             
-            // Reset each column to its initial width
+            // Create a map of column definitions by field name
+            const columnMap = new Map();
             columnDefs.forEach(colDef => {
-                if (colDef.field && colDef.initialWidth) {
-                    this.gridApi.setColumnWidth(colDef.field, colDef.initialWidth);
+                if (colDef.field && colDef.field !== 'checkbox') {
+                    columnMap.set(colDef.field, {
+                        colId: colDef.field,
+                        width: colDef.initialWidth || colDef.minWidth || 100,
+                        hide: colDef.hide || false
+                    });
                 }
             });
             
-            // Reset column order by applying default order from columnDefs
-            const defaultOrder = columnDefs
-                .filter(col => col.field && col.field !== 'checkbox')
-                .map(col => col.field);
+            // Use the stored original column order, or fallback to current order if not available
+            const defaultOrder = this.originalColumnOrder || Array.from(columnMap.keys());
             
-            if (defaultOrder.length > 0) {
-                this.gridApi.setColumnOrder(defaultOrder);
+            // Build column state array in the original order
+            const defaultColumnState = defaultOrder
+                .filter(field => columnMap.has(field))
+                .map(field => columnMap.get(field));
+            
+            // Apply the default column state (widths and order)
+            if (defaultColumnState.length > 0) {
+                const success = this.gridApi.applyColumnState({
+                    state: defaultColumnState,
+                    applyOrder: true
+                });
+                
+                if (!success) {
+                    console.warn('Grid column state could not be fully reset.');
+                }
             }
+            
+            // Re-enable state saving
+            this.stateSavingEnabled = wasSavingEnabled;
             
             // Save the reset state (so it persists)
             this.saveMainGridState();
@@ -2863,6 +2886,12 @@ class GameCollectionManager {
         
         // Combine base columns with dynamic media columns
         const allColumns = [...baseColumns, ...dynamicMediaColumns];
+        
+        // Store the original column order for reset functionality
+        // Get it from the column definitions array before creating the grid
+        this.originalColumnOrder = allColumns
+            .filter(col => col.field && col.field !== 'checkbox')
+            .map(col => col.field);
 
         const gridOptions = {
             // Use ROM path as unique row identifier for better update handling
@@ -13097,6 +13126,15 @@ class GameCollectionManager {
             openClearFieldModal.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.openClearFieldModal();
+            });
+        }
+
+        // Add event listener for Configure Scraper Mappings from menu
+        const openScraperConfigFromMenu = document.getElementById('openScraperConfigFromMenu');
+        if (openScraperConfigFromMenu) {
+            openScraperConfigFromMenu.addEventListener('click', async (e) => {
+                e.preventDefault();
+                await this.openScraperConfigModal();
             });
         }
 

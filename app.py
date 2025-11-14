@@ -3060,10 +3060,19 @@ def run_resize_medias_task(system_name, media_field, task_id):
         traceback.print_exc()
 
 def remove_number_suffix(filename):
-    """Remove number suffixes like -01, -02, etc. from filename"""
+    """Remove number suffixes and version strings from filename"""
     import re
     # Remove patterns like -01, -02, -1, -2, etc. at the end of filename
-    return re.sub(r'-\d+$', '', filename)
+    result = re.sub(r'-\d+$', '', filename)
+    
+    # Remove version strings in parentheses at the end: (v1.1), (v1.2), (Rev A), (Rev 1), etc.
+    # Pattern matches: (v followed by version), (Rev followed by revision), (Version X), etc.
+    result = re.sub(r'\s*\(v\d+\.?\d*\)\s*$', '', result, flags=re.IGNORECASE)
+    result = re.sub(r'\s*\(Rev\s+[A-Z0-9]+\)\s*$', '', result, flags=re.IGNORECASE)
+    result = re.sub(r'\s*\(Version\s+\d+\)\s*$', '', result, flags=re.IGNORECASE)
+    result = re.sub(r'\s*\(Ver\s+\d+\)\s*$', '', result, flags=re.IGNORECASE)
+    
+    return result
 
 def process_import_match(game, matched_file, source_dir, target_dir, target_field, media_fields, task, overwrite_existing):
     """Process a matched media file for import medias task"""
@@ -5021,12 +5030,12 @@ def load_metadata_cache():
         _save_global_cache_to_file(flattened_cache)
         print(f"✅ Saved LaunchBox global metadata cache to var/cache/launchbox_global_metadata_cache.pkl")
         
-        # Generate LaunchBox platforms cache from consolidated cache
+        # Generate LaunchBox platforms cache from flattened cache (which has correct structure)
         platforms = set()
-        for entry in consolidated.values():
-            # With flattened structure, game data is directly in entry
+        for entry in flattened_cache.values():
+            # With flattened structure, Platform is directly in entry
             platform = entry.get('Platform')
-            if platform:
+            if platform and platform.strip():
                 platforms.add(platform.strip())
         
         _launchbox_platforms_cache = sorted(list(platforms))
@@ -27192,8 +27201,15 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                     # Clean game name by removing text in parentheses for better search results
                     clean_game_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
                     
+                    # Get ROM filename for smart matching
+                    rom_path = game.get('path', '')
+                    rom_filename = None
+                    if rom_path:
+                        # Extract filename from path (handle both relative and absolute paths)
+                        rom_filename = os.path.basename(rom_path)
+                    
                     # Create async task for SteamGridDB ID lookup
-                    async def lookup_steamgrid_id(game, game_name, clean_game_name, steam_id, existing_steamgridid):
+                    async def lookup_steamgrid_id(game, game_name, clean_game_name, steam_id, existing_steamgridid, rom_filename):
                         try:
                             if existing_steamgridid:
                                 return {
@@ -27206,6 +27222,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                                 steamgrid_id = await service.get_steamgrid_id(
                                     steam_id=int(steam_id) if steam_id else None,
                                     game_name=clean_game_name,
+                                    rom_filename=rom_filename,
                                     api_key=steamgriddb_api_key
                                 )
                                 return {
@@ -27223,7 +27240,7 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
                                 'existing': False
                             }
                     
-                    lookup_tasks.append(lookup_steamgrid_id(game, game_name, clean_game_name, steam_id, existing_steamgridid))
+                    lookup_tasks.append(lookup_steamgrid_id(game, game_name, clean_game_name, steam_id, existing_steamgridid, rom_filename))
                 
                 # Execute batch lookups
                 if lookup_tasks:

@@ -311,6 +311,12 @@ class SteamService:
                 logger.info("✅ Steam partitioned index already loaded from cache, skipping build")
                 return
             
+            # Check if appindex.json exists before building
+            if not os.path.exists(self.app_index_file):
+                print("⚠️ Steam appindex.json not found, skipping partitioned index build")
+                logger.info("Steam appindex.json not found, skipping partitioned index build")
+                return
+            
             print("🔧 Building Steam partitioned index at startup...")
             logger.info("🔧 Building Steam partitioned index at startup...")
             
@@ -320,6 +326,7 @@ class SteamService:
             
             if apps:
                 self._build_partitioned_index(apps)
+                self._save_partitioned_index_to_cache()
                 print("✅ Steam partitioned index built successfully at startup")
                 logger.info("✅ Steam partitioned index built successfully at startup")
             else:
@@ -814,7 +821,7 @@ class SteamService:
         
         print(f"🔍 DEBUG: Found {len(matches)} Steam matches before sorting")
         
-        # Sort by similarity score (highest first) and return top N
+        # Sort by similatrity score (highest first) and return top N
         matches.sort(key=lambda x: x['similarity_score'], reverse=True)
         result = matches[:limit]
         

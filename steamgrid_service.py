@@ -213,8 +213,8 @@ class SteamGridService:
             logger.error(f"Error searching SteamGridDB for '{game_name}': {e}")
             return []
     
-    async def get_steamgrid_id(self, steam_id: int = None, game_name: str = None, api_key: str = None) -> Optional[int]:
-        """Get SteamGridDB ID by Steam ID or game name (returns first result for backward compatibility)"""
+    async def get_steamgrid_id(self, steam_id: int = None, game_name: str = None, rom_filename: str = None, api_key: str = None) -> Optional[int]:
+        """Get SteamGridDB ID by Steam ID or game name (with smart matching for name search)"""
         # Try Steam ID first if available
         if steam_id:
             games = await self.get_steamgrid_id_by_steam_id(steam_id, api_key, limit=1)
@@ -223,9 +223,39 @@ class SteamGridService:
         
         # Fall back to name search if Steam ID didn't work
         if game_name:
-            games = await self.get_steamgrid_id_by_name(game_name, api_key, limit=1)
+            games = await self.get_steamgrid_id_by_name(game_name, api_key, limit=20)
             if games:
-                return games[0]['id']
+                # Normalize game name and ROM name (without parentheses)
+                normalized_game_name = normalize_game_name(game_name, remove_paranthesis=True)
+                rom_name_without_ext = os.path.splitext(os.path.basename(rom_filename))[0]
+                normalized_rom_name = normalize_game_name(rom_name_without_ext, remove_paranthesis=True)
+                
+                # Find perfect match by comparing normalized names
+                perfect_match = None
+                
+                for game in games:
+                    result_name = game.get('name', '')
+                    if not result_name:
+                        continue
+                    
+                    # Normalize result name (without parentheses)
+                    normalized_result_name = normalize_game_name(result_name, remove_paranthesis=True)
+                    
+                    # Check for perfect match with game name or ROM name
+                    if normalized_result_name == normalized_game_name or normalized_result_name == normalized_rom_name:
+                        perfect_match = game
+                        print(f"   🎯 Found perfect match: ID={perfect_match['id']}, Name='{perfect_match['name']}'")
+                        print(f"      Normalized result: '{normalized_result_name}'")
+                        print(f"      Normalized game name: '{normalized_game_name}'")
+                        print(f"      Normalized ROM name: '{normalized_rom_name}'")
+                        break
+                
+                if perfect_match:
+                    return perfect_match['id']
+                else:
+                    print(f"   ❌ No perfect match found for '{game_name}' (ROM: '{rom_filename}')")
+                    print(f"      Searched {len(games)} results, but none matched normalized game name or ROM name")
+                    return None
         
         return None
     
