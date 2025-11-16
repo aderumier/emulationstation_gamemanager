@@ -9783,7 +9783,7 @@ def multiscraper_search_endpoint():
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 def search_local_media_files(system_name, media_type, game_name, direct_match):
-    """Search local media directory for images matching the game name.
+    """Search local media files by parsing gamelist.xml files and indexing by normalized game name.
     Searches in all systems, not just the current one."""
     results = []
     try:
@@ -9792,9 +9792,6 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
         normalized_search_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=True)
         if not normalized_search_name and game_name:
             normalized_search_name = game_name.lower().strip()
-
-        allowed_extensions = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
-        roms_base_dir = 'roms'
 
         cache = load_local_image_cache()
         cache_key = ('all_systems', media_type)
@@ -9810,48 +9807,61 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
             else:
                 print(f"🔧 DEBUG: No local image cache found for media_type={media_type}, building index")
 
-            # Check if roms directory exists
-            if not os.path.isdir(roms_base_dir):
-                print(f"🔧 DEBUG: Roms directory not found: {roms_base_dir}")
+            # Check if gamelists directory exists
+            if not os.path.isdir(GAMELISTS_FOLDER):
+                print(f"🔧 DEBUG: Gamelists directory not found: {GAMELISTS_FOLDER}")
                 return results
 
             grouped_entries = {}
             
-            # Search in all systems
-            for system_dir in os.listdir(roms_base_dir):
-                system_path = os.path.join(roms_base_dir, system_dir)
-                if not os.path.isdir(system_path):
+            # Parse gamelist.xml files from all systems
+            for system_dir in os.listdir(GAMELISTS_FOLDER):
+                system_gamelist_path = os.path.join(GAMELISTS_FOLDER, system_dir, 'gamelist.xml')
+                if not os.path.exists(system_gamelist_path):
+                    print(f"🔧 DEBUG: Gamelist not found for system '{system_dir}' at {system_gamelist_path}")
                     continue
                 
-                print(f"🔧 DEBUG: Scanning system '{system_dir}' for local {media_type} media in {system_path}")
+                print(f"🔧 DEBUG: Parsing gamelist for system '{system_dir}' to build {media_type} index")
                 
-                media_dir = os.path.join(system_path, 'media', f'{media_type}s')
-                if not os.path.isdir(media_dir):
-                    print(f"🔧 DEBUG: No '{media_type}s' directory for system '{system_dir}' at {media_dir}")
-                    continue
-                else:
-                    print(f"🔧 DEBUG: Walking media directory {media_dir} for system '{system_dir}'")
-
-                # Walk through the media directory for this system
-                for root, _, files in os.walk(media_dir):
-                    print(f"🔧 DEBUG: Visiting directory {root} with {len(files)} files")
-                    for filename in files:
-                        ext = os.path.splitext(filename)[1].lower()
-                        if ext not in allowed_extensions:
-                            continue
-
-                        base_name = os.path.splitext(filename)[0]
-                        normalized_file_name = normalize_game_name(base_name, remove_paranthesis=True, remove_articles=True)
-                        if not normalized_file_name:
-                            normalized_file_name = base_name.lower().strip()
-
-                        # Construct relative path from the system directory
-                        relative_path = os.path.relpath(os.path.join(root, filename), system_path)
-                        relative_path = relative_path.replace(os.sep, '/')
-                        web_path = f"/roms/{system_dir}/{relative_path}"
-                        
-                        entry_list = grouped_entries.setdefault(normalized_file_name, [])
-                        entry_list.append(web_path)
+                # Parse the gamelist.xml file
+                games = parse_gamelist_xml(system_gamelist_path)
+                print(f"🔧 DEBUG: Found {len(games)} games in system '{system_dir}'")
+                
+                # Process each game
+                for game in games:
+                    game_name_from_gamelist = game.get('name', '')
+                    if not game_name_from_gamelist:
+                        continue
+                    
+                    # Normalize the game name (not the ROM filename)
+                    normalized_game_name = normalize_game_name(game_name_from_gamelist, remove_paranthesis=True, remove_articles=True)
+                    if not normalized_game_name:
+                        normalized_game_name = game_name_from_gamelist.lower().strip()
+                    
+                    # Get the media file path from the gamelist
+                    media_path = game.get(media_type, '')
+                    if not media_path:
+                        continue
+                    
+                    # Normalize the media path (handle relative paths)
+                    if media_path.startswith('./'):
+                        media_path = media_path[2:]
+                    if not media_path.startswith('/'):
+                        # Construct web path relative to the system
+                        web_path = f"/roms/{system_dir}/{media_path}"
+                    else:
+                        # Already absolute path
+                        web_path = media_path
+                    
+                    # Store entry with both normalized name (key) and original game name (value)
+                    # Structure: {normalized_name: {'game_name': original_name, 'urls': [web_path, ...]}}
+                    if normalized_game_name not in grouped_entries:
+                        grouped_entries[normalized_game_name] = {
+                            'game_name': game_name_from_gamelist,
+                            'urls': []
+                        }
+                    if web_path not in grouped_entries[normalized_game_name]['urls']:
+                        grouped_entries[normalized_game_name]['urls'].append(web_path)
 
             cache[cache_key] = {
                 'timestamp': time.time(),
@@ -9863,7 +9873,11 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
         if not grouped_entries:
             return results
 
-        for normalized_candidate, entry_list in grouped_entries.items():
+        for normalized_candidate, entry_data in grouped_entries.items():
+            # New format: dict with game_name and urls
+            entry_list = entry_data.get('urls', [])
+            original_game_name = entry_data.get('game_name', normalized_candidate)
+            
             if direct_match:
                 match_found = False
                 if normalized_search_name and normalized_candidate:
@@ -9883,7 +9897,7 @@ def search_local_media_files(system_name, media_type, game_name, direct_match):
             results.append({
                 'scraper': 'local_images',
                 'scraper_id': 'local_images',
-                'game_name': normalized_candidate,
+                'game_name': original_game_name,
                 'similarity_score': round(similarity, 4),
                 media_key: entry_list,
                 'platform': 'Local Storage'
