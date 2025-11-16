@@ -534,6 +534,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <button id="globalYoutubeDownloadBtn" class="btn btn-outline-danger btn-sm ms-2" disabled>
                     <i class="bi bi-youtube"></i> YouTube Download
                 </button>
+                <button id="toggleRightPanelBtn" class="btn btn-outline-secondary btn-sm ms-2" title="Toggle Right Panel">
+                    <i class="bi bi-layout-text-window"></i>
+                </button>
             </div>
         </div>
 
@@ -547,16 +550,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <div class="right-panel-resize-handle"></div>
                     <div class="right-panel-content">
                         <div class="right-panel-header">
-                            <h5 class="right-panel-title">Edit Game</h5>
-                            <div class="ms-auto d-flex align-items-center me-3">
+                            <div class="d-flex align-items-center">
                                 <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="rightPanelPreviousBtn" title="Previous Game (Left Arrow)">
                                     <i class="bi bi-chevron-left"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="rightPanelNextBtn" title="Next Game (Right Arrow)">
+                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="rightPanelNextBtn" title="Next Game (Right Arrow)">
                                     <i class="bi bi-chevron-right"></i>
                                 </button>
                             </div>
-                            <button type="button" class="btn-close" id="rightPanelCloseBtn" aria-label="Close"></button>
+                            <div class="ms-auto d-flex align-items-center me-3">
+                            </div>
                         </div>
                         <div class="right-panel-body">
                             <div id="rightPanelContent">
@@ -979,10 +982,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             <input type="text" class="form-control" id="editPath" readonly>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editMd5" class="form-label">MD5</label>
-                                            <input type="text" class="form-control" id="editMd5" readonly style="font-family: monospace; font-size: 0.9em;">
-                                        </div>
-                                        <div class="mb-3">
                                             <label for="editDescription" class="form-label">Description</label>
                                             <textarea class="form-control" id="editDescription" rows="9"></textarea>
                                         </div>
@@ -1044,44 +1043,43 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <span class="input-group-text" style="min-width: 140px;">Genre</span>
+                                                <span class="input-group-text right-col-label">Genre</span>
                                                 <input type="text" class="form-control" id="editGenre">
                                             </div>
                                         </div>
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <span class="input-group-text" style="min-width: 140px;">Developer</span>
+                                                <span class="input-group-text right-col-label">Developer</span>
                                                 <input type="text" class="form-control" id="editDeveloper">
                                             </div>
                                         </div>
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <span class="input-group-text" style="min-width: 140px;">Publisher</span>
+                                                <span class="input-group-text right-col-label">Publisher</span>
                                                 <input type="text" class="form-control" id="editPublisher">
                                             </div>
                                         </div>
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <span class="input-group-text" style="min-width: 140px;">Rating</span>
+                                                <span class="input-group-text right-col-label">Rating</span>
                                                 <input type="text" class="form-control" id="editRating">
                                             </div>
                                         </div>
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <span class="input-group-text" style="min-width: 140px;">Players</span>
+                                                <span class="input-group-text right-col-label">Players</span>
                                                 <input type="text" class="form-control" id="editPlayers">
                                             </div>
                                         </div>
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <span class="input-group-text" style="min-width: 140px;">Release Date</span>
+                                                <span class="input-group-text right-col-label">Release Date</span>
                                                 <input type="date" class="form-control" id="editReleasedate">
                                             </div>
-                                            <div class="form-text">Select the release date using the calendar widget</div>
                                         </div>
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <span class="input-group-text" style="min-width: 140px;">Video URL</span>
+                                                <span class="input-group-text right-col-label">Video URL</span>
                                                 <input type="url" class="form-control" id="editYoutubeurl" placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/... or other video URL">
                                                 <button type="button" class="btn btn-outline-info" id="modalPreviewYoutubeBtn" title="Preview video">
                                                     <i class="bi bi-eye"></i>
@@ -1103,6 +1101,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         <div class="mb-3">
                                             <label for="editNote" class="form-label">Note</label>
                                             <textarea class="form-control" id="editNote" rows="3"></textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editMd5" class="form-label">MD5</label>
+                                            <input type="text" class="form-control" id="editMd5" readonly style="font-family: monospace; font-size: 0.9em;">
                                         </div>
                                     </div>
                                 </div>

@@ -579,23 +579,66 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 .right-panel-header {
     display: flex;
     align-items: center;
-    padding: 1rem;
+    padding: 0.25rem 1rem;
     border-bottom: 1px solid #dee2e6;
     background-color: #f8f9fa;
     flex-shrink: 0;
 }
 
-.right-panel-title {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 500;
-}
-
 .right-panel-body {
     flex: 1;
     overflow-y: auto;
-    padding: 1rem;
+    padding: 1rem 0 1rem 1rem;
     min-height: 0;
+    font-size: 12px;
+}
+
+/* Apply grid font size to all content in right panel body */
+.right-panel-body * {
+    font-size: inherit;
+}
+
+/* Reset font size for specific elements that should maintain their size */
+.right-panel-body input,
+.right-panel-body select,
+.right-panel-body textarea,
+.right-panel-body button {
+    font-size: 12px;
+}
+
+.right-panel-body .form-control,
+.right-panel-body .form-select,
+.right-panel-body .btn {
+    font-size: 12px;
+}
+
+/* Reduce spacing between form elements in right panel */
+.right-panel-body .mb-3 {
+    margin-bottom: 0.5rem !important;
+}
+
+/* Reduce width of labels in right column to match "Release Date" */
+.right-col-label {
+    min-width: 105px !important;
+    width: 105px !important;
+}
+
+/* Keep title size but make it smaller */
+.right-panel-title {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Reduce header font size */
+.right-panel-header {
+    font-size: 0.85rem;
+}
+
+/* Reduce button font size in right panel header */
+.right-panel-header .btn {
+    font-size: 0.85rem;
+    padding: 0 0.5rem;
 }
 
 /* Resize Handle */
@@ -1249,6 +1292,25 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 #editGameModalTabs .nav-link i {
     font-size: 1.1em;
+}
+
+/* Ensure tabs stay on one line in right panel */
+#rightPanelContent #editGameModalTabs {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+#rightPanelContent #editGameModalTabs .nav-item {
+    display: flex !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    float: none !important;
+    width: auto !important;
 }
 
 /* Edit Game Modal Media Tab */

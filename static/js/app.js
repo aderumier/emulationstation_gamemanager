@@ -45,6 +45,9 @@ class GameCollectionManager {
         this.lastClickedColumn = null; // Track which column was last clicked for double-click behavior
         this.screenscraperSearchInProgress = false; // Track ScreenScraper search progress
         this.currentManualScrapGame = null; // Track current game shown in manual scrap modal
+        this.rightPanelActiveTab = 'info'; // Track which tab is active in right panel ('info' or 'video')
+        this.rightPanelOriginalGame = null; // Store original game data when loading into panel for change detection
+        this.modalOriginalGame = null; // Store original game data when loading into modal for change detection
         
         // Task refresh debouncing
         this.isRefreshingTasks = false; // Flag to prevent overlapping refresh calls
@@ -762,6 +765,22 @@ class GameCollectionManager {
                 this.setupLazyLoading();
             }, 100);
         }
+        
+        // Refresh the right panel if it's open and showing a game
+        const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+        if (rightPanelEnabled && this.editingGamePath) {
+            const rightPanel = document.getElementById('rightPanel');
+            if (rightPanel && rightPanel.style.display !== 'none') {
+                // Find the updated game data from the games array (source of truth)
+                const updatedGame = this.games.find(g => g.path === this.editingGamePath);
+                if (updatedGame) {
+                    // Refresh the panel with the updated game data
+                    // editGameInPanel only auto-saves when switching to a different game,
+                    // so since we're refreshing the same game (same path), it won't trigger auto-save
+                    await this.editGameInPanel(updatedGame);
+                }
+            }
+        }
     }
 
     hasGameDataChanged(oldGame, newGame) {
@@ -1136,8 +1155,12 @@ class GameCollectionManager {
             
             // Create a map of column definitions by field name
             const columnMap = new Map();
+            let checkboxColDef = null;
+            
             columnDefs.forEach(colDef => {
-                if (colDef.field && colDef.field !== 'checkbox') {
+                if (colDef.field === 'checkbox') {
+                    checkboxColDef = colDef;
+                } else if (colDef.field) {
                     columnMap.set(colDef.field, {
                         colId: colDef.field,
                         width: colDef.initialWidth || colDef.minWidth || 100,
@@ -1149,10 +1172,23 @@ class GameCollectionManager {
             // Use the stored original column order, or fallback to current order if not available
             const defaultOrder = this.originalColumnOrder || Array.from(columnMap.keys());
             
-            // Build column state array in the original order
-            const defaultColumnState = defaultOrder
+            // Build column state array in the original order, with checkbox first
+            const defaultColumnState = [];
+            
+            // Add checkbox column first if it exists
+            if (checkboxColDef) {
+                defaultColumnState.push({
+                    colId: 'checkbox',
+                    width: checkboxColDef.width || checkboxColDef.initialWidth || checkboxColDef.minWidth || 50,
+                    hide: checkboxColDef.hide || false,
+                    pinned: 'left'
+                });
+            }
+            
+            // Add other columns in original order
+            defaultColumnState.push(...defaultOrder
                 .filter(field => columnMap.has(field))
-                .map(field => columnMap.get(field));
+                .map(field => columnMap.get(field)));
             
             // Apply the default column state (widths and order)
             if (defaultColumnState.length > 0) {
@@ -1166,13 +1202,23 @@ class GameCollectionManager {
                 }
             }
             
-            // Re-enable state saving
-            this.stateSavingEnabled = wasSavingEnabled;
-            
-            // Save the reset state (so it persists)
-            this.saveMainGridState();
-            
-            this.showAlert('Column sizes and positions have been reset to defaults', 'success');
+            // Use requestAnimationFrame and setTimeout to ensure the grid has finished
+            // applying the state before re-enabling state saving and saving the new state
+            // This prevents the old state from being saved due to event listeners firing
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    // Double-check that state saving is still disabled before re-enabling
+                    if (!this.stateSavingEnabled) {
+                        // Re-enable state saving
+                        this.stateSavingEnabled = wasSavingEnabled;
+                        
+                        // Save the reset state (so it persists)
+                        this.saveMainGridState();
+                        
+                        this.showAlert('Column sizes and positions have been reset to defaults', 'success');
+                    }
+                }, 50);
+            });
             
         } catch (error) {
             console.error('Error resetting column layout:', error);
@@ -1715,6 +1761,59 @@ class GameCollectionManager {
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
         document.getElementById('startYoutubeDownloadBtn').addEventListener('click', () => this.startYoutubeDownload());
+        
+        // Toggle right panel button
+        document.getElementById('toggleRightPanelBtn').addEventListener('click', async () => {
+            const rightPanel = document.getElementById('rightPanel');
+            const isVisible = rightPanel && rightPanel.style.display !== 'none';
+            const willBeEnabled = !isVisible;
+            
+            // Save preference to localStorage (same as GUI preferences checkbox)
+            localStorage.setItem('guiPreferences_rightPanel', willBeEnabled.toString());
+            
+            // Update GUI preferences checkbox if it exists
+            const rightPanelToggle = document.getElementById('rightPanelToggle');
+            if (rightPanelToggle) {
+                rightPanelToggle.checked = willBeEnabled;
+            }
+            
+            this.toggleRightPanel(willBeEnabled);
+            
+            // If enabling the panel, load the currently selected row or first row
+            if (willBeEnabled && this.gridApi) {
+                let gameToLoad = null;
+                
+                // Try to get selected row first
+                const selectedRows = this.gridApi.getSelectedRows();
+                if (selectedRows.length > 0) {
+                    gameToLoad = selectedRows[0];
+                } else {
+                    // If no row selected, get the first row
+                    const allRows = this.gridApi.getRenderedNodes();
+                    if (allRows.length > 0) {
+                        gameToLoad = allRows[0].data;
+                    } else if (this.games && this.games.length > 0) {
+                        // Fallback to first game in games array
+                        gameToLoad = this.games[0];
+                    }
+                }
+                
+                if (gameToLoad) {
+                    await this.editGameInPanel(gameToLoad);
+                }
+            }
+        });
+        
+        // Initialize toggle button state on page load
+        const savedRightPanel = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+        if (savedRightPanel) {
+            const toggleBtn = document.getElementById('toggleRightPanelBtn');
+            if (toggleBtn) {
+                toggleBtn.classList.add('active');
+                toggleBtn.classList.remove('btn-outline-secondary');
+                toggleBtn.classList.add('btn-secondary');
+            }
+        }
         
         // Initialize global algorithm selector
         this.initializeGlobalAlgorithmSelector();
@@ -2605,7 +2704,8 @@ class GameCollectionManager {
                 {
                     headerName: '', 
                     field: 'checkbox', 
-                    width: 50, 
+                    width: 50,
+                    minWidth: 30,
                     checkboxSelection: true, 
                     headerCheckboxSelection: true,
                     pinned: 'left',
@@ -3525,8 +3625,8 @@ class GameCollectionManager {
         }
         const targetPath = targetGame.path;
         
-        // Save current game changes before navigating (skip modal hide)
-        await this.saveGameChangesFromModal(true);
+        // Auto-save current game if it has changed before navigating
+        await this.autoSaveModalGameIfChanged();
         
         // After grid refresh, find the target game in the updated games array
         const refreshedTargetGame = this.games.find(g => g.path === targetPath);
@@ -3554,8 +3654,8 @@ class GameCollectionManager {
         }
         const targetPath = targetGame.path;
         
-        // Save current game changes before navigating (skip modal hide)
-        await this.saveGameChangesFromModal(true);
+        // Auto-save current game if it has changed before navigating
+        await this.autoSaveModalGameIfChanged();
         
         // After grid refresh, find the target game in the updated games array
         const refreshedTargetGame = this.games.find(g => g.path === targetPath);
@@ -3962,6 +4062,36 @@ class GameCollectionManager {
         }, 100);
     }
     async populateEditModal(game) {
+        // Store original game data for change detection (normalize to match form field format)
+        // Convert releasedate to the same format that will be in the form field (date input format)
+        let originalReleasedate = '';
+        if (game.releasedate) {
+            // Convert from ISO8601 to date input format for comparison
+            originalReleasedate = this.convertReleaseDateToISO8601(game.releasedate);
+            originalReleasedate = this.convertISO8601ToDateInput(originalReleasedate);
+        }
+        
+        this.modalOriginalGame = {
+            name: String(game.name || '').trim(),
+            desc: String(game.desc || '').trim(),
+            note: String(game.note || '').trim(),
+            genre: String(game.genre || '').trim(),
+            developer: String(game.developer || '').trim(),
+            publisher: String(game.publisher || '').trim(),
+            rating: String(game.rating || '').trim(),
+            players: String(game.players || '').trim(),
+            releasedate: originalReleasedate, // Store in date input format for comparison
+            launchboxid: String(game.launchboxid || '').trim(),
+            igdbid: String(game.igdbid || '').trim(),
+            screenscraperid: String(game.screenscraperid || '').trim(),
+            steamid: String(game.steamid || '').trim(),
+            steamgridid: String(game.steamgridid || '').trim(),
+            mobygamesid: String(game.mobygamesid || '').trim(),
+            youtubeurl: String(game.youtubeurl || '').trim(),
+            favorite: game.favorite === true || game.favorite === 'true',
+            kidgame: game.kidgame === true || game.kidgame === 'true'
+        };
+        
         // Get the modal element to scope all queries (avoid conflicts with panel)
         const modalElement = document.getElementById('editGameModal');
         if (!modalElement) {
@@ -6924,6 +7054,76 @@ class GameCollectionManager {
                 
                 // Clear modified games since they're now saved
                 this.modifiedGames.clear();
+                
+                // Update the original game data in the panel to reflect the saved state
+                // This ensures subsequent changes are compared against the saved state
+                if (this.rightPanelOriginalGame && this.editingGamePath) {
+                    const savedGame = this.games.find(g => g.path === this.editingGamePath);
+                    if (savedGame) {
+                        // Convert releasedate to date input format for comparison
+                        let savedReleasedate = '';
+                        if (savedGame.releasedate) {
+                            savedReleasedate = this.convertReleaseDateToISO8601(savedGame.releasedate);
+                            savedReleasedate = this.convertISO8601ToDateInput(savedReleasedate);
+                        }
+                        
+                        this.rightPanelOriginalGame = {
+                            name: String(savedGame.name || '').trim(),
+                            desc: String(savedGame.desc || '').trim(),
+                            note: String(savedGame.note || '').trim(),
+                            genre: String(savedGame.genre || '').trim(),
+                            developer: String(savedGame.developer || '').trim(),
+                            publisher: String(savedGame.publisher || '').trim(),
+                            rating: String(savedGame.rating || '').trim(),
+                            players: String(savedGame.players || '').trim(),
+                            releasedate: savedReleasedate, // Store in date input format
+                            launchboxid: String(savedGame.launchboxid || '').trim(),
+                            igdbid: String(savedGame.igdbid || '').trim(),
+                            screenscraperid: String(savedGame.screenscraperid || '').trim(),
+                            steamid: String(savedGame.steamid || '').trim(),
+                            steamgridid: String(savedGame.steamgridid || '').trim(),
+                            mobygamesid: String(savedGame.mobygamesid || '').trim(),
+                            youtubeurl: String(savedGame.youtubeurl || '').trim(),
+                            favorite: savedGame.favorite === true || savedGame.favorite === 'true',
+                            kidgame: savedGame.kidgame === true || savedGame.kidgame === 'true'
+                        };
+                    }
+                }
+                
+                // Update the original game data in the modal to reflect the saved state
+                // This ensures subsequent changes are compared against the saved state
+                if (this.modalOriginalGame && this.editingGamePath) {
+                    const savedGame = this.games.find(g => g.path === this.editingGamePath);
+                    if (savedGame) {
+                        // Convert releasedate to date input format for comparison
+                        let savedReleasedate = '';
+                        if (savedGame.releasedate) {
+                            savedReleasedate = this.convertReleaseDateToISO8601(savedGame.releasedate);
+                            savedReleasedate = this.convertISO8601ToDateInput(savedReleasedate);
+                        }
+                        
+                        this.modalOriginalGame = {
+                            name: String(savedGame.name || '').trim(),
+                            desc: String(savedGame.desc || '').trim(),
+                            note: String(savedGame.note || '').trim(),
+                            genre: String(savedGame.genre || '').trim(),
+                            developer: String(savedGame.developer || '').trim(),
+                            publisher: String(savedGame.publisher || '').trim(),
+                            rating: String(savedGame.rating || '').trim(),
+                            players: String(savedGame.players || '').trim(),
+                            releasedate: savedReleasedate, // Store in date input format
+                            launchboxid: String(savedGame.launchboxid || '').trim(),
+                            igdbid: String(savedGame.igdbid || '').trim(),
+                            screenscraperid: String(savedGame.screenscraperid || '').trim(),
+                            steamid: String(savedGame.steamid || '').trim(),
+                            steamgridid: String(savedGame.steamgridid || '').trim(),
+                            mobygamesid: String(savedGame.mobygamesid || '').trim(),
+                            youtubeurl: String(savedGame.youtubeurl || '').trim(),
+                            favorite: savedGame.favorite === true || savedGame.favorite === 'true',
+                            kidgame: savedGame.kidgame === true || savedGame.kidgame === 'true'
+                        };
+                    }
+                }
                 
                 if (!skipModalHide) {
                     this.showAlert('Changes saved directly to gamelist.xml!', 'success');
@@ -11784,17 +11984,32 @@ class GameCollectionManager {
     }
     
     initializeEditModalFindBestMatch() {
-        const modalFindBestMatchBtn = document.getElementById('modalFindBestMatchBtn');
-        if (modalFindBestMatchBtn) {
-            // Remove any existing event listeners to prevent duplicates
-            // Clone the button and replace it to remove all event listeners
-            const newBtn = modalFindBestMatchBtn.cloneNode(true);
-            modalFindBestMatchBtn.parentNode.replaceChild(newBtn, modalFindBestMatchBtn);
-            
-            // Add the event listener to the new button
-            newBtn.addEventListener('click', () => {
-                this.showGameEditFindBestMatch();
-            });
+        // Helper function to initialize button in a container
+        const initializeButtonInContainer = (container) => {
+            const findBestMatchBtn = container.querySelector('#modalFindBestMatchBtn');
+            if (findBestMatchBtn) {
+                // Remove any existing event listeners to prevent duplicates
+                // Clone the button and replace it to remove all event listeners
+                const newBtn = findBestMatchBtn.cloneNode(true);
+                findBestMatchBtn.parentNode.replaceChild(newBtn, findBestMatchBtn);
+                
+                // Add the event listener to the new button
+                newBtn.addEventListener('click', () => {
+                    this.showGameEditFindBestMatch();
+                });
+            }
+        };
+        
+        // Initialize button in modal
+        const editModal = document.getElementById('editGameModal');
+        if (editModal) {
+            initializeButtonInContainer(editModal);
+        }
+        
+        // Initialize button in panel if visible
+        const rightPanelContent = document.getElementById('rightPanelContent');
+        if (rightPanelContent) {
+            initializeButtonInContainer(rightPanelContent);
         }
         
         // Initialize algorithm selector and reload button
@@ -19003,6 +19218,20 @@ class GameCollectionManager {
                 this.toggleRightPanel(rightPanelToggle.checked);
                 // Save preference immediately
                 localStorage.setItem('guiPreferences_rightPanel', rightPanelToggle.checked.toString());
+                
+                // Update toggle button state to keep them in sync
+                const toggleBtn = document.getElementById('toggleRightPanelBtn');
+                if (toggleBtn) {
+                    if (rightPanelToggle.checked) {
+                        toggleBtn.classList.add('active');
+                        toggleBtn.classList.remove('btn-outline-secondary');
+                        toggleBtn.classList.add('btn-secondary');
+                    } else {
+                        toggleBtn.classList.remove('active');
+                        toggleBtn.classList.remove('btn-secondary');
+                        toggleBtn.classList.add('btn-outline-secondary');
+                    }
+                }
             });
         }
     }
@@ -19179,6 +19408,20 @@ class GameCollectionManager {
             // This ensures the modal is ready to use after panel is disabled
             this.forceRestoreModalBody();
         }
+        
+        // Update toggle button state
+        const toggleBtn = document.getElementById('toggleRightPanelBtn');
+        if (toggleBtn) {
+            if (enabled) {
+                toggleBtn.classList.add('active');
+                toggleBtn.classList.remove('btn-outline-secondary');
+                toggleBtn.classList.add('btn-secondary');
+            } else {
+                toggleBtn.classList.remove('active');
+                toggleBtn.classList.remove('btn-secondary');
+                toggleBtn.classList.add('btn-outline-secondary');
+            }
+        }
     }
     
     forceRestoreModalBody() {
@@ -19287,7 +19530,207 @@ class GameCollectionManager {
         });
     }
     
+    // Check if the current panel form values differ from the original game data
+    hasPanelGameChanged() {
+        if (!this.rightPanelOriginalGame) {
+            return false; // No original game stored, so no changes
+        }
+        
+        const panelContent = document.getElementById('rightPanelContent');
+        if (!panelContent) {
+            return false;
+        }
+        
+        // Helper to get field value
+        const getFieldValue = (id) => {
+            const el = panelContent.querySelector(`#${id}`);
+            return el ? el.value : '';
+        };
+        
+        // Get current form values
+        const currentName = getFieldValue('editName');
+        const currentDesc = getFieldValue('editDescription');
+        const currentNote = getFieldValue('editNote');
+        const currentGenre = getFieldValue('editGenre');
+        const currentDeveloper = getFieldValue('editDeveloper');
+        const currentPublisher = getFieldValue('editPublisher');
+        const currentRating = getFieldValue('editRating');
+        const currentPlayers = getFieldValue('editPlayers');
+        const currentYoutubeurl = getFieldValue('editYoutubeurl');
+        const currentLaunchboxId = getFieldValue('editLaunchboxId');
+        const currentIgdbId = getFieldValue('editIgdbId');
+        const currentScreenscraperId = getFieldValue('editScreenscraperId');
+        const currentSteamId = getFieldValue('editSteamId');
+        const currentSteamgridid = getFieldValue('editSteamgridid');
+        const currentMobygamesid = getFieldValue('editMobygamesid');
+        
+        // Handle release date - compare in date input format (not ISO8601)
+        const currentReleasedate = getFieldValue('editReleasedate');
+        
+        // Handle favorite field
+        const favoriteIcon = panelContent.querySelector('#editFavorite');
+        const currentFavorite = favoriteIcon ? favoriteIcon.classList.contains('bi-star-fill') : false;
+        
+        // Handle kidgame field (check in panel content)
+        const kidgameIcon = panelContent.querySelector('#editKidgame');
+        const currentKidgame = kidgameIcon ? kidgameIcon.classList.contains('bi-emoji-smile-fill') : false;
+        
+        // Compare with original values (normalize for comparison)
+        const original = this.rightPanelOriginalGame;
+        
+        // Helper to normalize values for comparison (handle empty strings, null, undefined)
+        const normalize = (val) => {
+            if (val === null || val === undefined) return '';
+            return String(val).trim();
+        };
+        
+        // Helper to normalize numeric values
+        const normalizeNumber = (val) => {
+            const normalized = normalize(val);
+            return normalized === '' ? '' : normalized;
+        };
+        
+        // Compare values with normalization
+        if (normalize(original.name) !== normalize(currentName)) return true;
+        if (normalize(original.desc) !== normalize(currentDesc)) return true;
+        if (normalize(original.note) !== normalize(currentNote)) return true;
+        if (normalize(original.genre) !== normalize(currentGenre)) return true;
+        if (normalize(original.developer) !== normalize(currentDeveloper)) return true;
+        if (normalize(original.publisher) !== normalize(currentPublisher)) return true;
+        if (normalizeNumber(original.rating) !== normalizeNumber(currentRating)) return true;
+        if (normalizeNumber(original.players) !== normalizeNumber(currentPlayers)) return true;
+        if (normalize(original.releasedate) !== normalize(currentReleasedate)) return true;
+        if (normalizeNumber(original.launchboxid) !== normalizeNumber(currentLaunchboxId)) return true;
+        if (normalizeNumber(original.igdbid) !== normalizeNumber(currentIgdbId)) return true;
+        if (normalizeNumber(original.screenscraperid) !== normalizeNumber(currentScreenscraperId)) return true;
+        if (normalizeNumber(original.steamid) !== normalizeNumber(currentSteamId)) return true;
+        if (normalizeNumber(original.steamgridid) !== normalizeNumber(currentSteamgridid)) return true;
+        if (normalizeNumber(original.mobygamesid) !== normalizeNumber(currentMobygamesid)) return true;
+        if (normalize(original.youtubeurl) !== normalize(currentYoutubeurl)) return true;
+        if (Boolean(original.favorite) !== Boolean(currentFavorite)) return true;
+        if (Boolean(original.kidgame) !== Boolean(currentKidgame)) return true;
+        
+        return false; // No changes detected
+    }
+    
+    // Auto-save the current panel game if it has changed
+    async autoSavePanelGameIfChanged() {
+        if (!this.rightPanelOriginalGame || !this.editingGamePath) {
+            return; // No game loaded in panel
+        }
+        
+        if (!this.hasPanelGameChanged()) {
+            return; // No changes detected
+        }
+        
+        // Changes detected, save them
+        await this.saveGameChangesFromModal(true); // skipModalHide = true
+    }
+    
+    // Check if the current modal form values differ from the original game data
+    hasModalGameChanged() {
+        if (!this.modalOriginalGame) {
+            return false; // No original game stored, so no changes
+        }
+        
+        const modalElement = document.getElementById('editGameModal');
+        if (!modalElement) {
+            return false;
+        }
+        
+        // Helper to get field value from modal
+        const getFieldValue = (id) => {
+            const el = modalElement.querySelector(`#${id}`);
+            return el ? el.value : '';
+        };
+        
+        // Get current form values
+        const currentName = getFieldValue('editName');
+        const currentDesc = getFieldValue('editDescription');
+        const currentNote = getFieldValue('editNote');
+        const currentGenre = getFieldValue('editGenre');
+        const currentDeveloper = getFieldValue('editDeveloper');
+        const currentPublisher = getFieldValue('editPublisher');
+        const currentRating = getFieldValue('editRating');
+        const currentPlayers = getFieldValue('editPlayers');
+        const currentYoutubeurl = getFieldValue('editYoutubeurl');
+        const currentLaunchboxId = getFieldValue('editLaunchboxId');
+        const currentIgdbId = getFieldValue('editIgdbId');
+        const currentScreenscraperId = getFieldValue('editScreenscraperId');
+        const currentSteamId = getFieldValue('editSteamId');
+        const currentSteamgridid = getFieldValue('editSteamgridid');
+        const currentMobygamesid = getFieldValue('editMobygamesid');
+        
+        // Handle release date - compare in date input format (not ISO8601)
+        const currentReleasedate = getFieldValue('editReleasedate');
+        
+        // Handle favorite field
+        const favoriteIcon = modalElement.querySelector('#editFavorite');
+        const currentFavorite = favoriteIcon ? favoriteIcon.classList.contains('bi-star-fill') : false;
+        
+        // Handle kidgame field (check in modal)
+        const kidgameIcon = modalElement.querySelector('#editKidgame');
+        const currentKidgame = kidgameIcon ? kidgameIcon.classList.contains('bi-emoji-smile-fill') : false;
+        
+        // Compare with original values (normalize for comparison)
+        const original = this.modalOriginalGame;
+        
+        // Helper to normalize values for comparison (handle empty strings, null, undefined)
+        const normalize = (val) => {
+            if (val === null || val === undefined) return '';
+            return String(val).trim();
+        };
+        
+        // Helper to normalize numeric values
+        const normalizeNumber = (val) => {
+            const normalized = normalize(val);
+            return normalized === '' ? '' : normalized;
+        };
+        
+        // Compare values with normalization
+        if (normalize(original.name) !== normalize(currentName)) return true;
+        if (normalize(original.desc) !== normalize(currentDesc)) return true;
+        if (normalize(original.note) !== normalize(currentNote)) return true;
+        if (normalize(original.genre) !== normalize(currentGenre)) return true;
+        if (normalize(original.developer) !== normalize(currentDeveloper)) return true;
+        if (normalize(original.publisher) !== normalize(currentPublisher)) return true;
+        if (normalizeNumber(original.rating) !== normalizeNumber(currentRating)) return true;
+        if (normalizeNumber(original.players) !== normalizeNumber(currentPlayers)) return true;
+        if (normalize(original.releasedate) !== normalize(currentReleasedate)) return true;
+        if (normalizeNumber(original.launchboxid) !== normalizeNumber(currentLaunchboxId)) return true;
+        if (normalizeNumber(original.igdbid) !== normalizeNumber(currentIgdbId)) return true;
+        if (normalizeNumber(original.screenscraperid) !== normalizeNumber(currentScreenscraperId)) return true;
+        if (normalizeNumber(original.steamid) !== normalizeNumber(currentSteamId)) return true;
+        if (normalizeNumber(original.steamgridid) !== normalizeNumber(currentSteamgridid)) return true;
+        if (normalizeNumber(original.mobygamesid) !== normalizeNumber(currentMobygamesid)) return true;
+        if (normalize(original.youtubeurl) !== normalize(currentYoutubeurl)) return true;
+        if (Boolean(original.favorite) !== Boolean(currentFavorite)) return true;
+        if (Boolean(original.kidgame) !== Boolean(currentKidgame)) return true;
+        
+        return false; // No changes detected
+    }
+    
+    // Auto-save the current modal game if it has changed
+    async autoSaveModalGameIfChanged() {
+        if (!this.modalOriginalGame || !this.editingGamePath) {
+            return; // No game loaded in modal
+        }
+        
+        if (!this.hasModalGameChanged()) {
+            return; // No changes detected
+        }
+        
+        // Changes detected, save them
+        await this.saveGameChangesFromModal(true); // skipModalHide = true
+    }
+    
     async editGameInPanel(game) {
+        // Check if we're switching to a different game
+        if (this.editingGamePath && this.editingGamePath !== game.path) {
+            // Auto-save current game if it has changed
+            await this.autoSavePanelGameIfChanged();
+        }
+        
         this.editingGamePath = game.path;
         this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
         
@@ -19327,19 +19770,75 @@ class GameCollectionManager {
         // Always use backup - never touch the live modal body
         rightPanelContent.innerHTML = this.modalBodyBackupHTML;
         
-        // Add footer buttons if they exist
-        if (modalFooter && rightPanelBody) {
-            // Check if footer already exists in panel
-            let panelFooter = rightPanelBody.querySelector('.right-panel-footer');
-            if (!panelFooter) {
-                panelFooter = document.createElement('div');
-                panelFooter.className = 'right-panel-footer mt-3 pt-3 border-top';
-                rightPanelBody.appendChild(panelFooter);
+        // Show tabs in right panel (like in modal)
+        const panelTabs = rightPanelContent.querySelector('#editGameModalTabs');
+        if (panelTabs) {
+            panelTabs.style.display = 'block';
+            
+            // Remove the "Media Files" tab button from panel (keep only Game Information and Video Preview)
+            const mediaTabButton = panelTabs.querySelector('#game-media-tab');
+            if (mediaTabButton) {
+                const mediaTabItem = mediaTabButton.closest('li.nav-item');
+                if (mediaTabItem) {
+                    mediaTabItem.remove();
+                }
             }
-            // Clone footer as well
-            const modalFooterClone = modalFooter.cloneNode(true);
-            panelFooter.innerHTML = '';
-            panelFooter.appendChild(modalFooterClone);
+        }
+        
+        // Hide media tab content in right panel (keep game info and video)
+        const panelMediaTab = rightPanelContent.querySelector('#game-media-content');
+        if (panelMediaTab) {
+            panelMediaTab.style.display = 'none';
+        }
+        
+        // Set the active tab based on previous state
+        const gameInfoTabButton = rightPanelContent.querySelector('#game-info-tab');
+        const videoTabButton = rightPanelContent.querySelector('#game-video-tab');
+        const panelGameInfoTab = rightPanelContent.querySelector('#game-info-content');
+        const panelVideoTab = rightPanelContent.querySelector('#game-video-content');
+        
+        if (this.rightPanelActiveTab === 'video') {
+            // Activate video tab
+            if (gameInfoTabButton) {
+                gameInfoTabButton.classList.remove('active');
+                gameInfoTabButton.setAttribute('aria-selected', 'false');
+            }
+            if (videoTabButton) {
+                videoTabButton.classList.add('active');
+                videoTabButton.setAttribute('aria-selected', 'true');
+            }
+            if (panelGameInfoTab) {
+                panelGameInfoTab.classList.remove('show', 'active');
+            }
+            if (panelVideoTab) {
+                panelVideoTab.classList.add('show', 'active');
+            }
+        } else {
+            // Activate game info tab (default)
+            if (gameInfoTabButton) {
+                gameInfoTabButton.classList.add('active');
+                gameInfoTabButton.setAttribute('aria-selected', 'true');
+            }
+            if (videoTabButton) {
+                videoTabButton.classList.remove('active');
+                videoTabButton.setAttribute('aria-selected', 'false');
+            }
+            if (panelGameInfoTab) {
+                panelGameInfoTab.classList.add('show', 'active');
+            }
+            if (panelVideoTab) {
+                panelVideoTab.classList.remove('show', 'active');
+            }
+        }
+        
+        // Hide prev/next navigation buttons in panel
+        const prevBtn = document.getElementById('rightPanelPreviousBtn');
+        const nextBtn = document.getElementById('rightPanelNextBtn');
+        if (prevBtn) {
+            prevBtn.style.display = 'none';
+        }
+        if (nextBtn) {
+            nextBtn.style.display = 'none';
         }
         
         // Now populate the panel's form fields directly (not the modal's)
@@ -19348,11 +19847,40 @@ class GameCollectionManager {
         // Re-initialize event listeners for panel content
         this.initializeRightPanelEventListeners();
         
-        // Update navigation buttons
-        this.updateRightPanelNavigationButtons();
+        // Navigation buttons are hidden in panel, so no need to update them
     }
     
     async populateEditModalInPanel(game) {
+        // Store original game data for change detection (normalize to match form field format)
+        // Convert releasedate to the same format that will be in the form field (date input format)
+        let originalReleasedate = '';
+        if (game.releasedate) {
+            // Convert from ISO8601 to date input format for comparison
+            originalReleasedate = this.convertReleaseDateToISO8601(game.releasedate);
+            originalReleasedate = this.convertISO8601ToDateInput(originalReleasedate);
+        }
+        
+        this.rightPanelOriginalGame = {
+            name: String(game.name || '').trim(),
+            desc: String(game.desc || '').trim(),
+            note: String(game.note || '').trim(),
+            genre: String(game.genre || '').trim(),
+            developer: String(game.developer || '').trim(),
+            publisher: String(game.publisher || '').trim(),
+            rating: String(game.rating || '').trim(),
+            players: String(game.players || '').trim(),
+            releasedate: originalReleasedate, // Store in date input format for comparison
+            launchboxid: String(game.launchboxid || '').trim(),
+            igdbid: String(game.igdbid || '').trim(),
+            screenscraperid: String(game.screenscraperid || '').trim(),
+            steamid: String(game.steamid || '').trim(),
+            steamgridid: String(game.steamgridid || '').trim(),
+            mobygamesid: String(game.mobygamesid || '').trim(),
+            youtubeurl: String(game.youtubeurl || '').trim(),
+            favorite: game.favorite === true || game.favorite === 'true',
+            kidgame: game.kidgame === true || game.kidgame === 'true'
+        };
+        
         // Populate form fields in the panel (using the same IDs since we copied the structure)
         const panelContent = document.getElementById('rightPanelContent');
         if (!panelContent) return;
@@ -19447,6 +19975,21 @@ class GameCollectionManager {
         await this.showEditGameMedia(game);
         this.showEditGameVideo(game);
         
+        // If video tab is active, ensure it's visible and populated, and hide game info tab
+        if (this.rightPanelActiveTab === 'video') {
+            const gameInfoTab = panelContent.querySelector('#game-info-content');
+            if (gameInfoTab) {
+                gameInfoTab.classList.remove('show', 'active');
+                gameInfoTab.style.display = 'none';
+            }
+            const videoTab = panelContent.querySelector('#game-video-content');
+            if (videoTab) {
+                videoTab.classList.add('show', 'active');
+                videoTab.style.display = 'block';
+                // Video content is already populated by showEditGameVideo above
+            }
+        }
+        
         // Initialize various features
         this.initializeYouTubeDownload(game);
         this.initializeEditModalTabs();
@@ -19479,11 +20022,7 @@ class GameCollectionManager {
             closeBtn.onclick = () => this.closeRightPanel();
         }
         
-        // Re-attach save button listener
-        const saveBtn = document.querySelector('#rightPanelContent #saveGameChanges, .right-panel-footer #saveGameChanges');
-        if (saveBtn) {
-            saveBtn.onclick = () => this.saveGameChangesFromPanel(false);
-        }
+        // Save button is removed from panel, so no need to attach listener
         
         // Re-attach manual scrap button listener
         const manualScrapBtn = document.querySelector('#rightPanelContent #manualScrapBtn, .right-panel-footer #manualScrapBtn');
@@ -19491,7 +20030,9 @@ class GameCollectionManager {
             manualScrapBtn.onclick = () => this.openManualScrapModal();
         }
         
-        // Re-initialize tab functionality
+        // Tab switching is now handled by Bootstrap tabs, no custom button handlers needed
+        
+        // Re-initialize tab functionality for panel
         const tabs = document.querySelectorAll('#rightPanelContent .nav-link');
         tabs.forEach(tab => {
             tab.addEventListener('click', (e) => {
@@ -19508,8 +20049,27 @@ class GameCollectionManager {
                         targetPane.classList.add('show', 'active');
                     }
                     // Update active tab
-                    tabs.forEach(t => t.classList.remove('active'));
+                    tabs.forEach(t => {
+                        t.classList.remove('active');
+                        t.setAttribute('aria-selected', 'false');
+                    });
                     tab.classList.add('active');
+                    tab.setAttribute('aria-selected', 'true');
+                    
+                    // Track active tab state and populate content if needed
+                    if (targetId === '#game-video-content') {
+                        this.rightPanelActiveTab = 'video';
+                        // Ensure video is populated if we have a current game
+                        if (this.editingGamePath) {
+                            const currentGame = this.games.find(g => g.path === this.editingGamePath);
+                            if (currentGame) {
+                                // Populate video tab (scoped to panel)
+                                this.showEditGameVideo(currentGame);
+                            }
+                        }
+                    } else if (targetId === '#game-info-content') {
+                        this.rightPanelActiveTab = 'info';
+                    }
                 }
             });
         });
@@ -21233,7 +21793,7 @@ class GameCollectionManager {
         }
     }
     
-    navigateAndPreviewRow(direction) {
+    async navigateAndPreviewRow(direction) {
         if (!this.gridApi) return;
         
         try {
@@ -21276,6 +21836,17 @@ class GameCollectionManager {
 
             // Show media preview for the navigated game (without selecting it)
             this.showMediaPreview(node.data);
+
+            // Update right panel if enabled
+            const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+            if (rightPanelEnabled) {
+                const rightPanel = document.getElementById('rightPanel');
+                if (rightPanel && rightPanel.style.display !== 'none') {
+                    // Auto-save current game if it has changed before loading new game
+                    await this.autoSavePanelGameIfChanged();
+                    await this.editGameInPanel(node.data);
+                }
+            }
 
             // Briefly highlight the navigated row for visual feedback
             this.highlightNavigatedRow(targetIndex);
@@ -23319,20 +23890,20 @@ class GameCollectionManager {
         }
     }
     updateEditModalFields(updatedGame) {
-        // Check if edit modal is currently open
-        const editModal = document.getElementById('editGameModal');
-        if (editModal && editModal.classList.contains('show')) {
-            // Update form fields with new data
-            const nameField = document.getElementById('editName');
-            const descField = document.getElementById('editDescription');
-            const genreField = document.getElementById('editGenre');
-            const developerField = document.getElementById('editDeveloper');
-            const publisherField = document.getElementById('editPublisher');
-            const ratingField = document.getElementById('editRating');
-            const playersField = document.getElementById('editPlayers');
-            const launchboxIdField = document.getElementById('editLaunchboxId');
-            const md5Field = document.getElementById('editMd5');
-            const youtubeurlField = document.getElementById('editYoutubeurl');
+        // Helper function to update fields in a specific container
+        const updateFieldsInContainer = (container) => {
+            const nameField = container.querySelector('#editName');
+            const descField = container.querySelector('#editDescription');
+            const genreField = container.querySelector('#editGenre');
+            const developerField = container.querySelector('#editDeveloper');
+            const publisherField = container.querySelector('#editPublisher');
+            const ratingField = container.querySelector('#editRating');
+            const playersField = container.querySelector('#editPlayers');
+            const launchboxIdField = container.querySelector('#editLaunchboxId');
+            const md5Field = container.querySelector('#editMd5');
+            const youtubeurlField = container.querySelector('#editYoutubeurl');
+            const noteField = container.querySelector('#editNote');
+            const releasedateField = container.querySelector('#editReleasedate');
             
             if (nameField && updatedGame.name) nameField.value = updatedGame.name;
             if (descField && updatedGame.desc) descField.value = updatedGame.desc;
@@ -23344,7 +23915,30 @@ class GameCollectionManager {
             if (launchboxIdField && updatedGame.launchboxid) launchboxIdField.value = updatedGame.launchboxid;
             if (md5Field && updatedGame.md5) md5Field.value = updatedGame.md5;
             if (youtubeurlField && updatedGame.youtubeurl) youtubeurlField.value = updatedGame.youtubeurl;
+            if (noteField && updatedGame.note !== undefined) noteField.value = updatedGame.note || '';
             
+            // Handle release date
+            if (releasedateField && updatedGame.releasedate) {
+                let releaseDateValue = updatedGame.releasedate;
+                if (releaseDateValue) {
+                    releaseDateValue = this.convertReleaseDateToISO8601(releaseDateValue);
+                    releaseDateValue = this.convertISO8601ToDateInput(releaseDateValue);
+                }
+                releasedateField.value = releaseDateValue;
+            }
+        };
+        
+        // Check if edit modal is currently open
+        const editModal = document.getElementById('editGameModal');
+        if (editModal && editModal.classList.contains('show')) {
+            updateFieldsInContainer(editModal);
+        }
+        
+        // Check if right panel is visible and update fields there too
+        const rightPanel = document.getElementById('rightPanel');
+        const rightPanelContent = document.getElementById('rightPanelContent');
+        if (rightPanel && rightPanel.style.display !== 'none' && rightPanelContent) {
+            updateFieldsInContainer(rightPanelContent);
         }
     }
 
