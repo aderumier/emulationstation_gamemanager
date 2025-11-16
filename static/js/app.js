@@ -1719,47 +1719,77 @@ class GameCollectionManager {
         document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
         
-        document.getElementById('scrapLaunchboxBtn').addEventListener('click', () => this.scrapLaunchbox());
-        document.getElementById('scrapIgdbBtn').addEventListener('click', () => this.scrapIgdb());
-        document.getElementById('scrapSteamBtn').addEventListener('click', () => this.scrapSteam());
-        document.getElementById('scrapSteamgriddbBtn').addEventListener('click', () => this.scrapSteamgriddb());
+        document.getElementById('scrapLaunchboxBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapLaunchbox();
+        });
+        document.getElementById('scrapIgdbBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapIgdb();
+        });
+        document.getElementById('scrapSteamBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapSteam();
+        });
+        document.getElementById('scrapSteamgriddbBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapSteamgriddb();
+        });
         const screenscraperBtn = document.getElementById('scrapScreenscraperBtn');
         if (screenscraperBtn) {
-            screenscraperBtn.addEventListener('click', () => {
+            screenscraperBtn.addEventListener('click', async () => {
+                await this.ensurePanelGameSavedIfOpen();
                 this.scrapScreenscraper();
             });
             
         } else {
         }
         
-        document.getElementById('scrapMobygamesBtn').addEventListener('click', () => this.scrapMobygames());
+        document.getElementById('scrapMobygamesBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapMobygames();
+        });
         
-        document.getElementById('scrapDatscrapperBtn').addEventListener('click', () => this.scrapDatscrapper());
+        document.getElementById('scrapDatscrapperBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapDatscrapper();
+        });
         
         // Add event listeners for find best match dropdown options
-        document.getElementById('findBestMatchLaunchboxBtn').addEventListener('click', (e) => {
+        document.getElementById('findBestMatchLaunchboxBtn').addEventListener('click', async (e) => {
             e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
             this.findBestMatchForSelectedOriginal(); // Use original LaunchBox functionality
         });
-        document.getElementById('findBestMatchMobygamesBtn').addEventListener('click', (e) => {
+        document.getElementById('findBestMatchMobygamesBtn').addEventListener('click', async (e) => {
             e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
             this.findBestMatchForSelectedMobygames(); // Use MobyGames-specific functionality
         });
-        document.getElementById('findBestMatchDatscrapperBtn').addEventListener('click', (e) => {
+        document.getElementById('findBestMatchDatscrapperBtn').addEventListener('click', async (e) => {
             e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
             this.findBestMatchForSelectedDatscrapper(); // Use DAT Scrapper-specific functionality
         });
-        document.getElementById('findBestMatchSteamBtn').addEventListener('click', (e) => {
+        document.getElementById('findBestMatchSteamBtn').addEventListener('click', async (e) => {
             e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
             this.findBestMatchForSelectedSteam(); // Use Steam-specific functionality
         });
-        document.getElementById('findBestMatchIgdbBtn').addEventListener('click', (e) => {
+        document.getElementById('findBestMatchIgdbBtn').addEventListener('click', async (e) => {
             e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
             this.findBestMatchForSelectedIgdb(); // Use IGDB-specific functionality
         });
         
-        document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', () => this.generate2DBoxForSelected());
-        document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', () => this.openYoutubeDownloadModal());
+        document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.generate2DBoxForSelected();
+        });
+        document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.openYoutubeDownloadModal();
+        });
         document.getElementById('startYoutubeDownloadBtn').addEventListener('click', () => this.startYoutubeDownload());
         
         // Toggle right panel button
@@ -19635,6 +19665,17 @@ class GameCollectionManager {
         // Changes detected, save them
         await this.saveGameChangesFromModal(true); // skipModalHide = true
     }
+
+    async ensurePanelGameSavedIfOpen() {
+        // Check if right panel is enabled and visible
+        const rightPanel = document.getElementById('rightPanel');
+        const isPanelOpen = rightPanel && rightPanel.style.display !== 'none';
+        
+        if (isPanelOpen && this.editingGamePath) {
+            // Auto-save the panel game if it has changed
+            await this.autoSavePanelGameIfChanged();
+        }
+    }
     
     // Check if the current modal form values differ from the original game data
     hasModalGameChanged() {
@@ -20074,7 +20115,11 @@ class GameCollectionManager {
         // Re-attach manual scrap button listener
         const manualScrapBtn = document.querySelector('#rightPanelContent #manualScrapBtn, .right-panel-footer #manualScrapBtn');
         if (manualScrapBtn) {
-            manualScrapBtn.onclick = () => this.openManualScrapModal();
+            manualScrapBtn.onclick = async () => {
+                // Auto-save panel game before opening manual scrap modal
+                await this.autoSavePanelGameIfChanged();
+                await this.openManualScrapModal();
+            };
         }
         
         // Tab switching is now handled by Bootstrap tabs, no custom button handlers needed
