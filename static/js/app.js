@@ -6623,7 +6623,16 @@ class GameCollectionManager {
     }
     
     showEditGameVideo(game) {
-        const videoContent = document.getElementById('editGameVideoContent');
+        // Check if we're in the panel or modal
+        const rightPanel = document.getElementById('rightPanel');
+        const rightPanelContent = document.getElementById('rightPanelContent');
+        const isInPanel = rightPanel && rightPanel.style.display !== 'none' && rightPanelContent && rightPanelContent.querySelector('#editGameVideoContent');
+        
+        // Scope the search to panel if active, otherwise use modal
+        const videoContent = isInPanel 
+            ? rightPanelContent.querySelector('#editGameVideoContent')
+            : document.getElementById('editGameVideoContent');
+        
         if (!videoContent) return;
 
         // Clear existing content
@@ -19791,13 +19800,16 @@ class GameCollectionManager {
             panelMediaTab.style.display = 'none';
         }
         
-        // Set the active tab based on previous state
+        // Set the active tab based on previous state (preserve video tab if it was active)
+        // Store the current tab state before any operations
+        const preservedTabState = this.rightPanelActiveTab || 'info';
+        
         const gameInfoTabButton = rightPanelContent.querySelector('#game-info-tab');
         const videoTabButton = rightPanelContent.querySelector('#game-video-tab');
         const panelGameInfoTab = rightPanelContent.querySelector('#game-info-content');
         const panelVideoTab = rightPanelContent.querySelector('#game-video-content');
         
-        if (this.rightPanelActiveTab === 'video') {
+        if (preservedTabState === 'video') {
             // Activate video tab
             if (gameInfoTabButton) {
                 gameInfoTabButton.classList.remove('active');
@@ -19809,9 +19821,11 @@ class GameCollectionManager {
             }
             if (panelGameInfoTab) {
                 panelGameInfoTab.classList.remove('show', 'active');
+                panelGameInfoTab.style.display = 'none';
             }
             if (panelVideoTab) {
                 panelVideoTab.classList.add('show', 'active');
+                panelVideoTab.style.display = 'block';
             }
         } else {
             // Activate game info tab (default)
@@ -19825,9 +19839,11 @@ class GameCollectionManager {
             }
             if (panelGameInfoTab) {
                 panelGameInfoTab.classList.add('show', 'active');
+                panelGameInfoTab.style.display = 'block';
             }
             if (panelVideoTab) {
                 panelVideoTab.classList.remove('show', 'active');
+                panelVideoTab.style.display = 'none';
             }
         }
         
@@ -19843,6 +19859,32 @@ class GameCollectionManager {
         
         // Now populate the panel's form fields directly (not the modal's)
         await this.populateEditModalInPanel(game);
+        
+        // Re-apply the active tab state after population (in case it was reset)
+        // This ensures the video tab stays open when switching games
+        if (this.rightPanelActiveTab === 'video') {
+            const gameInfoTabButton = rightPanelContent.querySelector('#game-info-tab');
+            const videoTabButton = rightPanelContent.querySelector('#game-video-tab');
+            const panelGameInfoTab = rightPanelContent.querySelector('#game-info-content');
+            const panelVideoTab = rightPanelContent.querySelector('#game-video-content');
+            
+            if (gameInfoTabButton) {
+                gameInfoTabButton.classList.remove('active');
+                gameInfoTabButton.setAttribute('aria-selected', 'false');
+            }
+            if (videoTabButton) {
+                videoTabButton.classList.add('active');
+                videoTabButton.setAttribute('aria-selected', 'true');
+            }
+            if (panelGameInfoTab) {
+                panelGameInfoTab.classList.remove('show', 'active');
+                panelGameInfoTab.style.display = 'none';
+            }
+            if (panelVideoTab) {
+                panelVideoTab.classList.add('show', 'active');
+                panelVideoTab.style.display = 'block';
+            }
+        }
         
         // Re-initialize event listeners for panel content
         this.initializeRightPanelEventListeners();
@@ -19973,26 +20015,31 @@ class GameCollectionManager {
         
         // Populate media and video tabs
         await this.showEditGameMedia(game);
+        
+        // Always populate video content (it will be shown if video tab is active)
         this.showEditGameVideo(game);
         
         // If video tab is active, ensure it's visible and populated, and hide game info tab
+        // Note: Don't reset tab state here, it's already set in editGameInPanel
+        // Just ensure the video content is populated if video tab is active
         if (this.rightPanelActiveTab === 'video') {
-            const gameInfoTab = panelContent.querySelector('#game-info-content');
-            if (gameInfoTab) {
-                gameInfoTab.classList.remove('show', 'active');
-                gameInfoTab.style.display = 'none';
-            }
             const videoTab = panelContent.querySelector('#game-video-content');
             if (videoTab) {
-                videoTab.classList.add('show', 'active');
-                videoTab.style.display = 'block';
-                // Video content is already populated by showEditGameVideo above
+                // Ensure video is refreshed for the new game
+                this.showEditGameVideo(game);
             }
         }
         
         // Initialize various features
         this.initializeYouTubeDownload(game);
-        this.initializeEditModalTabs();
+        
+        // Only initialize tabs for modal, not panel (panel tabs are handled separately)
+        // Check if we're in the panel by checking if rightPanelContent exists and has the form
+        const isInPanel = panelContent && panelContent.querySelector('#editGameForm');
+        if (!isInPanel) {
+            this.initializeEditModalTabs();
+        }
+        
         this.initializeEditModalFindBestMatch();
         this.initializeEditModalIgdbSearch();
         this.initializeEditModalScreenscraperSearch();
@@ -20035,40 +20082,48 @@ class GameCollectionManager {
         // Re-initialize tab functionality for panel
         const tabs = document.querySelectorAll('#rightPanelContent .nav-link');
         tabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
+            // Remove any existing event listeners by cloning the tab
+            const newTab = tab.cloneNode(true);
+            tab.parentNode.replaceChild(newTab, tab);
+            
+            newTab.addEventListener('click', (e) => {
                 e.preventDefault();
-                const targetId = tab.getAttribute('data-bs-target');
+                const targetId = newTab.getAttribute('data-bs-target');
                 if (targetId) {
                     // Hide all tab panes
                     document.querySelectorAll('#rightPanelContent .tab-pane').forEach(pane => {
                         pane.classList.remove('show', 'active');
+                        pane.style.display = 'none';
                     });
                     // Show target pane
                     const targetPane = document.querySelector(`#rightPanelContent ${targetId}`);
                     if (targetPane) {
                         targetPane.classList.add('show', 'active');
+                        targetPane.style.display = 'block';
                     }
                     // Update active tab
-                    tabs.forEach(t => {
+                    document.querySelectorAll('#rightPanelContent .nav-link').forEach(t => {
                         t.classList.remove('active');
                         t.setAttribute('aria-selected', 'false');
                     });
-                    tab.classList.add('active');
-                    tab.setAttribute('aria-selected', 'true');
+                    newTab.classList.add('active');
+                    newTab.setAttribute('aria-selected', 'true');
                     
-                    // Track active tab state and populate content if needed
+                    // Track active tab state and populate content immediately
                     if (targetId === '#game-video-content') {
                         this.rightPanelActiveTab = 'video';
                         // Ensure video is populated if we have a current game
                         if (this.editingGamePath) {
                             const currentGame = this.games.find(g => g.path === this.editingGamePath);
                             if (currentGame) {
-                                // Populate video tab (scoped to panel)
+                                // Populate video tab (scoped to panel) immediately
                                 this.showEditGameVideo(currentGame);
                             }
                         }
                     } else if (targetId === '#game-info-content') {
                         this.rightPanelActiveTab = 'info';
+                        // Game info content is already populated in populateEditModalInPanel
+                        // Form fields should already be visible, but ensure the tab pane is visible
                     }
                 }
             });
