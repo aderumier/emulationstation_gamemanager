@@ -539,7 +539,33 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         <!-- AG Grid Container -->
         <div class="grid-section">
-            <div id="gamesGrid" class="ag-theme-alpine"></div>
+            <div class="grid-panel-wrapper">
+                <div id="gamesGrid" class="ag-theme-alpine"></div>
+                
+                <!-- Right Panel for Game Edit -->
+                <div id="rightPanel" class="right-panel" style="display: none;">
+                    <div class="right-panel-resize-handle"></div>
+                    <div class="right-panel-content">
+                        <div class="right-panel-header">
+                            <h5 class="right-panel-title">Edit Game</h5>
+                            <div class="ms-auto d-flex align-items-center me-3">
+                                <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="rightPanelPreviousBtn" title="Previous Game (Left Arrow)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="rightPanelNextBtn" title="Next Game (Right Arrow)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+                            <button type="button" class="btn-close" id="rightPanelCloseBtn" aria-label="Close"></button>
+                        </div>
+                        <div class="right-panel-body">
+                            <div id="rightPanelContent">
+                                <!-- Game edit content will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- Custom Columns Panel -->
             <div id="customColumnsPanel" class="row mt-3 mb-3" style="display: none;">
@@ -961,12 +987,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             <textarea class="form-control" id="editDescription" rows="9"></textarea>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editNote" class="form-label">Note</label>
-                                            <textarea class="form-control" id="editNote" rows="3"></textarea>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="editLaunchboxId" class="form-label">Launchbox ID</label>
                                             <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Launchbox ID</span>
                                                 <input type="text" class="form-control" id="editLaunchboxId">
                                                 <button type="button" class="btn btn-outline-primary" id="modalFindBestMatchBtn" title="Search for the best matching game in the Launchbox database">
                                                     <i class="bi bi-search"></i>
@@ -974,8 +996,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editIgdbId" class="form-label">IGDB ID</label>
                                             <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">IGDB ID</span>
                                                 <input type="text" class="form-control" id="editIgdbId">
                                                 <button type="button" class="btn btn-outline-info" id="modalFindIgdbMatchBtn" title="Search for the best matching game in the local IGDB database">
                                                     <i class="bi bi-globe"></i>
@@ -983,8 +1005,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editScreenscraperId" class="form-label">ScreenScraper ID</label>
                                             <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">ScreenScraper ID</span>
                                                 <input type="text" class="form-control" id="editScreenscraperId">
                                                 <button type="button" class="btn btn-outline-warning" id="modalFindScreenscraperMatchBtn" title="Search for the best matching game in the ScreenScraper database">
                                                     <i class="bi bi-search"></i>
@@ -992,8 +1014,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editSteamId" class="form-label">Steam ID</label>
                                             <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Steam ID</span>
                                                 <input type="text" class="form-control" id="editSteamId">
                                                 <button type="button" class="btn btn-outline-success" id="modalFindSteamMatchBtn" title="Search for the best matching game in the Steam database">
                                                     <i class="bi bi-steam"></i>
@@ -1001,8 +1023,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editSteamgridid" class="form-label">SteamGridDB ID</label>
                                             <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">SteamGridDB ID</span>
                                                 <input type="text" class="form-control" id="editSteamgridid">
                                                 <button type="button" class="btn btn-outline-secondary" id="modalFindSteamgridMatchBtn" title="Search for the best matching game in the SteamGridDB database">
                                                     <i class="bi bi-grid-3x3-gap"></i>
@@ -1010,8 +1032,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editMobygamesid" class="form-label">MobyGames ID</label>
                                             <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">MobyGames ID</span>
                                                 <input type="text" class="form-control" id="editMobygamesid">
                                                 <button type="button" class="btn btn-outline-danger" id="modalFindMobygamesMatchBtn" title="Search for the best matching game in the MobyGames database">
                                                     <i class="bi bi-database"></i>
@@ -1021,33 +1043,45 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="editGenre" class="form-label">Genre</label>
-                                            <input type="text" class="form-control" id="editGenre">
+                                            <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Genre</span>
+                                                <input type="text" class="form-control" id="editGenre">
+                                            </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editDeveloper" class="form-label">Developer</label>
-                                            <input type="text" class="form-control" id="editDeveloper">
+                                            <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Developer</span>
+                                                <input type="text" class="form-control" id="editDeveloper">
+                                            </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editPublisher" class="form-label">Publisher</label>
-                                            <input type="text" class="form-control" id="editPublisher">
+                                            <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Publisher</span>
+                                                <input type="text" class="form-control" id="editPublisher">
+                                            </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editRating" class="form-label">Rating</label>
-                                            <input type="text" class="form-control" id="editRating">
+                                            <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Rating</span>
+                                                <input type="text" class="form-control" id="editRating">
+                                            </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editPlayers" class="form-label">Players</label>
-                                            <input type="text" class="form-control" id="editPlayers">
+                                            <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Players</span>
+                                                <input type="text" class="form-control" id="editPlayers">
+                                            </div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editReleasedate" class="form-label">Release Date</label>
-                                            <input type="date" class="form-control" id="editReleasedate">
+                                            <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Release Date</span>
+                                                <input type="date" class="form-control" id="editReleasedate">
+                                            </div>
                                             <div class="form-text">Select the release date using the calendar widget</div>
                                         </div>
                                         <div class="mb-3">
-                                            <label for="editYoutubeurl" class="form-label">Video URL</label>
                                             <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Video URL</span>
                                                 <input type="url" class="form-control" id="editYoutubeurl" placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/... or other video URL">
                                                 <button type="button" class="btn btn-outline-info" id="modalPreviewYoutubeBtn" title="Preview video">
                                                     <i class="bi bi-eye"></i>
@@ -1065,6 +1099,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <span class="me-2">Kid Game:</span>
                                                 <i class="bi bi-emoji-smile text-muted" id="editKidgame" style="font-size: 1.5rem; cursor: pointer; transition: all 0.2s ease;" title="Click to toggle kid game"></i>
                                             </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="editNote" class="form-label">Note</label>
+                                            <textarea class="form-control" id="editNote" rows="3"></textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -2737,6 +2775,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         <i class="bi bi-arrow-clockwise me-2"></i>Reset Column Sizes & Positions
                                     </button>
                                     <div class="form-text">Reset all grid columns to their default sizes and positions</div>
+                                </div>
+                                
+                                <hr class="my-4">
+                                
+                                <h6><i class="bi bi-layout-sidebar me-2"></i>Panel Display</h6>
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="rightPanelToggle">
+                                        <label class="form-check-label" for="rightPanelToggle">
+                                            Enable Right Panel
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Show game edit panel on the right side of the grid instead of using a modal</div>
                                 </div>
                                 
                                 <hr class="my-4">

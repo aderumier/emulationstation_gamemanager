@@ -540,6 +540,96 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     min-height: 0;
 }
 
+/* Grid and Panel Wrapper */
+.grid-panel-wrapper {
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    height: 100%;
+    min-height: 0;
+}
+
+.grid-panel-wrapper #gamesGrid {
+    flex: 1;
+    min-width: 0;
+    transition: margin-right 0.2s ease;
+}
+
+/* Right Panel */
+.right-panel {
+    position: relative;
+    width: 600px;
+    min-width: 400px;
+    max-width: 80%;
+    background-color: #fff;
+    border-left: 1px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+}
+
+.right-panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.right-panel-header {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+    flex-shrink: 0;
+}
+
+.right-panel-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.right-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    min-height: 0;
+}
+
+/* Resize Handle */
+.right-panel-resize-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background-color: transparent;
+    cursor: col-resize;
+    z-index: 101;
+    transition: background-color 0.2s ease;
+}
+
+.right-panel-resize-handle:hover {
+    background-color: #007bff;
+}
+
+.right-panel-resize-handle:active {
+    background-color: #0056b3;
+}
+
+/* Dark mode support for right panel */
+[data-bs-theme="dark"] .right-panel {
+    background-color: #212529;
+    border-left-color: #495057;
+}
+
+[data-bs-theme="dark"] .right-panel-header {
+    background-color: #343a40;
+    border-bottom-color: #495057;
+}
+
 
 
 /* Ensure filter panels don't hide the grid */

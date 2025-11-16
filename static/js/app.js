@@ -83,6 +83,9 @@ class GameCollectionManager {
         // State persistence control
         this.stateSavingEnabled = false; // Control when state saving is allowed
         
+        // Modal body backup for right panel (store original HTML structure)
+        this.modalBodyBackupHTML = null;
+        
         // Live log streaming
         this.currentLogStream = null;
         
@@ -3030,8 +3033,16 @@ class GameCollectionManager {
             this.updateYoutubeDownloadButtonState();
         });
 
-        // Add row click listener for immediate media preview
+        // Add row click listener for immediate media preview and right panel
         this.gridApi.addEventListener('rowClicked', async (event) => {
+            // Check if right panel is enabled
+            const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+            if (rightPanelEnabled) {
+                // Open game in right panel
+                await this.editGameInPanel(event.data);
+            }
+            
+            // Show media preview if enabled
             if (this.mediaPreviewEnabled) {
                 await this.showMediaPreview(event.data);
                 // Sync navigation index to the clicked row
@@ -3094,14 +3105,21 @@ class GameCollectionManager {
             this.markGameAsModified(event.data);
         });
 
-        // Add double-click listener for editing
-        this.gridApi.addEventListener('rowDoubleClicked', (event) => {
-            // For double-click, we'll use a simpler approach
+        // Add double-click listener for editing (only opens modal if panel is disabled)
+        this.gridApi.addEventListener('rowDoubleClicked', async (event) => {
+            // Check if right panel is enabled - if so, don't open modal (panel handles it)
+            const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+            if (rightPanelEnabled) {
+                // Panel is enabled, double-click does nothing (single click already opens panel)
+                return;
+            }
+            
+            // Panel is disabled, open modal as normal
             // Check if the last clicked cell was in the video column
             if (this.lastClickedColumn && this.isVideoColumn(this.lastClickedColumn)) {
-                this.editGameWithPreviewTab(event.data);
+                await this.editGameWithPreviewTab(event.data);
             } else {
-                this.editGame(event.data);
+                await this.editGame(event.data);
             }
         });
 
@@ -3377,23 +3395,91 @@ class GameCollectionManager {
         }, 100);
     }
 
-    async editGame(game) {
+    async editGame(game, forceModal = false) {
+        // Check if right panel is enabled (unless modal is forced)
+        const rightPanelEnabled = !forceModal && localStorage.getItem('guiPreferences_rightPanel') === 'true';
+        if (rightPanelEnabled) {
+            return this.editGameInPanel(game);
+        }
+        
+        // Use modal (original behavior)
         this.editingGamePath = game.path; // Store ROM path as identifier
         // Find the game index for reliable identification
         this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
-        await this.populateEditModal(game);
         
         // Get existing modal instance if it exists, otherwise create a new one
         const modalElement = document.getElementById('editGameModal');
+        if (!modalElement) {
+            console.error('Edit game modal element not found');
+            return;
+        }
+        
+        // Hide right panel if visible to avoid ID conflicts
+        const rightPanel = document.getElementById('rightPanel');
+        const panelWasVisible = rightPanel && rightPanel.style.display !== 'none';
+        if (panelWasVisible) {
+            rightPanel.style.display = 'none';
+        }
+        
+        // ALWAYS restore modal body from backup before using it
+        // This ensures it's never affected by panel operations
+        if (!this.forceRestoreModalBody()) {
+            console.error('Failed to restore modal body from backup!');
+            // Restore panel if we hid it
+            if (panelWasVisible) {
+                rightPanel.style.display = 'flex';
+            }
+            return;
+        }
+        
+        // Verify modal body exists after restore
+        const modalBody = modalElement.querySelector('.modal-body');
+        if (!modalBody || !modalBody.querySelector('#editGameForm')) {
+            console.error('Modal body structure is missing after force restore!');
+            // Restore panel if we hid it
+            if (panelWasVisible) {
+                rightPanel.style.display = 'flex';
+            }
+            return;
+        }
+        
         const isModalOpen = modalElement.classList.contains('show');
         let modal = bootstrap.Modal.getInstance(modalElement);
         if (!modal) {
             modal = new bootstrap.Modal(modalElement);
         }
         
-        // Only call show() if modal is not already open (to avoid flickering during navigation)
+        // Show modal first, then populate (Bootstrap might clear content during show)
         if (!isModalOpen) {
             modal.show();
+        }
+        
+        // Wait for modal to be fully shown, then restore and populate
+        // Use Bootstrap's 'shown.bs.modal' event to ensure modal is fully visible
+        const populateAfterShow = () => {
+            // ALWAYS restore modal body from backup (Bootstrap or panel might have cleared it)
+            if (!this.forceRestoreModalBody()) {
+                console.error('Failed to restore modal body in shown event!');
+                return;
+            }
+            // Now populate
+            this.populateEditModal(game);
+        };
+        
+        if (isModalOpen) {
+            // Modal already open, restore and populate immediately
+            if (!this.forceRestoreModalBody()) {
+                console.error('Failed to restore modal body for already-open modal!');
+                return;
+            }
+            this.populateEditModal(game);
+        } else {
+            // Wait for modal to be shown
+            const handleShown = () => {
+                populateAfterShow();
+                modalElement.removeEventListener('shown.bs.modal', handleShown);
+            };
+            modalElement.addEventListener('shown.bs.modal', handleShown);
         }
         
         // Update navigation buttons state
@@ -3422,6 +3508,11 @@ class GameCollectionManager {
     }
     
     async navigateToPreviousGame() {
+        const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+        if (rightPanelEnabled) {
+            return this.navigateToPreviousGameInPanel();
+        }
+        
         if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || this.editingGameIndex <= 0) {
             return;
         }
@@ -3446,6 +3537,11 @@ class GameCollectionManager {
     }
     
     async navigateToNextGame() {
+        const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+        if (rightPanelEnabled) {
+            return this.navigateToNextGameInPanel();
+        }
+        
         if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games || this.editingGameIndex >= this.games.length - 1) {
             return;
         }
@@ -3833,7 +3929,22 @@ class GameCollectionManager {
         }
     }
 
-    async editGameWithPreviewTab(game) {
+    async editGameWithPreviewTab(game, forceModal = false) {
+        // Check if right panel is enabled (unless modal is forced)
+        const rightPanelEnabled = !forceModal && localStorage.getItem('guiPreferences_rightPanel') === 'true';
+        if (rightPanelEnabled) {
+            // Open in panel but switch to video tab
+            await this.editGameInPanel(game);
+            // Switch to video preview tab in panel
+            setTimeout(() => {
+                const videoTab = document.querySelector('#rightPanelContent #game-video-tab');
+                if (videoTab) {
+                    videoTab.click();
+                }
+            }, 100);
+            return;
+        }
+        
         this.editingGamePath = game.path; // Store ROM path as identifier
         // Find the game index for reliable identification
         this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
@@ -3851,52 +3962,137 @@ class GameCollectionManager {
         }, 100);
     }
     async populateEditModal(game) {
-        console.log('populateEditModal called with game:', game);
+        // Get the modal element to scope all queries (avoid conflicts with panel)
+        const modalElement = document.getElementById('editGameModal');
+        if (!modalElement) {
+            console.error('Edit game modal not found');
+            return;
+        }
+        
+        // ALWAYS restore modal body first to ensure structure is intact
+        const restored = this.restoreModalBodyIfNeeded();
+        
+        if (!restored) {
+            console.error('Failed to restore modal body structure!');
+            return;
+        }
+        
+        // Get modal body - this should always exist in the template
+        const modalBody = modalElement.querySelector('.modal-body');
+        if (!modalBody) {
+            console.error('Modal body not found in modal element after restore!');
+            return;
+        }
+        
+        // Verify form exists in modal body
+        const formInModal = modalBody.querySelector('#editGameForm');
+        if (!formInModal) {
+            console.error('Edit game form not found in modal body after restore!');
+            // Try to manually restore one more time
+            if (this.modalBodyBackupHTML) {
+                modalBody.innerHTML = this.modalBodyBackupHTML;
+                const formAfterManualRestore = modalBody.querySelector('#editGameForm');
+                if (!formAfterManualRestore) {
+                    console.error('Manual restore also failed - form still not found');
+                    return;
+                }
+            } else {
+                return; // Can't proceed without form structure
+            }
+        }
+        
+        // Helper function to get element scoped to modal
+        // Use querySelector on modalElement to ensure we get elements from modal, not panel
+        const getModalElement = (id) => {
+            // IMPORTANT: Always search within modalElement first to avoid panel conflicts
+            // The panel might have duplicate IDs, so we must scope to modalElement
+            let el = modalElement.querySelector(`#${id}`);
+            
+           // Verify the element is actually in the modal, not in the panel
+               if (el) {
+                   const isInModal = modalElement.contains(el);
+                   if (!isInModal) {
+                       el = null; // Don't use panel element
+                   }
+               }
+               
+               // If not found in modal, try modal body specifically
+               if (!el) {
+                   el = modalBody.querySelector(`#${id}`);
+                   if (el) {
+                       // Verify it's in modal body
+                       const isInModalBody = modalBody.contains(el);
+                       if (!isInModalBody) {
+                           el = null;
+                       }
+                   }
+               }
+            return el;
+        };
+        
         // Clear all fields first to ensure no residual data
-        document.getElementById('editName').value = '';
-        document.getElementById('editPath').value = '';
-        document.getElementById('editDescription').value = '';
-        document.getElementById('editNote').value = '';
-        document.getElementById('editGenre').value = '';
-        document.getElementById('editDeveloper').value = '';
-        document.getElementById('editPublisher').value = '';
-        document.getElementById('editRating').value = '';
-        document.getElementById('editPlayers').value = '';
-        document.getElementById('editReleasedate').value = '';
-        document.getElementById('editLaunchboxId').value = '';
-        document.getElementById('editIgdbId').value = '';
-        document.getElementById('editScreenscraperId').value = '';
-        document.getElementById('editSteamId').value = '';
-        document.getElementById('editSteamgridid').value = '';
-        document.getElementById('editMobygamesid').value = '';
-        document.getElementById('editMd5').value = '';
-        document.getElementById('editYoutubeurl').value = '';
+           const clearField = (id) => {
+               const el = getModalElement(id);
+               if (el) {
+                   el.value = '';
+               }
+           };
+        clearField('editName');
+        clearField('editPath');
+        clearField('editDescription');
+        clearField('editNote');
+        clearField('editGenre');
+        clearField('editDeveloper');
+        clearField('editPublisher');
+        clearField('editRating');
+        clearField('editPlayers');
+        clearField('editReleasedate');
+        clearField('editLaunchboxId');
+        clearField('editIgdbId');
+        clearField('editScreenscraperId');
+        clearField('editSteamId');
+        clearField('editSteamgridid');
+        clearField('editMobygamesid');
+           clearField('editMd5');
+           clearField('editYoutubeurl');
+           
+           // Clear favorite and kidgame fields
+        const favoriteIcon = getModalElement('editFavorite');
+        if (favoriteIcon) {
+            favoriteIcon.className = 'bi bi-star text-muted';
+            favoriteIcon.style.fontSize = '1.5rem';
+            favoriteIcon.style.cursor = 'pointer';
+            favoriteIcon.style.transition = 'all 0.2s ease';
+            favoriteIcon.title = 'Click to add to favorites';
+        }
         
-        // Clear favorite and kidgame fields
-        const favoriteIcon = document.getElementById('editFavorite');
-        favoriteIcon.className = 'bi bi-star text-muted';
-        favoriteIcon.style.fontSize = '1.5rem';
-        favoriteIcon.style.cursor = 'pointer';
-        favoriteIcon.style.transition = 'all 0.2s ease';
-        favoriteIcon.title = 'Click to add to favorites';
+        const kidgameIcon = getModalElement('editKidgame');
+        if (kidgameIcon) {
+            kidgameIcon.className = 'bi bi-emoji-smile text-muted';
+            kidgameIcon.style.fontSize = '1.5rem';
+            kidgameIcon.style.cursor = 'pointer';
+            kidgameIcon.style.transition = 'all 0.2s ease';
+            kidgameIcon.title = 'Click to mark as kid game';
+        }
         
-        const kidgameIcon = document.getElementById('editKidgame');
-        kidgameIcon.className = 'bi bi-emoji-smile text-muted';
-        kidgameIcon.style.fontSize = '1.5rem';
-        kidgameIcon.style.cursor = 'pointer';
-        kidgameIcon.style.transition = 'all 0.2s ease';
-        kidgameIcon.title = 'Click to mark as kid game';
-        
-        // Now populate with game data
-        document.getElementById('editName').value = game.name || '';
-        document.getElementById('editPath').value = game.path || '';
-        document.getElementById('editDescription').value = game.desc || '';
-        document.getElementById('editNote').value = game.note || '';
-        document.getElementById('editGenre').value = game.genre || '';
-        document.getElementById('editDeveloper').value = game.developer || '';
-        document.getElementById('editPublisher').value = game.publisher || '';
-        document.getElementById('editRating').value = game.rating || '';
-        document.getElementById('editPlayers').value = game.players || '';
+           // Helper function to set field value
+           const setField = (id, value) => {
+               const el = getModalElement(id);
+               if (el) {
+                   el.value = value || '';
+               }
+           };
+           
+           // Now populate with game data
+        setField('editName', game.name);
+        setField('editPath', game.path);
+        setField('editDescription', game.desc);
+        setField('editNote', game.note);
+        setField('editGenre', game.genre);
+        setField('editDeveloper', game.developer);
+        setField('editPublisher', game.publisher);
+        setField('editRating', game.rating);
+        setField('editPlayers', game.players);
         
         // Handle release date with calendar widget conversion
         let releaseDateValue = game.releasedate || '';
@@ -3908,36 +4104,40 @@ class GameCollectionManager {
         }
         // Set the date value with a small delay to ensure the modal is fully rendered
         setTimeout(() => {
-            const dateInputElement = document.getElementById('editReleasedate');
+            const dateInputElement = getModalElement('editReleasedate');
             if (dateInputElement) {
                 dateInputElement.value = releaseDateValue;
             }
         }, 100);
         
-        document.getElementById('editLaunchboxId').value = game.launchboxid || '';
-        document.getElementById('editIgdbId').value = game.igdbid || '';
-        document.getElementById('editScreenscraperId').value = game.screenscraperid || '';
-        document.getElementById('editSteamId').value = game.steamid || '';
-        document.getElementById('editSteamgridid').value = game.steamgridid || '';
-        document.getElementById('editMobygamesid').value = game.mobygamesid || '';
-        document.getElementById('editMd5').value = game.md5 || '';
-        document.getElementById('editYoutubeurl').value = game.youtubeurl || '';
+        setField('editLaunchboxId', game.launchboxid);
+        setField('editIgdbId', game.igdbid);
+        setField('editScreenscraperId', game.screenscraperid);
+        setField('editSteamId', game.steamid);
+        setField('editSteamgridid', game.steamgridid);
+        setField('editMobygamesid', game.mobygamesid);
+        setField('editMd5', game.md5);
+        setField('editYoutubeurl', game.youtubeurl);
         
         // Populate favorite and kidgame fields
-        if (game.favorite === true || game.favorite === 'true') {
-            favoriteIcon.className = 'bi bi-star-fill text-warning';
-            favoriteIcon.style.fontSize = '1.5rem';
-            favoriteIcon.style.cursor = 'pointer';
-            favoriteIcon.style.transition = 'all 0.2s ease';
-            favoriteIcon.title = 'Click to remove from favorites';
+        if (favoriteIcon) {
+            if (game.favorite === true || game.favorite === 'true') {
+                favoriteIcon.className = 'bi bi-star-fill text-warning';
+                favoriteIcon.style.fontSize = '1.5rem';
+                favoriteIcon.style.cursor = 'pointer';
+                favoriteIcon.style.transition = 'all 0.2s ease';
+                favoriteIcon.title = 'Click to remove from favorites';
+            }
         }
         // Set kidgame smiley icon state
-        if (game.kidgame === true || game.kidgame === 'true') {
-            kidgameIcon.className = 'bi bi-emoji-smile-fill text-success';
-            kidgameIcon.style.fontSize = '1.5rem';
-            kidgameIcon.style.cursor = 'pointer';
-            kidgameIcon.style.transition = 'all 0.2s ease';
-            kidgameIcon.title = 'Click to remove kid game mark';
+        if (kidgameIcon) {
+            if (game.kidgame === true || game.kidgame === 'true') {
+                kidgameIcon.className = 'bi bi-emoji-smile-fill text-success';
+                kidgameIcon.style.fontSize = '1.5rem';
+                kidgameIcon.style.cursor = 'pointer';
+                kidgameIcon.style.transition = 'all 0.2s ease';
+                kidgameIcon.title = 'Click to remove kid game mark';
+            }
         }
         
         // Populate the media tab with the same media display as the preview panel
@@ -7312,7 +7512,6 @@ class GameCollectionManager {
                     if (this.editingGamePath) {
                         const updatedGame = this.games.find(g => g.path === this.editingGamePath);
                         if (updatedGame) {
-                            console.log('Repopulating edit modal with game:', updatedGame);
                             // Always repopulate the edit modal with fresh data
                             this.populateEditModal(updatedGame);
                             
@@ -18796,6 +18995,16 @@ class GameCollectionManager {
                 this.resetColumnLayout();
             });
         }
+        
+        // Add event listener for right panel toggle
+        const rightPanelToggle = document.getElementById('rightPanelToggle');
+        if (rightPanelToggle) {
+            rightPanelToggle.addEventListener('change', () => {
+                this.toggleRightPanel(rightPanelToggle.checked);
+                // Save preference immediately
+                localStorage.setItem('guiPreferences_rightPanel', rightPanelToggle.checked.toString());
+            });
+        }
     }
     
     openGuiPreferencesModal() {
@@ -18827,6 +19036,23 @@ class GameCollectionManager {
             verticalToggle.checked = savedVerticalHeaders;
         }
         
+        // Load right panel preference
+        const savedRightPanel = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+        const rightPanelToggle = document.getElementById('rightPanelToggle');
+        if (rightPanelToggle) {
+            rightPanelToggle.checked = savedRightPanel;
+            this.toggleRightPanel(savedRightPanel);
+        }
+        
+        // Load right panel width
+        const savedPanelWidth = localStorage.getItem('guiPreferences_rightPanelWidth');
+        if (savedPanelWidth) {
+            const rightPanel = document.getElementById('rightPanel');
+            if (rightPanel) {
+                rightPanel.style.width = savedPanelWidth + 'px';
+            }
+        }
+        
         // Load from localStorage or use default white
         const savedColor = localStorage.getItem('guiPreferences_mediaCardBackgroundColor') || '#ffffff';
         
@@ -18841,6 +19067,7 @@ class GameCollectionManager {
             const color = document.getElementById('mediaCardBackgroundColor').value;
             const darkMode = document.getElementById('darkModeToggle').checked;
             const verticalHeaders = document.getElementById('verticalColumnHeadersToggle').checked;
+            const rightPanel = document.getElementById('rightPanelToggle').checked;
             
             // Validate color
             if (!/^#[0-9A-F]{6}$/i.test(color)) {
@@ -18852,6 +19079,15 @@ class GameCollectionManager {
             localStorage.setItem('guiPreferences_mediaCardBackgroundColor', color);
             localStorage.setItem('guiPreferences_darkMode', darkMode.toString());
             localStorage.setItem('guiPreferences_verticalColumnHeaders', verticalHeaders.toString());
+            localStorage.setItem('guiPreferences_rightPanel', rightPanel.toString());
+            
+            // Save right panel width if panel is visible
+            if (rightPanel) {
+                const rightPanelEl = document.getElementById('rightPanel');
+                if (rightPanelEl && rightPanelEl.offsetWidth) {
+                    localStorage.setItem('guiPreferences_rightPanelWidth', rightPanelEl.offsetWidth.toString());
+                }
+            }
             
             // Apply the new color immediately
             this.applyMediaCardBackgroundColor(color);
@@ -18861,6 +19097,9 @@ class GameCollectionManager {
             
             // Apply vertical column headers
             this.applyVerticalColumnHeaders(verticalHeaders);
+            
+            // Apply right panel
+            this.toggleRightPanel(rightPanel);
             
         } catch (error) {
             console.error('Error saving GUI preferences:', error);
@@ -18910,6 +19149,457 @@ class GameCollectionManager {
             return true;
         }
         return stored === 'true';
+    }
+    
+    toggleRightPanel(enabled) {
+        const rightPanel = document.getElementById('rightPanel');
+        if (!rightPanel) return;
+        
+        if (enabled) {
+            rightPanel.style.display = 'flex';
+            // Initialize resize functionality if not already initialized
+            if (!this.rightPanelResizeInitialized) {
+                this.initializeRightPanelResize();
+                this.rightPanelResizeInitialized = true;
+            }
+        } else {
+            // Clear panel content first to avoid any conflicts
+            const rightPanelContent = document.getElementById('rightPanelContent');
+            if (rightPanelContent) {
+                rightPanelContent.innerHTML = '';
+            }
+            
+            rightPanel.style.display = 'none';
+            // Close panel if a game is being edited
+            if (this.editingGamePath) {
+                this.closeRightPanel();
+            }
+            
+            // ALWAYS restore modal body structure when disabling panel
+            // This ensures the modal is ready to use after panel is disabled
+            this.forceRestoreModalBody();
+        }
+    }
+    
+    forceRestoreModalBody() {
+        const modalElement = document.getElementById('editGameModal');
+        if (!modalElement) {
+            console.warn('Cannot restore modal body - modal element not found');
+            return false;
+        }
+        
+        const modalBody = modalElement.querySelector('.modal-body');
+        if (!modalBody) {
+            console.warn('Cannot restore modal body - modal body element not found');
+            return false;
+        }
+        
+        if (!this.modalBodyBackupHTML) {
+            console.error('Cannot force restore modal body - no backup available');
+            // Try to create backup now as last resort
+            if (modalBody.innerHTML && modalBody.innerHTML.trim().length > 0 && modalBody.querySelector('#editGameForm')) {
+                this.modalBodyBackupHTML = modalBody.innerHTML;
+            } else {
+                console.error('Cannot create backup - modal body is empty or missing form');
+                return false;
+            }
+        }
+        
+        // Create a deep copy of the backup to ensure we're not using a reference
+        const backupCopy = this.modalBodyBackupHTML;
+        modalBody.innerHTML = backupCopy;
+        
+        // Verify restoration
+        const formAfterRestore = modalBody.querySelector('#editGameForm');
+        if (formAfterRestore) {
+            return true;
+        } else {
+            console.error('Modal body force restore failed - form not found after restore');
+            return false;
+        }
+    }
+    
+    restoreModalBodyIfNeeded() {
+        const modalElement = document.getElementById('editGameModal');
+        if (!modalElement) {
+            console.error('Cannot restore modal body - modal element not found');
+            return false;
+        }
+        
+        const modalBody = modalElement.querySelector('.modal-body');
+        if (!modalBody) {
+            console.error('Cannot restore modal body - modal body element not found');
+            return false;
+        }
+        
+        // Check if modal body is empty or missing structure
+        const needsRestore = !modalBody.innerHTML || 
+                            modalBody.innerHTML.trim().length === 0 || 
+                            !modalBody.querySelector('#editGameForm');
+        
+        if (needsRestore) {
+            console.log('Modal body needs restoration. Current innerHTML length:', modalBody.innerHTML ? modalBody.innerHTML.length : 0);
+            return this.forceRestoreModalBody();
+        }
+        
+        return true; // No restoration needed
+    }
+    
+    initializeRightPanelResize() {
+        const rightPanel = document.getElementById('rightPanel');
+        const resizeHandle = rightPanel?.querySelector('.right-panel-resize-handle');
+        if (!resizeHandle) return;
+        
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+        
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = rightPanel.offsetWidth;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            const diff = startX - e.clientX; // Reverse because we're resizing from left
+            const newWidth = startWidth + diff;
+            const minWidth = 400;
+            const maxWidth = window.innerWidth * 0.8;
+            
+            if (newWidth >= minWidth && newWidth <= maxWidth) {
+                rightPanel.style.width = newWidth + 'px';
+                // Save width to localStorage
+                localStorage.setItem('guiPreferences_rightPanelWidth', newWidth.toString());
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+    }
+    
+    async editGameInPanel(game) {
+        this.editingGamePath = game.path;
+        this.editingGameIndex = this.games.findIndex(g => g.path === game.path);
+        
+        // Get the modal content
+        const modalElement = document.getElementById('editGameModal');
+        const modalBody = modalElement?.querySelector('.modal-body');
+        const modalFooter = modalElement?.querySelector('.modal-footer');
+        const rightPanelContent = document.getElementById('rightPanelContent');
+        const rightPanelBody = document.querySelector('.right-panel-body');
+        
+        if (!modalBody || !rightPanelContent) {
+            // Fallback to modal if panel structure not found
+            return this.editGame(game);
+        }
+        
+        // Show panel first so content is visible
+        const rightPanel = document.getElementById('rightPanel');
+        if (rightPanel && rightPanel.style.display === 'none') {
+            rightPanel.style.display = 'flex';
+        }
+        
+        // Clone modal body structure to panel WITHOUT affecting the original
+        // ALWAYS use the backup HTML - never read from the live modal body
+        // This ensures we never affect the original modal structure
+        if (!this.modalBodyBackupHTML) {
+            console.error('Cannot copy to panel - no backup HTML available!');
+            console.error('This should not happen - backup should be created on page load');
+            // Try to create backup now as fallback
+            if (modalBody.innerHTML && modalBody.innerHTML.trim().length > 0) {
+                this.modalBodyBackupHTML = modalBody.innerHTML;
+            } else {
+                console.error('Modal body is also empty, cannot proceed');
+                return;
+            }
+        }
+        
+        // Always use backup - never touch the live modal body
+        rightPanelContent.innerHTML = this.modalBodyBackupHTML;
+        
+        // Add footer buttons if they exist
+        if (modalFooter && rightPanelBody) {
+            // Check if footer already exists in panel
+            let panelFooter = rightPanelBody.querySelector('.right-panel-footer');
+            if (!panelFooter) {
+                panelFooter = document.createElement('div');
+                panelFooter.className = 'right-panel-footer mt-3 pt-3 border-top';
+                rightPanelBody.appendChild(panelFooter);
+            }
+            // Clone footer as well
+            const modalFooterClone = modalFooter.cloneNode(true);
+            panelFooter.innerHTML = '';
+            panelFooter.appendChild(modalFooterClone);
+        }
+        
+        // Now populate the panel's form fields directly (not the modal's)
+        await this.populateEditModalInPanel(game);
+        
+        // Re-initialize event listeners for panel content
+        this.initializeRightPanelEventListeners();
+        
+        // Update navigation buttons
+        this.updateRightPanelNavigationButtons();
+    }
+    
+    async populateEditModalInPanel(game) {
+        // Populate form fields in the panel (using the same IDs since we copied the structure)
+        const panelContent = document.getElementById('rightPanelContent');
+        if (!panelContent) return;
+        
+        // Clear all fields first
+        const clearField = (id) => {
+            const el = panelContent.querySelector(`#${id}`);
+            if (el) el.value = '';
+        };
+        clearField('editName');
+        clearField('editPath');
+        clearField('editDescription');
+        clearField('editNote');
+        clearField('editGenre');
+        clearField('editDeveloper');
+        clearField('editPublisher');
+        clearField('editRating');
+        clearField('editPlayers');
+        clearField('editReleasedate');
+        clearField('editLaunchboxId');
+        clearField('editIgdbId');
+        clearField('editScreenscraperId');
+        clearField('editSteamId');
+        clearField('editSteamgridid');
+        clearField('editMobygamesid');
+        clearField('editMd5');
+        clearField('editYoutubeurl');
+        
+        // Set field values
+        const setField = (id, value) => {
+            const el = panelContent.querySelector(`#${id}`);
+            if (el) el.value = value || '';
+        };
+        
+        setField('editName', game.name);
+        setField('editPath', game.path);
+        setField('editDescription', game.desc);
+        setField('editNote', game.note);
+        setField('editGenre', game.genre);
+        setField('editDeveloper', game.developer);
+        setField('editPublisher', game.publisher);
+        setField('editRating', game.rating);
+        setField('editPlayers', game.players);
+        
+        // Handle release date
+        let releaseDateValue = game.releasedate || '';
+        if (releaseDateValue) {
+            releaseDateValue = this.convertReleaseDateToISO8601(releaseDateValue);
+            releaseDateValue = this.convertISO8601ToDateInput(releaseDateValue);
+        }
+        setField('editReleasedate', releaseDateValue);
+        
+        setField('editLaunchboxId', game.launchboxid);
+        setField('editIgdbId', game.igdbid);
+        setField('editScreenscraperId', game.screenscraperid);
+        setField('editSteamId', game.steamid);
+        setField('editSteamgridid', game.steamgridid);
+        setField('editMobygamesid', game.mobygamesid);
+        setField('editMd5', game.md5);
+        setField('editYoutubeurl', game.youtubeurl);
+        
+        // Handle favorite and kidgame icons
+        const favoriteIcon = panelContent.querySelector('#editFavorite');
+        if (favoriteIcon) {
+            if (game.favorite === true || game.favorite === 'true') {
+                favoriteIcon.className = 'bi bi-star-fill text-warning';
+                favoriteIcon.title = 'Click to remove from favorites';
+            } else {
+                favoriteIcon.className = 'bi bi-star text-muted';
+                favoriteIcon.title = 'Click to add to favorites';
+            }
+            favoriteIcon.style.fontSize = '1.5rem';
+            favoriteIcon.style.cursor = 'pointer';
+            favoriteIcon.style.transition = 'all 0.2s ease';
+        }
+        
+        const kidgameIcon = panelContent.querySelector('#editKidgame');
+        if (kidgameIcon) {
+            if (game.kidgame === true || game.kidgame === 'true') {
+                kidgameIcon.className = 'bi bi-emoji-smile-fill text-success';
+                kidgameIcon.title = 'Click to remove kid game mark';
+            } else {
+                kidgameIcon.className = 'bi bi-emoji-smile text-muted';
+                kidgameIcon.title = 'Click to mark as kid game';
+            }
+            kidgameIcon.style.fontSize = '1.5rem';
+            kidgameIcon.style.cursor = 'pointer';
+            kidgameIcon.style.transition = 'all 0.2s ease';
+        }
+        
+        // Populate media and video tabs
+        await this.showEditGameMedia(game);
+        this.showEditGameVideo(game);
+        
+        // Initialize various features
+        this.initializeYouTubeDownload(game);
+        this.initializeEditModalTabs();
+        this.initializeEditModalFindBestMatch();
+        this.initializeEditModalIgdbSearch();
+        this.initializeEditModalScreenscraperSearch();
+        this.initializeEditModalSteamSearch();
+        this.initializeEditModalSteamgridSearch();
+        this.initializeEditModalMobygamesSearch();
+        this.initializeEditModalYoutubePreview();
+        this.initializeDeleteVideoButton(game);
+        this.initializeUploadVideoButton(game);
+        this.initializeManualCropButton(game);
+        this.initializeTakeScreenshotButton(game);
+    }
+    
+    initializeRightPanelEventListeners() {
+        // Re-attach event listeners for buttons in the panel
+        const prevBtn = document.getElementById('rightPanelPreviousBtn');
+        const nextBtn = document.getElementById('rightPanelNextBtn');
+        const closeBtn = document.getElementById('rightPanelCloseBtn');
+        
+        if (prevBtn) {
+            prevBtn.onclick = () => this.navigateToPreviousGameInPanel();
+        }
+        if (nextBtn) {
+            nextBtn.onclick = () => this.navigateToNextGameInPanel();
+        }
+        if (closeBtn) {
+            closeBtn.onclick = () => this.closeRightPanel();
+        }
+        
+        // Re-attach save button listener
+        const saveBtn = document.querySelector('#rightPanelContent #saveGameChanges, .right-panel-footer #saveGameChanges');
+        if (saveBtn) {
+            saveBtn.onclick = () => this.saveGameChangesFromPanel(false);
+        }
+        
+        // Re-attach manual scrap button listener
+        const manualScrapBtn = document.querySelector('#rightPanelContent #manualScrapBtn, .right-panel-footer #manualScrapBtn');
+        if (manualScrapBtn) {
+            manualScrapBtn.onclick = () => this.openManualScrapModal();
+        }
+        
+        // Re-initialize tab functionality
+        const tabs = document.querySelectorAll('#rightPanelContent .nav-link');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = tab.getAttribute('data-bs-target');
+                if (targetId) {
+                    // Hide all tab panes
+                    document.querySelectorAll('#rightPanelContent .tab-pane').forEach(pane => {
+                        pane.classList.remove('show', 'active');
+                    });
+                    // Show target pane
+                    const targetPane = document.querySelector(`#rightPanelContent ${targetId}`);
+                    if (targetPane) {
+                        targetPane.classList.add('show', 'active');
+                    }
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                }
+            });
+        });
+    }
+    
+    updateRightPanelNavigationButtons() {
+        const prevBtn = document.getElementById('rightPanelPreviousBtn');
+        const nextBtn = document.getElementById('rightPanelNextBtn');
+        
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games || this.games.length === 0) {
+            if (prevBtn) prevBtn.disabled = true;
+            if (nextBtn) nextBtn.disabled = true;
+            return;
+        }
+        
+        if (prevBtn) {
+            prevBtn.disabled = this.editingGameIndex <= 0;
+        }
+        if (nextBtn) {
+            nextBtn.disabled = this.editingGameIndex >= this.games.length - 1;
+        }
+    }
+    
+    async navigateToPreviousGameInPanel() {
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || this.editingGameIndex <= 0) {
+            return;
+        }
+        
+        const targetIndex = this.editingGameIndex - 1;
+        const targetGame = this.games[targetIndex];
+        if (!targetGame) return;
+        
+        const targetPath = targetGame.path;
+        await this.saveGameChangesFromPanel(true);
+        
+        const refreshedTargetGame = this.games.find(g => g.path === targetPath);
+        if (refreshedTargetGame) {
+            await this.editGameInPanel(refreshedTargetGame);
+        }
+    }
+    
+    async navigateToNextGameInPanel() {
+        if (this.editingGameIndex === undefined || this.editingGameIndex === -1 || !this.games || this.editingGameIndex >= this.games.length - 1) {
+            return;
+        }
+        
+        const targetIndex = this.editingGameIndex + 1;
+        const targetGame = this.games[targetIndex];
+        if (!targetGame) return;
+        
+        const targetPath = targetGame.path;
+        await this.saveGameChangesFromPanel(true);
+        
+        const refreshedTargetGame = this.games.find(g => g.path === targetPath);
+        if (refreshedTargetGame) {
+            await this.editGameInPanel(refreshedTargetGame);
+        }
+    }
+    
+    async saveGameChangesFromPanel(skipClose = false) {
+        // This will reuse the existing saveGameChangesFromModal logic
+        // but we need to get the form from the panel instead
+        const form = document.querySelector('#rightPanelContent #editGameForm');
+        if (!form) {
+            // Fallback to modal form
+            return this.saveGameChangesFromModal(skipClose);
+        }
+        
+        // Temporarily move form to modal body for compatibility
+        const modalBody = document.querySelector('#editGameModal .modal-body');
+        const originalForm = document.querySelector('#editGameModal #editGameForm');
+        if (modalBody && originalForm) {
+            const formClone = form.cloneNode(true);
+            originalForm.replaceWith(formClone);
+            const result = await this.saveGameChangesFromModal(skipClose);
+            // Restore original form
+            formClone.replaceWith(originalForm);
+            return result;
+        }
+        
+        return this.saveGameChangesFromModal(skipClose);
+    }
+    
+    closeRightPanel() {
+        const rightPanel = document.getElementById('rightPanel');
+        if (rightPanel) {
+            rightPanel.style.display = 'none';
+        }
+        this.editingGamePath = null;
+        this.editingGameIndex = undefined;
     }
     
     formatScraperLabel(scraperName) {
@@ -25309,4 +25999,52 @@ document.addEventListener('DOMContentLoaded', () => {
 // Initialize the game manager when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.gameManager = new GameCollectionManager();
+    
+    // Backup the modal body HTML structure for right panel use
+    // This ensures we always have the original template structure
+    // Try multiple times to ensure we get the backup
+    const createBackup = (attempt = 1) => {
+        const modalElement = document.getElementById('editGameModal');
+        if (!modalElement) {
+            if (attempt < 5) {
+                setTimeout(() => createBackup(attempt + 1), 200);
+            } else {
+                console.error('Failed to create modal body backup - modal element not found after 5 attempts');
+            }
+            return;
+        }
+        
+        const modalBody = modalElement.querySelector('.modal-body');
+        if (!modalBody) {
+            if (attempt < 5) {
+                setTimeout(() => createBackup(attempt + 1), 200);
+            } else {
+                console.error('Failed to create modal body backup - modal body not found after 5 attempts');
+            }
+            return;
+        }
+        
+            if (modalBody.innerHTML && modalBody.innerHTML.trim().length > 0) {
+                // Verify form exists in the backup
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = modalBody.innerHTML;
+                if (tempDiv.querySelector('#editGameForm')) {
+                    window.gameManager.modalBodyBackupHTML = modalBody.innerHTML;
+                } else {
+                    console.error('Modal body backup created but form not found in backup!');
+                    if (attempt < 5) {
+                        setTimeout(() => createBackup(attempt + 1), 200);
+                    }
+                }
+            } else {
+                if (attempt < 5) {
+                    setTimeout(() => createBackup(attempt + 1), 200);
+                } else {
+                    console.error('Failed to create modal body backup - modal body is empty after 5 attempts');
+                }
+            }
+    };
+    
+    // Start backup creation
+    createBackup();
 });
