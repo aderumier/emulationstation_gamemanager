@@ -1079,6 +1079,11 @@ class GameCollectionManager {
             return;
         }
         
+        // Never persist column order while thumbnail view is active since it uses a different layout
+        if (this.thumbnailViewEnabled) {
+            return;
+        }
+        
         try {
             // Use proper AG Grid Column State API
             const columnState = this.gridApi.getColumnState();
@@ -3091,9 +3096,11 @@ class GameCollectionManager {
             },
             onSortChanged: () => {
                 this.saveMainGridState();
+                this.updateNavigationIndexFromSelection();
             },
             onFilterChanged: () => {
                 this.saveMainGridState();
+                this.updateNavigationIndexFromSelection();
                 try {
                     const displayed = this.gridApi ? this.gridApi.getDisplayedRowCount() : 0;
                     this.currentNavigationIndex = displayed > 0 ? 0 : 0;
@@ -3139,6 +3146,9 @@ class GameCollectionManager {
         this.gridApi.addEventListener('selectionChanged', () => {
             const selectedRows = this.gridApi.getSelectedRows();
             this.selectedGames = selectedRows;
+
+            // Keep navigation index aligned with the selection
+            this.updateNavigationIndexFromSelection();
             
             // Show media preview for selected games
             if (selectedRows.length > 0) {
@@ -4813,8 +4823,13 @@ class GameCollectionManager {
                 if (field === 'video' || mediaPath.endsWith('.mp4')) {
                     // Check if video file exists before displaying player
                     // Use HEAD request to check file existence
+                    // Clean the mediaPath (remove leading ./ if present)
+                    let cleanMediaPath = mediaPath;
+                    if (cleanMediaPath.startsWith('./')) {
+                        cleanMediaPath = cleanMediaPath.substring(2);
+                    }
                     const cacheBuster = new Date().getTime();
-                    const videoUrl = `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`;
+                    const videoUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                     
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaContent.appendChild(mediaItem);
@@ -11481,8 +11496,13 @@ class GameCollectionManager {
                 if (field === 'video' || mediaPath.endsWith('.mp4')) {
                     // Check if video file exists before displaying player
                     // Use HEAD request to check file existence
+                    // Clean the mediaPath (remove leading ./ if present)
+                    let cleanMediaPath = mediaPath;
+                    if (cleanMediaPath.startsWith('./')) {
+                        cleanMediaPath = cleanMediaPath.substring(2);
+                    }
                     const cacheBuster = new Date().getTime();
-                    const videoUrl = `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`;
+                    const videoUrl = `/roms/${this.currentSystem}/${encodeURIComponent(cleanMediaPath)}?v=${cacheBuster}`;
                     
                     // Append mediaItem to DOM immediately (will be updated asynchronously)
                     mediaPreviewContent.appendChild(mediaItem);
@@ -21420,6 +21440,9 @@ class GameCollectionManager {
                 thumbnailsByGame[thumb.gamePath].push(thumb);
             });
             
+            // Collect all modified games
+            const modifiedGames = new Set();
+            
             // Update game objects and remove thumbnail elements
             for (const gamePath in thumbnailsByGame) {
                 const game = this.games.find(g => g.path === gamePath);
@@ -21441,8 +21464,15 @@ class GameCollectionManager {
                     }
                 }
                 
-                // Update gamelist for this game
-                await this.updateGamelistAfterMediaDeletion(game);
+                // Track this game as modified
+                modifiedGames.add(game);
+            }
+            
+            // Update gamelist once for all modified games (instead of once per game)
+            if (modifiedGames.size > 0) {
+                // Use the first modified game to trigger a single gamelist update
+                // The update function sends all games anyway, so we only need to call it once
+                await this.updateGamelistAfterMediaDeletion(Array.from(modifiedGames)[0]);
             }
             
             // Clear selection
@@ -21893,6 +21923,49 @@ class GameCollectionManager {
         }
     }
     
+    updateNavigationIndexFromSelection() {
+        if (!this.gridApi) return;
+        try {
+            const selectedNodes = this.gridApi.getSelectedNodes();
+            if (!selectedNodes || selectedNodes.length === 0) {
+                return;
+            }
+
+            const selectedNode = selectedNodes[0];
+
+            // If the grid already knows the rowIndex (common case), use it directly
+            if (typeof selectedNode.rowIndex === 'number') {
+                this.currentNavigationIndex = selectedNode.rowIndex;
+                return;
+            }
+
+            // Try resolving via row ID (AG Grid row ID is our ROM path)
+            if (selectedNode.id) {
+                const rowNode = this.gridApi.getRowNode(selectedNode.id);
+                if (rowNode && typeof rowNode.rowIndex === 'number') {
+                    this.currentNavigationIndex = rowNode.rowIndex;
+                    return;
+                }
+            }
+
+            // Fallback: find the displayed index by matching the ROM path
+            const targetPath = selectedNode.data ? selectedNode.data.path : null;
+            if (!targetPath) {
+                return;
+            }
+
+            const displayedCount = this.gridApi.getDisplayedRowCount();
+            for (let i = 0; i < displayedCount; i++) {
+                const node = this.gridApi.getDisplayedRowAtIndex(i);
+                if (node && node.data && node.data.path === targetPath) {
+                    this.currentNavigationIndex = i;
+                    return;
+                }
+            }
+        } catch (error) {
+        }
+    }
+
     async navigateAndPreviewRow(direction) {
         if (!this.gridApi) return;
         
