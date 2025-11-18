@@ -21916,14 +21916,24 @@ class GameCollectionManager {
     }
     
     syncNavigationIndex(game) {
-        // Find the index of the game in the games array and update navigation index
-        const index = this.games.findIndex(g => g.id === game.id);
-        if (index !== -1) {
-            this.currentNavigationIndex = index;
+        if (!this.gridApi || !game?.path) {
+            return;
+        }
+
+        try {
+            const displayedCount = this.gridApi.getDisplayedRowCount();
+            for (let i = 0; i < displayedCount; i++) {
+                const node = this.gridApi.getDisplayedRowAtIndex(i);
+                if (node?.data?.path === game.path) {
+                    this.currentNavigationIndex = i;
+                    return;
+                }
+            }
+        } catch (error) {
         }
     }
     
-    updateNavigationIndexFromSelection() {
+    updateNavigationIndexFromSelection(options = { retry: true }) {
         if (!this.gridApi) return;
         try {
             const selectedNodes = this.gridApi.getSelectedNodes();
@@ -21932,34 +21942,32 @@ class GameCollectionManager {
             }
 
             const selectedNode = selectedNodes[0];
-
-            // If the grid already knows the rowIndex (common case), use it directly
-            if (typeof selectedNode.rowIndex === 'number') {
-                this.currentNavigationIndex = selectedNode.rowIndex;
-                return;
-            }
-
-            // Try resolving via row ID (AG Grid row ID is our ROM path)
-            if (selectedNode.id) {
-                const rowNode = this.gridApi.getRowNode(selectedNode.id);
-                if (rowNode && typeof rowNode.rowIndex === 'number') {
-                    this.currentNavigationIndex = rowNode.rowIndex;
-                    return;
-                }
-            }
-
-            // Fallback: find the displayed index by matching the ROM path
-            const targetPath = selectedNode.data ? selectedNode.data.path : null;
+            const targetPath = selectedNode?.data?.path;
             if (!targetPath) {
                 return;
             }
 
+            // Always resolve the displayed index by walking visible rows.
+            // This avoids stale rowIndex values that AG Grid may keep temporarily
+            // after sorts, filters, or virtualization updates.
             const displayedCount = this.gridApi.getDisplayedRowCount();
             for (let i = 0; i < displayedCount; i++) {
                 const node = this.gridApi.getDisplayedRowAtIndex(i);
-                if (node && node.data && node.data.path === targetPath) {
+                if (node?.data?.path === targetPath) {
                     this.currentNavigationIndex = i;
                     return;
+                }
+            }
+            
+            // Grid might still be re-rendering immediately after sort/filter updates.
+            // Retry once on the next animation frame to give AG Grid time to finalize.
+            if (options?.retry) {
+                if (!this.pendingNavIndexRetry) {
+                    this.pendingNavIndexRetry = true;
+                    requestAnimationFrame(() => {
+                        this.pendingNavIndexRetry = false;
+                        this.updateNavigationIndexFromSelection({ retry: false });
+                    });
                 }
             }
         } catch (error) {
