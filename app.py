@@ -8431,8 +8431,9 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
         print(f"🔍 DEBUG: No metadata games provided, returning empty list")
         return []
     
-    normalized_name = normalize_game_name(game_name, remove_paranthesis=False, remove_articles=False)
-    print(f"🔍 DEBUG: Normalized name: '{normalized_name}'")
+    # Normalize search name without parentheses for better matching
+    normalized_name = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=False)
+    print(f"🔍 DEBUG: Normalized name (without parentheses): '{normalized_name}'")
     
     if not normalized_name:
         print(f"🔍 DEBUG: Normalized name is empty, returning empty list")
@@ -8456,7 +8457,11 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
     platform_partition = partition_index[target_platform]
     print(f"🔍 DEBUG: Platform partition has {len(platform_partition)} entries")
     
-    for normalized_game_name, launchboxid in platform_partition.items():
+    for normalized_game_name_with_parens, launchboxid in platform_partition.items():
+        # Normalize index entry name without parentheses for comparison
+        # The index was built with parentheses, but we want to compare without them
+        normalized_game_name = normalize_game_name(normalized_game_name_with_parens, remove_paranthesis=False, remove_articles=False)
+        
         # Only search games that start with the same character (partition optimization)
         if normalized_game_name.startswith(first_char):
             # Calculate similarity using configured algorithm

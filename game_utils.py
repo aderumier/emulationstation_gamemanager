@@ -59,9 +59,20 @@ def normalize_game_name(name, remove_paranthesis=True, remove_articles=True):
     if not name:
         return ""
 
-    # When remove_articles=False, convert trailing articles (after comma) to beginning before normalization
+    # Remove non-Latin characters and normalize accented characters
+    # First, normalize accented characters to their base forms
+    normalized = unicodedata.normalize('NFD', name)
+    name = "".join(c for c in normalized if not unicodedata.combining(c))
+
+    # Remove parentheses first (before moving articles)
+    if remove_paranthesis:
+        name = remove_parentheses(name)
+        
+    name = remove_brackets(name)
+    
+    # When remove_articles=False, convert trailing articles (after comma) to beginning after removing parentheses
+    # This way we can properly match ", The" at the end even if it was followed by parentheses
     if not remove_articles:
-        original_name = name
         # Match patterns: ",The", ",A", ",La", ",Le", ",L'" at the end (case insensitive)
         # Order matters: match longer patterns first (L' before L)
         patterns = [
@@ -85,16 +96,8 @@ def normalize_game_name(name, remove_paranthesis=True, remove_articles=True):
                     # Other articles have a space after them
                     name = f"{article} {name.strip()}"
                 break
-
-    # Remove non-Latin characters and normalize accented characters
-    # First, normalize accented characters to their base forms
-    normalized = unicodedata.normalize('NFD', name)
-    name = "".join(c for c in normalized if not unicodedata.combining(c))
-
-    if remove_paranthesis:
-        normalized = remove_parentheses(normalized)
-        
-    normalized = remove_brackets(normalized)
+    
+    normalized = name
 
     # Remove roman numerals and convert to numbers
     normalized = romain_vers_arabe_1_9(normalized).lower()

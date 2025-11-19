@@ -104,7 +104,7 @@ sudo apt-get install -f
 ```
 
 
-### Docker
+.### Docker
 
 ```bash
 # Pull the latest image
