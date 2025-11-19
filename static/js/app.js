@@ -116,6 +116,9 @@ class GameCollectionManager {
         // Media mappings cache
         this.mediaMappingsCache = null;
         this.select2Instance = null; // Select2 instance
+
+        // Delete modal state
+        this.deleteModalBusy = false;
         
         this.initializeEventListeners();
         this.loadState();
@@ -2138,6 +2141,15 @@ class GameCollectionManager {
         // Show duplicates button
         document.getElementById('showDuplicatesBtn').addEventListener('click', () => this.toggleDuplicatesFilter());
         
+        const deleteConfirmModalElement = document.getElementById('deleteConfirmModal');
+        if (deleteConfirmModalElement) {
+            deleteConfirmModalElement.addEventListener('hide.bs.modal', (event) => {
+                if (this.deleteModalBusy) {
+                    event.preventDefault();
+                }
+            });
+        }
+        
         // Confirm delete button
         document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
             if (this.gameToDelete) {
@@ -2190,6 +2202,30 @@ class GameCollectionManager {
                  document.activeElement.closest('.ag-root-wrapper'))) {
                 event.preventDefault();
                 this.navigateAndPreviewRow(event.key === 'Home' ? 'first' : 'last');
+            }
+            
+            // Enter key to confirm delete in delete confirmation modal
+            if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey) {
+                const deleteModal = document.getElementById('deleteConfirmModal');
+                if (deleteModal) {
+                    const modal = bootstrap.Modal.getInstance(deleteModal);
+                    if (modal && modal._isShown && !this.deleteModalBusy) {
+                        // Check if focus is within the modal
+                        const activeElement = document.activeElement;
+                        const isInModal = deleteModal.contains(activeElement);
+                        // Also check if we're in a text input/textarea within the modal (should not trigger)
+                        const isTextInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+                        if (isInModal && !isTextInput) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            // Trigger the confirm delete button click
+                            const confirmBtn = document.getElementById('confirmDeleteBtn');
+                            if (confirmBtn && !confirmBtn.disabled) {
+                                confirmBtn.click();
+                            }
+                        }
+                    }
+                }
             }
             
             // Enter key to open edit modal for selected row
@@ -2544,13 +2580,35 @@ class GameCollectionManager {
         // Update the modal with the count of selected games
         document.getElementById('deleteGameCount').textContent = this.selectedGames.length;
         
+        this.setDeleteModalBusy(false);
+        
         // Show the confirmation modal
         const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
         modal.show();
     }
     
+    setDeleteModalBusy(isBusy) {
+        this.deleteModalBusy = Boolean(isBusy);
+        const modal = document.getElementById('deleteConfirmModal');
+        if (!modal) {
+            return;
+        }
+        const overlay = modal.querySelector('#deleteConfirmModalOverlay');
+        if (overlay) {
+            overlay.style.display = isBusy ? 'flex' : 'none';
+        }
+        const buttons = modal.querySelectorAll('.modal-footer button, .modal-header .btn-close');
+        buttons.forEach(button => {
+            if (button) {
+                button.disabled = isBusy;
+            }
+        });
+    }
+    
     async deleteSelectedGames() {
         if (this.selectedGames.length === 0) return;
+        
+        this.setDeleteModalBusy(true);
         
         try {
             // Get the selected game names for display
@@ -2584,6 +2642,7 @@ class GameCollectionManager {
             // Update the delete button state
             this.updateDeleteButtonState();
             
+            this.setDeleteModalBusy(false);
             // Close the modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
             modal.hide();
@@ -2597,6 +2656,8 @@ class GameCollectionManager {
             
         } catch (error) {
             this.showToast('Error deleting games', 'error');
+        } finally {
+            this.setDeleteModalBusy(false);
         }
     }
 
@@ -3199,6 +3260,58 @@ class GameCollectionManager {
                 
                 // Show a small notification that the change was made
                 this.showInlineEditNotification(event.colDef.field, event.oldValue, event.newValue);
+                
+                // If the gameedit panel is open and showing the same game, update the panel form
+                // to prevent race conditions where panel auto-save overwrites the inline edit
+                const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
+                if (rightPanelEnabled && this.editingGamePath && event.data.path === this.editingGamePath) {
+                    const panelContent = document.getElementById('rightPanelContent');
+                    if (panelContent && panelContent.style.display !== 'none') {
+                        // Update the corresponding form field in the panel
+                        const fieldMapping = {
+                            'name': 'editName',
+                            'desc': 'editDescription',
+                            'note': 'editNote',
+                            'genre': 'editGenre',
+                            'developer': 'editDeveloper',
+                            'publisher': 'editPublisher',
+                            'rating': 'editRating',
+                            'players': 'editPlayers',
+                            'releasedate': 'editReleasedate',
+                            'launchboxid': 'editLaunchboxId',
+                            'igdbid': 'editIgdbId',
+                            'screenscraperid': 'editScreenscraperId',
+                            'steamid': 'editSteamId',
+                            'steamgridid': 'editSteamgridid',
+                            'mobygamesid': 'editMobygamesid',
+                            'youtubeurl': 'editYoutubeurl'
+                        };
+                        
+                        const formFieldId = fieldMapping[event.colDef.field];
+                        if (formFieldId) {
+                            const formField = panelContent.querySelector(`#${formFieldId}`);
+                            if (formField) {
+                                // Convert value if needed (e.g., for release date)
+                                let valueToSet = event.newValue;
+                                if (event.colDef.field === 'releasedate' && valueToSet) {
+                                    valueToSet = this.convertReleaseDateToISO8601(valueToSet);
+                                    valueToSet = this.convertISO8601ToDateInput(valueToSet);
+                                }
+                                formField.value = valueToSet || '';
+                                
+                                // Also update rightPanelOriginalGame to reflect the new value
+                                // This ensures change detection works correctly
+                                if (this.rightPanelOriginalGame) {
+                                    if (event.colDef.field === 'releasedate') {
+                                        this.rightPanelOriginalGame.releasedate = valueToSet || '';
+                                    } else {
+                                        this.rightPanelOriginalGame[event.colDef.field] = String(valueToSet || '').trim();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -11279,6 +11392,8 @@ class GameCollectionManager {
         // Store the game to delete
         this.gameToDelete = game;
         
+        this.setDeleteModalBusy(false);
+        
         // Show the confirmation modal
         const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
         modal.show();
@@ -11286,7 +11401,9 @@ class GameCollectionManager {
 
     async confirmSingleGameDelete() {
         if (!this.gameToDelete) return;
-
+        
+        this.setDeleteModalBusy(true);
+        
         try {
             // Delete associated ROM and media files
             const deletedFiles = await this.deleteGameFiles(this.gameToDelete);
@@ -11301,6 +11418,7 @@ class GameCollectionManager {
             await this.refreshGridData();
             this.updateGamesCount();
             
+            this.setDeleteModalBusy(false);
             // Close the modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
             modal.hide();
@@ -11315,6 +11433,8 @@ class GameCollectionManager {
 
         } catch (error) {
             this.showAlert('Error deleting game', 'danger');
+        } finally {
+            this.setDeleteModalBusy(false);
         }
     }
 

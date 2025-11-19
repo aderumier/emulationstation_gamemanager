@@ -8166,35 +8166,77 @@ def rom_system_gamelist(system_name):
                 return jsonify({'error': 'Invalid request data: must provide either single game (rom_path + game) or full games array'}), 400
             
             print(f"🔔 PUT request received for system: {system_name}")
-            print(f"🔔 Request data: {data}")
             
             games = data['games']
             delete_rom_paths = data.get('delete_rom_paths', [])
             
+            def normalize_gamelist_path(path_value):
+                if not path_value:
+                    return None
+                normalized = path_value.replace('\\', '/').strip()
+                while normalized.startswith('./'):
+                    normalized = normalized[2:]
+                normalized = normalized.lstrip('/')
+                if normalized.lower().startswith('roms/'):
+                    normalized = normalized[5:]
+                if not normalized.lower().startswith(system_name.lower() + '/'):
+                    normalized = f"{system_name}/{normalized}"
+                return os.path.normpath(normalized).replace('\\', '/')
+            
+            def resolve_media_path(value):
+                if not value:
+                    return None
+                path = value.strip()
+                if not path or path.lower().startswith('http://') or path.lower().startswith('https://'):
+                    return None
+                path = path.replace('\\', '/')
+                while path.startswith('./'):
+                    path = path[2:]
+                path = path.lstrip('/')
+                if path.lower().startswith('roms/'):
+                    rel = path[5:]
+                elif path.lower().startswith(system_name.lower() + '/'):
+                    rel = path
+                else:
+                    rel = f"{system_name}/{path}"
+                abs_path = os.path.abspath(os.path.join(ROMS_FOLDER, rel))
+                return abs_path
+            
             # Log the deletion operation
             if delete_rom_paths:
                 app.logger.info(f'Deleting {len(delete_rom_paths)} games from {system_name} gamelist using ROM file paths')
-                app.logger.info(f'Received delete_rom_paths: {delete_rom_paths}')
                 
                 # Delete associated files for each deleted game
                 deleted_files = []
                 failed_deletions = []
+                media_fields = ['image', 'thumbnail', 'video', 'marquee', 'manual', 'boxart', 'boxback', 'boxside',
+                                'cartridge', 'wheel', 'bezel', 'fanart', 'extra1', 'screenshot', 'titlescreen']
+                
+                # Load existing gamelist once to find original media references
+                existing_games = parse_gamelist_xml(gamelist_path)
+                existing_games_map = {}
+                existing_games_basename_map = {}
+                for existing_game in existing_games:
+                    normalized_path = normalize_gamelist_path(existing_game.get('path'))
+                    if not normalized_path:
+                        continue
+                    key = normalized_path.lower()
+                    existing_games_map.setdefault(key, existing_game)
+                    basename_key = os.path.basename(key)
+                    existing_games_basename_map.setdefault(basename_key, existing_game)
+                
+                allowed_dirs = [
+                    os.path.abspath(os.path.join(app.root_path, 'roms')),
+                    os.path.abspath(os.path.join(app.root_path, 'media'))
+                ]
                 
                 for rom_path in delete_rom_paths:
-                    app.logger.info(f'Processing ROM path: "{rom_path}"')
                     try:
                         # Convert relative path to absolute path relative to ROMS_FOLDER
                         if not os.path.isabs(rom_path):
-                            # Ensure clean path construction without double slashes
                             rom_path = os.path.normpath(os.path.join(ROMS_FOLDER, rom_path))
                         
                         rom_abs_path = os.path.abspath(rom_path)
-                        
-                        # Security check: ensure the ROM path is within the allowed directories
-                        allowed_dirs = [
-                            os.path.abspath(os.path.join(app.root_path, 'roms')),
-                            os.path.abspath(os.path.join(app.root_path, 'media'))
-                        ]
                         
                         is_allowed = False
                         for allowed_dir in allowed_dirs:
@@ -8207,38 +8249,33 @@ def rom_system_gamelist(system_name):
                             continue
                         
                         # Delete ROM file
-                        app.logger.info(f'Checking if ROM file exists: {rom_abs_path}')
                         if os.path.exists(rom_abs_path):
                             os.remove(rom_abs_path)
                             deleted_files.append(f"ROM: {rom_path}")
-                            app.logger.info(f'Deleted ROM file: {rom_abs_path}')
                         else:
-                            app.logger.warning(f'ROM file not found: {rom_abs_path}')
                             failed_deletions.append({'path': rom_path, 'error': 'ROM file not found'})
                         
-                        # Find and delete associated media files
-                        rom_filename_without_extension = os.path.splitext(os.path.basename(rom_path))[0]
-                        app.logger.info(f'Looking for media files with ROM filename: {rom_filename_without_extension}')
-                        media_dir = os.path.join(system_path, 'media')
+                        rom_relative = os.path.relpath(rom_abs_path, ROMS_FOLDER).replace('\\', '/')
+                        rom_key = rom_relative.lower()
+                        basename_key = os.path.basename(rom_key)
+                        game_entry = existing_games_map.get(rom_key) or existing_games_basename_map.get(basename_key)
                         
-                        if os.path.exists(media_dir):
-                            # Check all media subdirectories for files with matching name
-                            media_fields = ['boxart', 'screenshot', 'marquee', 'wheel', 'video', 'thumbnail', 'cartridge', 'fanart', 'title', 'manual', 'boxback', 'box2d']
-                            
+                        if game_entry:
                             for field in media_fields:
-                                field_dir = os.path.join(media_dir, field)
-                                if os.path.exists(field_dir):
-                                    # Look for files that start with the ROM filename
-                                    for file in os.listdir(field_dir):
-                                        if file.startswith(rom_filename_without_extension):
-                                            file_path = os.path.join(field_dir, file)
-                                            try:
-                                                os.remove(file_path)
-                                                deleted_files.append(f"{field}: {file}")
-                                                app.logger.info(f'Deleted media file: {file_path}')
-                                            except Exception as e:
-                                                failed_deletions.append({'path': file_path, 'error': str(e)})
-                                                app.logger.error(f'Failed to delete media file {file_path}: {e}')
+                                media_value = game_entry.get(field)
+                                if not media_value:
+                                    continue
+                                media_abs_path = resolve_media_path(media_value)
+                                if not media_abs_path:
+                                    continue
+                                if not any(media_abs_path.startswith(allowed_dir) for allowed_dir in allowed_dirs):
+                                    continue
+                                try:
+                                    if os.path.exists(media_abs_path):
+                                        os.remove(media_abs_path)
+                                        deleted_files.append(f"{field}: {os.path.relpath(media_abs_path, system_path)}")
+                                except Exception as e:
+                                    failed_deletions.append({'path': media_abs_path, 'error': str(e)})
                         
                     except Exception as e:
                         failed_deletions.append({'path': rom_path, 'error': str(e)})
