@@ -51,6 +51,7 @@ import secrets
 from datetime import datetime
 import uuid
 import subprocess as sp
+import logging
 from collections import Counter
 from steam_service import SteamService
 from screenscraper_service import ScreenScraperService
@@ -58,6 +59,7 @@ from steamgrid_service import SteamGridService
 from mobygames_service import MobyGamesService
 from igdb_service import IGDBService
 from datscrapper_service import DATScrapperService
+from emumovies_service import EmuMoviesService
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -822,6 +824,43 @@ def reload_systems_config():
 
 # Load configuration
 config = load_config()
+
+# ----------------------------
+# Logging configuration helper
+# ----------------------------
+def configure_logging(config):
+    logging_config = config.get('logging', {})
+    level_name = logging_config.get('level', 'INFO').upper()
+    log_level = getattr(logging, level_name, logging.INFO)
+    log_file = logging_config.get('file')
+
+    # Remove existing handlers so we can reconfigure cleanly
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    handlers = []
+    formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    handlers.append(stream_handler)
+
+    if log_file:
+        os.makedirs(os.path.dirname(log_file), exist_ok=True) if os.path.dirname(log_file) else None
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        handlers.append(file_handler)
+
+    logging.basicConfig(level=log_level, handlers=handlers, force=True)
+    logging.getLogger(__name__).info(
+        f"Logging configured. Level: {level_name}, File: {log_file or 'stdout only'}"
+    )
+
+
+configure_logging(config)
 scrappers_config = load_scrappers_config()
 systems_config = load_systems_config()
 
@@ -988,12 +1027,39 @@ os.makedirs(GAMELISTS_FOLDER, exist_ok=True)
 os.makedirs('var/db', exist_ok=True)
 os.makedirs('var/db/launchbox', exist_ok=True)
 os.makedirs('var/db/igdb', exist_ok=True)
+os.makedirs('var/db/emumovies', exist_ok=True)
 os.makedirs('var/sessions', exist_ok=True)
 
 LOCAL_IMAGE_CACHE_PATH = '/var/cache/local_image.pkl'
 LOCAL_IMAGE_CACHE_TTL_SECONDS = 24 * 60 * 60
 _local_image_cache = None
 _local_image_cache_loaded = False
+
+EMUMOVIES_INDEX_PATH = os.path.join('var/db/emumovies', 'emumovies_index.pkl')
+emumovies_index = {}
+
+
+def load_emumovies_index():
+    """Load EmuMovies normalized index into memory"""
+    global emumovies_index
+    try:
+        if os.path.exists(EMUMOVIES_INDEX_PATH):
+            with open(EMUMOVIES_INDEX_PATH, 'rb') as f:
+                emumovies_index = pickle.load(f)
+            logger.info(
+                "Loaded EmuMovies index from %s (%d systems)",
+                EMUMOVIES_INDEX_PATH,
+                len(emumovies_index)
+            )
+        else:
+            emumovies_index = {}
+            logger.info("EmuMovies index file not found at %s", EMUMOVIES_INDEX_PATH)
+    except Exception as e:
+        emumovies_index = {}
+        logger.error("Failed to load EmuMovies index: %s", e, exc_info=True)
+
+
+load_emumovies_index()
 
 
 def load_local_image_cache():
@@ -27597,6 +27663,367 @@ def test_screenscraper_connection():
         return jsonify({'success': False, 'error': 'Connection timeout'}), 400
     except requests.exceptions.ConnectionError:
         return jsonify({'success': False, 'error': 'Connection error'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/emumovies-credentials', methods=['GET', 'POST'])
+@login_required
+def manage_emumovies_credentials():
+    """Manage EmuMovies API credentials"""
+    try:
+        if request.method == 'GET':
+            # Return current credentials status
+            from credential_manager import credential_manager
+            creds = credential_manager.get_emumovies_credentials()
+            
+            return jsonify({
+                'success': True,
+                'has_username': bool(creds.get('username')),
+                'has_password': bool(creds.get('password')),
+                'configured': bool(creds.get('username') and creds.get('password'))
+            })
+        
+        elif request.method == 'POST':
+            # Save credentials
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            incoming_username = (data.get('username') or '').strip()
+            incoming_password = (data.get('password') or '').strip()
+            
+            from credential_manager import credential_manager
+            existing_creds = credential_manager.get_emumovies_credentials()
+            
+            # Treat placeholder bullets or empty strings as "keep existing value"
+            username = incoming_username if incoming_username and '•' not in incoming_username else existing_creds.get('username', '')
+            password = incoming_password if incoming_password and '•' not in incoming_password else existing_creds.get('password', '')
+            
+            if not username or not password:
+                return jsonify({'error': 'Username and password are required'}), 400
+            
+            credential_manager.save_emumovies_credentials(username, password)
+            
+            return jsonify({'success': True, 'message': 'EmuMovies credentials saved successfully'})
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to manage EmuMovies credentials: {str(e)}'}), 500
+
+@app.route('/api/test-emumovies-connection', methods=['POST'])
+@login_required
+def test_emumovies_connection():
+    """Test EmuMovies connection with provided credentials"""
+    try:
+        data = request.json
+        username = (data.get('username') or '').strip()
+        password = (data.get('password') or '').strip()
+        
+        from credential_manager import credential_manager
+        stored_creds = credential_manager.get_emumovies_credentials()
+        
+        if not username:
+            username = stored_creds.get('username', '').strip()
+        if not password:
+            password = stored_creds.get('password', '').strip()
+        
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'Username and password are required'}), 400
+        
+        # Test the connection by authenticating
+        import asyncio
+        from emumovies_service import EmuMoviesService
+        
+        data = request.get_json(silent=True) or {}
+        target_system = data.get('system_name') if isinstance(data.get('system_name'), str) else None
+        logger.debug(f"EMUMOVIES BUILD DB: target system filter = {target_system}")
+        
+        service = EmuMoviesService()
+        
+        # Use asyncio.run for Flask compatibility
+        token = asyncio.run(service.authenticate(username, password))
+        if token:
+            return jsonify({'success': True, 'message': 'EmuMovies connection test successful'})
+        else:
+            return jsonify({'success': False, 'error': 'Authentication failed'}), 400
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/emumovies-mappings', methods=['GET', 'PUT', 'POST'])
+@login_required
+def manage_emumovies_mappings():
+    """Manage EmuMovies media type mappings"""
+    try:
+        config = load_config()
+        scrappers_config = load_scrappers_config()
+        emumovies_config = scrappers_config.get('emumovies', {})
+        media_fields = config.get('media_fields', {})
+        
+        if request.method == 'GET':
+            # Return current mappings and available media fields
+            raw_mappings = emumovies_config.get('image_type_mappings', {})
+            
+            # Normalize mappings to arrays (for backward compatibility with single-value format)
+            mappings = {}
+            for field, value in raw_mappings.items():
+                if isinstance(value, list):
+                    mappings[field] = value
+                elif value:
+                    mappings[field] = [value]
+                else:
+                    mappings[field] = []
+            
+            # Get EmuMovies media types from local database (first system in emumovies.json)
+            emumovies_media_types = []
+            try:
+                db_file = os.path.join('var/db/emumovies', 'emumovies.json')
+                if os.path.exists(db_file):
+                    with open(db_file, 'r', encoding='utf-8') as f:
+                        db_data = json.load(f)
+                        
+                    # Get media types from the first system
+                    if db_data:
+                        first_system_name = next(iter(db_data.keys()))
+                        first_system_data = db_data[first_system_name]
+                        
+                        # Extract unique media types from the first system
+                        media_type_set = set()
+                        if isinstance(first_system_data, dict):
+                            for media_type_name in first_system_data.keys():
+                                media_type_set.add(media_type_name)
+                        
+                        emumovies_media_types = sorted(list(media_type_set))
+                else:
+                    # Database not built, try to get from API (requires auth)
+                    import asyncio
+                    from emumovies_service import EmuMoviesService
+                    from credential_manager import credential_manager
+                    
+                    creds = credential_manager.get_emumovies_credentials()
+                    if creds.get('username') and creds.get('password'):
+                        try:
+                            async def fetch_media_types():
+                                service = EmuMoviesService()
+                                token = await service.authenticate()
+                                if token:
+                                    systems = await service.get_systems()
+                                    if systems:
+                                        # Get media types from first system as example
+                                        first_system = systems[0] if isinstance(systems[0], str) else systems[0]
+                                        media_types = await service.get_media_types(first_system)
+                                        return media_types
+                                return []
+                            
+                            media_types = asyncio.run(fetch_media_types())
+                            emumovies_media_types = sorted([mt if isinstance(mt, str) else str(mt) for mt in media_types])
+                        except Exception as e:
+                            logger.warning(f"Error fetching media types from API: {e}")
+            except Exception as e:
+                logger.warning(f"Error loading EmuMovies media types: {e}")
+                # Fallback to empty list
+            
+            # Convert media_fields object to list of field names
+            media_fields_list = list(media_fields.keys()) if isinstance(media_fields, dict) else media_fields
+            
+            return jsonify({
+                'success': True,
+                'emumovies_mappings': mappings,
+                'media_fields': media_fields_list,
+                'emumovies_media_types': emumovies_media_types
+            })
+        
+        elif request.method == 'PUT':
+            # Update single mapping
+            data = request.get_json()
+            if not data or 'media_field' not in data:
+                return jsonify({'error': 'Media field is required'}), 400
+            
+            media_field = data['media_field']
+            emumovies_types = data.get('emumovies_types', [])
+            
+            # Validate that the media field exists
+            media_fields_list = list(media_fields.keys()) if isinstance(media_fields, dict) else media_fields
+            if media_field not in media_fields_list:
+                return jsonify({'error': 'Invalid media field'}), 400
+            
+            # Validate emumovies_types is a list
+            if not isinstance(emumovies_types, list):
+                return jsonify({'error': 'emumovies_types must be an array'}), 400
+            
+            # Reload config to ensure we have the latest version before writing
+            scrappers_config = load_scrappers_config()
+            
+            # Update the mapping
+            if 'emumovies' not in scrappers_config:
+                scrappers_config['emumovies'] = {}
+            if 'image_type_mappings' not in scrappers_config['emumovies']:
+                scrappers_config['emumovies']['image_type_mappings'] = {}
+            
+            if emumovies_types:
+                scrappers_config['emumovies']['image_type_mappings'][media_field] = emumovies_types
+            else:
+                scrappers_config['emumovies']['image_type_mappings'].pop(media_field, None)
+            
+            # Save to file - ensure directory exists and write atomically
+            os.makedirs('var/config', exist_ok=True)
+            temp_file = 'var/config/scrappers.json.tmp'
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(scrappers_config, f, indent=4)
+            # Atomic rename to prevent corruption
+            os.replace(temp_file, 'var/config/scrappers.json')
+            
+            return jsonify({'success': True, 'message': 'EmuMovies mapping updated successfully'})
+        
+        elif request.method == 'POST':
+            # Update all mappings
+            data = request.get_json()
+            if not data or 'mappings' not in data:
+                return jsonify({'error': 'Mappings data is required'}), 400
+            
+            # Reload config to ensure we have the latest version before writing
+            scrappers_config = load_scrappers_config()
+            
+            # Update scrappers config
+            if 'emumovies' not in scrappers_config:
+                scrappers_config['emumovies'] = {}
+            
+            scrappers_config['emumovies']['image_type_mappings'] = data['mappings']
+            
+            # Save to file - ensure directory exists and write atomically
+            os.makedirs('var/config', exist_ok=True)
+            temp_file = 'var/config/scrappers.json.tmp'
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(scrappers_config, f, indent=4)
+            # Atomic rename to prevent corruption
+            os.replace(temp_file, 'var/config/scrappers.json')
+            
+            return jsonify({
+                'success': True,
+                'message': 'EmuMovies mappings saved successfully'
+            })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to manage EmuMovies mappings: {str(e)}'}), 500
+
+@app.route('/api/emumovies-generate-index', methods=['POST'])
+@login_required
+def generate_emumovies_index():
+    """Generate normalized index from EmuMovies database"""
+    try:
+        from emumovies_service import EmuMoviesService
+        logger.debug("Received request: POST /api/emumovies-generate-index")
+        
+        service = EmuMoviesService()
+        result = service.generate_normalized_index()
+        if result.get('success'):
+            load_emumovies_index()
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/emumovies-build-database', methods=['POST'])
+@login_required
+def build_emumovies_database():
+    """Build local EmuMovies database"""
+    try:
+        import asyncio
+        from emumovies_service import EmuMoviesService
+        logger.debug("Received request: POST /api/emumovies-build-database")
+
+        data = request.get_json(silent=True) or {}
+        target_system = data.get('system_name') if isinstance(data.get('system_name'), str) else None
+        logger.debug(f"EMUMOVIES BUILD DB: target system filter = {target_system}")
+        
+        service = EmuMoviesService()
+        
+        # Create async task for building database
+        async def build_with_progress():
+            async def progress_callback(message, percentage):
+                # This will be called during the build process
+                print(f"EmuMovies DB Build: {message} ({percentage}%)")
+                await asyncio.sleep(0)  # Allow other tasks to run
+            
+            return await service.build_local_database(
+                progress_callback=progress_callback,
+                target_system=target_system
+            )
+        
+        # Use asyncio.run for Flask compatibility
+        result = asyncio.run(build_with_progress())
+        if result.get('success'):
+            load_emumovies_index()
+        return jsonify(result)
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/emumovies-database-status', methods=['GET'])
+@login_required
+def get_emumovies_database_status():
+    """Get EmuMovies database status"""
+    try:
+        from emumovies_service import EmuMoviesService
+        
+        service = EmuMoviesService()
+        index = service.get_database_index()
+        
+        if not index:
+            return jsonify({
+                'success': True,
+                'exists': False,
+                'message': 'Database not built yet'
+            })
+        
+        systems_count = len(index.get('systems', {}))
+        build_date = index.get('build_date', 'Unknown')
+        
+        return jsonify({
+            'success': True,
+            'exists': True,
+            'systems_count': systems_count,
+            'build_date': build_date,
+            'index': index
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/emumovies-index-status', methods=['GET'])
+@login_required
+def get_emumovies_index_status():
+    """Get status of EmuMovies normalized index"""
+    try:
+        if not os.path.exists(EMUMOVIES_INDEX_PATH):
+            return jsonify({
+                'success': True,
+                'exists': False,
+                'message': 'Index not generated yet'
+            })
+        
+        stats = os.stat(EMUMOVIES_INDEX_PATH)
+        modified_time = datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+        size_mb = round(stats.st_size / (1024 * 1024), 2)
+        
+        systems_count = len(emumovies_index)
+        
+        return jsonify({
+            'success': True,
+            'exists': True,
+            'modified': modified_time,
+            'size': f"{size_mb} MB",
+            'systems_count': systems_count
+        })
+    
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

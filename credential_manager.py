@@ -209,6 +209,49 @@ class CredentialManager:
         
         print("Discord credentials saved successfully")
     
+    def get_emumovies_credentials(self) -> Dict[str, str]:
+        """Get EmuMovies credentials from regular credentials file"""
+        if os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    credentials = json.load(f)
+                    if 'emumovies' in credentials:
+                        return credentials['emumovies']
+            except Exception as e:
+                print(f"Error loading EmuMovies credentials: {e}")
+        
+        # Return empty EmuMovies credentials
+        return {
+            'username': '',
+            'password': ''
+        }
+    
+    def save_emumovies_credentials(self, username: str, password: str):
+        """Save EmuMovies credentials to regular credentials file"""
+        # Load existing credentials
+        credentials = {}
+        if os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    credentials = json.load(f)
+            except Exception as e:
+                print(f"Error loading existing credentials: {e}")
+        
+        # Update EmuMovies credentials
+        credentials['emumovies'] = {
+            'username': username,
+            'password': password
+        }
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(self.credentials_file), exist_ok=True)
+        
+        # Save to regular credentials file
+        with open(self.credentials_file, 'w') as f:
+            json.dump(credentials, f, indent=2)
+        
+        print("EmuMovies credentials saved successfully")
+    
     def create_encoded_credentials_file(self):
         """Create the encoded credentials file with only developer credentials"""
         credentials = {

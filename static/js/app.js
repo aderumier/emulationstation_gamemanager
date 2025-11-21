@@ -151,6 +151,7 @@ class GameCollectionManager {
         
         // Initialize cache configuration modal
         this.initializeCacheConfigurationModal();
+        this.initializeCacheConfigHandlers();
         
         // Initialize systems configuration modal
         this.initializeSystemsModal();
@@ -1906,6 +1907,32 @@ class GameCollectionManager {
             console.warn('testSteamgriddbConnectionBtn not found');
         }
         
+        // EmuMovies save credentials button
+        const saveEmumoviesCredentialsBtn = document.getElementById('saveEmumoviesCredentialsBtn');
+        if (saveEmumoviesCredentialsBtn) {
+            saveEmumoviesCredentialsBtn.addEventListener('click', () => {
+                this.saveEmumoviesCredentials();
+            });
+        }
+        
+        // EmuMovies test connection button
+        const testEmumoviesBtn = document.getElementById('testEmumoviesConnectionBtn');
+        if (testEmumoviesBtn) {
+            testEmumoviesBtn.addEventListener('click', async () => await this.testEmumoviesConnection());
+        }
+        
+        // EmuMovies build database button
+        const buildEmumoviesDatabaseBtn = document.getElementById('buildEmumoviesDatabaseBtn');
+        if (buildEmumoviesDatabaseBtn) {
+            buildEmumoviesDatabaseBtn.addEventListener('click', async () => await this.buildEmumoviesDatabase());
+        }
+        
+        // EmuMovies check database status button
+        const checkEmumoviesDatabaseStatusBtn = document.getElementById('checkEmumoviesDatabaseStatusBtn');
+        if (checkEmumoviesDatabaseStatusBtn) {
+            checkEmumoviesDatabaseStatusBtn.addEventListener('click', async () => await this.checkEmumoviesDatabaseStatus());
+        }
+        
         // Handle manual scrap modal cancel button
         document.getElementById('manualScrapModal').addEventListener('hidden.bs.modal', () => {
             this.currentManualScrapGame = null;
@@ -2001,6 +2028,14 @@ class GameCollectionManager {
             this.setCookie('overwriteMediaFieldsSteamGridDB', e.target.checked);
         });
 
+        // EmuMovies overwrite checkbox
+        const overwriteMediaFieldsEmumoviesModal = document.getElementById('overwriteMediaFieldsEmumoviesModal');
+        if (overwriteMediaFieldsEmumoviesModal) {
+            overwriteMediaFieldsEmumoviesModal.addEventListener('change', (e) => {
+                this.setCookie('overwriteMediaFieldsEmumovies', e.target.checked);
+            });
+        }
+
         // ScreenScraper overwrite text fields toggle (in ScreenScraper Configuration modal)
         document.getElementById('overwriteTextFieldsScreenscraperModal').addEventListener('change', (e) => {
             this.setCookie('overwriteTextFieldsScreenscraper', e.target.checked);
@@ -2076,6 +2111,27 @@ class GameCollectionManager {
             });
             await this.saveSteamGridDBFieldSettings();
         });
+
+        // EmuMovies field selection checkboxes
+        const selectAllEmumoviesFields = document.getElementById('selectAllEmumoviesFields');
+        if (selectAllEmumoviesFields) {
+            selectAllEmumoviesFields.addEventListener('click', async () => {
+                document.querySelectorAll('.emumovies-field-checkbox').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                await this.saveEmumoviesFieldSettings();
+            });
+        }
+
+        const deselectAllEmumoviesFields = document.getElementById('deselectAllEmumoviesFields');
+        if (deselectAllEmumoviesFields) {
+            deselectAllEmumoviesFields.addEventListener('click', async () => {
+                document.querySelectorAll('.emumovies-field-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                await this.saveEmumoviesFieldSettings();
+            });
+        }
 
         // ScreenScraper field selection checkboxes
         document.querySelectorAll('.screenscraper-field-checkbox').forEach(checkbox => {
@@ -13655,6 +13711,15 @@ class GameCollectionManager {
             });
         }
 
+        // Add event listener for opening EmuMovies modal
+        const openEmumoviesModal = document.getElementById('openEmumoviesModal');
+        if (openEmumoviesModal) {
+            openEmumoviesModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openEmumoviesScrapPreferencesModal();
+            });
+        }
+
         // Add event listener for opening Systems modal
         const openSystemsModal = document.getElementById('openSystemsModal');
         if (openSystemsModal) {
@@ -14170,6 +14235,117 @@ class GameCollectionManager {
                 }
             });
         } catch (error) {
+        }
+    }
+
+    // EmuMovies Configuration Functions
+    async openEmumoviesScrapPreferencesModal() {
+        // Load current settings before opening modal
+        this.loadEmumoviesSettings();
+        const modal = new bootstrap.Modal(document.getElementById('emumoviesConfigurationModal'));
+        modal.show();
+    }
+    
+    loadEmumoviesSettings() {
+        // Load saved settings from cookies
+        const savedOverwriteMediaFields = this.getCookie('overwriteMediaFieldsEmumovies');
+        
+        // Update modal checkboxes with saved values
+        const overwriteMediaCheckbox = document.getElementById('overwriteMediaFieldsEmumoviesModal');
+        
+        if (overwriteMediaCheckbox) {
+            overwriteMediaCheckbox.checked = savedOverwriteMediaFields === 'true';
+        }
+        
+        // Load field selection settings
+        this.loadEmumoviesFieldSettings();
+    }
+    
+    async loadEmumoviesFieldSettings() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // EmuMovies only has media fields (no text fields)
+            const mediaFields = Object.keys(config.emumovies?.image_type_mappings || {});
+            
+            // Populate media fields dynamically
+            this.populateEmumoviesMediaFields(mediaFields);
+            
+            // Load saved field selections from cookies
+            mediaFields.forEach(field => {
+                const cookieName = `emumoviesField_${field}`;
+                const savedValue = this.getCookie(cookieName);
+                // Convert field name to checkbox ID format: field -> Field
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                const checkboxId = `emumoviesField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                
+                if (checkbox) {
+                    if (savedValue !== null) {
+                        checkbox.checked = savedValue === 'true';
+                    } else {
+                        // Default to checked if no saved value
+                        checkbox.checked = true;
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error loading EmuMovies field settings:', error);
+        }
+    }
+    
+    populateEmumoviesMediaFields(mediaFields) {
+        const container = document.getElementById('emumoviesMediaFieldsContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        mediaFields.forEach(field => {
+            const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+            const checkboxId = `emumoviesField${fieldId}`;
+            
+            const div = document.createElement('div');
+            div.className = 'form-check mb-2';
+            div.innerHTML = `
+                <input class="form-check-input emumovies-field-checkbox" type="checkbox" id="${checkboxId}" data-field="${field}" checked>
+                <label class="form-check-label" for="${checkboxId}">${field}</label>
+            `;
+            container.appendChild(div);
+            
+            // Attach event listener to the newly created checkbox
+            const checkbox = document.getElementById(checkboxId);
+            if (checkbox) {
+                checkbox.addEventListener('change', async () => {
+                    await this.saveEmumoviesFieldSettings();
+                });
+            }
+        });
+    }
+    
+    async saveEmumoviesFieldSettings() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // EmuMovies only has media fields (no text fields)
+            const mediaFields = Object.keys(config.emumovies?.image_type_mappings || {});
+            
+            // Save field selections to cookies
+            mediaFields.forEach(field => {
+                // Convert field name to checkbox ID format: field -> Field
+                const fieldId = field.charAt(0).toUpperCase() + field.slice(1);
+                const checkboxId = `emumoviesField${fieldId}`;
+                const checkbox = document.getElementById(checkboxId);
+                const cookieName = `emumoviesField_${field}`;
+                
+                if (checkbox) {
+                    this.setCookie(cookieName, checkbox.checked);
+                }
+            });
+        } catch (error) {
+            console.error('Error saving EmuMovies field settings:', error);
         }
     }
 
@@ -17498,10 +17674,12 @@ class GameCollectionManager {
         await this.loadSteamgriddbMappingsData();
         await this.loadMobygamesMappingsData();
         await this.loadDatscrapperMappingsData();
+        await this.loadEmumoviesMappingsData();
         
         // Load credentials values for all services
         await this.loadScreenscraperCredentialsValues();
         await this.loadSteamgriddbCredentialsValues();
+        await this.loadEmumoviesCredentialsStatus();
         
         modal.show();
         
@@ -18014,7 +18192,15 @@ class GameCollectionManager {
     }
     
     initializeDragAndDrop(mediaField, scraperType = 'launchbox') {
-        const selectedTypesContainer = document.getElementById(scraperType === 'screenscraper' ? `screenscraper_selectedTypes_${mediaField}` : `selectedTypes_${mediaField}`);
+        let containerId;
+        if (scraperType === 'screenscraper') {
+            containerId = `screenscraper_selectedTypes_${mediaField}`;
+        } else if (scraperType === 'emumovies') {
+            containerId = `emumovies_selectedTypes_${mediaField}`;
+        } else {
+            containerId = `selectedTypes_${mediaField}`;
+        }
+        const selectedTypesContainer = document.getElementById(containerId);
         if (!selectedTypesContainer) return;
         
         // Remove existing event listeners
@@ -18049,14 +18235,18 @@ class GameCollectionManager {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         
-        const container = e.target.closest('#selectedTypes_' + mediaField) || e.target.closest('#screenscraper_selectedTypes_' + mediaField);
+        const container = e.target.closest('#selectedTypes_' + mediaField) || 
+                         e.target.closest('#screenscraper_selectedTypes_' + mediaField) ||
+                         e.target.closest('#emumovies_selectedTypes_' + mediaField);
         if (container) {
             container.classList.add('drag-active');
         }
     }
     
     handleDragLeave(e, mediaField) {
-        const container = e.target.closest('#selectedTypes_' + mediaField) || e.target.closest('#screenscraper_selectedTypes_' + mediaField);
+        const container = e.target.closest('#selectedTypes_' + mediaField) || 
+                         e.target.closest('#screenscraper_selectedTypes_' + mediaField) ||
+                         e.target.closest('#emumovies_selectedTypes_' + mediaField);
         if (container && !container.contains(e.relatedTarget)) {
             container.classList.remove('drag-active');
         }
@@ -18065,7 +18255,9 @@ class GameCollectionManager {
     handleDrop(e, mediaField, scraperType = 'launchbox') {
         e.preventDefault();
         const draggedType = e.dataTransfer.getData('text/plain');
-        const container = e.target.closest('#selectedTypes_' + mediaField) || e.target.closest('#screenscraper_selectedTypes_' + mediaField);
+        const container = e.target.closest('#selectedTypes_' + mediaField) || 
+                         e.target.closest('#screenscraper_selectedTypes_' + mediaField) ||
+                         e.target.closest('#emumovies_selectedTypes_' + mediaField);
         
         if (container) {
             container.classList.remove('drag-active');
@@ -18088,6 +18280,8 @@ class GameCollectionManager {
                 // Update the mapping based on scraper type
                 if (scraperType === 'screenscraper') {
                     this.saveScreenscraperMapping(mediaField);
+                } else if (scraperType === 'emumovies') {
+                    this.updateEmumoviesMapping(mediaField);
                 } else {
                     this.updateLaunchboxMapping(mediaField);
                 }
@@ -26593,6 +26787,700 @@ class GameCollectionManager {
         }
     }
     
+    async saveEmumoviesCredentials() {
+        const usernameInput = document.getElementById('emumoviesUsername');
+        const passwordInput = document.getElementById('emumoviesPassword');
+        let username = usernameInput?.value?.trim() || '';
+        let password = passwordInput?.value?.trim() || '';
+        
+        const usernameIsPlaceholder = username.includes('•');
+        const passwordIsPlaceholder = password.includes('•');
+        
+        // If both fields are placeholders or empty and no stored credentials, block save
+        const noRealInput = (!username || usernameIsPlaceholder) && (!password || passwordIsPlaceholder);
+        if (noRealInput && !this.emumoviesCredentialsConfigured) {
+            this.showAlert('Please enter your EmuMovies credentials before saving.', 'warning');
+            return;
+        }
+        
+        // Send empty string for fields that should keep their current values
+        if (usernameIsPlaceholder) {
+            username = '';
+        }
+        if (passwordIsPlaceholder) {
+            password = '';
+        }
+        
+        try {
+            const response = await fetch('/api/emumovies-credentials', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    this.showAlert('EmuMovies credentials saved successfully!', 'success');
+                    await this.loadEmumoviesCredentialsStatus();
+                } else {
+                    this.showAlert(`Failed to save credentials: ${data.error}`, 'danger');
+                }
+            } else {
+                const error = await response.json();
+                this.showAlert(`Failed to save credentials: ${error.error}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error saving credentials. Please try again.', 'danger');
+        }
+    }
+    
+    async loadEmumoviesCredentialsStatus() {
+        try {
+            const response = await fetch('/api/emumovies-credentials');
+            if (response.ok) {
+                const data = await response.json();
+                this.emumoviesCredentialsConfigured = !!data.configured;
+                if (data.configured) {
+                    // Load values if configured
+                    await this.loadEmumoviesCredentialsValues();
+                }
+            }
+        } catch (error) {
+            console.error('Error loading EmuMovies credentials status:', error);
+        }
+    }
+    
+    async loadEmumoviesCredentialsValues() {
+        try {
+            // Note: For security, we don't return actual password values
+            // User needs to re-enter password if they want to change it
+            const response = await fetch('/api/emumovies-credentials');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.has_username) {
+                    // Show placeholder to indicate credentials are saved
+                    document.getElementById('emumoviesUsername').value = '••••••••';
+                    document.getElementById('emumoviesPassword').value = '••••••••';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading EmuMovies credentials values:', error);
+        }
+    }
+    
+    async testEmumoviesConnection() {
+        const usernameInput = document.getElementById('emumoviesUsername');
+        const passwordInput = document.getElementById('emumoviesPassword');
+        let username = usernameInput?.value?.trim() || '';
+        let password = passwordInput?.value?.trim() || '';
+        
+        const usernameIsPlaceholder = username.includes('•');
+        const passwordIsPlaceholder = password.includes('•');
+        
+        // Use stored credentials when placeholders are shown
+        if (usernameIsPlaceholder) {
+            username = '';
+        }
+        if (passwordIsPlaceholder) {
+            password = '';
+        }
+        
+        if (!username && !password && !this.emumoviesCredentialsConfigured) {
+            this.showAlert('Please enter your EmuMovies credentials before testing.', 'warning');
+            return;
+        }
+        
+        // Disable button and show loading state
+        const testBtn = document.getElementById('testEmumoviesConnectionBtn');
+        const originalText = testBtn.innerHTML;
+        testBtn.disabled = true;
+        testBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Testing...';
+        
+        try {
+            const response = await fetch('/api/test-emumovies-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                this.showAlert('EmuMovies connection test successful!', 'success');
+            } else {
+                this.showAlert(`EmuMovies connection test failed: ${data.error || 'Unknown error'}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert(`EmuMovies connection test failed: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            testBtn.disabled = false;
+            testBtn.innerHTML = originalText;
+        }
+    }
+    
+    async buildEmumoviesDatabase() {
+        if (!confirm('This will build a local database of all EmuMovies media. This may take a while. Continue?')) {
+            return;
+        }
+        
+        const buildBtn = document.getElementById('buildEmumoviesDatabaseBtn');
+        const progressDiv = document.getElementById('emumoviesDatabaseProgress');
+        const statusDiv = document.getElementById('emumoviesDatabaseStatus');
+        const progressBar = progressDiv.querySelector('.progress-bar');
+        
+        const originalText = buildBtn.innerHTML;
+        buildBtn.disabled = true;
+        buildBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Building...';
+        progressDiv.style.display = 'block';
+        progressBar.style.width = '0%';
+        statusDiv.textContent = 'Starting database build...';
+        
+        try {
+            const response = await fetch('/api/emumovies-build-database', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                progressBar.style.width = '100%';
+                statusDiv.textContent = `Database build completed! Systems: ${data.systems_count}. Index generated automatically.`;
+                this.showAlert(`EmuMovies database built successfully! ${data.systems_count} systems processed. Index generated automatically.`, 'success');
+                // Refresh index status display
+                await this.checkEmumoviesIndexStatus();
+            } else {
+                progressBar.style.width = '0%';
+                statusDiv.textContent = `Error: ${data.error || 'Unknown error'}`;
+                this.showAlert(`Database build failed: ${data.error || 'Unknown error'}`, 'danger');
+            }
+        } catch (error) {
+            progressBar.style.width = '0%';
+            statusDiv.textContent = `Error: ${error.message}`;
+            this.showAlert(`Database build failed: ${error.message}`, 'danger');
+        } finally {
+            buildBtn.disabled = false;
+            buildBtn.innerHTML = originalText;
+        }
+    }
+    
+    async checkEmumoviesDatabaseStatus() {
+        try {
+            const response = await fetch('/api/emumovies-database-status');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.exists) {
+                    this.showAlert(
+                        `EmuMovies database exists. Systems: ${data.systems_count}, Built: ${new Date(data.build_date).toLocaleString()}`,
+                        'info'
+                    );
+                } else {
+                    this.showAlert('EmuMovies database not built yet. Click "Build Database" to create it.', 'warning');
+                }
+            } else {
+                this.showAlert('Error checking database status', 'danger');
+            }
+        } catch (error) {
+            this.showAlert(`Error checking database status: ${error.message}`, 'danger');
+        }
+    }
+    
+    async loadEmumoviesMappingsData() {
+        try {
+            const response = await fetch('/api/emumovies-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.populateEmumoviesMappingsTable(data.emumovies_mappings, data.media_fields, data.emumovies_media_types);
+            } else {
+                this.showAlert('Failed to load EmuMovies mappings data', 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error loading EmuMovies mappings data', 'danger');
+        }
+    }
+    
+    async populateEmumoviesMappingsTable(emumoviesMappings, mediaFields, emumoviesMediaTypes) {
+        const tbody = document.getElementById('emumoviesMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        // Check if no EmuMovies media types were loaded
+        if (!emumoviesMediaTypes || emumoviesMediaTypes.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td colspan="2" class="text-center text-muted py-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>No EmuMovies media types available</strong><br>
+                    <small>Build the EmuMovies database to populate the list of available media types.</small>
+                </td>
+            `;
+            tbody.appendChild(row);
+            return;
+        }
+        
+        // Determine all media fields from config.json plus any existing mappings
+        const mediaFieldSet = new Set();
+        if (mediaFields) {
+            if (Array.isArray(mediaFields)) {
+                mediaFields.forEach(field => mediaFieldSet.add(field));
+            } else if (typeof mediaFields === 'object') {
+                Object.keys(mediaFields).forEach(field => mediaFieldSet.add(field));
+            }
+        }
+        if (emumoviesMappings && typeof emumoviesMappings === 'object') {
+            Object.keys(emumoviesMappings).forEach(field => mediaFieldSet.add(field));
+        }
+        
+        const sortedMediaFields = Array.from(mediaFieldSet).sort((a, b) => 
+            a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+        );
+        
+        if (sortedMediaFields.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td colspan="2" class="text-center text-muted py-4">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>No media fields configured</strong><br>
+                    <small>Add media fields in config.json to manage EmuMovies mappings.</small>
+                </td>
+            `;
+            tbody.appendChild(row);
+            return;
+        }
+        
+        // Normalize media types to strings (handle both string and tuple formats)
+        const normalizedMediaTypes = emumoviesMediaTypes.map(mediaType => {
+            if (typeof mediaType === 'string') {
+                return mediaType;
+            } else if (Array.isArray(mediaType) && mediaType.length >= 1) {
+                return String(mediaType[0]);
+            } else {
+                return String(mediaType);
+            }
+        }).sort();
+        
+        // Create rows for each media field
+        sortedMediaFields.forEach(mediaField => {
+            const mappingValue = emumoviesMappings && Object.prototype.hasOwnProperty.call(emumoviesMappings, mediaField)
+                ? emumoviesMappings[mediaField]
+                : [];
+            const emumoviesTypes = Array.isArray(mappingValue)
+                ? [...mappingValue]
+                : (mappingValue ? [mappingValue] : []);
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="media-field-display fw-bold">${mediaField}</span>
+                </td>
+                <td>
+                    <div class="row g-2">
+                        <div class="col-5">
+                            <label class="form-label small fw-bold">Available Types</label>
+                            <select class="form-select form-select-sm" multiple size="4" id="emumovies_availableTypes_${mediaField}" style="overflow-y: auto; max-height: 120px; min-width: 300px;">
+                                ${normalizedMediaTypes.filter(type => !emumoviesTypes.includes(type)).map(type => 
+                                    `<option value="${type}">${type}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div class="col-2 d-flex flex-column justify-content-center align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm mb-1" onclick="gameManager.addEmumoviesType('${mediaField}')" title="Add selected type">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="gameManager.removeEmumoviesType('${mediaField}')" title="Remove selected type">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label small fw-bold">Priority Order (Top = Highest)</label>
+                            <div class="border rounded p-2" style="min-height: 100px; max-height: 150px; overflow-y: auto; min-width: 300px;" id="emumovies_selectedTypes_${mediaField}">
+                                ${emumoviesTypes.map(type => 
+                                    `<div class="selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center" data-type="${type}" style="cursor: move;">
+                                        <span class="small">${type}</span>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificEmumoviesType('${mediaField}', '${type}')" title="Remove">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <small class="text-muted">Drag items to reorder priority. First item has highest priority.</small>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            // Initialize drag and drop for this row
+            this.initializeDragAndDrop(mediaField, 'emumovies');
+        });
+    }
+    
+    async updateEmumoviesMapping(mediaField) {
+        try {
+            // Get selected types from the priority list
+            const selectedTypesContainer = document.getElementById(`emumovies_selectedTypes_${mediaField}`);
+            const selectedTypes = Array.from(selectedTypesContainer.querySelectorAll('.selected-type-item'))
+                .map(item => item.getAttribute('data-type'));
+            
+            const response = await fetch('/api/emumovies-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    media_field: mediaField,
+                    emumovies_types: selectedTypes
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Mapping updated: ${mediaField} → [${selectedTypes.join(', ')}]`, 'success');
+            } else {
+                this.showAlert(`Failed to update mapping: ${data.error}`, 'danger');
+                // Reload data to revert changes
+                this.loadEmumoviesMappingsData();
+            }
+        } catch (error) {
+            this.showAlert('Error updating mapping', 'danger');
+            // Reload data to revert changes
+            this.loadEmumoviesMappingsData();
+        }
+    }
+    
+    addEmumoviesType(mediaField) {
+        const availableSelect = document.getElementById(`emumovies_availableTypes_${mediaField}`);
+        const selectedTypesContainer = document.getElementById(`emumovies_selectedTypes_${mediaField}`);
+        
+        const selectedOptions = Array.from(availableSelect.selectedOptions);
+        
+        selectedOptions.forEach(option => {
+            const type = option.value;
+            
+            // Add to selected types container
+            const typeItem = document.createElement('div');
+            typeItem.className = 'selected-type-item border rounded p-1 mb-1 d-flex justify-content-between align-items-center';
+            typeItem.setAttribute('data-type', type);
+            typeItem.style.cursor = 'move';
+            typeItem.innerHTML = `
+                <span class="small">${type}</span>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="gameManager.removeSpecificEmumoviesType('${mediaField}', '${type}')" title="Remove">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            selectedTypesContainer.appendChild(typeItem);
+            
+            // Remove from available select
+            option.remove();
+        });
+        
+        // Re-initialize drag and drop
+        this.initializeDragAndDrop(mediaField, 'emumovies');
+        
+        // Update the mapping
+        this.updateEmumoviesMapping(mediaField);
+    }
+    
+    removeEmumoviesType(mediaField) {
+        const selectedTypesContainer = document.getElementById(`emumovies_selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`emumovies_availableTypes_${mediaField}`);
+        
+        // Find items with focused remove buttons (more compatible approach)
+        const selectedItems = Array.from(selectedTypesContainer.querySelectorAll('.selected-type-item'))
+            .filter(item => {
+                const btn = item.querySelector('.btn');
+                return btn && btn === document.activeElement;
+            });
+        
+        selectedItems.forEach(item => {
+            const type = item.getAttribute('data-type');
+            
+            // Add back to available select
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            availableSelect.appendChild(option);
+            
+            // Remove from selected types
+            item.remove();
+        });
+        
+        // Sort the available options alphabetically
+        if (selectedItems.length > 0) {
+            const options = Array.from(availableSelect.options);
+            options.sort((a, b) => a.textContent.localeCompare(b.textContent));
+            availableSelect.innerHTML = '';
+            options.forEach(opt => availableSelect.appendChild(opt));
+        }
+        
+        // Update the mapping
+        this.updateEmumoviesMapping(mediaField);
+    }
+    
+    removeSpecificEmumoviesType(mediaField, type) {
+        const selectedTypesContainer = document.getElementById(`emumovies_selectedTypes_${mediaField}`);
+        const availableSelect = document.getElementById(`emumovies_availableTypes_${mediaField}`);
+        
+        // Find and remove the specific item
+        const item = selectedTypesContainer.querySelector(`[data-type="${type}"]`);
+        if (item) {
+            // Add back to available select
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            availableSelect.appendChild(option);
+            
+            // Sort the available options alphabetically
+            const options = Array.from(availableSelect.options);
+            options.sort((a, b) => a.textContent.localeCompare(b.textContent));
+            availableSelect.innerHTML = '';
+            options.forEach(opt => availableSelect.appendChild(opt));
+            
+            // Remove from selected types
+            item.remove();
+            
+            // Update the mapping
+            this.updateEmumoviesMapping(mediaField);
+        }
+    }
+    
+    async generateEmumoviesIndex() {
+        const btn = document.getElementById('generateEmumoviesIndexBtn');
+        if (!btn) return;
+        
+        // Store original text if not already stored
+        if (!btn.dataset.originalText) {
+            btn.dataset.originalText = btn.innerHTML;
+        }
+        const originalText = btn.dataset.originalText;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Generating...';
+        
+        try {
+            const response = await fetch('/api/emumovies-generate-index', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                this.showAlert(`Normalized index generated successfully! (${data.systems_count} systems)`, 'success');
+                // Refresh status display
+                await this.checkEmumoviesIndexStatus();
+            } else {
+                this.showAlert(`Failed to generate index: ${data.error || 'Unknown error'}`, 'danger');
+            }
+        } catch (error) {
+            this.showAlert(`Error generating index: ${error.message}`, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText || '<i class="bi bi-arrow-clockwise me-2"></i>Generate Index';
+        }
+    }
+
+    // Check EmuMovies Index Status
+    async checkEmumoviesIndexStatus() {
+        console.log('checkEmumoviesIndexStatus called');
+        const statusElement = document.getElementById('emumoviesCacheStatus');
+        const dateElement = document.getElementById('emumoviesCacheDate');
+        const indexStatusElement = document.getElementById('emumoviesIndexStatus');
+        const systemsCountElement = document.getElementById('emumoviesSystemsCount');
+        const fileSizeElement = document.getElementById('emumoviesFileSize');
+        const pathElement = document.getElementById('emumoviesPath');
+        
+        console.log('EmuMovies status elements found:', {
+            statusElement: !!statusElement,
+            dateElement: !!dateElement,
+            indexStatusElement: !!indexStatusElement,
+            systemsCountElement: !!systemsCountElement,
+            fileSizeElement: !!fileSizeElement,
+            pathElement: !!pathElement
+        });
+        
+        // Initialize all elements to default state if they exist
+        if (statusElement) {
+            statusElement.className = 'badge bg-secondary';
+            statusElement.textContent = 'Checking...';
+        }
+        
+        try {
+            console.log('Fetching /api/emumovies-index-status...');
+            const response = await fetch('/api/emumovies-index-status');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('EmuMovies index status response:', data);
+            
+            if (data.success && data.exists) {
+                if (statusElement) {
+                    statusElement.className = 'badge bg-success';
+                    statusElement.textContent = 'Available';
+                }
+                
+                if (dateElement) {
+                    dateElement.textContent = data.modified || 'Unknown';
+                    dateElement.className = 'badge bg-info';
+                }
+                
+                if (indexStatusElement) {
+                    indexStatusElement.className = 'badge bg-success';
+                    indexStatusElement.textContent = 'Generated';
+                }
+                
+                if (systemsCountElement) {
+                    systemsCountElement.textContent = data.systems_count || 0;
+                }
+                
+                if (fileSizeElement) {
+                    fileSizeElement.textContent = data.size || '-';
+                }
+                
+                if (pathElement) {
+                    pathElement.textContent = 'emumovies_index.pkl';
+                    pathElement.className = 'h6 text-info mb-1';
+                }
+            } else {
+                if (statusElement) {
+                    statusElement.className = 'badge bg-warning';
+                    statusElement.textContent = 'Not Generated';
+                }
+                
+                if (dateElement) {
+                    dateElement.textContent = 'N/A';
+                    dateElement.className = 'badge bg-secondary';
+                }
+                
+                if (indexStatusElement) {
+                    indexStatusElement.className = 'badge bg-warning';
+                    indexStatusElement.textContent = 'Not Generated';
+                }
+                
+                if (systemsCountElement) {
+                    systemsCountElement.textContent = '-';
+                }
+                
+                if (fileSizeElement) {
+                    fileSizeElement.textContent = '-';
+                }
+                
+                if (pathElement) {
+                    pathElement.textContent = 'N/A';
+                    pathElement.className = 'h6 text-muted mb-1';
+                }
+            }
+        } catch (error) {
+            console.error('Error checking EmuMovies index status:', error);
+            if (statusElement) {
+                statusElement.className = 'badge bg-danger';
+                statusElement.textContent = 'Error';
+            }
+            if (dateElement) {
+                dateElement.textContent = 'Error';
+                dateElement.className = 'badge bg-danger';
+            }
+            if (indexStatusElement) {
+                indexStatusElement.className = 'badge bg-danger';
+                indexStatusElement.textContent = 'Error';
+            }
+            if (systemsCountElement) {
+                systemsCountElement.textContent = '-';
+            }
+            if (fileSizeElement) {
+                fileSizeElement.textContent = '-';
+            }
+            if (pathElement) {
+                pathElement.textContent = 'Error';
+                pathElement.className = 'h6 text-danger mb-1';
+            }
+        }
+    }
+
+    // Initialize handlers for cache configuration modal
+    initializeCacheConfigHandlers() {
+        // LaunchBox Cache
+        const generateLaunchboxBtn = document.getElementById('generateLaunchboxCacheBtn');
+        if (generateLaunchboxBtn) {
+            generateLaunchboxBtn.addEventListener('click', () => this.generateLaunchboxCache());
+        }
+        
+        // MobyGames Cache
+        const generateMobygamesBtn = document.getElementById('generateMobygamesCacheBtn');
+        if (generateMobygamesBtn) {
+            generateMobygamesBtn.addEventListener('click', () => this.generateMobygamesCache());
+        }
+        
+        // Steam Cache
+        const generateSteamBtn = document.getElementById('generateSteamCacheBtn');
+        if (generateSteamBtn) {
+            generateSteamBtn.addEventListener('click', () => this.generateSteamCache());
+        }
+        
+        // EmuMovies Cache
+        const buildEmumoviesBtn = document.getElementById('buildEmumoviesDatabaseBtn');
+        if (buildEmumoviesBtn) {
+            buildEmumoviesBtn.addEventListener('click', async () => await this.buildEmumoviesDatabase());
+        }
+        
+        const checkEmumoviesStatusBtn = document.getElementById('checkEmumoviesDatabaseStatusBtn');
+        if (checkEmumoviesStatusBtn) {
+            checkEmumoviesStatusBtn.addEventListener('click', () => this.checkEmumoviesDatabaseStatus());
+        }
+        
+        // Add listener to refresh status when modal opens
+        const cacheConfigModal = document.getElementById('cacheConfigurationModal');
+        if (cacheConfigModal) {
+            // Bootstrap 5 uses 'show.bs.modal' event
+            cacheConfigModal.addEventListener('show.bs.modal', () => {
+                console.log('Cache Configuration modal opening, refreshing status...');
+                this.checkLaunchboxCacheStatus();
+                this.checkMobygamesCacheStatus();
+                this.checkSteamCacheStatus();
+                this.checkEmumoviesIndexStatus();
+                this.checkEmumoviesDatabaseStatus();
+            });
+            
+            // Also listen for 'shown.bs.modal' as a fallback (fires after modal is fully shown)
+            cacheConfigModal.addEventListener('shown.bs.modal', () => {
+                console.log('Cache Configuration modal shown, refreshing EmuMovies status...');
+                this.checkEmumoviesIndexStatus();
+            });
+        }
+        
+        // Also add listener to the button that opens the modal as a fallback
+        const openCacheModalBtn = document.getElementById('openCacheModal');
+        if (openCacheModalBtn) {
+            openCacheModalBtn.addEventListener('click', () => {
+                // Small delay to ensure modal is in DOM before checking
+                setTimeout(() => {
+                    console.log('Cache modal button clicked, refreshing EmuMovies status...');
+                    this.checkEmumoviesIndexStatus();
+                }, 100);
+            });
+        }
+    }
+
     // Image Context Menu and Rotation Methods
     initializeImageContextMenu() {
         // Hide context menu when clicking elsewhere
