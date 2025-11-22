@@ -2685,6 +2685,28 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_steamgriddb_task, args=(system_name, task.id, selected_games, overwrite_media_fields))
             thread.daemon = True
             thread.start()
+    elif task_type == 'emumovies_scraping':
+        # Start EmuMovies scraping task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        selected_fields = task_data.get('selected_fields', [])
+        overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        if system_name:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('emumovies_scraping', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start EmuMovies scraping in background thread
+            thread = threading.Thread(target=run_emumovies_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_media_fields))
+            thread.daemon = True
+            thread.start()
     elif task_type == 'youtube_download_batch':
         # Start YouTube download batch task
         system_name = task_data.get('system_name')
@@ -6074,6 +6096,43 @@ def clear_igdb_platforms_cache():
         print(f"Error clearing IGDB platforms cache: {e}")
         return jsonify({'error': f'Failed to clear IGDB platforms cache: {str(e)}'}), 500
 
+@app.route('/api/emumovies-systems', methods=['GET'])
+@login_required
+def get_emumovies_systems():
+    """Get EmuMovies systems from emumovies.json database"""
+    try:
+        import json
+        import os
+        
+        emumovies_file = 'var/db/emumovies/emumovies.json'
+        
+        if not os.path.exists(emumovies_file):
+            return jsonify({
+                'success': True,
+                'systems': [],
+                'count': 0,
+                'message': 'EmuMovies database not built yet'
+            })
+        
+        with open(emumovies_file, 'r', encoding='utf-8') as f:
+            emumovies_data = json.load(f)
+        
+        # Get system names (keys of the JSON object)
+        systems = list(emumovies_data.keys())
+        systems.sort()  # Sort alphabetically
+        
+        return jsonify({
+            'success': True,
+            'systems': systems,
+            'count': len(systems)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting EmuMovies systems: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to get EmuMovies systems: {str(e)}'}), 500
+
 @app.route('/api/mobygames-systems/clear-cache', methods=['POST'])
 @login_required
 def clear_mobygames_cache():
@@ -6345,6 +6404,7 @@ def manage_systems():
             screenscraper_platform = data.get('screenscraper_platform', '')
             igdb_platform = data.get('igdb_platform', '')
             mobygames_platform = data.get('mobygames_platform', '')
+            emumovies_platform = data.get('emumovies_platform', '')
             dat_file = data.get('dat_file', '')
             extensions = data.get('extensions', [])
             
@@ -6354,6 +6414,7 @@ def manage_systems():
             print(f"🔧 DEBUG: PUT systems - screenscraper_platform: {screenscraper_platform} (type: {type(screenscraper_platform)})")
             print(f"🔧 DEBUG: PUT systems - igdb_platform: {igdb_platform} (type: {type(igdb_platform)})")
             print(f"🔧 DEBUG: PUT systems - mobygames_platform: {mobygames_platform} (type: {type(mobygames_platform)})")
+            print(f"🔧 DEBUG: PUT systems - emumovies_platform: {emumovies_platform} (type: {type(emumovies_platform)})")
             print(f"🔧 DEBUG: PUT systems - dat_file: {dat_file} (type: {type(dat_file)})")
             
             # Convert numeric platforms to integers
@@ -6388,6 +6449,7 @@ def manage_systems():
                 'screenscraper': screenscraper_platform,
                 'igdb': igdb_platform,
                 'mobygames': mobygames_platform,
+                'emumovies': emumovies_platform,
                 'dat_file': dat_file,
                 'extensions': extensions
             }
@@ -7165,6 +7227,49 @@ def scrap_screenscraper_system(system_name):
     except Exception as e:
         print(f"Error starting ScreenScraper task: {e}")
         return jsonify({'error': f'Failed to start ScreenScraper task: {str(e)}'}), 500
+
+@app.route('/api/scrap-emumovies/<system_name>', methods=['POST'])
+@login_required
+def scrap_emumovies_system(system_name):
+    """Start EmuMovies task for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_fields = data.get('selected_fields', [])
+        
+        # Get overwrite settings from cookies
+        overwrite_media_fields = request.cookies.get('overwriteMediaFieldsEmumovies', 'false').lower() == 'true'
+        
+        print(f"🍪 DEBUG: EmuMovies cookie values - overwriteMediaFieldsEmumovies: '{request.cookies.get('overwriteMediaFieldsEmumovies', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: EmuMovies parsed values - overwrite_media_fields: {overwrite_media_fields}")
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name, 
+            'selected_games': selected_games,
+            'selected_fields': selected_fields,
+            'overwrite_media_fields': overwrite_media_fields
+        }
+        username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
+        
+        # Add task to queue instead of starting directly
+        task = add_task_to_queue('emumovies_scraping', task_data, username)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'EmuMovies task queued for {system_name}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting EmuMovies task: {e}")
+        return jsonify({'error': f'Failed to start EmuMovies task: {str(e)}'}), 500
 
 @app.route('/api/scrap-mobygames/<system_name>', methods=['POST'])
 @login_required
@@ -16419,6 +16524,19 @@ def stop_task_endpoint(task_id):
                 _steamgriddb_cancel_maps[task_id] = True
             except Exception as e:
                 print(f"Warning: could not set SteamGridDB cancel flag: {e}")
+        
+        # For EmuMovies tasks, we need to handle cancellation
+        if task.type == 'emumovies_scraping':
+            task.update_progress("🛑 EmuMovies task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for EmuMovies tasks
+            try:
+                global _emumovies_cancel_maps
+                if '_emumovies_cancel_maps' not in globals():
+                    _emumovies_cancel_maps = {}
+                _emumovies_cancel_maps[task_id] = True
+                print(f"DEBUG: Set EmuMovies cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set EmuMovies cancel flag: {e}")
         
         # For MobyGames tasks, we need to handle cancellation
         if task.type == 'mobygames':
@@ -27554,6 +27672,606 @@ def run_steamgriddb_task(system_name, task_id, selected_games=None, overwrite_me
     thread = threading.Thread(target=run_async)
     thread.daemon = True
     thread.start()
+
+def run_emumovies_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_media_fields=False):
+    """Run EmuMovies task for a specific system"""
+    import asyncio
+    import threading
+    from emumovies_service import EmuMoviesService
+    from game_utils import normalize_game_name, convert_and_resize_image_replace
+    from credential_manager import credential_manager
+    
+    # Add task to cancel map
+    global _emumovies_cancel_maps
+    if '_emumovies_cancel_maps' not in globals():
+        _emumovies_cancel_maps = {}
+    _emumovies_cancel_maps[task_id] = False
+    
+    def is_cancelled():
+        """Check if the EmuMovies task should be cancelled"""
+        global _emumovies_cancel_maps
+        return _emumovies_cancel_maps.get(task_id, False)
+    
+    def progress_callback(completed, total):
+        """Update task progress"""
+        t = get_task(task_id)
+        if t:
+            progress = int((completed / total) * 100) if total > 0 else 0
+            t.update_progress(progress, None, current_step=completed, total_steps=total)
+            print(f"🔄 EmuMovies Progress: {completed}/{total} ({progress}%)")
+    
+    async def async_emumovies(overwrite_media_fields=False):
+        global _emumovies_cancel_maps
+        # Capture selected_fields from outer scope
+        # Use a local variable to avoid UnboundLocalError
+        local_selected_fields = selected_fields
+        service = None
+        try:
+            print(f"Starting EmuMovies task for system: {system_name}")
+            
+            # Check if task was cancelled before starting
+            if is_cancelled():
+                print(f"EmuMovies task {task_id} was cancelled before starting")
+                t = get_task(task_id)
+                if t:
+                    t.complete(True, "Task cancelled before starting")
+                return
+            
+            # Initialize EmuMovies service
+            print(f"🔧 DEBUG: Initializing EmuMovies service...")
+            service = EmuMoviesService()
+            
+            # Authenticate
+            print(f"🔧 DEBUG: Authenticating with EmuMovies API...")
+            token = await service.authenticate()
+            if not token:
+                error_msg = "Failed to authenticate with EmuMovies API"
+                print(f"❌ {error_msg}")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, error_msg)
+                return
+            print(f"✅ DEBUG: Authentication successful")
+            
+            # Get EmuMovies system mapping
+            systems_config = load_systems_config()
+            print(f"🔧 DEBUG: EmuMovies task - system_name: {system_name}")
+            print(f"🔧 DEBUG: EmuMovies task - systems_config keys: {list(systems_config.keys())}")
+            
+            # Try to find system with case-insensitive matching
+            system_key = None
+            for key in systems_config.keys():
+                if key.lower() == system_name.lower():
+                    system_key = key
+                    break
+            
+            if system_key:
+                system_config = systems_config[system_key]
+                print(f"🔧 DEBUG: EmuMovies task - found system key: {system_key}, config: {system_config}")
+            else:
+                system_config = systems_config.get(system_name, {})
+                print(f"🔧 DEBUG: EmuMovies task - system config for {system_name}: {system_config}")
+            
+            emumovies_system = system_config.get('emumovies', '')
+            print(f"🔧 DEBUG: EmuMovies task - emumovies_system: '{emumovies_system}'")
+            if not emumovies_system:
+                available_systems = ', '.join(systems_config.keys()) if systems_config else 'none'
+                error_msg = f"No EmuMovies system mapping configured for '{system_name}'. Available systems: {available_systems}"
+                print(f"❌ {error_msg}")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, error_msg)
+                return
+            
+            # Load games for the system
+            gamelist_path = get_gamelist_path(system_name)
+            if not os.path.exists(gamelist_path):
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"Gamelist not found for system: {system_name}")
+                return
+            
+            all_games = parse_gamelist_xml(gamelist_path)
+            if not all_games:
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"No games found for system: {system_name}")
+                return
+            
+            # Filter games if selection is provided
+            if selected_games:
+                selected_paths = set(selected_games)
+                games_to_process = [game for game in all_games if game['path'] in selected_paths]
+            else:
+                games_to_process = all_games
+            
+            if not games_to_process:
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, "No games selected for processing")
+                return
+            
+            total_games = len(games_to_process)
+            print(f"🎮 Processing {total_games} games with EmuMovies")
+            
+            # Update initial progress
+            t = get_task(task_id)
+            if t:
+                t.update_progress(0, None)
+                t.log_message(f"Starting EmuMovies processing for {total_games} games")
+            
+            # Load configuration
+            with open('var/config/config.json', 'r') as f:
+                config = json.load(f)
+            
+            roms_root = config.get('roms_root_directory', '/opt/gamemanager/roms')
+            scrappers_config = load_scrappers_config()
+            emumovies_config = scrappers_config.get('emumovies', {})
+            image_type_mappings = emumovies_config.get('image_type_mappings', {})
+            
+            # Get selected fields from task data
+            print(f"🔧 DEBUG: local_selected_fields from parameter: {local_selected_fields}")
+            print(f"🔧 DEBUG: image_type_mappings: {image_type_mappings}")
+            if local_selected_fields is None or (isinstance(local_selected_fields, list) and len(local_selected_fields) == 0):
+                print(f"🔧 DEBUG: No selected fields in parameter, checking task data...")
+                t = get_task(task_id)
+                if t and hasattr(t, 'data') and 'selected_fields' in t.data:
+                    local_selected_fields = t.data['selected_fields']
+                    print(f"🔧 DEBUG: Got selected_fields from task data: {local_selected_fields}")
+                else:
+                    # Default to all mapped fields
+                    local_selected_fields = list(image_type_mappings.keys())
+                    print(f"🔧 DEBUG: Using all mapped fields as default: {local_selected_fields}")
+            
+            # Ensure selected_fields is a list
+            if not isinstance(local_selected_fields, list):
+                local_selected_fields = list(image_type_mappings.keys()) if image_type_mappings else []
+            
+            print(f"🔧 DEBUG: Final selected_fields to process: {local_selected_fields}")
+            
+            # Load emumovies index
+            print(f"🔧 DEBUG: Loading EmuMovies index...")
+            global emumovies_index
+            if not emumovies_index:
+                print(f"🔧 DEBUG: Index not loaded, calling load_emumovies_index()...")
+                load_emumovies_index()
+            
+            print(f"🔧 DEBUG: Index loaded, has {len(emumovies_index) if emumovies_index else 0} systems")
+            if not emumovies_index:
+                error_msg = "EmuMovies index not loaded. Please generate it first."
+                print(f"❌ {error_msg}")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, error_msg)
+                return
+            
+            # Check if emumovies system exists in index
+            print(f"🔧 DEBUG: Checking if emumovies_system '{emumovies_system}' exists in index...")
+            print(f"🔧 DEBUG: Available systems in index: {list(emumovies_index.keys())[:10]}...")  # Show first 10
+            if emumovies_system not in emumovies_index:
+                error_msg = f"EmuMovies system '{emumovies_system}' not found in index"
+                print(f"❌ {error_msg}")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, error_msg)
+                return
+            
+            system_index = emumovies_index[emumovies_system]
+            print(f"🔧 DEBUG: Found system index with {len(system_index)} media types")
+            print(f"🔧 DEBUG: Media types in system_index: {list(system_index.keys())[:10]}...")
+            # Debug: show entry counts for the media types we're looking for
+            for media_type in ['Box', 'BoxBack', 'Cart', 'Logo', 'Manual', 'Box_3D', 'Video_MP4_HD']:
+                if media_type in system_index:
+                    count = len(system_index[media_type])
+                    print(f"🔧 DEBUG: {media_type} has {count} entries in index")
+                    if count == 0:
+                        print(f"⚠️ WARNING: {media_type} exists in index but is EMPTY - database may need to be rebuilt")
+                    elif count > 0:
+                        # Show sample keys
+                        sample = list(system_index[media_type].keys())[:3]
+                        print(f"🔧 DEBUG: {media_type} sample keys: {sample}")
+                else:
+                    print(f"🔧 DEBUG: {media_type} NOT in system_index")
+            
+            # Process games
+            print(f"🔧 DEBUG: Starting to process {len(games_to_process)} games...")
+            media_downloaded_count = 0
+            skipped_count = 0
+            processed_count = 0
+            
+            for idx, game in enumerate(games_to_process):
+                print(f"🔧 DEBUG: Processing game {idx + 1}/{len(games_to_process)}: {game.get('name', 'Unknown')}")
+                # Check for cancellation
+                if is_cancelled():
+                    print(f"EmuMovies task {task_id} was cancelled")
+                    t = get_task(task_id)
+                    if t:
+                        t.update_progress(90, None)
+                        t.log_message(f"Saving partial changes before cancellation...")
+                    save_gamelist_xml(gamelist_path, all_games)
+                    notify_gamelist_updated(system_name, len(all_games), updated_count=media_downloaded_count)
+                    t = get_task(task_id)
+                    if t:
+                        t.complete(True, f"Task cancelled - partial changes saved: {media_downloaded_count} games with media downloaded")
+                    return
+                
+                game_name = game.get('name', '')
+                rom_path = game.get('path', '')
+                print(f"🔧 DEBUG: Game name: '{game_name}', path: '{rom_path}'")
+                
+                if not game_name:
+                    print(f"⚠️ DEBUG: Skipping game with no name")
+                    skipped_count += 1
+                    continue
+                
+                # Get ROM filename
+                rom_filename = None
+                rom_filename_no_ext = None
+                if rom_path:
+                    rom_filename = os.path.basename(rom_path)
+                    # Remove extension for matching
+                    rom_filename_no_ext = os.path.splitext(rom_filename)[0]
+                    print(f"🔧 DEBUG: ROM filename (no ext): '{rom_filename_no_ext}'")
+                
+                # Normalize names (without parentheses)
+                normalized_romname = normalize_game_name(rom_filename_no_ext, remove_paranthesis=True) if rom_filename_no_ext else None
+                normalized_gamename = normalize_game_name(game_name, remove_paranthesis=True)
+                print(f"🔧 DEBUG: Normalized romname: '{normalized_romname}', gamename: '{normalized_gamename}'")
+                
+                # Process each selected media field
+                game_media_downloaded = False
+                print(f"🔧 DEBUG: Processing {len(local_selected_fields)} media fields: {local_selected_fields}")
+                for media_field in local_selected_fields:
+                    print(f"🔧 DEBUG: Processing media field: {media_field}")
+                    # Check if field should be processed
+                    if not overwrite_media_fields:
+                        # Check if field already has a value
+                        if game.get(media_field):
+                            continue
+                    
+                    # Get EmuMovies media types for this field
+                    emumovies_types = image_type_mappings.get(media_field, [])
+                    print(f"🔧 DEBUG: EmuMovies types for {media_field}: {emumovies_types}")
+                    if not emumovies_types:
+                        print(f"⚠️ DEBUG: No EmuMovies types mapped for {media_field}, skipping")
+                        continue
+                    
+                    # Try to find match in index for each media type (in priority order)
+                    matched_filename = None
+                    matched_media_type = None
+                    
+                    for emumovies_type in emumovies_types:
+                        print(f"🔧 DEBUG: Checking media type: {emumovies_type}")
+                        if emumovies_type not in system_index:
+                            print(f"⚠️ DEBUG: Media type {emumovies_type} not in system_index")
+                            print(f"🔧 DEBUG: Available media types in system_index: {list(system_index.keys())[:20]}")
+                            continue
+                        
+                        media_type_index = system_index[emumovies_type]
+                        index_len = len(media_type_index) if isinstance(media_type_index, dict) else 0
+                        print(f"🔧 DEBUG: Media type index type: {type(media_type_index)}, has {index_len} entries")
+                        
+                        if index_len == 0:
+                            print(f"⚠️ WARNING: {emumovies_type} index is EMPTY - database may need to be rebuilt or this media type may not be available for {emumovies_system}")
+                            # Check raw database to see if files exist
+                            try:
+                                db_path = os.path.join('var/db/emumovies/emumovies.json')
+                                if os.path.exists(db_path):
+                                    with open(db_path, 'r', encoding='utf-8') as db_f:
+                                        raw_db = json.load(db_f)
+                                    if emumovies_system in raw_db and emumovies_type in raw_db[emumovies_system]:
+                                        raw_count = len(raw_db[emumovies_system][emumovies_type]) if isinstance(raw_db[emumovies_system][emumovies_type], dict) else 0
+                                        print(f"🔧 DEBUG: Raw database has {raw_count} files for {emumovies_type} - index needs regeneration!")
+                            except Exception as e:
+                                print(f"🔧 DEBUG: Could not check raw database: {e}")
+                        elif isinstance(media_type_index, dict) and len(media_type_index) > 0:
+                            # Show sample keys
+                            sample_keys = list(media_type_index.keys())[:5]
+                            print(f"🔧 DEBUG: Sample keys in {emumovies_type}: {sample_keys}")
+                            # Check if our normalized names are close
+                            if normalized_romname:
+                                close_matches = [k for k in media_type_index.keys() if normalized_romname[:5] in k or k[:5] in normalized_romname][:5]
+                                if close_matches:
+                                    print(f"🔧 DEBUG: Close matches for '{normalized_romname}': {close_matches}")
+                        
+                        # Try normalized romname first
+                        if normalized_romname and normalized_romname in media_type_index:
+                            matched_value = media_type_index[normalized_romname]
+                            matched_media_type = emumovies_type
+                            
+                            # Handle array of files (multiple files normalize to same key)
+                            if isinstance(matched_value, list):
+                                print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_romname}'")
+                                # Try to find perfect match with romfilename or gamename
+                                matched_filename = None
+                                
+                                # Check for perfect match with rom filename (without extension)
+                                if rom_filename_no_ext:
+                                    for filename in matched_value:
+                                        filename_no_ext = os.path.splitext(filename)[0]
+                                        if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
+                                            matched_filename = filename
+                                            print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
+                                            break
+                                
+                                # Check for perfect match with game name
+                                if not matched_filename and game_name:
+                                    for filename in matched_value:
+                                        filename_no_ext = os.path.splitext(filename)[0]
+                                        if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
+                                            matched_filename = filename
+                                            print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
+                                            break
+                                
+                                # If no perfect match, use first file from array
+                                if not matched_filename:
+                                    matched_filename = matched_value[0]
+                                    print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
+                            else:
+                                # Single file (backward compatibility)
+                                matched_filename = matched_value
+                                print(f"✅ DEBUG: Found match with romname '{normalized_romname}' -> '{matched_filename}'")
+                            
+                            break
+                        
+                        # Try normalized gamename if romname didn't match
+                        if normalized_gamename and normalized_gamename in media_type_index:
+                            matched_value = media_type_index[normalized_gamename]
+                            matched_media_type = emumovies_type
+                            
+                            # Handle array of files (multiple files normalize to same key)
+                            if isinstance(matched_value, list):
+                                print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_gamename}'")
+                                # Try to find perfect match with romfilename or gamename
+                                matched_filename = None
+                                
+                                # Check for perfect match with rom filename (without extension)
+                                if rom_filename_no_ext:
+                                    for filename in matched_value:
+                                        filename_no_ext = os.path.splitext(filename)[0]
+                                        if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
+                                            matched_filename = filename
+                                            print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
+                                            break
+                                
+                                # Check for perfect match with game name
+                                if not matched_filename and game_name:
+                                    for filename in matched_value:
+                                        filename_no_ext = os.path.splitext(filename)[0]
+                                        if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
+                                            matched_filename = filename
+                                            print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
+                                            break
+                                
+                                # If no perfect match, use first file from array
+                                if not matched_filename:
+                                    matched_filename = matched_value[0]
+                                    print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
+                            else:
+                                # Single file (backward compatibility)
+                                matched_filename = matched_value
+                                print(f"✅ DEBUG: Found match with gamename '{normalized_gamename}' -> '{matched_filename}'")
+                            
+                            break
+                        else:
+                            print(f"⚠️ DEBUG: No match found for '{normalized_romname}' or '{normalized_gamename}' in {emumovies_type}")
+                    
+                    if not matched_filename or not matched_media_type:
+                        print(f"⚠️ DEBUG: No match found for {media_field}, skipping")
+                        continue
+                    
+                    print(f"🔧 DEBUG: Proceeding to download {matched_media_type} -> {media_field} (filename: {matched_filename})")
+                    
+                    # Download media
+                    try:
+                        print(f"🔧 DEBUG: Starting download for {matched_filename}")
+                        # Get media directory from config.json media_fields
+                        media_fields_config = config.get('media_fields', {})
+                        if media_field not in media_fields_config:
+                            print(f"⚠️ DEBUG: Media field '{media_field}' not found in config.json media_fields, skipping")
+                            continue
+                        media_subdirectory = media_fields_config[media_field].get('directory')
+                        if not media_subdirectory:
+                            print(f"⚠️ DEBUG: No directory configured for media field '{media_field}', skipping")
+                            continue
+                        media_dir = os.path.join(roms_root, system_name, 'media', media_subdirectory)
+                        print(f"🔧 DEBUG: Media directory for {media_field}: {media_dir} (subdirectory: {media_subdirectory})")
+                        os.makedirs(media_dir, exist_ok=True)
+                        
+                        # Download media using API
+                        download_url = f"{service.base_url}/api/Media/Download"
+                        print(f"🔧 DEBUG: Download URL: {download_url}")
+                        headers = await service._get_authenticated_headers()
+                        
+                        params = {
+                            'systemName': emumovies_system,
+                            'mediaType': matched_media_type,
+                            'mediaSet': 'default',
+                            'filename': matched_filename
+                        }
+                        print(f"🔧 DEBUG: Download params: {params}")
+                        
+                        async with httpx.AsyncClient(timeout=30.0) as client:
+                            print(f"🔧 DEBUG: Sending download request...")
+                            response = await client.get(download_url, params=params, headers=headers, follow_redirects=True)
+                            print(f"🔧 DEBUG: Download response status: {response.status_code}")
+                            
+                            if response.status_code == 200:
+                                print(f"✅ DEBUG: Download successful, processing file...")
+                                # Determine file extension from content-type or filename
+                                content_type = response.headers.get('content-type', '').lower()
+                                
+                                # Determine if this is a video or PDF (manual)
+                                is_video = 'video' in content_type or matched_media_type.startswith('Video') or media_field == 'video'
+                                is_pdf = 'pdf' in content_type or matched_media_type == 'Manual' or media_field == 'manual' or matched_filename.lower().endswith('.pdf')
+                                
+                                # Get extension from filename first, then content-type
+                                ext = os.path.splitext(matched_filename)[1]
+                                if not ext or ext == '':
+                                    if is_video:
+                                        ext = '.mp4'  # Default video extension
+                                    elif is_pdf:
+                                        ext = '.pdf'  # Default PDF extension
+                                    elif 'image' in content_type:
+                                        ext = '.jpg' if 'jpeg' in content_type else '.png'
+                                    else:
+                                        ext = '.jpg'  # Default to jpg for images
+                                
+                                # Normalize extension (lowercase, ensure it starts with dot)
+                                ext = ext.lower()
+                                if not ext.startswith('.'):
+                                    ext = '.' + ext
+                                
+                                # Generate final filename based on ROM filename (without extension) + media extension
+                                if not rom_filename_no_ext:
+                                    print(f"⚠️ DEBUG: No ROM filename available, skipping")
+                                    continue
+                                
+                                final_filename = f"{rom_filename_no_ext}{ext}"
+                                final_path = os.path.join(media_dir, final_filename)
+                                
+                                # Handle filename conflicts
+                                counter = 1
+                                while os.path.exists(final_path):
+                                    final_filename = f"{rom_filename_no_ext}_{counter}{ext}"
+                                    final_path = os.path.join(media_dir, final_filename)
+                                    counter += 1
+                                
+                                # Save file directly (no processing for videos/PDFs)
+                                if is_video or is_pdf:
+                                    print(f"🔧 DEBUG: Saving {matched_media_type} directly (no processing): {final_path}")
+                                    with open(final_path, 'wb') as f:
+                                        f.write(response.content)
+                                    final_path_used = final_path
+                                else:
+                                    # For images, save to temp file first, then process
+                                    temp_file = os.path.join(media_dir, f'temp_{secrets.token_hex(8)}{ext}')
+                                    with open(temp_file, 'wb') as f:
+                                        f.write(response.content)
+                                    
+                                    # Use convert_and_resize_image_replace to process
+                                    processed_path, process_status = convert_and_resize_image_replace(
+                                        temp_file,
+                                        target_extension=None,  # Let function determine
+                                        target_width=0,
+                                        target_height=0
+                                    )
+                                    
+                                    # Move processed file to final location with correct ROM filename
+                                    if processed_path and os.path.exists(processed_path):
+                                        # Get the extension from the processed file
+                                        processed_ext = os.path.splitext(processed_path)[1]
+                                        if not processed_ext:
+                                            processed_ext = ext
+                                        
+                                        # Update final_path with correct extension (ROM filename + processed extension)
+                                        final_path = os.path.join(media_dir, f"{rom_filename_no_ext}{processed_ext}")
+                                        
+                                        # Handle conflicts again with new extension
+                                        counter = 1
+                                        while os.path.exists(final_path):
+                                            final_path = os.path.join(media_dir, f"{rom_filename_no_ext}_{counter}{processed_ext}")
+                                            counter += 1
+                                        
+                                        # Move processed file to final location
+                                        import shutil
+                                        if processed_path != final_path:
+                                            shutil.move(processed_path, final_path)
+                                        final_path_used = final_path
+                                        
+                                        # Remove temp file if it still exists and is different
+                                        if os.path.exists(temp_file) and temp_file != processed_path and temp_file != final_path:
+                                            try:
+                                                os.remove(temp_file)
+                                            except:
+                                                pass
+                                    else:
+                                        # Processing failed, move temp file to final location with ROM filename
+                                        import shutil
+                                        if os.path.exists(temp_file):
+                                            shutil.move(temp_file, final_path)
+                                            final_path_used = final_path
+                                            print(f"⚠️ DEBUG: Image processing failed, saved as: {final_path}")
+                                        else:
+                                            print(f"❌ DEBUG: Image processing failed and temp file missing")
+                                            continue
+                                
+                                # Calculate relative path using the media subdirectory from config
+                                # Media paths in gamelist.xml are relative to roms/<system_name>/
+                                media_filename = os.path.basename(final_path_used)
+                                relative_path = f'./media/{media_subdirectory}/{media_filename}'
+                                # Normalize path separators for XML
+                                relative_path = relative_path.replace('\\', '/')
+                                print(f"🔧 DEBUG: Constructed relative path: {relative_path} (using subdirectory: {media_subdirectory})")
+                                
+                                # Update gamelist.xml
+                                game[media_field] = relative_path
+                                print(f"🔧 DEBUG: Set {media_field} to: {relative_path}")
+                                
+                                if not game_media_downloaded:
+                                    media_downloaded_count += 1
+                                    game_media_downloaded = True
+                                
+                                print(f"✅ Downloaded {matched_media_type} -> {media_field} for {game_name}")
+                                
+                                if t:
+                                    t.log_message(f"Downloaded {matched_media_type} -> {media_field} for {game_name}")
+                            else:
+                                print(f"❌ Failed to download {matched_filename}: HTTP {response.status_code}")
+                                if t:
+                                    t.log_message(f"Failed to download {matched_filename}: HTTP {response.status_code}")
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        print(f"❌ Error downloading media for {game_name}: {e}")
+                        if t:
+                            t.log_message(f"Error downloading media for {game_name}: {str(e)}")
+                
+                processed_count += 1
+                print(f"🔧 DEBUG: Processed {processed_count}/{total_games} games")
+                progress_callback(processed_count, total_games)
+            
+            # Save gamelist
+            print(f"🔧 DEBUG: Saving gamelist with {media_downloaded_count} media downloads, {skipped_count} skipped")
+            save_gamelist_xml(gamelist_path, all_games)
+            notify_gamelist_updated(system_name, len(all_games), updated_count=media_downloaded_count)
+            
+            # Complete task
+            completion_msg = f"EmuMovies task completed: {media_downloaded_count} games with media downloaded, {skipped_count} skipped"
+            print(f"✅ {completion_msg}")
+            t = get_task(task_id)
+            if t:
+                t.complete(True, completion_msg)
+            
+            print(f"✅ EmuMovies task completed: {media_downloaded_count} games with media downloaded")
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"❌ Error in EmuMovies task: {e}")
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"Error: {str(e)}")
+        
+        finally:
+            # Clean up cancel map
+            if '_emumovies_cancel_maps' in globals() and task_id in _emumovies_cancel_maps:
+                del _emumovies_cancel_maps[task_id]
+                print(f"DEBUG: Cleaned up EmuMovies cancel map for task {task_id}")
+    
+    # Run the async function in a new thread
+    def run_async():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(async_emumovies(overwrite_media_fields))
+        finally:
+            loop.close()
+    
+    thread = threading.Thread(target=run_async)
+    thread.daemon = True
+    thread.start()
+
 @app.route('/api/test-igdb-connection', methods=['POST'])
 def test_igdb_connection():
     """Test IGDB connection with provided credentials"""

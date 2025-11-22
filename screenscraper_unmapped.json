@@ -1,0 +1,90 @@
+[
+  {
+    "id": "323",
+    "names": {
+      "nom_fr": "N/A",
+      "nom_de": "N/A",
+      "nom_en": "N/A",
+      "nom_es": "N/D",
+      "nom_it": "N/D",
+      "nom_pt": "N/A"
+    }
+  },
+  {
+    "id": "27530",
+    "names": {
+      "nom_fr": "Sport / Automobile",
+      "nom_de": "Sport / Motorsport",
+      "nom_en": "Sports / Motorsport",
+      "nom_es": "Deportes / Automovilismo",
+      "nom_it": "Sport / Sport motoristici",
+      "nom_pt": "Esporte / Automobilismo"
+    }
+  },
+  {
+    "id": "23258",
+    "names": {
+      "nom_fr": "Sport / Cyclisme",
+      "nom_de": "Sport / Radfahren",
+      "nom_en": "Sports / Cycling",
+      "nom_es": "Deportes / Ciclismo",
+      "nom_it": "Sport / Ciclismo",
+      "nom_pt": "Esporte / Ciclismo"
+    }
+  },
+  {
+    "id": "26638",
+    "names": {
+      "nom_fr": "Sport / Extrême",
+      "nom_de": "Sport / Extrem",
+      "nom_en": "Sports / Extreme",
+      "nom_es": "Deportes / Extremo",
+      "nom_it": "Sport / Estremo",
+      "nom_pt": "Esporte / Extremo"
+    }
+  },
+  {
+    "id": "23278",
+    "names": {
+      "nom_fr": "Sport / Fitness",
+      "nom_de": "Sports / Fitness",
+      "nom_en": "Sports / Fitness",
+      "nom_es": "Sports / Fitness",
+      "nom_it": "Sports / Fitness",
+      "nom_pt": "Sports / Fitness"
+    }
+  },
+  {
+    "id": "25726",
+    "names": {
+      "nom_fr": "Sport / Multisports",
+      "nom_de": "Sport / Multisport",
+      "nom_en": "Sports / Multisports",
+      "nom_es": "Deportes / Multideporte",
+      "nom_it": "Sport / Multisport",
+      "nom_pt": "Esporte / Poliesportivo"
+    }
+  },
+  {
+    "id": "26635",
+    "names": {
+      "nom_fr": "Sport / Nautique",
+      "nom_de": "Sport / nautisch",
+      "nom_en": "Sports / Water",
+      "nom_es": "Deportes / Náutico",
+      "nom_it": "Sport / Nautico",
+      "nom_pt": "Esporte / Náutico"
+    }
+  },
+  {
+    "id": "26363",
+    "names": {
+      "nom_fr": "Tir / Vue de dessus",
+      "nom_de": "Shooter / Ansicht von oben",
+      "nom_en": "Shooter / Top view",
+      "nom_es": "Disparos / Vista superior",
+      "nom_it": "Sparo / Vista dall'alto",
+      "nom_pt": "Tiro / Vista do topo"
+    }
+  }
+]

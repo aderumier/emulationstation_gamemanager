@@ -8,16 +8,18 @@
         "extensions": []
     },
     "nes": {
+        "launchbox": "Nintendo Entertainment System",
+        "screenscraper": 3,
+        "igdb": 18,
+        "mobygames": "NES",
+        "emumovies": "Nintendo_NES",
+        "dat_file": "",
         "extensions": [
             ".7z",
             ".NES",
             ".nes",
             ".zip"
-        ],
-        "launchbox": "Nintendo Entertainment System",
-        "igdb": 18,
-        "screenscraper": 3,
-        "mobygames": "NES"
+        ]
     },
     "snes": {
         "extensions": [
@@ -646,6 +648,7 @@
         "screenscraper": 29,
         "igdb": 50,
         "mobygames": "3DO",
+        "emumovies": "",
         "dat_file": "",
         "extensions": [
             ".CUE",

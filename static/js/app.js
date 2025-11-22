@@ -101,6 +101,8 @@ class GameCollectionManager {
             screenscraperSystems: null,
             igdbPlatforms: null,
             mobygamesSystems: null,
+            emumoviesSystems: null,
+            datscrapperFiles: null,
             lastUpdated: null,
             cacheTimeout: 5 * 60 * 1000 // 5 minutes
         };
@@ -1757,6 +1759,11 @@ class GameCollectionManager {
         document.getElementById('scrapMobygamesBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
             this.scrapMobygames();
+        });
+        
+        document.getElementById('scrapEmumoviesBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapEmumovies();
         });
         
         document.getElementById('scrapDatscrapperBtn').addEventListener('click', async () => {
@@ -10460,7 +10467,8 @@ class GameCollectionManager {
                         'launchbox': 'launchbox',
                         'screenscraper': 'screenscraper', 
                         'igdb': 'igdb',
-                        'mobygames': 'mobygames'
+                        'mobygames': 'mobygames',
+                        'emumovies': 'emumovies'
                     };
                     
                     const fieldName = fieldMapping[scraperType];
@@ -16580,12 +16588,13 @@ class GameCollectionManager {
                         <thead>
                             <tr>
                                 <th style="width: 10%">System</th>
-                                <th style="width: 12%">Launchbox</th>
-                                <th style="width: 12%">Screenscraper</th>
-                                <th style="width: 12%">IGDB</th>
-                                <th style="width: 12%">MobyGames</th>
-                                <th style="width: 12%">DAT File</th>
-                                <th style="width: 30%">Extensions</th>
+                                <th style="width: 11%">Launchbox</th>
+                                <th style="width: 11%">Screenscraper</th>
+                                <th style="width: 11%">IGDB</th>
+                                <th style="width: 11%">MobyGames</th>
+                                <th style="width: 11%">EmuMovies</th>
+                                <th style="width: 11%">DAT File</th>
+                                <th style="width: 24%">Extensions</th>
                             </tr>
                         </thead>
                         <tbody id="systemsTableBody">
@@ -16751,6 +16760,8 @@ class GameCollectionManager {
         this.systemsConfigCache.screenscraperSystems = null;
         this.systemsConfigCache.igdbPlatforms = null;
         this.systemsConfigCache.mobygamesSystems = null;
+        this.systemsConfigCache.emumoviesSystems = null;
+        this.systemsConfigCache.datscrapperFiles = null;
         this.systemsConfigCache.lastUpdated = null;
         console.log('Cleared systems configuration cache');
     }
@@ -16771,6 +16782,7 @@ class GameCollectionManager {
             this.systemsConfigCache.screenscraperSystems && 
             this.systemsConfigCache.igdbPlatforms && 
             this.systemsConfigCache.mobygamesSystems &&
+            this.systemsConfigCache.emumoviesSystems &&
             this.systemsConfigCache.datscrapperFiles) {
             
             console.log('Using cached systems configuration data');
@@ -16782,6 +16794,7 @@ class GameCollectionManager {
                         this.systemsConfigCache.screenscraperSystems,
                         this.systemsConfigCache.igdbPlatforms,
                         this.systemsConfigCache.mobygamesSystems,
+                        this.systemsConfigCache.emumoviesSystems,
                         this.systemsConfigCache.datscrapperFiles,
                         data.systems
                     );
@@ -16799,26 +16812,27 @@ class GameCollectionManager {
         // Show loading message while fetching platform data
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center py-4">
+                <td colspan="8" class="text-center py-4">
                     <div class="d-flex align-items-center justify-content-center">
                         <div class="spinner-border spinner-border-sm me-2" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <span>Loading platform data from ScreenScraper, IGDB, and MobyGames APIs...</span>
+                        <span>Loading platform data from ScreenScraper, IGDB, MobyGames, and EmuMovies...</span>
                     </div>
                 </td>
             </tr>
         `;
         
-        // Load LaunchBox platforms, ScreenScraper systems, IGDB platforms, and MobyGames systems for comboboxes
-        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [], datscrapperFiles = [];
+        // Load LaunchBox platforms, ScreenScraper systems, IGDB platforms, MobyGames systems, EmuMovies systems, and DAT files for comboboxes
+        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [], emumoviesSystems = [], datscrapperFiles = [];
         
         try {
-            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles] = await Promise.all([
+            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles] = await Promise.all([
                 this.loadLaunchBoxPlatforms(),
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms(),
                 this.loadMobygamesSystems(),
+                this.loadEmumoviesSystems(),
                 this.loadDatscrapperFiles()
             ]);
 
@@ -16827,6 +16841,7 @@ class GameCollectionManager {
             this.systemsConfigCache.screenscraperSystems = screenscraperSystems;
             this.systemsConfigCache.igdbPlatforms = igdbPlatforms;
             this.systemsConfigCache.mobygamesSystems = mobygamesSystems;
+            this.systemsConfigCache.emumoviesSystems = emumoviesSystems;
             this.systemsConfigCache.datscrapperFiles = datscrapperFiles;
             this.systemsConfigCache.lastUpdated = Date.now();
             
@@ -16836,7 +16851,7 @@ class GameCollectionManager {
             // Show error message
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center py-4">
+                    <td colspan="8" class="text-center py-4">
                         <div class="alert alert-warning mb-0">
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             Error loading platform data. Some comboboxes may be empty.
@@ -16853,7 +16868,7 @@ class GameCollectionManager {
             return fetch('/api/systems').then(response => response.json());
         }).then(data => {
             if (data.success) {
-                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles, data.systems);
+                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, data.systems);
             } else {
                 throw new Error('Failed to load systems data');
             }
@@ -16861,7 +16876,7 @@ class GameCollectionManager {
             console.error('Error loading systems config:', error);
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center py-4">
+                    <td colspan="8" class="text-center py-4">
                         <div class="alert alert-warning mb-0">
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             Error loading systems configuration.
@@ -16872,7 +16887,7 @@ class GameCollectionManager {
         });
     }
     
-    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles, systems) {
+    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, systems) {
         const tbody = document.getElementById('systemsTableBody');
         if (!tbody) return;
         
@@ -16888,7 +16903,9 @@ class GameCollectionManager {
             igdbPlatforms: typeof igdbPlatforms,
             igdbIsArray: Array.isArray(igdbPlatforms),
             mobygamesSystems: typeof mobygamesSystems,
-            mobygamesIsArray: Array.isArray(mobygamesSystems)
+            mobygamesIsArray: Array.isArray(mobygamesSystems),
+            emumoviesSystems: typeof emumoviesSystems,
+            emumoviesIsArray: Array.isArray(emumoviesSystems)
         });
         
         // Ensure platforms is an array
@@ -16896,6 +16913,7 @@ class GameCollectionManager {
         const screenscraperArray = Array.isArray(screenscraperSystems) ? screenscraperSystems : [];
         const igdbArray = Array.isArray(igdbPlatforms) ? igdbPlatforms : [];
         const mobygamesArray = Array.isArray(mobygamesSystems) ? mobygamesSystems : [];
+        const emumoviesArray = Array.isArray(emumoviesSystems) ? emumoviesSystems : [];
         
         // Use the systems data passed as parameter
         Object.entries(systems).forEach(([systemName, systemData]) => {
@@ -16917,6 +16935,8 @@ class GameCollectionManager {
                     case 'mobygames':
                         // Replace underscores with spaces for display
                         return value ? value.replace(/_/g, ' ') : 'Not set';
+                    case 'emumovies':
+                        return value || 'Not set';
                     default:
                         return value;
                 }
@@ -16972,6 +16992,17 @@ class GameCollectionManager {
                          style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
                          title="Click to change MobyGames platform">
                         <span class="platform-display">${getDisplayName(systemData.mobygames, 'mobygames')}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
+                </td>
+                <td>
+                    <div class="platform-field" 
+                         data-system="${systemName}" 
+                         data-field="emumovies" 
+                         data-type="emumovies"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change EmuMovies system">
+                        <span class="platform-display">${getDisplayName(systemData.emumovies || '', 'emumovies')}</span>
                         <i class="bi bi-chevron-down ms-auto text-muted"></i>
                     </div>
                 </td>
@@ -17077,6 +17108,27 @@ class GameCollectionManager {
         }
     }
     
+    async loadEmumoviesSystems() {
+        try {
+            const response = await fetch('/api/emumovies-systems');
+            
+            if (!response.ok) {
+                return [];
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.systems) {
+                // Sort systems alphabetically
+                return data.systems.sort((a, b) => a.localeCompare(b));
+            } else {
+                return [];
+            }
+        } catch (error) {
+            return [];
+        }
+    }
+    
     async loadDatscrapperFiles() {
         try {
             const response = await fetch('/api/datscrapper/files');
@@ -17122,6 +17174,9 @@ class GameCollectionManager {
                     break;
                 case 'mobygames':
                     options = await this.loadMobygamesSystems();
+                    break;
+                case 'emumovies':
+                    options = await this.loadEmumoviesSystems();
                     break;
                 case 'datscrapper':
                     options = await this.loadDatscrapperFiles();
@@ -17188,6 +17243,10 @@ class GameCollectionManager {
                     value = option;
                     // Replace underscores with spaces for display, but keep original value
                     text = option.replace(/_/g, ' ');
+                    isSelected = option === currentValue;
+                    break;
+                case 'emumovies':
+                    value = text = option;
                     isSelected = option === currentValue;
                     break;
                 case 'datscrapper':
@@ -17287,6 +17346,7 @@ class GameCollectionManager {
                 screenscraper_platform: currentSystem.screenscraper || '',
                 igdb_platform: currentSystem.igdb || '',
                 mobygames_platform: currentSystem.mobygames || '',
+                emumovies_platform: currentSystem.emumovies || '',
                 dat_file: currentSystem.dat_file || '',
                 extensions: Array.isArray(currentSystem.extensions) ? currentSystem.extensions : []
             };
@@ -17300,6 +17360,8 @@ class GameCollectionManager {
                 updateData.igdb_platform = value.trim();
             } else if (field === 'mobygames') {
                 updateData.mobygames_platform = value.trim();
+            } else if (field === 'emumovies') {
+                updateData.emumovies_platform = value.trim();
             } else if (field === 'dat_file') {
                 updateData.dat_file = value.trim();
             } else if (field === 'extensions') {
@@ -22409,6 +22471,11 @@ class GameCollectionManager {
             mobygamesBtn.disabled = false; // Allow MobyGames scraping
         }
 
+        const emumoviesBtn = document.getElementById('scrapEmumoviesBtn');
+        if (emumoviesBtn) {
+            emumoviesBtn.disabled = false; // Allow EmuMovies scraping
+        }
+
         const datscrapperBtn = document.getElementById('scrapDatscrapperBtn');
         if (datscrapperBtn) {
             datscrapperBtn.disabled = false; // Allow DAT Scrapper scraping
@@ -22819,6 +22886,97 @@ class GameCollectionManager {
         }
     }
 
+    async getSelectedEmumoviesFields() {
+        try {
+            // Fetch config to get dynamic field mappings
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            // EmuMovies only has media fields (no text fields)
+            const mediaFields = Object.keys(config.emumovies?.image_type_mappings || {});
+            
+            // Read field selections from cookies
+            const selectedFields = [];
+            mediaFields.forEach(field => {
+                const cookieName = `emumoviesField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                // If no cookie or cookie is true, include the field
+                if (cookieValue === null || cookieValue === 'true') {
+                    selectedFields.push(field);
+                }
+            });
+            
+            return selectedFields;
+        } catch (error) {
+            console.error('Error getting selected EmuMovies fields:', error);
+            return [];
+        }
+    }
+
+    async scrapEmumovies() {
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+        
+        // Check if EmuMovies system mapping exists
+        const hasMapping = await this.checkSystemMapping('emumovies');
+        if (!hasMapping) {
+            this.showAlert(`No EmuMovies system mapping configured for ${this.currentSystem}. Opening configuration...`, 'warning');
+            await this.openSystemsConfigForCurrentSystem('emumovies');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapEmumoviesBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Determine scraping mode
+            const isFullCollection = this.selectedGames.length === 0;
+            const gamesToScrape = isFullCollection ? this.games : this.selectedGames;
+            
+            this.showAlert('Starting EmuMovies scraping...', 'info');
+            
+            // Get selected fields for EmuMovies scraping
+            const selectedFields = await this.getSelectedEmumoviesFields();
+            
+            const response = await fetch(`/api/scrap-emumovies/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: gamesToScrape.map(game => game.path),
+                    selected_fields: selectedFields
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showAlert(`✅ ${result.message}`, 'success');
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Error: ${result.error || 'Unknown error'}`, 'danger');
+            }
+            
+        } catch (error) {
+            this.showAlert(`❌ Error starting EmuMovies scraping: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapEmumoviesBtn');
+            button.innerHTML = '<i class="bi bi-film"></i> EmuMovies';
+            button.disabled = false;
+        }
+    }
+
     async scrapMobygames() {
         if (!this.currentSystem) {
             this.showAlert('Please select a system first', 'warning');
@@ -22957,7 +23115,7 @@ class GameCollectionManager {
         } finally {
             // Restore button state
             const button = document.getElementById('scrapDatscrapperBtn');
-            button.innerHTML = '<i class="bi bi-file-earmark-code"></i> DAT Scrapper';
+            button.innerHTML = '<i class="bi bi-file-earmark-code"></i> DAT';
             button.disabled = false;
         }
     }

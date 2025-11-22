@@ -176,5 +176,39 @@
             "manufacturer": "developer"
         },
         "description": "DAT Scrapper local XML file scrapper. Maps game data from local DAT XML files to gamelist.xml fields."
+    },
+    "emumovies": {
+        "image_type_mappings": {
+            "boxart": [
+                "Box"
+            ],
+            "boxback": [
+                "BoxBack"
+            ],
+            "cartridge": [
+                "Cart"
+            ],
+            "manual": [
+                "Manual"
+            ],
+            "marquee": [
+                "Logo"
+            ],
+            "thumbnail": [
+                "Box_3D"
+            ],
+            "video": [
+                "Video_MP4_HD",
+                "Video_MP4_HI_QUAL",
+                "Video_MP4_HQ_43",
+                "Video_MP4"
+            ],
+            "image": [
+                "Snap"
+            ],
+            "titleshot": [
+                "Title"
+            ]
+        }
     }
 }

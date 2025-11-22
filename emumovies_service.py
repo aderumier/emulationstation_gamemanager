@@ -272,54 +272,83 @@ class EmuMoviesService:
             'Content-Type': 'application/json'
         }
     
-    async def get_systems(self) -> List[Dict]:
-        """Get list of all systems from EmuMovies API"""
+    async def get_systems(self, max_retries: int = 3) -> List[Dict]:
+        """Get list of all systems from EmuMovies API with retry logic"""
         headers = await self._get_authenticated_headers()
         if not headers:
             logger.error("Cannot get systems: not authenticated")
             return []
         
-        try:
-            url = f"{self.base_url}/api/Systems"
-            
-            limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
-            async with httpx.AsyncClient(
-                limits=limits,
-                http2=True,
-                timeout=30.0,
-                headers=headers
-            ) as client:
-                logger.debug(f"Fetching systems from EmuMovies API: {url}")
-                
-                response = await client.get(url)
-                
-                if response.status_code == 200:
-                    systems_response = response.json()
-                    if isinstance(systems_response, dict) and 'data' in systems_response:
-                        systems = systems_response['data']
-                    else:
-                        systems = systems_response
+        url = f"{self.base_url}/api/Systems"
+        
+        for attempt in range(max_retries):
+            try:
+                limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+                async with httpx.AsyncClient(
+                    limits=limits,
+                    http2=True,
+                    timeout=30.0,
+                    headers=headers
+                ) as client:
+                    logger.debug(f"Fetching systems from EmuMovies API: {url} (attempt {attempt + 1}/{max_retries})")
                     
-                    systems_list = systems if isinstance(systems, list) else []
-                    logger.info(f"Retrieved {len(systems_list)} systems from EmuMovies")
-                    return systems_list
-                elif response.status_code == 401:
-                    logger.error("EmuMovies API authentication expired, re-authenticating...")
-                    # Try to re-authenticate
-                    await self.authenticate()
-                    headers = await self._get_authenticated_headers()
-                    if headers:
-                        response = await client.get(url, headers=headers)
-                        if response.status_code == 200:
-                            systems = response.json()
-                            return systems if isinstance(systems, list) else []
-                    return []
+                    response = await client.get(url)
+                    
+                    if response.status_code == 200:
+                        systems_response = response.json()
+                        if isinstance(systems_response, dict) and 'data' in systems_response:
+                            systems = systems_response['data']
+                        else:
+                            systems = systems_response
+                        
+                        systems_list = systems if isinstance(systems, list) else []
+                        logger.info(f"Retrieved {len(systems_list)} systems from EmuMovies")
+                        return systems_list
+                    elif response.status_code == 401:
+                        logger.warning("EmuMovies API authentication expired, re-authenticating...")
+                        await self.authenticate()
+                        headers = await self._get_authenticated_headers()
+                        if headers:
+                            continue  # Retry immediately after re-authentication
+                        return []
+                    elif response.status_code == 429:
+                        wait_time = (2 ** attempt) + (attempt * 0.5)
+                        logger.warning(f"Rate limited (429), waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    elif response.status_code >= 500:
+                        if attempt < max_retries - 1:
+                            wait_time = (2 ** attempt) + (attempt * 0.5)
+                            logger.warning(f"Server error {response.status_code}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Error fetching systems: HTTP {response.status_code} (max retries reached)")
+                            return []
+                    else:
+                        logger.error(f"Error fetching systems: HTTP {response.status_code}")
+                        return []
+                        
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    error_type = type(e).__name__
+                    logger.warning(f"Network error ({error_type}): {e}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
                 else:
-                    logger.error(f"Error fetching systems: HTTP {response.status_code}")
+                    logger.error(f"Network error after {max_retries} attempts: {e}")
                     return []
-        except Exception as e:
-            logger.error(f"Error fetching systems from EmuMovies API: {e}")
-            return []
+            except Exception as e:
+                logger.error(f"Unexpected error fetching systems: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    logger.warning(f"Waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                return []
+        
+        return []
     
     def _build_system_query(self, system_identifier):
         """
@@ -362,158 +391,246 @@ class EmuMoviesService:
         type_label = type_label.strip() if type_label else type_key
         return type_key, type_label
 
-    async def get_media_types(self, system_identifier) -> List[str]:
-        """Get media types for a specific system"""
+    async def get_media_types(self, system_identifier, max_retries: int = 3) -> List[str]:
+        """Get media types for a specific system with retry logic"""
         headers = await self._get_authenticated_headers()
         if not headers:
             logger.error("Cannot get media types: not authenticated")
             return []
         
-        try:
-            url = f"{self.base_url}/api/media/mediaTypes"
-            params = self._build_system_query(system_identifier)
-            system_id_or_name = params.get('systemName') or params.get('systemId')
-            
-            limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
-            async with httpx.AsyncClient(
-                limits=limits,
-                http2=True,
-                timeout=30.0,
-                headers=headers
-            ) as client:
-                logger.debug(f"Fetching media types for system {system_id_or_name}: {url}")
-                
-                response = await client.get(url, params=params)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if isinstance(result, dict) and 'data' in result:
-                        return result['data']
-                    return result if isinstance(result, list) else []
-                elif response.status_code == 401:
-                    logger.error("EmuMovies API authentication expired, re-authenticating...")
-                    await self.authenticate()
-                    headers = await self._get_authenticated_headers()
-                    if headers:
-                        response = await client.get(url, params=params, headers=headers)
-                        if response.status_code == 200:
-                            result = response.json()
-                            if isinstance(result, dict) and 'data' in result:
-                                return result['data']
-                            return result if isinstance(result, list) else []
-                    return []
+        url = f"{self.base_url}/api/media/mediaTypes"
+        params = self._build_system_query(system_identifier)
+        system_id_or_name = params.get('systemName') or params.get('systemId')
+        
+        for attempt in range(max_retries):
+            try:
+                limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+                async with httpx.AsyncClient(
+                    limits=limits,
+                    http2=True,
+                    timeout=30.0,
+                    headers=headers
+                ) as client:
+                    logger.debug(f"Fetching media types for system {system_id_or_name}: {url} (attempt {attempt + 1}/{max_retries})")
+                    
+                    response = await client.get(url, params=params)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        if isinstance(result, dict) and 'data' in result:
+                            return result['data']
+                        return result if isinstance(result, list) else []
+                    elif response.status_code == 401:
+                        logger.warning("EmuMovies API authentication expired, re-authenticating...")
+                        await self.authenticate()
+                        headers = await self._get_authenticated_headers()
+                        if headers:
+                            continue  # Retry immediately after re-authentication
+                        return []
+                    elif response.status_code == 429:
+                        wait_time = (2 ** attempt) + (attempt * 0.5)
+                        logger.warning(f"Rate limited (429), waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    elif response.status_code >= 500:
+                        if attempt < max_retries - 1:
+                            wait_time = (2 ** attempt) + (attempt * 0.5)
+                            logger.warning(f"Server error {response.status_code}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Error fetching media types: HTTP {response.status_code} (max retries reached)")
+                            return []
+                    else:
+                        logger.error(f"Error fetching media types: HTTP {response.status_code}")
+                        return []
+                        
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    error_type = type(e).__name__
+                    logger.warning(f"Network error ({error_type}): {e}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
                 else:
-                    logger.error(f"Error fetching media types: HTTP {response.status_code}")
+                    logger.error(f"Network error after {max_retries} attempts: {e}")
                     return []
-        except Exception as e:
-            logger.error(f"Error fetching media types for system {system_id_or_name}: {e}")
-            return []
+            except Exception as e:
+                logger.error(f"Unexpected error fetching media types: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    logger.warning(f"Waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                return []
+        
+        return []
     
-    async def get_media_sets(self, system_identifier, media_type_id: str = None) -> List[str]:
-        """Get media sets for a specific system and media type (required by API)"""
+    async def get_media_sets(self, system_identifier, media_type_id: str = None, max_retries: int = 3) -> List[str]:
+        """Get media sets for a specific system and media type (required by API) with retry logic"""
         headers = await self._get_authenticated_headers()
         if not headers:
             logger.error("Cannot get media sets: not authenticated")
             return []
         
-        try:
-            url = f"{self.base_url}/api/media/MediaSets"
-            params = self._build_system_query(system_identifier)
-            system_id_or_name = params.get('systemName') or params.get('systemId')
-            
-            if media_type_id is not None:
-                params['mediaType'] = media_type_id
-            else:
-                # MediaSets endpoint requires a media type name per docs
-                logger.debug(f"MediaSets request requires media type - skipping (system: {system_id_or_name})")
-                return []
-            
-            limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
-            async with httpx.AsyncClient(
-                limits=limits,
-                http2=True,
-                timeout=30.0,
-                headers=headers
-            ) as client:
-                logger.debug(f"Fetching media sets for system {system_id_or_name}: {url}")
-                
-                response = await client.get(url, params=params)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if isinstance(result, dict) and 'data' in result:
-                        return result['data']
-                    return result if isinstance(result, list) else []
-                elif response.status_code == 401:
-                    logger.error("EmuMovies API authentication expired, re-authenticating...")
-                    await self.authenticate()
-                    headers = await self._get_authenticated_headers()
-                    if headers:
-                        response = await client.get(url, params=params, headers=headers)
-                        if response.status_code == 200:
-                            result = response.json()
-                            if isinstance(result, dict) and 'data' in result:
-                                return result['data']
-                            return result if isinstance(result, list) else []
-                    return []
-                else:
-                    logger.error(f"Error fetching media sets: HTTP {response.status_code}")
-                    return []
-        except Exception as e:
-            logger.error(f"Error fetching media sets for system {system_id_or_name}: {e}")
+        url = f"{self.base_url}/api/media/MediaSets"
+        params = self._build_system_query(system_identifier)
+        system_id_or_name = params.get('systemName') or params.get('systemId')
+        
+        if media_type_id is not None:
+            params['mediaType'] = media_type_id
+        else:
+            # MediaSets endpoint requires a media type name per docs
+            logger.debug(f"MediaSets request requires media type - skipping (system: {system_id_or_name})")
             return []
+        
+        for attempt in range(max_retries):
+            try:
+                limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+                async with httpx.AsyncClient(
+                    limits=limits,
+                    http2=True,
+                    timeout=30.0,
+                    headers=headers
+                ) as client:
+                    logger.debug(f"Fetching media sets for system {system_id_or_name}: {url} (attempt {attempt + 1}/{max_retries})")
+                    
+                    response = await client.get(url, params=params)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        if isinstance(result, dict) and 'data' in result:
+                            return result['data']
+                        return result if isinstance(result, list) else []
+                    elif response.status_code == 401:
+                        logger.warning("EmuMovies API authentication expired, re-authenticating...")
+                        await self.authenticate()
+                        headers = await self._get_authenticated_headers()
+                        if headers:
+                            continue  # Retry immediately after re-authentication
+                        return []
+                    elif response.status_code == 429:
+                        wait_time = (2 ** attempt) + (attempt * 0.5)
+                        logger.warning(f"Rate limited (429), waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    elif response.status_code >= 500:
+                        if attempt < max_retries - 1:
+                            wait_time = (2 ** attempt) + (attempt * 0.5)
+                            logger.warning(f"Server error {response.status_code}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Error fetching media sets: HTTP {response.status_code} (max retries reached)")
+                            return []
+                    else:
+                        logger.error(f"Error fetching media sets: HTTP {response.status_code}")
+                        return []
+                        
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    error_type = type(e).__name__
+                    logger.warning(f"Network error ({error_type}): {e}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Network error after {max_retries} attempts: {e}")
+                    return []
+            except Exception as e:
+                logger.error(f"Unexpected error fetching media sets: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    logger.warning(f"Waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                return []
+        
+        return []
     
-    async def get_media_list(self, system_identifier, media_type: str = None, media_set_id: str = None) -> List[str]:
-        """Get media list for a specific system and optionally media type/set"""
+    async def get_media_list(self, system_identifier, media_type: str = None, media_set_id: str = None, max_retries: int = 3) -> List[str]:
+        """Get media list for a specific system and optionally media type/set with retry logic"""
         headers = await self._get_authenticated_headers()
         if not headers:
             logger.error("Cannot get media list: not authenticated")
             return []
         
-        try:
-            url = f"{self.base_url}/api/Media/MediaList"
-            params = self._build_system_query(system_identifier)
-            system_id_or_name = params.get('systemName') or params.get('systemId')
-            
-            if media_type is not None:
-                params['mediaType'] = media_type
-            if media_set_id is not None:
-                params['mediaSet'] = media_set_id
-            
-            limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
-            async with httpx.AsyncClient(
-                limits=limits,
-                http2=True,
-                timeout=120.0,  # Longer timeout for full media list
-                headers=headers
-            ) as client:
-                logger.debug(f"Fetching media list for system {system_id_or_name}, type {media_type}, set {media_set_id}: {url}")
-                
-                response = await client.get(url, params=params)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if isinstance(result, dict) and 'data' in result:
-                        return result['data']
-                    return result if isinstance(result, list) else []
-                elif response.status_code == 401:
-                    logger.error("EmuMovies API authentication expired, re-authenticating...")
-                    await self.authenticate()
-                    headers = await self._get_authenticated_headers()
-                    if headers:
-                        response = await client.get(url, params=params, headers=headers)
-                        if response.status_code == 200:
-                            result = response.json()
-                            if isinstance(result, dict) and 'data' in result:
-                                return result['data']
-                            return result if isinstance(result, list) else []
-                    return []
+        url = f"{self.base_url}/api/Media/MediaList"
+        params = self._build_system_query(system_identifier)
+        system_id_or_name = params.get('systemName') or params.get('systemId')
+        
+        if media_type is not None:
+            params['mediaType'] = media_type
+        if media_set_id is not None:
+            params['mediaSet'] = media_set_id
+        
+        for attempt in range(max_retries):
+            try:
+                limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+                async with httpx.AsyncClient(
+                    limits=limits,
+                    http2=True,
+                    timeout=120.0,  # Longer timeout for full media list
+                    headers=headers
+                ) as client:
+                    logger.debug(f"Fetching media list for system {system_id_or_name}, type {media_type}, set {media_set_id}: {url} (attempt {attempt + 1}/{max_retries})")
+                    
+                    response = await client.get(url, params=params)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        if isinstance(result, dict) and 'data' in result:
+                            return result['data']
+                        return result if isinstance(result, list) else []
+                    elif response.status_code == 401:
+                        logger.warning("EmuMovies API authentication expired, re-authenticating...")
+                        await self.authenticate()
+                        headers = await self._get_authenticated_headers()
+                        if headers:
+                            # Retry immediately after re-authentication
+                            continue
+                        return []
+                    elif response.status_code == 429:
+                        # Rate limited - wait and retry
+                        wait_time = (2 ** attempt) + (attempt * 0.5)  # Exponential backoff with jitter
+                        logger.warning(f"Rate limited (429), waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    elif response.status_code >= 500:
+                        # Server error - retry with backoff
+                        if attempt < max_retries - 1:
+                            wait_time = (2 ** attempt) + (attempt * 0.5)
+                            logger.warning(f"Server error {response.status_code}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error(f"Error fetching media list: HTTP {response.status_code} (max retries reached)")
+                            return []
+                    else:
+                        # Client error (4xx except 401, 429) - don't retry
+                        logger.error(f"Error fetching media list: HTTP {response.status_code}")
+                        return []
+                        
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    error_type = type(e).__name__
+                    logger.warning(f"Network error ({error_type}): {e}, waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
                 else:
-                    logger.error(f"Error fetching media list: HTTP {response.status_code}")
+                    logger.error(f"Network error after {max_retries} attempts: {e}")
                     return []
-        except Exception as e:
-            logger.error(f"Error fetching media list: {e}")
-            return []
+            except Exception as e:
+                logger.error(f"Unexpected error fetching media list: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + (attempt * 0.5)
+                    logger.warning(f"Waiting {wait_time:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                return []
+        
+        return []
     
     async def build_local_database(self, progress_callback=None, target_system: str = None) -> Dict:
         """
@@ -545,6 +662,36 @@ class EmuMoviesService:
                 logger.error("No systems retrieved from EmuMovies API")
                 return {'success': False, 'error': 'No systems found'}
             
+            # Consolidate structure: [systemname][mediatype][mediafile] = 1
+            db_file = os.path.join(self.cache_dir, 'emumovies.json')
+            consolidated_db = {}
+            
+            # Load existing database if available
+            if os.path.exists(db_file):
+                try:
+                    with open(db_file, 'r', encoding='utf-8') as f:
+                        consolidated_db = json.load(f)
+                    logger.info(f"Loaded existing database with {len(consolidated_db)} systems")
+                except Exception as e:
+                    logger.warning(f"Could not load existing database: {e}")
+            
+            # Get ALL systems from API first (before filtering) to check completeness
+            all_api_systems = await self.get_systems()
+            all_api_system_names = set()
+            for system in all_api_systems:
+                if isinstance(system, dict):
+                    system_name = (
+                        system.get('name') or 
+                        system.get('systemName') or 
+                        system.get('displayName') or 
+                        str(system.get('id') or system.get('systemId') or system.get('systemID') or system.get('system'))
+                    )
+                else:
+                    system_name = str(system)
+                if system_name:
+                    all_api_system_names.add(system_name)
+            
+            # Filter to target system if specified
             if target_system:
                 target_lower = target_system.lower()
                 systems = [
@@ -559,23 +706,9 @@ class EmuMoviesService:
                 if not systems:
                     return {'success': False, 'error': f'System "{target_system}" not found in EmuMovies'}
             
-            logger.info(f"Found {len(systems)} systems")
+            logger.info(f"Found {len(systems)} systems to process")
             
-            # Consolidate structure: [systemname][mediatype][mediafile] = 1
-            db_file = os.path.join(self.cache_dir, 'emumovies.json')
-            consolidated_db = {}
-            
-            # Load existing database if available
-            if os.path.exists(db_file):
-                try:
-                    with open(db_file, 'r', encoding='utf-8') as f:
-                        consolidated_db = json.load(f)
-                    logger.info(f"Loaded existing database with {len(consolidated_db)} systems")
-                except Exception as e:
-                    logger.warning(f"Could not load existing database: {e}")
-            
-            # Determine which systems to process
-            # First, extract all system names from the API response
+            # Determine which systems to process (from filtered list)
             api_system_names = set()
             for system in systems:
                 if isinstance(system, dict):
@@ -591,15 +724,19 @@ class EmuMoviesService:
                     api_system_names.add(system_name)
             
             # Check if all systems are already in the database
+            # Use all_api_system_names (not filtered) to check completeness
             db_system_names = set(consolidated_db.keys())
-            all_systems_present = api_system_names.issubset(db_system_names) and len(api_system_names) == len(db_system_names)
+            all_systems_present = all_api_system_names.issubset(db_system_names) and len(all_api_system_names) == len(db_system_names)
             
             if all_systems_present and not target_system:
                 logger.info("All systems are already in database. Regenerating all systems...")
                 # Clear the database to force regeneration of all systems
                 consolidated_db = {}
             else:
-                logger.info(f"Database is incomplete. {len(db_system_names)}/{len(api_system_names)} systems present. Building missing systems only...")
+                if target_system:
+                    logger.info(f"Building/updating system: {target_system} (preserving other systems)")
+                else:
+                    logger.info(f"Database is incomplete. {len(db_system_names)}/{len(all_api_system_names)} systems present. Building missing systems only...")
             
             total_systems = len(systems)
             processed_count = 0
@@ -637,7 +774,16 @@ class EmuMoviesService:
                 consolidated_db[system_name] = {}
                 
                 # Get media types for this system
-                media_types = await self.get_media_types(system)
+                try:
+                    media_types = await self.get_media_types(system)
+                except Exception as e:
+                    logger.error(f"Error getting media types for {system_name}: {e}")
+                    # Continue with next system
+                    continue
+                
+                if not media_types:
+                    logger.warning(f"No media types found for {system_name}, skipping...")
+                    continue
                 
                 # Get media for each media type
                 for media_type in media_types:
@@ -652,7 +798,16 @@ class EmuMoviesService:
                     if media_type_key not in consolidated_db[system_name]:
                         consolidated_db[system_name][media_type_key] = {}
                     
-                    media_sets = await self.get_media_sets(system, media_type_id=media_type_key)
+                    try:
+                        media_sets = await self.get_media_sets(system, media_type_id=media_type_key)
+                    except Exception as e:
+                        logger.error(f"Error getting media sets for {system_name}/{media_type_key}: {e}")
+                        # Continue with next media type
+                        continue
+                    
+                    if not media_sets:
+                        logger.warning(f"No media sets found for {system_name}/{media_type_key}, skipping...")
+                        continue
                     
                     all_media = []
                     
@@ -662,16 +817,21 @@ class EmuMoviesService:
                         
                         logger.info(f"    Fetching media for set: {media_set_name}")
                         
-                        # Fetch all media for this system, media type, and media set
-                        # Note: API returns full list without pagination support
-                        media_batch = await self.get_media_list(
-                            system_identifier=system,
-                            media_type=media_type_key,
-                            media_set_id=media_set_name
-                        )
-                        
-                        if media_batch:
-                            all_media.extend(media_batch)
+                        try:
+                            # Fetch all media for this system, media type, and media set
+                            # Note: API returns full list without pagination support
+                            media_batch = await self.get_media_list(
+                                system_identifier=system,
+                                media_type=media_type_key,
+                                media_set_id=media_set_name
+                            )
+                            
+                            if media_batch:
+                                all_media.extend(media_batch)
+                        except Exception as e:
+                            logger.error(f"Error fetching media for {media_type_label} set {media_set_name}: {e}")
+                            # Continue with next media set instead of failing entire system
+                            continue
                         
                         # Small delay to avoid rate limiting
                         await asyncio.sleep(0.5)
@@ -768,7 +928,8 @@ class EmuMoviesService:
     def generate_normalized_index(self) -> Dict:
         """
         Generate a normalized index from the EmuMovies database.
-        Format: [system][media_type][normalized_filename] = original_filename
+        Format: [system][media_type][normalized_filename] = original_filename or [filename1, filename2, ...]
+        If multiple files normalize to the same key, they are stored in an array.
         """
         try:
             # Import normalization function
@@ -795,12 +956,23 @@ class EmuMoviesService:
                     
                     for filename in media_files.keys():
                         # Normalize filename: remove extension and use standard game name normalization
+                        # Use remove_paranthesis=True to match how the scraper searches
                         name_without_ext = os.path.splitext(filename)[0]
-                        normalized_name = normalize_game_name(name_without_ext)
+                        normalized_name = normalize_game_name(name_without_ext, remove_paranthesis=True)
                         
                         if normalized_name:
-                            # Store mapping
-                            index_data[system_name][media_type][normalized_name] = filename
+                            # Store mapping - if multiple files normalize to same key, store in array
+                            if normalized_name in index_data[system_name][media_type]:
+                                # Key already exists - convert to array if needed
+                                existing = index_data[system_name][media_type][normalized_name]
+                                if isinstance(existing, list):
+                                    existing.append(filename)
+                                else:
+                                    # Convert single value to array
+                                    index_data[system_name][media_type][normalized_name] = [existing, filename]
+                            else:
+                                # First file for this normalized name
+                                index_data[system_name][media_type][normalized_name] = filename
             
             # Save index to var/db/emumovies/emumovies_index.pkl
             os.makedirs(self.cache_dir, exist_ok=True)

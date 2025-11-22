@@ -8,7 +8,7 @@
         "debug": false
     },
     "logging": {
-        "level": "INFO",
+        "level": "DEBUG",
         "file": "app.log"
     },
     "authentication": {
