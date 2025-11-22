@@ -20459,25 +20459,25 @@ class GameCollectionManager {
             });
         }
         
-        // YouTube API key management buttons
-        const saveYoutubeApiKeyBtn = document.getElementById('saveYoutubeApiKeyBtn');
-        if (saveYoutubeApiKeyBtn) {
-            saveYoutubeApiKeyBtn.addEventListener('click', async () => {
-                await this.saveYoutubeApiKey();
+        // YouTube API keys management buttons
+        const addYoutubeApiKeyBtn = document.getElementById('addYoutubeApiKeyBtn');
+        if (addYoutubeApiKeyBtn) {
+            addYoutubeApiKeyBtn.addEventListener('click', () => {
+                this.addYoutubeApiKeyField();
             });
         }
         
-        const clearYoutubeApiKeyBtn = document.getElementById('clearYoutubeApiKeyBtn');
-        if (clearYoutubeApiKeyBtn) {
-            clearYoutubeApiKeyBtn.addEventListener('click', async () => {
-                await this.clearYoutubeApiKey();
+        const saveYoutubeApiKeysBtn = document.getElementById('saveYoutubeApiKeysBtn');
+        if (saveYoutubeApiKeysBtn) {
+            saveYoutubeApiKeysBtn.addEventListener('click', async () => {
+                await this.saveYoutubeApiKeys();
             });
         }
         
-        const toggleYoutubeApiKeyVisibilityBtn = document.getElementById('toggleYoutubeApiKeyVisibility');
-        if (toggleYoutubeApiKeyVisibilityBtn) {
-            toggleYoutubeApiKeyVisibilityBtn.addEventListener('click', () => {
-                this.toggleYoutubeApiKeyVisibility();
+        const clearYoutubeApiKeysBtn = document.getElementById('clearYoutubeApiKeysBtn');
+        if (clearYoutubeApiKeysBtn) {
+            clearYoutubeApiKeysBtn.addEventListener('click', async () => {
+                await this.clearYoutubeApiKeys();
             });
         }
     }
@@ -20618,15 +20618,18 @@ class GameCollectionManager {
                     cookieStatus.innerHTML = exists ? '<span class="badge bg-success">Cookie file present</span>' : '<span class="badge bg-secondary">No cookie file</span>';
                 }
                 
-                // Update YouTube API key status
-                const youtubeApiKeyStatus = document.getElementById('youtubeApiKeyStatus');
-                if (youtubeApiKeyStatus) {
-                    const hasApiKey = !!config.youtube_api_key_exists;
-                    const keyLength = config.youtube_api_key_length || 0;
-                    if (hasApiKey) {
-                        youtubeApiKeyStatus.innerHTML = `<span class="badge bg-success">Configured (${keyLength} chars)</span>`;
+                // Load YouTube API keys
+                await this.loadYoutubeApiKeys();
+                
+                // Update YouTube API keys status
+                const youtubeApiKeysStatus = document.getElementById('youtubeApiKeysStatus');
+                if (youtubeApiKeysStatus) {
+                    const hasApiKeys = !!config.youtube_api_key_exists;
+                    const keysCount = config.api_keys_count || 0;
+                    if (hasApiKeys && keysCount > 0) {
+                        youtubeApiKeysStatus.innerHTML = `<span class="badge bg-success">${keysCount} key(s) configured</span>`;
                     } else {
-                        youtubeApiKeyStatus.innerHTML = '<span class="badge bg-secondary">Not configured</span>';
+                        youtubeApiKeysStatus.innerHTML = '<span class="badge bg-secondary">No keys configured</span>';
                     }
                 }
                 
@@ -20732,72 +20735,173 @@ class GameCollectionManager {
         }
     }
     
-    async saveYoutubeApiKey() {
+    async loadYoutubeApiKeys() {
         try {
-            const apiKeyInput = document.getElementById('youtubeApiKey');
-            const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+            const response = await fetch('/api/youtube-credentials');
+            if (response.ok) {
+                const data = await response.json();
+                const container = document.getElementById('youtubeApiKeysContainer');
+                if (!container) return;
+                
+                container.innerHTML = '';
+                
+                // Get existing keys from credentials
+                const keys = data.api_keys || [];
+                
+                if (keys.length === 0) {
+                    // Add one empty field if no keys exist
+                    this.addYoutubeApiKeyField();
+                } else {
+                    // Load existing keys (masked for display)
+                    keys.forEach((key, index) => {
+                        // Show first 8 and last 4 characters, mask the rest
+                        const maskedKey = key.length > 12 
+                            ? `${key.substring(0, 8)}...${key.substring(key.length - 4)}`
+                            : '••••••••';
+                        this.addYoutubeApiKeyField(key, index);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error loading YouTube API keys:', error);
+            // Add one empty field on error
+            const container = document.getElementById('youtubeApiKeysContainer');
+            if (container && container.children.length === 0) {
+                this.addYoutubeApiKeyField();
+            }
+        }
+    }
+    
+    addYoutubeApiKeyField(value = '', index = null) {
+        const container = document.getElementById('youtubeApiKeysContainer');
+        if (!container) return;
+        
+        const fieldIndex = index !== null ? index : container.children.length;
+        const fieldId = `youtubeApiKey_${fieldIndex}`;
+        
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'input-group mb-2';
+        fieldDiv.id = `youtubeApiKeyField_${fieldIndex}`;
+        fieldDiv.innerHTML = `
+            <input type="password" class="form-control youtube-api-key-input" 
+                   id="${fieldId}" 
+                   placeholder="Enter YouTube Data API v3 key" 
+                   value="${value}">
+            <button class="btn btn-outline-secondary toggle-youtube-key-visibility" type="button" data-field-id="${fieldId}">
+                <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn btn-outline-danger remove-youtube-key" type="button" data-field-id="${fieldId}">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+        
+        container.appendChild(fieldDiv);
+        
+        // Add event listeners
+        const toggleBtn = fieldDiv.querySelector('.toggle-youtube-key-visibility');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', (e) => {
+                const fieldId = e.target.closest('button').dataset.fieldId;
+                this.toggleYoutubeApiKeyVisibility(fieldId);
+            });
+        }
+        
+        const removeBtn = fieldDiv.querySelector('.remove-youtube-key');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', (e) => {
+                const fieldId = e.target.closest('button').dataset.fieldId;
+                this.removeYoutubeApiKeyField(fieldId);
+            });
+        }
+    }
+    
+    removeYoutubeApiKeyField(fieldId) {
+        const field = document.getElementById(`youtubeApiKeyField_${fieldId.split('_')[1]}`);
+        if (field) {
+            field.remove();
+        }
+    }
+    
+    toggleYoutubeApiKeyVisibility(fieldId) {
+        const apiKeyInput = document.getElementById(fieldId);
+        const toggleBtn = document.querySelector(`[data-field-id="${fieldId}"].toggle-youtube-key-visibility`);
+        
+        if (apiKeyInput && toggleBtn) {
+            const icon = toggleBtn.querySelector('i');
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                apiKeyInput.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        }
+    }
+    
+    async saveYoutubeApiKeys() {
+        try {
+            const container = document.getElementById('youtubeApiKeysContainer');
+            if (!container) {
+                this.showToast('API keys container not found', 'error');
+                return;
+            }
             
-            if (!apiKey) {
-                this.showToast('Please enter a YouTube API key', 'error');
+            const keyInputs = container.querySelectorAll('.youtube-api-key-input');
+            const apiKeys = Array.from(keyInputs)
+                .map(input => input.value.trim())
+                .filter(key => key.length > 0);
+            
+            if (apiKeys.length === 0) {
+                this.showToast('Please enter at least one YouTube API key', 'error');
                 return;
             }
             
             const response = await fetch('/api/youtube-credentials', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: apiKey })
+                body: JSON.stringify({ api_keys: apiKeys })
             });
             
             if (response.ok) {
-                this.showToast('YouTube API key saved successfully!', 'success');
-                // Refresh the API key status
-                this.loadVideoConfiguration();
+                this.showToast(`YouTube API keys saved successfully! (${apiKeys.length} key(s))`, 'success');
+                // Refresh the API keys status
+                await this.loadVideoConfiguration();
             } else {
                 const error = await response.json();
-                this.showToast(`Failed to save YouTube API key: ${error.error || 'Unknown error'}`, 'error');
+                this.showToast(`Failed to save YouTube API keys: ${error.error || 'Unknown error'}`, 'error');
             }
         } catch (error) {
-            this.showToast('Error saving YouTube API key', 'error');
+            this.showToast('Error saving YouTube API keys', 'error');
         }
     }
     
-    async clearYoutubeApiKey() {
+    async clearYoutubeApiKeys() {
         try {
+            if (!confirm('Are you sure you want to clear all YouTube API keys?')) {
+                return;
+            }
+            
             const response = await fetch('/api/youtube-credentials', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' }
             });
             
             if (response.ok) {
-                this.showToast('YouTube API key cleared successfully!', 'success');
-                // Clear the input field
-                const apiKeyInput = document.getElementById('youtubeApiKey');
-                if (apiKeyInput) {
-                    apiKeyInput.value = '';
+                this.showToast('YouTube API keys cleared successfully!', 'success');
+                // Clear all fields and add one empty field
+                const container = document.getElementById('youtubeApiKeysContainer');
+                if (container) {
+                    container.innerHTML = '';
+                    this.addYoutubeApiKeyField();
                 }
-                // Refresh the API key status
-                this.loadVideoConfiguration();
+                // Refresh the API keys status
+                await this.loadVideoConfiguration();
             } else {
                 const error = await response.json();
-                this.showToast(`Failed to clear YouTube API key: ${error.error || 'Unknown error'}`, 'error');
+                this.showToast(`Failed to clear YouTube API keys: ${error.error || 'Unknown error'}`, 'error');
             }
         } catch (error) {
-            this.showToast('Error clearing YouTube API key', 'error');
-        }
-    }
-    
-    toggleYoutubeApiKeyVisibility() {
-        const apiKeyInput = document.getElementById('youtubeApiKey');
-        const toggleIcon = document.getElementById('youtubeApiKeyToggleIcon');
-        
-        if (apiKeyInput && toggleIcon) {
-            if (apiKeyInput.type === 'password') {
-                apiKeyInput.type = 'text';
-                toggleIcon.className = 'bi bi-eye-slash';
-            } else {
-                apiKeyInput.type = 'password';
-                toggleIcon.className = 'bi bi-eye';
-            }
+            this.showToast('Error clearing YouTube API keys', 'error');
         }
     }
     

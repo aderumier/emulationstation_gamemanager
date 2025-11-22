@@ -1,14 +1,15 @@
 #!/bin/bash
+# Docker image name - hardcoded
+DOCKER_IMAGE_NAME="aderumier/emulationstation_gamemanager"
 
 # GameManager Docker Publishing Script
 # This script helps publish the GameManager Docker image to DockerHub
 
 set -e
 
-# Configuration
-IMAGE_NAME="emulationstation_gamemanager"
-DOCKERHUB_USERNAME="aderumier"
-FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+# Configuration - hardcoded image name
+DOCKER_IMAGE_NAME="aderumier/emulationstation_gamemanager"
+FULL_IMAGE_NAME="${DOCKER_IMAGE_NAME}"
 
 # Get version from git tag (like build_deb.sh)
 if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
@@ -64,7 +65,7 @@ check_docker() {
     print_success "Docker is running"
 }
 
-# Function to get DockerHub username
+# Function to get DockerHub username (for login only)
 get_dockerhub_username() {
     if [ -z "$DOCKERHUB_USERNAME" ]; then
         echo -n "Enter your DockerHub username: "
@@ -89,11 +90,6 @@ dockerhub_login() {
 
 # Function to build the image
 build_image() {
-    # Ensure username is set for build
-    if [ -z "$DOCKERHUB_USERNAME" ]; then
-        get_dockerhub_username
-    fi
-    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
     print_status "Building Docker image: ${FULL_IMAGE_NAME}:${VERSION}"
     # Determine the .deb file name based on version
     DEB_FILE="gamemanager_${VERSION}-1_all.deb"
@@ -112,7 +108,6 @@ build_image() {
 # Function to tag images
 tag_images() {
     print_status "Tagging images..."
-    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
     
     # Tag latest (versioned tag already exists from build)
     docker tag ${FULL_IMAGE_NAME}:${VERSION} ${FULL_IMAGE_NAME}:latest
@@ -123,7 +118,6 @@ tag_images() {
 # Function to push images
 push_images() {
     print_status "Pushing images to DockerHub..."
-    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
     
     # Push versioned image
     print_status "Pushing ${FULL_IMAGE_NAME}:${VERSION}..."
@@ -167,12 +161,6 @@ show_usage() {
 cleanup_old_images() {
     print_status "Cleaning up old Docker images..."
     
-    # Ensure username is set
-    if [ -z "$DOCKERHUB_USERNAME" ]; then
-        get_dockerhub_username
-    fi
-    FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
-    
     # Get all images for this repository
     local all_images=$(docker images ${FULL_IMAGE_NAME} --format "{{.Repository}}:{{.Tag}}" 2>/dev/null || true)
     
@@ -207,6 +195,7 @@ while [[ $# -gt 0 ]]; do
         -u|--username)
             DOCKERHUB_USERNAME="$2"
             shift 2
+            # Note: Username is only used for DockerHub login, image name is hardcoded
             ;;
         -v|--version)
             VERSION="$2"
@@ -272,7 +261,6 @@ main() {
         # Clean up old local images after successful push
         cleanup_old_images
         
-        FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
         print_success "All done! Your images are now available on DockerHub:"
         print_status "  ${FULL_IMAGE_NAME}:${VERSION}"
         print_status "  ${FULL_IMAGE_NAME}:latest"
@@ -280,10 +268,6 @@ main() {
         print_status "Users can now pull your image with:"
         print_status "  docker pull ${FULL_IMAGE_NAME}:latest"
     else
-        if [ -z "$DOCKERHUB_USERNAME" ]; then
-            get_dockerhub_username
-        fi
-        FULL_IMAGE_NAME="${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
         print_success "Build completed. Image: ${FULL_IMAGE_NAME}:${VERSION}"
     fi
 }

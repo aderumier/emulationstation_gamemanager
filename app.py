@@ -5777,9 +5777,10 @@ def manage_video_config():
             youtube_cookie_path = os.path.join('var', 'config', 'youtube_cookie.txt')
             youtube_cookie_exists = os.path.isfile(youtube_cookie_path) and os.path.getsize(youtube_cookie_path) > 0
             
-            # Check YouTube API key presence
-            youtube_api_key = get_youtube_api_key()
-            youtube_api_key_exists = bool(youtube_api_key)
+            # Check YouTube API keys presence
+            youtube_api_keys = get_youtube_api_keys()
+            youtube_api_key_exists = len(youtube_api_keys) > 0
+            youtube_api_key = youtube_api_keys[0] if youtube_api_keys else None
 
             return jsonify({
                 'force_video_resolution': video_config.get('force_video_resolution', ''),
@@ -5791,6 +5792,7 @@ def manage_video_config():
                 'available_resolutions': available_resolutions,
                 'youtube_cookie_exists': youtube_cookie_exists,
                 'youtube_api_key_exists': youtube_api_key_exists,
+                'api_keys_count': len(youtube_api_keys),
                 'youtube_api_key_length': len(youtube_api_key) if youtube_api_key else 0
             })
         elif request.method == 'PUT':
@@ -7140,27 +7142,44 @@ def manage_youtube_credentials():
     """Manage YouTube Data API v3 credentials"""
     try:
         if request.method == 'GET':
-            # Return current credentials status (without exposing the actual key)
-            api_key = get_youtube_api_key()
+            # Return current credentials (including keys for management)
+            api_keys = get_youtube_api_keys()
             
             return jsonify({
                 'success': True,
-                'has_credentials': bool(api_key),
-                'api_key_length': len(api_key) if api_key else 0
+                'has_credentials': len(api_keys) > 0,
+                'api_keys_count': len(api_keys),
+                'api_keys': api_keys,  # Return keys for UI management
+                'api_key_length': len(api_keys[0]) if api_keys else 0  # Return first key length for backward compatibility
             })
         
         elif request.method == 'POST':
-            # Save credentials
+            # Save credentials (supports single key or array of keys)
             data = request.get_json()
-            if not data or 'api_key' not in data:
-                return jsonify({'error': 'API key is required'}), 400
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
             
-            api_key = data['api_key'].strip()
-            if not api_key:
-                return jsonify({'error': 'API key cannot be empty'}), 400
-            
-            # Save YouTube API key to credentials.json
-            success = save_youtube_api_key(api_key)
+            # Support both 'api_key' (single) and 'api_keys' (array) for backward compatibility
+            if 'api_keys' in data:
+                # Multiple keys provided
+                api_keys = data['api_keys']
+                if not isinstance(api_keys, list):
+                    return jsonify({'error': 'api_keys must be an array'}), 400
+                
+                # Filter out empty keys
+                api_keys = [key.strip() for key in api_keys if key and key.strip()]
+                if not api_keys:
+                    return jsonify({'error': 'At least one API key is required'}), 400
+                
+                success = save_youtube_api_key(api_keys)
+            elif 'api_key' in data:
+                # Single key provided (backward compatibility)
+                api_key = data['api_key'].strip()
+                if not api_key:
+                    return jsonify({'error': 'API key cannot be empty'}), 400
+                success = save_youtube_api_key(api_key)
+            else:
+                return jsonify({'error': 'api_key or api_keys is required'}), 400
             
             if success:
                 return jsonify({'success': True, 'message': 'YouTube API credentials saved successfully'})
@@ -10017,9 +10036,8 @@ def multiscraper_search_endpoint():
                                             # URL encode filename for proper handling
                                             from urllib.parse import quote
                                             encoded_filename = quote(filename)
-                                            # Use request.host_url to get absolute URL
-                                            base_url = request.host_url.rstrip('/')
-                                            download_url = f"{base_url}/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
+                                            # Use relative URL - browser will use current domain and port
+                                            download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
                                             found_files.append({
                                                 'url': download_url,
                                                 'filename': filename,
@@ -10032,11 +10050,11 @@ def multiscraper_search_endpoint():
                                         file_key = f"{emumovies_type}:{filename}"
                                         if file_key not in seen_files:
                                             seen_files.add(file_key)
-                                            # Single file (use absolute URL for PDF preview)
+                                            # Single file (use relative URL - browser will use current domain and port)
                                             from urllib.parse import quote
                                             encoded_filename = quote(matched_value)
-                                            base_url = request.host_url.rstrip('/')
-                                            download_url = f"{base_url}/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
+                                            # Use relative URL - browser will use current domain and port
+                                            download_url = f"/api/emumovies-download-media?system={emumovies_system}&mediaType={emumovies_type}&filename={encoded_filename}"
                                             found_files.append({
                                                 'url': download_url,
                                                 'filename': matched_value,
@@ -17275,7 +17293,7 @@ def youtube_search():
         
         print(f"Searching YouTube API for: {search_query} (order: {order})")
         
-        # Get YouTube API key from credentials
+        # Get YouTube API key from credentials (round-robin with daily limit tracking)
         youtube_api_key = get_youtube_api_key()
         if not youtube_api_key:
             return jsonify({
@@ -17284,89 +17302,130 @@ def youtube_search():
                 'query': search_query
             }), 400
         
-        # Search using YouTube Data API v3
-        try:
-            # Use the search query as-is for better exact matches
-            api_query = search_query
-            search_url = "https://www.googleapis.com/youtube/v3/search"
-            
-            params = {
-                'part': 'snippet',
-                'q': api_query,
-                'type': 'video',
-                'maxResults': 20,  # Increased to get more results
-                'order': order,  # Use order from request
-                'key': youtube_api_key
-            }
-            
-            print(f"Making API request to: {search_url}")
-            response = requests.get(search_url, params=params, timeout=15)
-            response.raise_for_status()
-            
-            print(f"API response status: {response.status_code}")
-            api_data = response.json()
-            
-            if 'items' not in api_data:
-                print(f"Unexpected API response: {api_data}")
-                return jsonify({
-                    'success': False,
-                    'error': 'Unexpected response from YouTube API',
-                    'query': search_query
-                })
-            
-            videos = []
-            for item in api_data['items']:
-                video_id = item['id']['videoId']
-                snippet = item['snippet']
+        # Search using YouTube Data API v3 with retry logic for quota-exceeded keys
+        max_retries = 3  # Try up to 3 different keys
+        retry_count = 0
+        last_error = None
+        
+        while retry_count < max_retries:
+            try:
+                # Get API key (will skip quota-exceeded keys)
+                current_key = get_youtube_api_key()
+                if not current_key:
+                    return jsonify({
+                        'success': False,
+                        'error': 'No available YouTube API keys. All keys have reached their daily quota.',
+                        'query': search_query
+                    }), 400
                 
-                # Format duration (we'll get this from video details)
-                duration = "Unknown"
+                # Use the search query as-is for better exact matches
+                api_query = search_query
+                search_url = "https://www.googleapis.com/youtube/v3/search"
                 
-                # Format view count (we'll get this from video details)
-                view_count = "Unknown"
-                
-                # Format published time
-                published_time = format_youtube_published_time(snippet['publishedAt'])
-                
-                video_data = {
-                    'id': video_id,
-                    'title': snippet['title'],
-                    'thumbnail': snippet['thumbnails'].get('high', {}).get('url', snippet['thumbnails'].get('medium', {}).get('url', '')),
-                    'duration': duration,
-                    'channel': snippet['channelTitle'],
-                    'view_count': view_count,
-                    'published_time': published_time,
-                    'url': f"https://www.youtube.com/watch?v={video_id}"
+                params = {
+                    'part': 'snippet',
+                    'q': api_query,
+                    'type': 'video',
+                    'maxResults': 20,  # Increased to get more results
+                    'order': order,  # Use order from request
+                    'key': current_key
                 }
-                videos.append(video_data)
-            
-            # Get additional details for each video (duration, view count)
-            if videos:
-                videos = get_youtube_video_details(videos, youtube_api_key)
-            
-            print(f"Successfully retrieved {len(videos)} videos from YouTube API")
-            return jsonify({
-                'success': True,
-                'results': videos,
-                'query': search_query
-            })
-            
-        except requests.RequestException as e:
-            print(f"YouTube API request error: {e}")
-            return jsonify({
-                'success': False,
-                'error': f'YouTube API request failed: {str(e)}',
-                'query': search_query
-            })
-        except Exception as e:
-            print(f"Unexpected error during YouTube API search: {e}")
-            import traceback
-            traceback.print_exc()
-            return jsonify({
-                'success': False,
-                'error': f'YouTube API error: {str(e)}',
+                
+                print(f"Making API request to: {search_url} (attempt {retry_count + 1}/{max_retries})")
+                response = requests.get(search_url, params=params, timeout=15)
+                
+                # Check for 403 Forbidden (quota exceeded)
+                if response.status_code == 403:
+                    print(f"⚠️  403 Forbidden - API key quota exceeded, marking key and trying next one...")
+                    mark_youtube_key_quota_exceeded(current_key)
+                    retry_count += 1
+                    last_error = "API key quota exceeded (403 Forbidden)"
+                    continue  # Try next key
+                
+                response.raise_for_status()
+                
+                # Success - increment usage counter for this API key
+                increment_youtube_key_usage(current_key)
+                youtube_api_key = current_key  # Store for video details call
+                
+                # Process successful response
+                print(f"API response status: {response.status_code}")
+                api_data = response.json()
+                
+                if 'items' not in api_data:
+                    print(f"Unexpected API response: {api_data}")
+                    return jsonify({
+                        'success': False,
+                        'error': 'Unexpected response from YouTube API',
+                        'query': search_query
+                    })
+                
+                videos = []
+                for item in api_data['items']:
+                    video_id = item['id']['videoId']
+                    snippet = item['snippet']
+                    
+                    # Format duration (we'll get this from video details)
+                    duration = "Unknown"
+                    
+                    # Format view count (we'll get this from video details)
+                    view_count = "Unknown"
+                    
+                    # Format published time
+                    published_time = format_youtube_published_time(snippet['publishedAt'])
+                    
+                    video_data = {
+                        'id': video_id,
+                        'title': snippet['title'],
+                        'thumbnail': snippet['thumbnails'].get('high', {}).get('url', snippet['thumbnails'].get('medium', {}).get('url', '')),
+                        'duration': duration,
+                        'channel': snippet['channelTitle'],
+                        'view_count': view_count,
+                        'published_time': published_time,
+                        'url': f"https://www.youtube.com/watch?v={video_id}"
+                    }
+                    videos.append(video_data)
+                
+                # Get additional details for each video (duration, view count)
+                # This will also use round-robin and increment counters
+                if videos:
+                    videos = get_youtube_video_details(videos, youtube_api_key)
+                
+                print(f"Successfully retrieved {len(videos)} videos from YouTube API")
+                return jsonify({
+                    'success': True,
+                    'results': videos,
                     'query': search_query
                 })
+                
+            except requests.RequestException as e:
+                # Check if it's a 403 that we haven't handled yet
+                if hasattr(e, 'response') and e.response and e.response.status_code == 403:
+                    print(f"⚠️  403 Forbidden in exception handler - API key quota exceeded")
+                    mark_youtube_key_quota_exceeded(current_key)
+                    retry_count += 1
+                    last_error = "API key quota exceeded (403 Forbidden)"
+                    continue  # Try next key
+                
+                # Other request errors
+                print(f"YouTube API request error: {e}")
+                last_error = f'YouTube API request failed: {str(e)}'
+                retry_count += 1
+                if retry_count >= max_retries:
+                    break  # Exit retry loop
+                continue
+            
+            except Exception as e:
+                print(f"Unexpected error during YouTube API search: {e}")
+                last_error = f'YouTube API error: {str(e)}'
+                break  # Don't retry on unexpected errors
+        
+        # If we get here, all retries failed
+        return jsonify({
+            'success': False,
+            'error': last_error or 'YouTube API request failed after retries',
+            'query': search_query
+        }), 500
             
     except Exception as e:
         print(f"YouTube search error: {e}")
@@ -17592,21 +17651,143 @@ def download_media_from_url_endpoint():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-def get_youtube_api_key():
-    """Get YouTube API key from credentials"""
+def get_youtube_api_keys():
+    """Get all YouTube API keys from credentials (supports multiple keys)"""
     try:
         credentials_path = 'var/config/credentials.json'
         if os.path.exists(credentials_path):
             with open(credentials_path, 'r') as f:
                 credentials = json.load(f)
-            return credentials.get('youtube_api_key')
-        return None
+            
+            # Support both old format (single key) and new format (array of keys)
+            youtube_api_key = credentials.get('youtube_api_key')
+            youtube_api_keys = credentials.get('youtube_api_keys', [])
+            
+            # If old format exists, convert to new format
+            if youtube_api_key and not youtube_api_keys:
+                return [youtube_api_key] if youtube_api_key else []
+            
+            # Return array of keys, filtering out empty strings
+            return [key for key in youtube_api_keys if key and key.strip()]
+        return []
     except Exception as e:
-        print(f"Error loading YouTube API key: {e}")
-        return None
+        print(f"Error loading YouTube API keys: {e}")
+        return []
+
+def get_youtube_api_key():
+    """Get a YouTube API key using round-robin selection with daily usage tracking"""
+    try:
+        keys = get_youtube_api_keys()
+        if not keys:
+            return None
+        
+        # Load daily usage counters
+        counters = load_youtube_key_counters()
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Filter out keys that have exceeded daily limit (200 requests)
+        available_keys = []
+        for key in keys:
+            key_hash = hashlib.md5(key.encode()).hexdigest()[:8]  # Use first 8 chars of hash as ID
+            count = counters.get(today, {}).get(key_hash, 0)
+            if count < 200:
+                available_keys.append((key, key_hash, count))
+        
+        if not available_keys:
+            print("⚠️  All YouTube API keys have reached daily limit (200 requests)")
+            # Still return a key for the request, but it will likely fail
+            return keys[0]
+        
+        # Round-robin: select key with lowest usage count
+        available_keys.sort(key=lambda x: x[2])  # Sort by count
+        selected_key, selected_hash, _ = available_keys[0]
+        
+        return selected_key
+    except Exception as e:
+        print(f"Error in get_youtube_api_key: {e}")
+        # Fallback to first key
+        keys = get_youtube_api_keys()
+        return keys[0] if keys else None
+
+def increment_youtube_key_usage(api_key):
+    """Increment daily usage counter for a YouTube API key"""
+    try:
+        if not api_key:
+            return
+        
+        key_hash = hashlib.md5(api_key.encode()).hexdigest()[:8]
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        counters = load_youtube_key_counters()
+        if today not in counters:
+            counters[today] = {}
+        
+        if key_hash not in counters[today]:
+            counters[today][key_hash] = 0
+        
+        counters[today][key_hash] += 1
+        
+        save_youtube_key_counters(counters)
+        print(f"📊 YouTube API key usage: {key_hash} = {counters[today][key_hash]}/200 (today)")
+    except Exception as e:
+        print(f"Error incrementing YouTube key usage: {e}")
+
+def mark_youtube_key_quota_exceeded(api_key):
+    """Mark a YouTube API key as having reached its daily quota (403 Forbidden)"""
+    try:
+        if not api_key:
+            return
+        
+        key_hash = hashlib.md5(api_key.encode()).hexdigest()[:8]
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        counters = load_youtube_key_counters()
+        if today not in counters:
+            counters[today] = {}
+        
+        # Set counter to 200 to mark as quota exceeded
+        counters[today][key_hash] = 200
+        
+        save_youtube_key_counters(counters)
+        print(f"⚠️  YouTube API key {key_hash} marked as quota exceeded (403 Forbidden)")
+    except Exception as e:
+        print(f"Error marking YouTube key as quota exceeded: {e}")
+
+def load_youtube_key_counters():
+    """Load daily usage counters for YouTube API keys"""
+    try:
+        counters_path = 'var/cache/youtube_keys_count.json'
+        if os.path.exists(counters_path):
+            with open(counters_path, 'r') as f:
+                counters = json.load(f)
+            # Clean up old dates (keep only last 7 days)
+            today = datetime.now()
+            cleaned_counters = {}
+            for date_str, counts in counters.items():
+                try:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    if (today - date_obj).days <= 7:
+                        cleaned_counters[date_str] = counts
+                except ValueError:
+                    pass
+            return cleaned_counters
+        return {}
+    except Exception as e:
+        print(f"Error loading YouTube key counters: {e}")
+        return {}
+
+def save_youtube_key_counters(counters):
+    """Save daily usage counters for YouTube API keys"""
+    try:
+        counters_path = 'var/cache/youtube_keys_count.json'
+        os.makedirs(os.path.dirname(counters_path), exist_ok=True)
+        with open(counters_path, 'w') as f:
+            json.dump(counters, f, indent=2)
+    except Exception as e:
+        print(f"Error saving YouTube key counters: {e}")
 
 def save_youtube_api_key(api_key):
-    """Save YouTube API key to credentials"""
+    """Save YouTube API key(s) to credentials (supports single key or array)"""
     try:
         credentials_path = 'var/config/credentials.json'
         
@@ -17616,8 +17797,25 @@ def save_youtube_api_key(api_key):
             with open(credentials_path, 'r') as f:
                 credentials = json.load(f)
         
-        # Update YouTube API key
-        credentials['youtube_api_key'] = api_key
+        # If api_key is a string, treat as single key (backward compatibility)
+        # If api_key is a list, treat as multiple keys
+        if isinstance(api_key, list):
+            credentials['youtube_api_keys'] = [key.strip() for key in api_key if key and key.strip()]
+            # Remove old single key format
+            if 'youtube_api_key' in credentials:
+                del credentials['youtube_api_key']
+        elif isinstance(api_key, str):
+            if api_key.strip():
+                # Convert single key to array format
+                credentials['youtube_api_keys'] = [api_key.strip()]
+            else:
+                # Empty string means clear all keys
+                credentials['youtube_api_keys'] = []
+            # Keep old format for backward compatibility
+            credentials['youtube_api_key'] = api_key.strip() if api_key.strip() else ''
+        else:
+            # Invalid format
+            return False
         
         # Ensure directory exists
         os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
@@ -17672,72 +17870,120 @@ def format_youtube_published_time(published_at):
         print(f"Error formatting published time: {e}")
         return "Unknown"
 
-def get_youtube_video_details(videos, api_key):
+def get_youtube_video_details(videos, api_key=None):
     """Get additional details (duration, view count) for YouTube videos"""
     try:
         if not videos:
             return videos
         
-        # Extract video IDs
-        video_ids = [video['id'] for video in videos]
+        # Get API key using round-robin if not provided
+        if not api_key:
+            api_key = get_youtube_api_key()
+            if not api_key:
+                print("⚠️  No YouTube API key available for video details")
+                return videos
         
-        # Make API request for video details
-        details_url = "https://www.googleapis.com/youtube/v3/videos"
-        params = {
-            'part': 'contentDetails,statistics',
-            'id': ','.join(video_ids),
-            'key': api_key
-        }
+        max_retries = 3
+        retry_count = 0
         
-        response = requests.get(details_url, params=params, timeout=15)
-        response.raise_for_status()
+        while retry_count < max_retries:
+            try:
+                # Get API key (will skip quota-exceeded keys)
+                current_key = api_key if retry_count == 0 else get_youtube_api_key()
+                if not current_key:
+                    print("⚠️  No available YouTube API keys for video details")
+                    return videos
+                
+                # Extract video IDs
+                video_ids = [video['id'] for video in videos]
+                
+                # Make API request for video details
+                details_url = "https://www.googleapis.com/youtube/v3/videos"
+                params = {
+                    'part': 'contentDetails,statistics',
+                    'id': ','.join(video_ids),
+                    'key': current_key
+                }
+                
+                response = requests.get(details_url, params=params, timeout=15)
+                
+                # Check for 403 Forbidden (quota exceeded)
+                if response.status_code == 403:
+                    print(f"⚠️  403 Forbidden for video details - API key quota exceeded, trying next key...")
+                    mark_youtube_key_quota_exceeded(current_key)
+                    retry_count += 1
+                    continue  # Try next key
+                
+                response.raise_for_status()
+                
+                # Success - increment usage counter for this API key
+                increment_youtube_key_usage(current_key)
+                api_key = current_key  # Update for next use
+                
+                # Parse response
+                details_data = response.json()
+                
+                if 'items' not in details_data:
+                    print(f"No video details found: {details_data}")
+                    return videos
+                
+                # Create a mapping of video ID to details
+                details_map = {}
+                for item in details_data['items']:
+                    video_id = item['id']
+                    content_details = item.get('contentDetails', {})
+                    statistics = item.get('statistics', {})
+                    
+                    # Parse duration (ISO 8601 format like PT4M13S)
+                    duration = "Unknown"
+                    if 'duration' in content_details:
+                        duration = parse_youtube_duration(content_details['duration'])
+                    
+                    # Get view count
+                    view_count = "Unknown"
+                    if 'viewCount' in statistics:
+                        try:
+                            view_count_num = int(statistics['viewCount'])
+                            if view_count_num >= 1000000:
+                                view_count = f"{view_count_num / 1000000:.1f}M"
+                            elif view_count_num >= 1000:
+                                view_count = f"{view_count_num / 1000:.1f}K"
+                            else:
+                                view_count = str(view_count_num)
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    details_map[video_id] = {
+                        'duration': duration,
+                        'view_count': view_count
+                    }
+                
+                # Update videos with details
+                for video in videos:
+                    video_id = video['id']
+                    if video_id in details_map:
+                        video['duration'] = details_map[video_id]['duration']
+                        video['view_count'] = details_map[video_id]['view_count']
+                
+                return videos  # Success - return updated videos
+                
+            except requests.RequestException as e:
+                # Check if it's a 403 that we haven't handled yet
+                if hasattr(e, 'response') and e.response and e.response.status_code == 403:
+                    print(f"⚠️  403 Forbidden in exception handler for video details")
+                    mark_youtube_key_quota_exceeded(current_key)
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print("⚠️  All API keys exhausted for video details, returning videos without full details")
+                        break
+                    continue  # Try next key
+                
+                # Other request errors - don't retry
+                print(f"Error getting video details: {e}")
+                return videos
         
-        details_data = response.json()
-        
-        if 'items' not in details_data:
-            print(f"No video details found: {details_data}")
-            return videos
-        
-        # Create a mapping of video ID to details
-        details_map = {}
-        for item in details_data['items']:
-            video_id = item['id']
-            content_details = item.get('contentDetails', {})
-            statistics = item.get('statistics', {})
-            
-            # Parse duration (ISO 8601 format like PT4M13S)
-            duration = "Unknown"
-            if 'duration' in content_details:
-                duration = parse_youtube_duration(content_details['duration'])
-            
-            # Format view count
-            view_count = "Unknown"
-            if 'viewCount' in statistics:
-                try:
-                    views = int(statistics['viewCount'])
-                    if views >= 1000000:
-                        view_count = f"{views/1000000:.1f}M views"
-                    elif views >= 1000:
-                        view_count = f"{views/1000:.1f}K views"
-                    else:
-                        view_count = f"{views:,} views"
-                except (ValueError, TypeError):
-                    pass
-            
-            details_map[video_id] = {
-                'duration': duration,
-                'view_count': view_count
-            }
-        
-        # Update videos with details
-        for video in videos:
-            video_id = video['id']
-            if video_id in details_map:
-                video['duration'] = details_map[video_id]['duration']
-                video['view_count'] = details_map[video_id]['view_count']
-        
+        # If we get here after retries, return videos without full details
         return videos
-        
     except Exception as e:
         print(f"Error getting YouTube video details: {e}")
         return videos
@@ -29181,7 +29427,6 @@ def get_emumovies_database_status():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/emumovies-download-media', methods=['GET'])
-@login_required
 def emumovies_download_media_endpoint():
     """Download media from EmuMovies API and return as file response"""
     try:
@@ -29228,7 +29473,10 @@ def emumovies_download_media_endpoint():
                 response.iter_content(chunk_size=8192),
                 mimetype=content_type,
                 headers={
-                    'Content-Disposition': f'inline; filename="{filename}"'
+                    'Content-Disposition': f'inline; filename="{filename}"',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET',
+                    'Cache-Control': 'public, max-age=3600'
                 }
             )
         else:
