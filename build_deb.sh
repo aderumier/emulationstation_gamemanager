@@ -45,6 +45,7 @@ cp steam_service.py debian/opt/gamemanager/steam_service.py
 cp steamgrid_service.py debian/opt/gamemanager/steamgrid_service.py
 cp mobygames_service.py debian/opt/gamemanager/mobygames_service.py
 cp igdb_service.py debian/opt/gamemanager/igdb_service.py
+cp emumovies_service.py debian/opt/gamemanager/emumovies_service.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
@@ -66,6 +67,12 @@ echo "📦 Copying IGDB databases and pickle files..."
 mkdir -p debian/opt/gamemanager/var/db/igdb
 cp var/db/igdb/*.pkl debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB pickle files found, skipping..."
 cp var/db/igdb/mediatype.txt debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB mediatype.txt found, skipping..."
+
+# EmuMovies databases
+echo "📦 Copying EmuMovies databases..."
+mkdir -p debian/opt/gamemanager/var/db/emumovies
+cp var/db/emumovies/emumovies.json debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies JSON database found, skipping..."
+cp var/db/emumovies/emumovies_index.pkl debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies index pickle file found, skipping..."
 
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
@@ -162,6 +169,11 @@ if [ ! -f "debian/opt/gamemanager/igdb_service.py" ]; then
     exit 1
 fi
 
+if [ ! -f "debian/opt/gamemanager/emumovies_service.py" ]; then
+    echo "❌ ERROR: emumovies_service.py not found in package!"
+    exit 1
+fi
+
 if [ ! -f "debian/opt/gamemanager/var/config/credentials.enc" ]; then
     echo "❌ ERROR: credentials.enc not found in package!"
     exit 1
@@ -205,6 +217,17 @@ fi
 
 if [ -f "var/db/igdb/igdb_genres.pkl" ] && [ ! -f "debian/opt/gamemanager/var/db/igdb/igdb_genres.pkl" ]; then
     echo "❌ ERROR: igdb_genres.pkl not found in package!"
+    exit 1
+fi
+
+# Verify EmuMovies database files are included (if they exist)
+if [ -f "var/db/emumovies/emumovies.json" ] && [ ! -f "debian/opt/gamemanager/var/db/emumovies/emumovies.json" ]; then
+    echo "❌ ERROR: emumovies.json not found in package!"
+    exit 1
+fi
+
+if [ -f "var/db/emumovies/emumovies_index.pkl" ] && [ ! -f "debian/opt/gamemanager/var/db/emumovies/emumovies_index.pkl" ]; then
+    echo "❌ ERROR: emumovies_index.pkl not found in package!"
     exit 1
 fi
 

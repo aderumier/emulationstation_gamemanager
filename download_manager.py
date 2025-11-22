@@ -42,6 +42,7 @@ class DownloadManager:
         self.shutdown_event = threading.Event()
         self.consumer_thread: Optional[threading.Thread] = None
         self.is_running = False
+        self.completed_downloads = 0  # Counter for completed downloads
         
         # HTTPX configuration
         self.limits = httpx.Limits(
@@ -95,6 +96,8 @@ class DownloadManager:
                 
             print("🛑 Stopping download manager and cancelling active downloads...")
             self.shutdown_event.set()
+            # Reset completed counter when stopping
+            self.completed_downloads = 0
             
             # Flush the download queue - remove all pending tasks
             queue_size = 0
@@ -141,6 +144,16 @@ class DownloadManager:
     def add_task(self, task: Dict[str, Any]):
         """Add a download task to the queue"""
         self.task_queue.put(task)
+    
+    def get_queue_size(self) -> int:
+        """Get the current size of the download queue"""
+        with self.lock:
+            return self.task_queue.qsize()
+    
+    def get_completed_count(self) -> int:
+        """Get the number of completed downloads"""
+        with self.lock:
+            return self.completed_downloads
         
     def wait_for_completion(self, expected_count: int) -> List[Dict[str, Any]]:
         """Wait for all downloads to complete and return results"""
@@ -177,6 +190,91 @@ class DownloadManager:
                     
                 continue  # Continue waiting, don't break on timeout
         return results
+    
+    def is_queue_empty_and_no_active_tasks(self) -> bool:
+        """Check if the download queue is empty and there are no active download tasks"""
+        with self.lock:
+            # Check if queue is empty
+            if not self.task_queue.empty():
+                return False
+            
+            # Check if there are active tasks in the consumer thread
+            # Note: active_tasks is a local variable in the async function, so we can't access it directly
+            # Instead, we check if the consumer thread is still running and if there are results pending
+            # If the queue is empty and we're still getting results, there might be active tasks
+            # The best we can do is check if the queue is empty and wait a bit to see if more results come in
+            return True
+    
+    def wait_for_all_downloads_complete(self, check_interval: float = 0.5, 
+                                        total_expected: int = None, progress_callback=None) -> bool:
+        """Wait for all downloads to complete by checking queue and polling for results
+        
+        Args:
+            check_interval: How often to check status in seconds
+            total_expected: Total number of downloads expected (for progress calculation)
+            progress_callback: Optional callback function(completed, total, queue_size) for progress updates
+        
+        Returns True if all downloads completed, False if stopped by user
+        """
+        import time
+        last_progress_update = 0
+        progress_update_interval = 0.5  # Update progress every 0.5 seconds
+        
+        while True:
+            # Check if we should stop
+            if self.shutdown_event.is_set():
+                print("🛑 Download manager stopped during wait")
+                return False
+            
+            # Check if the task has been stopped
+            if self.check_task_status():
+                print("🛑 Task stopped by user during wait")
+                return False
+            
+            # Get current queue and result sizes
+            with self.lock:
+                queue_size = self.task_queue.qsize()
+                completed_count = self.result_queue.qsize()
+            
+            # Update progress if callback provided and enough time has passed
+            current_time = time.time()
+            if progress_callback and (current_time - last_progress_update >= progress_update_interval):
+                if total_expected is not None:
+                    # Calculate progress based on completed downloads
+                    progress_pct = min(100, int((completed_count / total_expected) * 100)) if total_expected > 0 else 0
+                    progress_callback(completed_count, total_expected, queue_size, progress_pct)
+                else:
+                    # Just report current status
+                    progress_callback(completed_count, None, queue_size, None)
+                last_progress_update = current_time
+            
+            if queue_size == 0:
+                # Queue is empty, but there might still be active downloads
+                # Wait a bit and check if we get more results or if everything is truly done
+                time.sleep(check_interval)
+                
+                # Check again if queue is still empty
+                with self.lock:
+                    still_empty = self.task_queue.empty()
+                    final_completed = self.result_queue.qsize()
+                
+                if still_empty:
+                    # Queue has been empty for a while, likely all downloads are done
+                    # But we need to make sure the consumer thread has processed everything
+                    # Give it a bit more time to finish any in-flight downloads
+                    time.sleep(1.0)
+                    
+                    # Final check
+                    with self.lock:
+                        if self.task_queue.empty():
+                            # Final progress update
+                            if progress_callback and total_expected is not None:
+                                progress_callback(final_completed, total_expected, 0, 100)
+                            print("✅ All downloads completed - queue is empty")
+                            return True
+            else:
+                # Queue still has items, wait a bit and check again
+                time.sleep(check_interval)
     
     def check_task_status(self):
         """Check if the current task has been stopped (imports app module to check)"""
@@ -344,10 +442,16 @@ class DownloadManager:
                                     result = task.result()
                                     results.append(result)
                                     self.result_queue.put(result)
+                                    # Increment completed counter
+                                    with self.lock:
+                                        self.completed_downloads += 1
                                 except Exception as e:
                                     error_result = {'error': str(e)}
                                     results.append(error_result)
                                     self.result_queue.put(error_result)
+                                    # Increment completed counter even for errors
+                                    with self.lock:
+                                        self.completed_downloads += 1
                         else:
                             # No active downloads, small delay to prevent busy waiting
                             await asyncio.sleep(0.1)

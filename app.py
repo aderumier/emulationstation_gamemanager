@@ -4018,6 +4018,16 @@ def run_image_download_task(system_name, data):
         # Execute game processing in parallel
         task.update_progress(f"🚀 Starting parallel processing of {len(game_tasks)} games...", progress_percentage=0)
         
+        # Reset download manager completed counter for this task
+        try:
+            from download_manager import get_download_manager
+            download_manager = get_download_manager()
+            if download_manager:
+                with download_manager.lock:
+                    download_manager.completed_downloads = 0
+        except Exception as e:
+            print(f"DEBUG: Could not reset download manager counter: {e}")
+        
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         
@@ -4163,21 +4173,56 @@ def run_image_download_task(system_name, data):
             from download_manager import get_download_manager
             download_manager = get_download_manager()
             if download_manager and download_manager.is_running:
-                # Wait for all pending downloads to complete
-                task.update_progress(f"⏳ Ensuring all downloads are finished...", progress_percentage=87, current_step=len(games_to_process))
+                # Get initial queue size to estimate total downloads
+                # Note: Some downloads may have already completed, so we check queue + completed
+                initial_queue_size = download_manager.get_queue_size()
+                initial_completed = download_manager.get_completed_count()
+                total_expected = initial_queue_size + initial_completed
                 
-                # Give a small delay to ensure all async operations complete
-                time.sleep(2)
+                if total_expected > 0:
+                    task.update_progress(f"📥 Downloading {total_expected} images... ({initial_completed} completed, {initial_queue_size} queued)", progress_percentage=85, current_step=len(games_to_process))
+                    
+                    # Progress callback for continuous updates
+                    def update_download_progress(completed, total, queue_size, progress_pct):
+                        if total is not None and progress_pct is not None:
+                            # Calculate progress between 85% and 89% (download phase)
+                            download_progress = 85 + int((progress_pct / 100.0) * 4)  # 85-89%
+                            remaining = total - completed if total > completed else 0
+                            task.update_progress(
+                                f"📥 Downloading images... {completed}/{total} completed ({remaining} remaining, {queue_size} in queue)",
+                                progress_percentage=download_progress,
+                                current_step=len(games_to_process)
+                            )
+                        else:
+                            # No total known, just show status
+                            task.update_progress(
+                                f"📥 Downloading images... {completed} completed ({queue_size} in queue)",
+                                progress_percentage=87,
+                                current_step=len(games_to_process)
+                            )
+                    
+                    # Wait for all downloads with progress updates (no timeout - waits until all complete)
+                    all_complete = download_manager.wait_for_all_downloads_complete(
+                        check_interval=0.5,
+                        total_expected=total_expected,
+                        progress_callback=update_download_progress
+                    )
+                    
+                    if all_complete:
+                        final_completed = download_manager.get_completed_count()
+                        task.update_progress(f"✅ All downloads completed ({final_completed} images)", progress_percentage=89, current_step=len(games_to_process))
+                    else:
+                        final_completed = download_manager.get_completed_count()
+                        task.update_progress(f"⚠️  Some downloads may still be in progress ({final_completed} completed), continuing anyway...", progress_percentage=89, current_step=len(games_to_process))
+                else:
+                    # No downloads queued
+                    task.update_progress(f"✅ No downloads pending", progress_percentage=89, current_step=len(games_to_process))
                 
-                # Check if download manager is still processing
-                if hasattr(download_manager, 'active_tasks') and download_manager.active_tasks:
-                    task.update_progress(f"⏳ Waiting for {len(download_manager.active_tasks)} active downloads...", progress_percentage=88, current_step=len(games_to_process))
-                    # Wait a bit more for active tasks to complete
-                    time.sleep(3)
-                
-                print(f"DEBUG: Download manager status - running: {download_manager.is_running}, active_tasks: {len(getattr(download_manager, 'active_tasks', []))}")
+                print(f"DEBUG: Download manager status - running: {download_manager.is_running}, queue_empty: {download_manager.is_queue_empty_and_no_active_tasks()}")
         except Exception as e:
             print(f"DEBUG: Error checking download manager status: {e}")
+            import traceback
+            traceback.print_exc()
             task.update_progress(f"⚠️  Warning: Could not verify download completion: {e}")
         
         # After all downloads complete, scan media files and update gamelist.xml
@@ -12154,6 +12199,10 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
     
     log_prefix = f"[{' | '.join(prefix_parts)}]" if prefix_parts else ""
     
+    # Track 0-size retries separately
+    zero_size_retry_count = 0
+    max_zero_size_retries = 2
+    
     for attempt in range(retry_attempts):
         try:
             if attempt > 0:
@@ -12197,13 +12246,41 @@ async def download_launchbox_image_httpx(image_url, local_path, media_type=None,
                         if process_status in ["converted", "resized", "converted_and_resized"]:
                             local_path = processed_path
                             filename = os.path.basename(local_path)
+                            # Re-check file size after processing
+                            if os.path.exists(local_path):
+                                file_size = os.path.getsize(local_path)
+                                if file_size == 0:
+                                    # Processed file is 0 size, delete it
+                                    try:
+                                        os.remove(local_path)
+                                        print(f"⚠️ Warning: Processed file is empty, deleted: {filename}")
+                                    except Exception as e:
+                                        print(f"⚠️ Warning: Failed to delete empty processed file: {e}")
+                                    return False, f"Processed file is empty: {filename}"
                             print(f"✅ Processed image: {process_status} - {filename}")
                         elif process_status == "failed":
                             print(f"⚠️ Warning: Failed to process image: {filename}")
                     
                     return True, f"Downloaded {filename} ({file_size} bytes)"
                 else:
-                    return False, f"File created but empty: {filename}"
+                    # File is 0 size - delete it and retry
+                    try:
+                        os.remove(local_path)
+                        print(f"⚠️ Warning: Downloaded file is 0 size (attempt {attempt + 1}), deleted: {filename}")
+                    except Exception as e:
+                        print(f"⚠️ Warning: Failed to delete empty file: {e}")
+                    
+                    # Retry for 0-size files (up to 2 additional retries)
+                    zero_size_retry_count += 1
+                    if zero_size_retry_count <= max_zero_size_retries and attempt < retry_attempts - 1:
+                        import threading
+                        threading.Thread(target=update_task_progress, args=(f"{log_prefix} ⚠️ File is 0 size, retrying download ({zero_size_retry_count}/{max_zero_size_retries})...",), daemon=True).start()
+                        # Small delay before retry
+                        await asyncio.sleep(1)
+                        continue  # Retry the download
+                    else:
+                        # Max retries reached for 0-size files
+                        return False, f"File is 0 size after {zero_size_retry_count} retries: {filename}"
             else:
                 return False, f"File not created: {filename}"
             

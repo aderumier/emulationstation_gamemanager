@@ -186,7 +186,8 @@
                 "BoxBack"
             ],
             "cartridge": [
-                "Cart"
+                "Cart",
+                "CD"
             ],
             "manual": [
                 "Manual"
@@ -208,6 +209,9 @@
             ],
             "titleshot": [
                 "Title"
+            ],
+            "fanart": [
+                "Artwork"
             ]
         }
     }

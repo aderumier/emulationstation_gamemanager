@@ -93,9 +93,9 @@ class EmuMoviesService:
     
     def _load_token_cache(self):
         """Load bearer token from cache file"""
-        cache_dir = 'var/cache'
+        cache_dir = 'var/temp'
         os.makedirs(cache_dir, exist_ok=True)
-        token_cache_path = os.path.join(cache_dir, 'emumovies_token_cache.json')
+        token_cache_path = os.path.join(cache_dir, 'emumovies_token_cache')
         if os.path.exists(token_cache_path):
             try:
                 with open(token_cache_path, 'r') as f:
@@ -109,9 +109,9 @@ class EmuMoviesService:
     
     def _save_token_cache(self, bearer_token: str, expires_in: int = 3600):
         """Save bearer token to cache file"""
-        cache_dir = 'var/cache'
+        cache_dir = 'var/temp'
         os.makedirs(cache_dir, exist_ok=True)
-        token_cache_path = os.path.join(cache_dir, 'emumovies_token_cache.json')
+        token_cache_path = os.path.join(cache_dir, 'emumovies_token_cache')
         try:
             expires_at = datetime.now() + timedelta(seconds=expires_in - 60)  # Subtract 60s for safety margin
             cache_data = {

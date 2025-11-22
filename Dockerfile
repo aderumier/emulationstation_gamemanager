@@ -69,6 +69,7 @@ RUN mkdir -p \
     /opt/gamemanager/var/db/igdb \
     /opt/gamemanager/var/db/screenscraper \
     /opt/gamemanager/var/db/mobygames \
+    /opt/gamemanager/var/db/emumovies \
     /opt/gamemanager/var/sessions \
     /opt/gamemanager/var/gamelists \
     /opt/gamemanager/var/config
@@ -105,6 +106,17 @@ RUN mkdir -p /opt/gamemanager/igdb_db.default && \
     chmod -R 644 /opt/gamemanager/igdb_db.default/*.pkl 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/igdb_db.default/
 
+# Copy EmuMovies database files to default location outside var (for volume mount scenarios)
+RUN mkdir -p /opt/gamemanager/emumovies_db.default && \
+    chmod -R 755 /opt/gamemanager/var/db/emumovies/ 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/db/emumovies/*.json 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/db/emumovies/*.pkl 2>/dev/null || true && \
+    (cp /opt/gamemanager/var/db/emumovies/emumovies.json /opt/gamemanager/emumovies_db.default/ 2>/dev/null || echo "No EmuMovies JSON database found") && \
+    (cp /opt/gamemanager/var/db/emumovies/emumovies_index.pkl /opt/gamemanager/emumovies_db.default/ 2>/dev/null || echo "No EmuMovies index pickle file found") && \
+    chmod -R 755 /opt/gamemanager/emumovies_db.default/ && \
+    chmod -R 644 /opt/gamemanager/emumovies_db.default/* 2>/dev/null || true && \
+    chown -R appuser:appuser /opt/gamemanager/emumovies_db.default/
+
 # Copy mediatype files to default location outside var (for volume mount scenarios)
 RUN (cp /opt/gamemanager/var/db/igdb/mediatype.txt /opt/gamemanager/igdb_mediatype.txt.default 2>/dev/null || echo 'cover\nscreenshots\nartworks\nlogos' > /opt/gamemanager/igdb_mediatype.txt.default) && \
     (cp /opt/gamemanager/var/db/launchbox/mediatype.json /opt/gamemanager/launchbox_mediatype.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/launchbox_mediatype.json.default) && \
@@ -133,6 +145,7 @@ mkdir -p /opt/gamemanager/var/db/launchbox
 mkdir -p /opt/gamemanager/var/db/igdb
 mkdir -p /opt/gamemanager/var/db/screenscraper
 mkdir -p /opt/gamemanager/var/db/mobygames
+mkdir -p /opt/gamemanager/var/db/emumovies
 mkdir -p /opt/gamemanager/var/db/steam
 mkdir -p /opt/gamemanager/var/db/steamgrid
 mkdir -p /opt/gamemanager/var/db/dats
@@ -202,12 +215,22 @@ else
     echo "⚠️  No IGDB pickle files found in default location"
 fi
 
+# Copy EmuMovies database files to var/db (always copy to ensure they're in the volume)
+echo "Copying EmuMovies database files to var/db/emumovies..."
+if [ -d /opt/gamemanager/emumovies_db.default ] && [ "$(ls -A /opt/gamemanager/emumovies_db.default 2>/dev/null)" ]; then
+    cp /opt/gamemanager/emumovies_db.default/* /opt/gamemanager/var/db/emumovies/
+    echo "✅ EmuMovies database files copied to volume"
+else
+    echo "⚠️  No EmuMovies database files found in default location"
+fi
+
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/screenscraper/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/igdb/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/launchbox/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/mobygames/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/emumovies/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steam/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steamgrid/* 2>/dev/null || true
 

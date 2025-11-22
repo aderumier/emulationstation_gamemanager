@@ -16268,6 +16268,8 @@ class GameCollectionManager {
                     screenscraper_platform: mappings.screenscraper,
                     igdb_platform: mappings.igdb,
                     mobygames_platform: mappings.mobygames,
+                    emumovies_platform: mappings.emumovies,
+                    dat_file: mappings.dat_file,
                     extensions: extensions
                 })
             });
