@@ -1239,6 +1239,24 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <div id="multiscraperMediaProgress" class="text-muted mt-1" style="display: none;"></div>
                     </div>
                     
+                    <div class="mb-3 d-flex align-items-center gap-2">
+                        <label for="multiscraperScraperSelect" class="form-label mb-0"><strong>Scraper:</strong></label>
+                        <select class="form-select form-select-sm" id="multiscraperScraperSelect" style="width: auto; min-width: 250px;">
+                            <option value="all_excluding_screenscraper">All scrapers excluding ScreenScraper</option>
+                            <option value="all">All scrapers</option>
+                            <option value="igdb">IGDB</option>
+                            <option value="steam">Steam</option>
+                            <option value="screenscraper">ScreenScraper</option>
+                            <option value="steamgriddb">SteamGridDB</option>
+                            <option value="launchbox">LaunchBox</option>
+                            <option value="mobygames">MobyGames</option>
+                            <option value="emumovies">EmuMovies</option>
+                        </select>
+                        <button type="button" class="btn btn-primary btn-sm" id="multiscraperSearchBtn">
+                            <i class="bi bi-search me-1"></i>Search
+                        </button>
+                    </div>
+                    
                     <div id="multiscraperMediaContent" class="row">
                         <!-- Media options will be displayed here -->
                     </div>

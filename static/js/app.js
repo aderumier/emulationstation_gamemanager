@@ -5848,10 +5848,13 @@ class GameCollectionManager {
         document.getElementById('multiscraperMediaGameName').textContent = game.name;
         document.getElementById('multiscraperMediaType').textContent = mediaType;
         
-        // Show progress
-        const progressDiv = document.getElementById('multiscraperMediaProgress');
-        progressDiv.style.display = 'block';
-        progressDiv.textContent = 'Searching for media from multiple sources...';
+        // Set default scraper selection (all excluding screenscraper)
+        const scraperSelect = document.getElementById('multiscraperScraperSelect');
+        scraperSelect.value = 'all_excluding_screenscraper';
+        
+        // Store current game and mediaType for search button
+        this.multiscraperCurrentGame = game;
+        this.multiscraperCurrentMediaType = mediaType;
         
         // Clear content
         const contentDiv = document.getElementById('multiscraperMediaContent');
@@ -5878,6 +5881,38 @@ class GameCollectionManager {
         modalElement.addEventListener('hidden.bs.modal', handleModalClose);
         modal.show();
         
+        // Set up search button event listener (only once)
+        const searchBtn = document.getElementById('multiscraperSearchBtn');
+        if (!searchBtn.hasAttribute('data-listener-attached')) {
+            searchBtn.setAttribute('data-listener-attached', 'true');
+            searchBtn.addEventListener('click', () => {
+                this.performMultiscraperSearch();
+            });
+        }
+        
+        // Perform initial search
+        await this.performMultiscraperSearch();
+    }
+    
+    async performMultiscraperSearch() {
+        if (!this.multiscraperCurrentGame || !this.multiscraperCurrentMediaType) {
+            return;
+        }
+        
+        const game = this.multiscraperCurrentGame;
+        const mediaType = this.multiscraperCurrentMediaType;
+        const scraperSelect = document.getElementById('multiscraperScraperSelect');
+        const selectedScraper = scraperSelect.value;
+        
+        // Show progress
+        const progressDiv = document.getElementById('multiscraperMediaProgress');
+        progressDiv.style.display = 'block';
+        progressDiv.textContent = 'Searching for media from multiple sources...';
+        
+        // Clear content
+        const contentDiv = document.getElementById('multiscraperMediaContent');
+        contentDiv.innerHTML = '';
+        
         try {
             // Perform multiscraper search for the specific media type
             const response = await fetch('/api/multiscraper-search', {
@@ -5889,7 +5924,8 @@ class GameCollectionManager {
                 body: JSON.stringify({
                     game_name: game.name,
                     media_type: mediaType,
-                    system_name: this.currentSystem
+                    system_name: this.currentSystem,
+                    scrapers: selectedScraper
                 })
             });
             
@@ -6345,9 +6381,14 @@ class GameCollectionManager {
             
             const title = document.createElement('h6');
             title.className = 'card-title';
-            title.textContent = `${result.source} - ${mediaType}`;
+            // For EmuMovies, include the media type in the title
+            let titleText = `${result.source} - ${mediaType}`;
+            if (result.source && result.source.toLowerCase() === 'emumovies' && result.emumovies_type) {
+                titleText = `${result.source} - ${result.emumovies_type}`;
+            }
+            title.textContent = titleText;
             
-            // Add image metadata (region and resolution) - only for non-video media
+            // Add metadata (region, resolution, or EmuMovies type)
             let metadataDiv = null;
             if (mediaType !== 'video' || !videoURL) {
                 metadataDiv = document.createElement('div');
@@ -6384,6 +6425,18 @@ class GameCollectionManager {
                         };
                     }
                 }
+            } else if (mediaType === 'video' && videoURL && result.source && result.source.toLowerCase() === 'emumovies' && result.emumovies_type) {
+                // For EmuMovies videos, show the media type as metadata
+                metadataDiv = document.createElement('div');
+                metadataDiv.className = 'image-metadata';
+                metadataDiv.style.fontSize = '0.75rem';
+                metadataDiv.style.color = '#6c757d';
+                metadataDiv.style.marginTop = '4px';
+                
+                const emumoviesTypeInfo = document.createElement('div');
+                emumoviesTypeInfo.className = 'emumovies-type-info';
+                emumoviesTypeInfo.textContent = `Type: ${result.emumovies_type}`;
+                metadataDiv.appendChild(emumoviesTypeInfo);
             }
             
             const downloadBtn = document.createElement('button');
