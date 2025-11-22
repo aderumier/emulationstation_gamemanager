@@ -98,6 +98,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        /* System Scraper Configuration Modal - reduce font size for comboboxes */
+        #systemScraperConfigModal .form-select {
+            font-size: 0.85rem;
+        }
+        #systemScraperConfigModal .form-select option {
+            font-size: 0.85rem;
+        }
         
         /* Drag and Drop Styles for LaunchBox Configuration */
         .selected-type-item {
@@ -628,7 +635,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         <!-- Combined Media Preview and Task Management Panel -->
         <div class="row mb-0">
             <div class="col">
-                <div class="card">
+                <div class="card" id="combinedPanelCard">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <ul class="nav nav-tabs card-header-tabs" id="combinedPanelTabs" role="tablist">
                             <li class="nav-item" role="presentation">
@@ -686,7 +693,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     </div>
                                 </div>
                                 
-                                <div id="taskGrid" class="ag-theme-alpine" style="height: 160px; width: 100%;"></div>
+                                <div id="taskGrid" class="ag-theme-alpine" style="flex: 1; min-height: 0; width: 100%;"></div>
                             </div>
                         </div>
                     </div>
@@ -919,6 +926,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="bi bi-film me-2"></i>EmuMovies</h6>
+                                </div>
+                                <div class="card-body">
+                                    <label for="emumoviesMapping" class="form-label">EmuMovies System Name</label>
+                                    <select class="form-select" id="emumoviesMapping">
+                                        <option value="">Select EmuMovies system...</option>
+                                    </select>
+                                    <div class="form-text">Select the EmuMovies system name for this system.</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Extensions Configuration -->
@@ -1141,7 +1163,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </button>
                                 <small class="text-muted ms-2">Click on media items to select them, then click Delete to remove.</small>
                             </div>
-                            <div id="editGameMediaContent" class="d-flex flex-wrap justify-content-center align-items-start" style="gap: 8px; max-height: 450px; overflow-y: auto;">
+                            <div id="editGameMediaContent" class="d-flex flex-wrap justify-content-center align-items-start" style="gap: 8px; max-height: 486px; overflow-y: auto;">
                                 <!-- Media items will be displayed here with larger cards in 2 rows -->
                             </div>
                         </div>
@@ -1258,32 +1280,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     </div>
                     
                     <div id="multiscraperMediaContent" class="row">
-                        <!-- Media options will be displayed here -->
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- LaunchBox Media Download Modal -->
-    <div class="modal fade" id="launchboxMediaModal" tabindex="-1" aria-labelledby="launchboxMediaModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="launchboxMediaModalLabel">LaunchBox Media Download</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <strong>Game:</strong> <span id="launchboxMediaGameName"></span><br>
-                        <strong>Media Type:</strong> <span id="launchboxMediaType"></span>
-                        <div id="launchboxMediaProgress" class="text-muted mt-1" style="display: none;"></div>
-                    </div>
-                    
-                    <div id="launchboxMediaContent" class="row">
                         <!-- Media options will be displayed here -->
                     </div>
                 </div>
@@ -4399,15 +4395,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             justify-content: flex-start;
             align-items: flex-start;
             gap: 8px;
-            max-height: 450px;
+            max-height: 540px; /* Increased from 450px to 120% (450 * 1.2) */
             overflow-y: auto;
             padding: 8px;
         }
         
         #editGameMediaContent .media-preview-item {
             width: calc(20% - 6.4px); /* 5 cards per row with gap */
-            min-width: 180px;
-            height: 200px;
+            min-width: 162px; /* Reduced to 90% of 180px (180 * 0.9) */
+            height: 162px; /* Reduced to 90% of 180px (180 * 0.9) */
             margin: 0;
             display: flex;
             flex-direction: column;

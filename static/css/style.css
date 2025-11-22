@@ -1,3 +1,8 @@
+/* Universal box-sizing for consistent width calculations */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 /* Keep manual scrap header actions visible on scroll */
 #manualScrapModal .modal-header {
   position: sticky;
@@ -23,11 +28,29 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 /* Main layout and components */
+html {
+    font-size: 90%; /* Reduce root font size by 10% */
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f8f9fa;
     overflow-x: hidden;
-    max-width: 100vw;
+    overflow-y: hidden; /* Prevent body scrollbar, let main-content handle scrolling */
+    margin: 0;
+    padding: 0;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 90%; /* Additional reduction for body */
+    height: 100vh; /* Use viewport height to prevent extra space */
 }
 
 .navbar {
@@ -47,7 +70,7 @@ body {
 }
 
 .navbar-subtitle {
-    font-size: 0.75rem;
+    font-size: 0.675rem;
     font-weight: normal;
     color: rgba(255, 255, 255, 0.8);
     text-transform: lowercase;
@@ -104,27 +127,31 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 }
 
 /* Ensure main content doesn't clip dropdowns */
+/* Note: overflow-x hidden to prevent horizontal scroll, but allow dropdowns via absolute positioning */
 .main-content {
-    overflow: visible !important;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .container-fluid {
-    overflow: visible !important;
+    overflow-x: hidden;
+    overflow-y: visible;
 }
 
 .row {
-    overflow: visible !important;
+    overflow-x: hidden;
+    overflow-y: visible;
 }
 
 /* Main content area */
 .main-content {
     padding: 5px;
     width: 100%;
-    max-width: 100vw;
+    max-width: 100%;
+    box-sizing: border-box;
     margin: 0 auto;
     margin-top: 10px;
     margin-bottom: 0;
-    overflow-x: hidden;
 }
 
 /* Card styling */
@@ -188,12 +215,15 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 /* Prevent horizontal scrolling */
 .container-fluid {
-    max-width: 100vw;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
     overflow-x: hidden;
 }
 
 .row {
     max-width: 100%;
+    box-sizing: border-box;
     overflow-x: hidden;
 }
 
@@ -310,11 +340,48 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 
 
-/* Tabbed component container styling */
-#combinedPanelTabContent {
-    transition: height 0.1s ease;
-    min-height: 200px;
+
+/* Combined panel card - fixed height */
+#combinedPanelCard {
+    height: 300px; /* Fixed height for combined panel */
+    display: flex;
+    flex-direction: column;
+}
+
+#combinedPanelCard .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
+    padding: 1rem;
+}
+
+/* Tab content - ensure it fills available space */
+#combinedPanelTabContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    position: relative;
+}
+
+/* Tab panes - Bootstrap uses position: absolute by default, we need to override */
+#combinedPanelTabContent .tab-pane {
+    position: relative !important;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+}
+
+#combinedPanelTabContent .tab-pane:not(.active) {
+    display: none !important;
+}
+
+#combinedPanelTabContent .tab-pane.active {
+    display: flex !important;
 }
 
 /* Task grid container styling */
@@ -410,7 +477,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 
 #mediaPreviewContent {
-    max-height: 200px;
+    max-height: 216px; /* Reduced to 90% of 240px (240 * 0.9) */
     overflow-x: auto;
     overflow-y: hidden;
 }
@@ -438,8 +505,8 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     display: inline-block;
     margin: 5px;
     text-align: center;
-    width: 150px;
-    height: 180px;
+    width: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
+    height: 175px; /* Reduced to 90% of 194.4px (194.4 * 0.9) */
 }
 
 /* Media placeholder styling */
@@ -458,8 +525,8 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     border: 2px solid #dee2e6;
     border-radius: 8px;
     object-fit: contain;
-    height: 150px;
-    width: 150px;
+    height: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
+    width: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
     background-color: #f8f9fa;
 }
 
@@ -474,7 +541,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     /* Don't set --ag-header-height when using autoHeaderHeight */
     --ag-header-background-color: #f8f9fa;
     --ag-header-foreground-color: #495057;
-    --ag-font-size: 12px;
+    --ag-font-size: 10.8px;
     --ag-cell-horizontal-padding: 4px;
     height: 100%;
     width: 100%;
@@ -484,6 +551,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 .ag-theme-alpine .ag-cell {
     padding-left: 4px !important;
     padding-right: 4px !important;
+    font-size: 10.8px !important;
 }
 
 /* Match header padding to cell padding */
@@ -491,12 +559,14 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 .ag-theme-alpine .ag-header-group-cell {
     padding-left: 4px !important;
     padding-right: 4px !important;
+    font-size: 11.5px !important; /* Slightly increased from 10.8px */
 }
 
 /* Allow header text to wrap for autoHeaderHeight to work */
 .ag-theme-alpine .ag-header-cell-label {
     white-space: normal;
     word-wrap: break-word;
+    font-size: 11.5px !important; /* Slightly increased from 10.8px */
 }
 
 /* Rotate column header text vertically (only when enabled) */
@@ -515,15 +585,16 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 #gamesGrid {
     height: 100%;
     width: 100%;
-    min-height: 400px;
+    min-height: 600px; /* Further increased */
 }
 
 /* Main content area to use flexbox for proper height distribution */
 .main-content {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 120px);
-    min-height: 500px;
+    height: calc(100vh - 60px); /* Account for navbar (~50px) + margin-top (10px) */
+    min-height: 0; /* Remove min-height to prevent overflow */
+    overflow-y: auto; /* Allow scrolling within main-content */
 }
 
 /* Grid section to fill remaining space */
@@ -737,7 +808,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     }
     
     .ag-theme-alpine {
-        --ag-font-size: 11px;
+        --ag-font-size: 9.9px;
     }
 }
 
@@ -1160,12 +1231,35 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 /* Media preview tab content */
 #media-preview-content {
-    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    height: 100%;
+}
+
+#media-preview-content #mediaPreviewContent {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    min-height: 0;
 }
 
 /* Task management tab content */
 #task-management-content {
-    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    height: 100%;
+}
+
+#task-management-content #taskGrid {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 /* Visual feedback during resizing */
@@ -1343,12 +1437,12 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 /* Edit Game Modal Media Tab */
 #editGameMediaContent {
-    min-height: 200px;
+    min-height: 216px; /* Reduced to 90% of 240px (240 * 0.9) */
 }
 
 #editGameMediaContent .media-preview-item {
-    width: 150px;
-    height: 150px;
+    width: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
+    height: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
     margin-bottom: 1rem;
 }
 
@@ -1368,8 +1462,8 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 }
 
 #editGameMediaContent .media-placeholder {
-    width: 150px;
-    height: 150px;
+    width: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
+    height: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
     background-color: #f8f9fa;
     border: 2px dashed #dee2e6;
     border-radius: 8px;
@@ -1399,7 +1493,7 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     border-radius: 4px;
     border: 1px solid #dee2e6;
     word-break: break-all;
-    max-width: 150px;
+    max-width: 146px; /* Reduced to 90% of 162px (162 * 0.9) */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1758,12 +1852,14 @@ body.dark-mode {
     background-color: #2d2d2d;
     color: #e0e0e0;
     border-color: #404040;
+    font-size: 10.8px !important;
 }
 
 .dark-mode .ag-theme-alpine .ag-header-cell {
     background-color: #343434;
     color: #e0e0e0;
     border-color: #404040;
+    font-size: 10.8px !important;
 }
 
 .dark-mode .ag-theme-alpine .ag-row:hover {
@@ -1864,4 +1960,59 @@ body.dark-mode {
     background-color: #007bff;
     border-color: #0056b3;
     color: #e0e0e0;
+}
+
+/* Reduce font sizes by 10% for main page elements */
+/* Navbar brand and nav links */
+.navbar-brand {
+    font-size: 0.9em;
+}
+
+.navbar-nav .nav-link {
+    font-size: 0.9em;
+}
+
+.navbar-nav .dropdown-menu {
+    font-size: 0.9em;
+}
+
+/* Buttons - reduce by 10% */
+.btn {
+    font-size: 0.9em;
+}
+
+.btn-sm {
+    font-size: 0.9em;
+}
+
+.btn-lg {
+    font-size: 0.9em;
+}
+
+/* Right panel body font size (already 12px, reduce to 10.8px) */
+.right-panel-body {
+    font-size: 10.8px;
+}
+
+.right-panel-body input,
+.right-panel-body select,
+.right-panel-body textarea,
+.right-panel-body button {
+    font-size: 10.8px;
+}
+
+.right-panel-body .form-control,
+.right-panel-body .form-select,
+.right-panel-body .btn {
+    font-size: 10.8px;
+}
+
+/* Filter popup font sizes */
+.ag-theme-alpine .ag-filter-popup input,
+.ag-theme-alpine .ag-filter-popup select {
+    font-size: 10.8px;
+}
+
+.ag-theme-alpine .ag-filter-popup button {
+    font-size: 10.8px;
 }

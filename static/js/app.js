@@ -1144,12 +1144,24 @@ class GameCollectionManager {
     }
     
     resetColumnLayout() {
+        console.log('resetColumnLayout called');
         if (!this.gridApi) {
+            console.warn('Grid API not available');
             this.showAlert('Grid is not initialized', 'warning');
             return;
         }
         
-        if (!confirm('Are you sure you want to reset all column sizes and positions to their defaults? This action cannot be undone.')) {
+        let confirmed = false;
+        try {
+            confirmed = confirm('Are you sure you want to reset all column sizes and positions to their defaults? This action cannot be undone.');
+            console.log('User confirmed:', confirmed);
+        } catch (error) {
+            console.error('Error with confirm dialog:', error);
+            // If confirm fails (e.g., blocked by browser), proceed anyway
+            confirmed = true;
+        }
+        
+        if (!confirmed) {
             return;
         }
         
@@ -1203,10 +1215,13 @@ class GameCollectionManager {
             
             // Apply the default column state (widths and order)
             if (defaultColumnState.length > 0) {
+                console.log('Applying column state:', defaultColumnState);
                 const success = this.gridApi.applyColumnState({
                     state: defaultColumnState,
                     applyOrder: true
                 });
+                
+                console.log('applyColumnState result:', success);
                 
                 if (!success) {
                     console.warn('Grid column state could not be fully reset.');
@@ -5043,9 +5058,6 @@ class GameCollectionManager {
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
-                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                            <i class="bi bi-download"></i>
-                                        </button>
                                     </div>
                                 </div>
                             `;
@@ -5165,9 +5177,6 @@ class GameCollectionManager {
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
-                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                            <i class="bi bi-download"></i>
-                                        </button>
                                         `}
                                     </div>
                                 </div>
@@ -5256,9 +5265,6 @@ class GameCollectionManager {
                                 ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
-                                </button>
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-download"></i>
                                 </button>
                             </div>
                         </div>
@@ -5362,11 +5368,6 @@ class GameCollectionManager {
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
-                            ${field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-download"></i>
-                            </button>
-                            ` : ''}
                         </div>
                     </div>
                 `;
@@ -5767,82 +5768,6 @@ class GameCollectionManager {
         }
     }
 
-    async openLaunchBoxMediaModal(game, mediaType) {
-        // Set modal title and game info
-        document.getElementById('launchboxMediaGameName').textContent = game.name;
-        document.getElementById('launchboxMediaType').textContent = mediaType;
-        
-        // Show progress
-        const progressDiv = document.getElementById('launchboxMediaProgress');
-        progressDiv.style.display = 'block';
-        progressDiv.textContent = 'Loading available media from LaunchBox...';
-        
-        // Clear content
-        const contentDiv = document.getElementById('launchboxMediaContent');
-        contentDiv.innerHTML = '';
-        
-        // Show modal
-        const modalElement = document.getElementById('launchboxMediaModal');
-        const modal = new bootstrap.Modal(modalElement);
-        
-        // Add event listener for modal close to refresh media preview
-        const handleModalClose = () => {
-            if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
-                // Update the currentMediaPreviewGame with the fresh data from the grid
-                const freshGame = this.games.find(g => g.path === game.path);
-                if (freshGame) {
-                    this.currentMediaPreviewGame = freshGame;
-                    this.showMediaPreview(this.currentMediaPreviewGame);
-                }
-            }
-            // Remove the event listener to prevent duplicates
-            modalElement.removeEventListener('hidden.bs.modal', handleModalClose);
-        };
-        
-        modalElement.addEventListener('hidden.bs.modal', handleModalClose);
-        modal.show();
-        
-        try {
-            // Fetch available media from LaunchBox
-            const response = await fetch(`/api/launchbox-media/${game.launchboxid}/${mediaType}`, {
-                credentials: 'include'
-            });
-            if (!response.ok) {
-                // Try to get the error details from the response
-                let errorMessage = `HTTP error! status: ${response.status}`;
-                try {
-                    const errorData = await response.json();
-                    if (errorData.error) {
-                        errorMessage += ` - ${errorData.error}`;
-                    }
-                } catch (e) {
-                    // If we can't parse the response as JSON, just use the status text
-                    errorMessage += ` - ${response.statusText}`;
-                }
-                throw new Error(errorMessage);
-            }
-            
-            const data = await response.json();
-            
-            if (data.success && data.media && data.media.length > 0) {
-                // Display available media options
-                this.displayLaunchBoxMediaOptions(data.media, game, mediaType);
-                progressDiv.style.display = 'none';
-            } else {
-                contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-info">No media available for this game and type in LaunchBox database.</div></div>';
-                progressDiv.style.display = 'none';
-            }
-        } catch (error) {
-            // Extract just the error message without the HTTP status prefix
-            let errorMessage = error.message;
-            if (errorMessage.includes('HTTP error! status: 404 - ')) {
-                errorMessage = errorMessage.replace('HTTP error! status: 404 - ', '');
-            }
-            contentDiv.innerHTML = '<div class="col-12"><div class="alert alert-danger">' + errorMessage + '</div></div>';
-            progressDiv.style.display = 'none';
-        }
-    }
-    
     async openMultiscraperMediaModal(game, mediaType) {
         // Set modal title and game info
         document.getElementById('multiscraperMediaGameName').textContent = game.name;
@@ -6540,359 +6465,6 @@ class GameCollectionManager {
             }
         } catch (error) {
             this.showAlert('Error downloading media: ' + error.message, 'danger');
-        }
-    }
-    
-    displayLaunchBoxMediaOptions(mediaOptions, game, mediaType) {
-        const contentDiv = document.getElementById('launchboxMediaContent');
-        contentDiv.innerHTML = '';
-        
-        mediaOptions.forEach((media, index) => {
-            const col = document.createElement('div');
-            col.className = 'col-md-6 col-lg-4 mb-3';
-            
-            const card = document.createElement('div');
-            card.className = 'card h-100';
-            card.style.cursor = 'pointer';
-            
-            // Check if this is video type and has VideoURL
-            const hasVideoURL = mediaType === 'video' && (media.videoURL || media.VideoURL || media.video_url);
-            const videoURL = hasVideoURL ? (media.videoURL || media.VideoURL || media.video_url) : null;
-            
-            if (hasVideoURL && videoURL) {
-                // Check for video hosting sites that need iframe embed players
-                const isYouTubeURL = videoURL.includes('youtube.com') || videoURL.includes('youtu.be');
-                const isDailyMotionURL = videoURL.includes('dailymotion.com') || videoURL.includes('dai.ly');
-                const isVimeoURL = videoURL.includes('vimeo.com') || videoURL.includes('player.vimeo.com');
-                const isFacebookURL = videoURL.includes('facebook.com');
-                const isTwitterURL = videoURL.includes('twitter.com') || videoURL.includes('x.com');
-                const isTikTokURL = videoURL.includes('tiktok.com');
-                const isBilibiliURL = videoURL.includes('bilibili.com');
-                
-                if (isYouTubeURL) {
-                    // Use YouTube iframe embed player for YouTube URLs
-                    const videoId = this.extractYouTubeVideoId(videoURL);
-                    if (videoId) {
-                        const iframe = document.createElement('iframe');
-                        iframe.className = 'card-img-top';
-                        iframe.style.height = '300px';
-                        iframe.style.width = '100%';
-                        iframe.style.border = 'none';
-                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-                        iframe.allowFullscreen = true;
-                        iframe.src = `https://www.youtube.com/embed/${videoId}`;
-                        card.appendChild(iframe);
-                    } else {
-                        this.createVideoErrorDiv(card, 'Invalid YouTube URL');
-                    }
-                } else if (isDailyMotionURL) {
-                    // Use DailyMotion iframe embed player for DailyMotion URLs
-                    const videoId = this.extractDailyMotionVideoId(videoURL);
-                    if (videoId) {
-                        const iframe = document.createElement('iframe');
-                        iframe.className = 'card-img-top';
-                        iframe.style.height = '300px';
-                        iframe.style.width = '100%';
-                        iframe.style.border = 'none';
-                        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
-                        iframe.allowFullscreen = true;
-                        iframe.src = `https://www.dailymotion.com/embed/video/${videoId}`;
-                        card.appendChild(iframe);
-                    } else {
-                        this.createVideoErrorDiv(card, 'Invalid DailyMotion URL');
-                    }
-                } else if (isVimeoURL) {
-                    // Use Vimeo iframe embed player for Vimeo URLs
-                    const videoId = this.extractVimeoVideoId(videoURL);
-                    if (videoId) {
-                        const iframe = document.createElement('iframe');
-                        iframe.className = 'card-img-top';
-                        iframe.style.height = '300px';
-                        iframe.style.width = '100%';
-                        iframe.style.border = 'none';
-                        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
-                        iframe.allowFullscreen = true;
-                        iframe.src = `https://player.vimeo.com/video/${videoId}`;
-                        card.appendChild(iframe);
-                    } else {
-                        this.createVideoErrorDiv(card, 'Invalid Vimeo URL');
-                    }
-                } else if (isFacebookURL) {
-                    // Facebook videos - use Facebook embed player
-                    // Facebook URLs are complex, use the full URL as embed
-                    const iframe = document.createElement('iframe');
-                    iframe.className = 'card-img-top';
-                    iframe.style.height = '300px';
-                    iframe.style.width = '100%';
-                    iframe.style.border = 'none';
-                    iframe.allow = 'autoplay; fullscreen';
-                    iframe.allowFullscreen = true;
-                    // Facebook embed format: convert share URL to embed URL
-                    // Example: https://www.facebook.com/share/v/1An8zKZyid/ -> needs special handling
-                    // For now, try to use the URL directly or show a link
-                    iframe.src = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoURL)}&show_text=false&width=476`;
-                    card.appendChild(iframe);
-                } else if (isTwitterURL) {
-                    // Twitter/X videos - extract tweet ID and use Twitter embed
-                    const tweetId = this.extractTwitterTweetId(videoURL);
-                    if (tweetId) {
-                        const iframe = document.createElement('iframe');
-                        iframe.className = 'card-img-top';
-                        iframe.style.height = '300px';
-                        iframe.style.width = '100%';
-                        iframe.style.border = 'none';
-                        iframe.src = `https://platform.twitter.com/embed/Tweet.html?id=${tweetId}`;
-                        card.appendChild(iframe);
-                    } else {
-                        this.createVideoErrorDiv(card, 'Invalid Twitter/X URL');
-                    }
-                } else if (isTikTokURL) {
-                    // TikTok videos - use TikTok embed player
-                    // TikTok embed format: https://www.tiktok.com/embed/v2/{videoId}
-                    // Extract video ID from URL like: https://www.tiktok.com/@username/video/1234567890
-                    const videoId = this.extractTikTokVideoId(videoURL);
-                    if (videoId) {
-                        const iframe = document.createElement('iframe');
-                        iframe.className = 'card-img-top';
-                        iframe.style.height = '300px';
-                        iframe.style.width = '100%';
-                        iframe.style.border = 'none';
-                        iframe.allow = 'encrypted-media';
-                        iframe.src = `https://www.tiktok.com/embed/v2/${videoId}`;
-                        card.appendChild(iframe);
-                    } else {
-                        this.createVideoErrorDiv(card, 'Invalid TikTok URL');
-                    }
-                } else if (isBilibiliURL) {
-                    // Bilibili videos - use Bilibili embed player
-                    // Bilibili embed format: https://player.bilibili.com/player.html?bvid={bvid}
-                    const bvid = this.extractBilibiliVideoId(videoURL);
-                    if (bvid) {
-                        const iframe = document.createElement('iframe');
-                        iframe.className = 'card-img-top';
-                        iframe.style.height = '300px';
-                        iframe.style.width = '100%';
-                        iframe.style.border = 'none';
-                        iframe.allow = 'autoplay; fullscreen';
-                        iframe.allowFullscreen = true;
-                        iframe.src = `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0`;
-                        card.appendChild(iframe);
-                    } else {
-                        this.createVideoErrorDiv(card, 'Invalid Bilibili URL');
-                    }
-                } else {
-                    // Use HTML5 video player for direct video URLs (direct video files)
-                    const video = document.createElement('video');
-                    video.className = 'card-img-top';
-                    video.style.height = '300px';
-                    video.style.objectFit = 'contain';
-                    video.style.backgroundColor = this.getMediaCardBackgroundColor();
-                    video.controls = true;
-                    video.preload = 'metadata';
-                    
-                    const source = document.createElement('source');
-                    source.src = videoURL;
-                    source.type = 'video/mp4'; // Default to mp4, could be enhanced to detect type
-                    video.appendChild(source);
-                    
-                    card.appendChild(video);
-                }
-            } else {
-                // Display image for other media types
-                const img = document.createElement('img');
-                img.className = 'card-img-top';
-                img.style.height = '300px';
-                img.style.objectFit = 'contain';
-                img.style.backgroundColor = this.getMediaCardBackgroundColor();
-                img.alt = `${mediaType} option ${index + 1}`;
-                img.onerror = () => {
-                    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
-                };
-                
-                // Add hover preview functionality for images
-                img.addEventListener('mouseenter', (e) => {
-                    this.showMediaHover(e, media.url, mediaType, game);
-                });
-                img.addEventListener('mouseleave', () => {
-                    this.hideMediaHover();
-                });
-                
-                card.appendChild(img);
-            }
-            
-            const cardBody = document.createElement('div');
-            cardBody.className = 'card-body d-flex flex-column';
-            
-            const title = document.createElement('h6');
-            title.className = 'card-title';
-            title.textContent = `${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} ${index + 1}`;
-            
-            // Add image metadata (region and resolution) - only for non-video media
-            let metadataDiv = null;
-            if (!hasVideoURL || !videoURL) {
-                metadataDiv = document.createElement('div');
-                metadataDiv.className = 'image-metadata';
-                metadataDiv.style.fontSize = '0.75rem';
-                metadataDiv.style.color = '#6c757d';
-                metadataDiv.style.marginTop = '4px';
-                
-                const resolutionInfo = document.createElement('div');
-                resolutionInfo.className = 'resolution-info';
-                resolutionInfo.textContent = 'Loading...';
-                
-                const regionInfo = document.createElement('div');
-                regionInfo.className = 'region-info';
-                if (media.region) {
-                    regionInfo.textContent = `Region: ${media.region}`;
-                }
-                
-                metadataDiv.appendChild(resolutionInfo);
-                if (media.region) {
-                    metadataDiv.appendChild(regionInfo);
-                }
-                
-                // Add image load handler to update resolution (set before img.src to ensure it fires)
-                const img = card.querySelector('img');
-                if (img) {
-                    img.onload = () => {
-                        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                            resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
-                        } else {
-                            resolutionInfo.textContent = 'Resolution: Unknown';
-                        }
-                    };
-                    
-                    // Set image source after handlers are attached
-                    img.src = media.url;
-                }
-            }
-            
-            const downloadBtn = document.createElement('button');
-            downloadBtn.className = 'btn btn-primary btn-sm mt-auto';
-            downloadBtn.textContent = 'Download & Replace';
-            downloadBtn.onclick = () => {
-                // If this is video type with VideoURL in LaunchBox results, open YouTube preview modal instead
-                if (mediaType === 'video' && (media.videoURL || media.VideoURL || media.video_url)) {
-                    const videoURL = media.videoURL || media.VideoURL || media.video_url;
-                    if (videoURL) {
-                        // Create a video object for the player
-                        const video = {
-                            url: videoURL,
-                            title: game.name || 'Game Video Preview',
-                            game: game
-                        };
-                        // Store the current video for the player
-                        this.currentYouTubeVideo = video;
-                        // Open YouTube player modal (works for both YouTube and other video URLs)
-                        this.openYouTubePlayerModal(video);
-                        return;
-                    }
-                }
-                // For non-video types, proceed with normal download
-                this.downloadAndReplaceMedia(game, mediaType, media);
-            };
-            
-            cardBody.appendChild(title);
-            // Only append metadataDiv if it exists (not for video with VideoURL)
-            if (metadataDiv) {
-                cardBody.appendChild(metadataDiv);
-            }
-            cardBody.appendChild(downloadBtn);
-            
-            // Append cardBody to card (img/video already appended earlier)
-            card.appendChild(cardBody);
-            col.appendChild(card);
-            contentDiv.appendChild(col);
-        });
-    }
-    
-    async downloadAndReplaceMedia(game, mediaType, mediaData) {
-        try {
-            // Show progress
-            const progressDiv = document.getElementById('launchboxMediaProgress');
-            progressDiv.style.display = 'block';
-            progressDiv.textContent = 'Downloading and replacing media...';
-
-            const response = await fetch('/api/download-launchbox-media', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    game_id: game.launchboxid,
-                    rom_path: game.path,
-                    media_type: mediaType,
-                    media_url: mediaData.url,
-                    region: mediaData.region,
-                    system_name: this.currentSystem
-                })
-            });
-            
-            if (!response.ok) {
-                // Try to get the error details from the response
-                let errorMessage = `HTTP error! status: ${response.status}`;
-                try {
-                    const errorData = await response.json();
-                    if (errorData.error) {
-                        errorMessage += ` - ${errorData.error}`;
-                    }
-                } catch (e) {
-                    // If we can't parse the response as JSON, just use the status text
-                    errorMessage += ` - ${response.statusText}`;
-                }
-                throw new Error(errorMessage);
-            }
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // Update the local game object with the new media path
-                if (result.media_path) {
-                    game[mediaType] = result.media_path;
-                    this.markGameAsModified(game);
-                    
-                    // Refresh the main grid to show updated media
-                    if (this.gridApi) {
-                        this.gridApi.refreshCells();
-                    }
-                }
-                
-                // Show success message
-                progressDiv.textContent = 'Media downloaded and replaced successfully!';
-                progressDiv.className = 'text-success mt-1';
-                
-                // Close modal after a short delay
-                setTimeout(() => {
-                    const modalElement = document.getElementById('launchboxMediaModal');
-                    const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
-                    modal.hide();
-                    
-                    // Refresh the edit game media display
-                    this.showEditGameMedia(game);
-                    
-                    // Also refresh the main interface media preview if it's currently showing this game
-                    if (this.currentMediaPreviewGame && this.currentMediaPreviewGame.path === game.path) {
-                        // Update the currentMediaPreviewGame with the fresh data from the grid
-                        const freshGame = this.games.find(g => g.path === game.path);
-                        if (freshGame) {
-                            this.currentMediaPreviewGame = freshGame;
-                            this.showMediaPreview(this.currentMediaPreviewGame);
-                        }
-                    }
-                }, 1500);
-            } else {
-                throw new Error(result.error || 'Unknown error occurred');
-            }
-        } catch (error) {
-            const progressDiv = document.getElementById('launchboxMediaProgress');
-            // Extract just the error message without the HTTP status prefix
-            let errorMessage = error.message;
-            if (errorMessage.includes('HTTP error! status: 404 - ')) {
-                errorMessage = errorMessage.replace('HTTP error! status: 404 - ', '');
-            }
-            progressDiv.textContent = 'Error: ' + errorMessage;
-            progressDiv.className = 'text-danger mt-1';
         }
     }
     
@@ -10564,11 +10136,12 @@ class GameCollectionManager {
     async loadCurrentSystemMappings() {
         try {
             // Load platform data for comboboxes
-            const [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, datscrapperFiles] = await Promise.all([
+            const [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles] = await Promise.all([
                 this.loadLaunchBoxPlatforms(),
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms(),
                 this.loadMobygamesSystems(),
+                this.loadEmumoviesSystems(),
                 this.loadDatscrapperFiles()
             ]);
             
@@ -10592,6 +10165,9 @@ class GameCollectionManager {
             // Populate MobyGames combobox
             this.populateCombobox('mobygamesMapping', mobygamesSystems, 'system');
             
+            // Populate EmuMovies combobox
+            this.populateCombobox('emumoviesMapping', emumoviesSystems, 'platform');
+            
             // Populate DAT Scrapper combobox
             await this.populateDatscrapperMapping();
             
@@ -10608,6 +10184,7 @@ class GameCollectionManager {
                 document.getElementById('igdbMapping').value = systemConfig.igdb || '';
                 document.getElementById('mobygamesMapping').value = systemConfig.mobygames || '';
                 document.getElementById('screenscraperMapping').value = systemConfig.screenscraper || '';
+                document.getElementById('emumoviesMapping').value = systemConfig.emumovies || '';
                 document.getElementById('datscrapperMapping').value = systemConfig.dat_file || '';
                 
                 // Set extensions value (empty if system doesn't exist)
@@ -10686,7 +10263,7 @@ class GameCollectionManager {
 
     highlightScraperField(scraperType) {
         // Remove existing highlights
-        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping', 'datscrapperMapping'];
+        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping', 'emumoviesMapping', 'datscrapperMapping'];
         fields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field) {
@@ -10702,6 +10279,7 @@ class GameCollectionManager {
             'igdb': 'igdbMapping',
             'mobygames': 'mobygamesMapping',
             'screenscraper': 'screenscraperMapping',
+            'emumovies': 'emumoviesMapping',
             'datscrapper': 'datscrapperMapping'
         };
         
@@ -11777,9 +11355,6 @@ class GameCollectionManager {
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
-                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                            <i class="bi bi-download"></i>
-                                        </button>
                                     </div>
                                 </div>
                             `;
@@ -11913,9 +11488,6 @@ class GameCollectionManager {
                                         <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
-                                        <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                            <i class="bi bi-download"></i>
-                                        </button>
                                         `}
                                     </div>
                                 </div>
@@ -12005,11 +11577,6 @@ class GameCollectionManager {
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
-                                ${field !== 'manual' && field !== 'map' ? `
-                                <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                                ` : ''}
                             </div>
                         </div>
                     `;
@@ -12113,11 +11680,6 @@ class GameCollectionManager {
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
-                            ${field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                            <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-download"></i>
-                            </button>
-                            ` : ''}
                         </div>
                     </div>
                 `;
@@ -12188,11 +11750,6 @@ class GameCollectionManager {
                     <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-search"></i>
                     </button>
-                    ${field !== 'manual' && field !== 'map' ? `
-                    <button class="btn btn-outline-primary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Download from LaunchBox" onclick="gameManager.openLaunchBoxMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                        <i class="bi bi-download"></i>
-                    </button>
-                    ` : ''}
                 </div>
             </div>
         `;
@@ -16686,6 +16243,7 @@ class GameCollectionManager {
                 igdb: document.getElementById('igdbMapping').value,
                 mobygames: document.getElementById('mobygamesMapping').value,
                 screenscraper: document.getElementById('screenscraperMapping').value,
+                emumovies: document.getElementById('emumoviesMapping').value,
                 dat_file: document.getElementById('datscrapperMapping').value
             };
             
@@ -19691,13 +19249,7 @@ class GameCollectionManager {
             });
         }
         
-        // Add event listener for reset column layout button
-        const resetColumnLayoutBtn = document.getElementById('resetColumnLayoutBtn');
-        if (resetColumnLayoutBtn) {
-            resetColumnLayoutBtn.addEventListener('click', () => {
-                this.resetColumnLayout();
-            });
-        }
+        // Note: resetColumnLayoutBtn event listener is attached when modal is shown
         
         // Add event listener for right panel toggle
         const rightPanelToggle = document.getElementById('rightPanelToggle');
@@ -19730,6 +19282,25 @@ class GameCollectionManager {
         
         const modalElement = document.getElementById('guiPreferencesModal');
         const modal = new bootstrap.Modal(modalElement);
+        
+        // Attach event listener for reset column layout button when modal is shown
+        const handleModalShown = () => {
+            const resetColumnLayoutBtn = document.getElementById('resetColumnLayoutBtn');
+            if (resetColumnLayoutBtn) {
+                // Remove any existing listener by cloning the button
+                const newBtn = resetColumnLayoutBtn.cloneNode(true);
+                resetColumnLayoutBtn.parentNode.replaceChild(newBtn, resetColumnLayoutBtn);
+                
+                newBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Reset column layout button clicked');
+                    this.resetColumnLayout();
+                });
+            }
+            modalElement.removeEventListener('shown.bs.modal', handleModalShown);
+        };
+        modalElement.addEventListener('shown.bs.modal', handleModalShown, { once: true });
         
         // Auto-save preferences when modal is closed
         const handleModalClose = () => {
