@@ -7296,6 +7296,7 @@ class GameCollectionManager {
                         <div class="image-metadata" style="font-size: 0.75rem; color: #6c757d; margin-top: 4px;">
                             <div class="resolution-info">Loading...</div>
                             ${metadata.region ? `<div class="region-info">Region: ${metadata.region}</div>` : ''}
+                            ${metadata.emumovies_type ? `<div class="emumovies-type-info">Type: ${metadata.emumovies_type}</div>` : ''}
                         </div>
                     </div>
                 `;
@@ -7334,7 +7335,7 @@ class GameCollectionManager {
             this.manualScrapSelectedMedia[mediaKey] = { source: 'current', index: -1, url: mediaData.current };
 
             // Add tiles for each source. Each source may be an array of URLs or metadata objects.
-            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb', 'mobygames'];
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb', 'mobygames', 'emumovies'];
             sources.forEach(source => {
                 const values = mediaData.sources[source];
                 if (!values) return;
@@ -7366,6 +7367,9 @@ class GameCollectionManager {
         // Check if it's an external URL (starts with http:// or https://)
         if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
             // External URL, use directly
+            mediaUrl = mediaPath;
+        } else if (mediaPath.startsWith('/api/')) {
+            // API endpoint URL, use directly (e.g., /api/emumovies-download-media)
             mediaUrl = mediaPath;
         } else {
             // Local file path - handle as before
