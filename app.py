@@ -19105,6 +19105,8 @@ def run_rom_scan_task(system_name):
             return
         
         system_path = os.path.join(ROMS_FOLDER, system_name)
+        # Normalize path for Docker/Windows compatibility (use forward slashes)
+        system_path = os.path.normpath(system_path).replace('\\', '/')
         task.update_progress(f"System path: {system_path}")
         if not os.path.exists(system_path):
             task.update_progress(f"System path does not exist: {system_path}")
@@ -19149,6 +19151,9 @@ def run_rom_scan_task(system_name):
         scanned_dirs = 0
         scanned_files = 0
         
+        # Normalize system_path for consistent path handling in Docker/Windows
+        normalized_system_path = os.path.normpath(system_path).replace('\\', '/')
+        
         for root, dirs, files in os.walk(system_path):
             # Check for cancellation before processing each directory
             if _rom_scan_cancel_maps.get(current_task_id, False) or is_task_stopped():
@@ -19159,8 +19164,9 @@ def run_rom_scan_task(system_name):
             scanned_dirs += 1
             scanned_files += len(files)
             
-            # Calculate current depth
-            current_depth = root[len(system_path):].count(os.sep)
+            # Calculate current depth (normalize paths for Windows/Docker compatibility)
+            normalized_root = os.path.normpath(root).replace('\\', '/')
+            current_depth = normalized_root[len(normalized_system_path):].count('/')
             
             
             # Report progress every 100 directories or 1000 files
@@ -19189,6 +19195,8 @@ def run_rom_scan_task(system_name):
                     if ends_with:
                         # This directory has a ROM extension, treat it as a ROM file
                         rel_path = os.path.relpath(root, system_path)
+                        # Normalize path separators for Docker/Windows compatibility
+                        rel_path = rel_path.replace('\\', '/')
                         rom_files.append(rel_path)
                         task.update_progress(f"✅ Found ROM directory: {current_dir_name} (extension: {ext}) - SKIPPING subdirectories")
                         # Clear dirs to skip scanning subdirectories
@@ -19201,6 +19209,8 @@ def run_rom_scan_task(system_name):
                     if any(fnmatch.fnmatch(current_dir_name, pattern) for pattern in extension_patterns):
                         # This directory has a ROM extension, treat it as a ROM file
                         rel_path = os.path.relpath(root, system_path)
+                        # Normalize path separators for Docker/Windows compatibility
+                        rel_path = rel_path.replace('\\', '/')
                         rom_files.append(rel_path)
                         task.update_progress(f"✅ Found ROM directory (pattern): {current_dir_name} - SKIPPING subdirectories")
                         # Clear dirs to skip scanning subdirectories
@@ -19223,6 +19233,8 @@ def run_rom_scan_task(system_name):
                 if any(fnmatch.fnmatch(filename, pattern) for pattern in extension_patterns):
                     # Get relative path from system directory
                     rel_path = os.path.relpath(os.path.join(root, filename), system_path)
+                    # Normalize path separators for Docker/Windows compatibility
+                    rel_path = rel_path.replace('\\', '/')
                     rom_files.append(rel_path)
         
         # Check for cancellation after scanning is complete
@@ -19239,7 +19251,12 @@ def run_rom_scan_task(system_name):
         hidden_roms = set()
         
         for m3u_file in m3u_files:
-            m3u_path = os.path.join(system_path, m3u_file)
+            # Normalize m3u_file path for Windows/Docker compatibility
+            m3u_file_normalized = m3u_file.replace('\\', '/')
+            m3u_path = os.path.join(system_path, m3u_file_normalized)
+            # Also try with original path in case normalization breaks it
+            if not os.path.exists(m3u_path):
+                m3u_path = os.path.join(system_path, m3u_file)
             if os.path.exists(m3u_path):
                 referenced_roms = parse_m3u_file(m3u_path)
                 task.update_progress(f"M3U file {m3u_file} references {len(referenced_roms)} ROM files")
@@ -19300,7 +19317,12 @@ def run_rom_scan_task(system_name):
             if rom_path:
                 # Normalize path (remove ./ prefix if present)
                 normalized_path = rom_path.lstrip('./')
-                rom_file_path = os.path.join(system_path, normalized_path)
+                # Normalize path for Windows/Docker compatibility
+                normalized_path_clean = normalized_path.replace('\\', '/')
+                rom_file_path = os.path.join(system_path, normalized_path_clean)
+                # Also try with original normalized_path in case
+                if not os.path.exists(rom_file_path):
+                    rom_file_path = os.path.join(system_path, normalized_path)
                 
                 # Simply check if the file exists at the specified path
                 if not os.path.exists(rom_file_path):
@@ -19473,7 +19495,12 @@ def scan_rom_files_confirm(system_name):
                     if rom_path:
                         # Normalize path (remove ./ prefix if present)
                         normalized_path = rom_path.lstrip('./')
-                        rom_file_path = os.path.join(system_path, normalized_path)
+                        # Normalize path for Windows/Docker compatibility
+                        normalized_path_clean = normalized_path.replace('\\', '/')
+                        rom_file_path = os.path.join(system_path, normalized_path_clean)
+                        # Also try with original normalized_path in case
+                        if not os.path.exists(rom_file_path):
+                            rom_file_path = os.path.join(system_path, normalized_path)
                         
                         # Simply check if the file exists at the specified path
                         if not os.path.exists(rom_file_path):
@@ -28407,7 +28434,7 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
         t = get_task(task_id)
         if t:
             progress = int((completed / total) * 100) if total > 0 else 0
-            t.update_progress(progress, None, current_step=completed, total_steps=total)
+            t.update_progress(f"Processing games: {completed}/{total}", progress_percentage=progress, current_step=completed, total_steps=total)
             print(f"🔄 EmuMovies Progress: {completed}/{total} ({progress}%)")
     
     async def async_emumovies(overwrite_media_fields=False):
@@ -28569,29 +28596,29 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
             system_index = emumovies_index[emumovies_system]
             print(f"🔧 DEBUG: Found system index with {len(system_index)} media types")
             print(f"🔧 DEBUG: Media types in system_index: {list(system_index.keys())[:10]}...")
-            # Debug: show entry counts for the media types we're looking for
-            for media_type in ['Box', 'BoxBack', 'Cart', 'Logo', 'Manual', 'Box_3D', 'Video_MP4_HD']:
-                if media_type in system_index:
-                    count = len(system_index[media_type])
-                    print(f"🔧 DEBUG: {media_type} has {count} entries in index")
-                    if count == 0:
-                        print(f"⚠️ WARNING: {media_type} exists in index but is EMPTY - database may need to be rebuilt")
-                    elif count > 0:
-                        # Show sample keys
-                        sample = list(system_index[media_type].keys())[:3]
-                        print(f"🔧 DEBUG: {media_type} sample keys: {sample}")
-                else:
-                    print(f"🔧 DEBUG: {media_type} NOT in system_index")
+ 
             
-            # Process games
-            print(f"🔧 DEBUG: Starting to process {len(games_to_process)} games...")
+            # Process games in batches of 10
+            print(f"🔧 DEBUG: Starting to process {len(games_to_process)} games in batches of 10...")
             media_downloaded_count = 0
             skipped_count = 0
             processed_count = 0
+            batch_size = 10  # Process 10 games at a time
             
-            for idx, game in enumerate(games_to_process):
-                print(f"🔧 DEBUG: Processing game {idx + 1}/{len(games_to_process)}: {game.get('name', 'Unknown')}")
-                # Check for cancellation
+            # Initialize total_steps for the task
+            t = get_task(task_id)
+            if t:
+                t.total_steps = total_games
+                t.current_step = 0
+                t.update_progress(f"Starting EmuMovies processing for {total_games} games", progress_percentage=0, current_step=0, total_steps=total_games)
+            
+            # Get authenticated headers once for all downloads
+            headers = await service._get_authenticated_headers()
+            download_url = f"{service.base_url}/api/Media/Download"
+            
+            # Process games in batches
+            for batch_start in range(0, len(games_to_process), batch_size):
+                # Check for cancellation before each batch
                 if is_cancelled():
                     print(f"EmuMovies task {task_id} was cancelled")
                     t = get_task(task_id)
@@ -28605,176 +28632,177 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                         t.complete(True, f"Task cancelled - partial changes saved: {media_downloaded_count} games with media downloaded")
                     return
                 
-                game_name = game.get('name', '')
-                rom_path = game.get('path', '')
-                print(f"🔧 DEBUG: Game name: '{game_name}', path: '{rom_path}'")
+                batch_end = min(batch_start + batch_size, len(games_to_process))
+                batch_games = games_to_process[batch_start:batch_end]
+                print(f"🔧 DEBUG: Processing batch {batch_start//batch_size + 1} with {len(batch_games)} games (games {batch_start+1}-{batch_end} of {len(games_to_process)})")
                 
-                if not game_name:
-                    print(f"⚠️ DEBUG: Skipping game with no name")
-                    skipped_count += 1
-                    continue
+                # Collect downloads for this batch
+                batch_download_tasks = []
                 
-                # Get ROM filename
-                rom_filename = None
-                rom_filename_no_ext = None
-                if rom_path:
-                    rom_filename = os.path.basename(rom_path)
-                    # Remove extension for matching
-                    rom_filename_no_ext = os.path.splitext(rom_filename)[0]
-                    print(f"🔧 DEBUG: ROM filename (no ext): '{rom_filename_no_ext}'")
-                
-                # Normalize names (without parentheses)
-                normalized_romname = normalize_game_name(rom_filename_no_ext, remove_paranthesis=True) if rom_filename_no_ext else None
-                normalized_gamename = normalize_game_name(game_name, remove_paranthesis=True)
-                print(f"🔧 DEBUG: Normalized romname: '{normalized_romname}', gamename: '{normalized_gamename}'")
-                
-                # Process each selected media field
-                game_media_downloaded = False
-                print(f"🔧 DEBUG: Processing {len(local_selected_fields)} media fields: {local_selected_fields}")
-                for media_field in local_selected_fields:
-                    print(f"🔧 DEBUG: Processing media field: {media_field}")
-                    # Check if field should be processed
-                    if not overwrite_media_fields:
-                        # Check if field already has a value
-                        if game.get(media_field):
-                            continue
+                for idx, game in enumerate(batch_games):
+                    batch_idx = batch_start + idx
+                    print(f"🔧 DEBUG: Processing game {batch_idx + 1}/{len(games_to_process)}: {game.get('name', 'Unknown')}")
+                    # Check for cancellation
+                    if is_cancelled():
+                        print(f"EmuMovies task {task_id} was cancelled")
+                        t = get_task(task_id)
+                        if t:
+                            t.update_progress(90, None)
+                            t.log_message(f"Saving partial changes before cancellation...")
+                        save_gamelist_xml(gamelist_path, all_games)
+                        notify_gamelist_updated(system_name, len(all_games), updated_count=media_downloaded_count)
+                        t = get_task(task_id)
+                        if t:
+                            t.complete(True, f"Task cancelled - partial changes saved: {media_downloaded_count} games with media downloaded")
+                        return
                     
-                    # Get EmuMovies media types for this field
-                    emumovies_types = image_type_mappings.get(media_field, [])
-                    print(f"🔧 DEBUG: EmuMovies types for {media_field}: {emumovies_types}")
-                    if not emumovies_types:
-                        print(f"⚠️ DEBUG: No EmuMovies types mapped for {media_field}, skipping")
+                    game_name = game.get('name', '')
+                    rom_path = game.get('path', '')
+                    print(f"🔧 DEBUG: Game name: '{game_name}', path: '{rom_path}'")
+                    
+                    if not game_name:
+                        print(f"⚠️ DEBUG: Skipping game with no name")
+                        skipped_count += 1
+                        processed_count += 1
+                        progress_callback(processed_count, total_games)
                         continue
                     
-                    # Try to find match in index for each media type (in priority order)
-                    matched_filename = None
-                    matched_media_type = None
+                    # Get ROM filename
+                    rom_filename = None
+                    rom_filename_no_ext = None
+                    if rom_path:
+                        rom_filename = os.path.basename(rom_path)
+                        # Remove extension for matching
+                        rom_filename_no_ext = os.path.splitext(rom_filename)[0]
+
                     
-                    for emumovies_type in emumovies_types:
-                        print(f"🔧 DEBUG: Checking media type: {emumovies_type}")
-                        if emumovies_type not in system_index:
-                            print(f"⚠️ DEBUG: Media type {emumovies_type} not in system_index")
-                            print(f"🔧 DEBUG: Available media types in system_index: {list(system_index.keys())[:20]}")
+                    # Normalize names (without parentheses)
+                    normalized_romname = normalize_game_name(rom_filename_no_ext, remove_paranthesis=True)
+                    normalized_gamename = normalize_game_name(game_name, remove_paranthesis=True)
+                    
+                    # Process each selected media field
+                    game_has_downloads = False
+                    print(f"🔧 DEBUG: Processing {len(local_selected_fields)} media fields: {local_selected_fields}")
+                    for media_field in local_selected_fields:
+                        print(f"🔧 DEBUG: Processing media field: {media_field}")
+                        # Check if field should be processed
+                        if not overwrite_media_fields:
+                            # Check if field already has a value
+                            if game.get(media_field):
+                                continue
+                        
+                        # Get EmuMovies media types for this field
+                        emumovies_types = image_type_mappings.get(media_field, [])
+                        print(f"🔧 DEBUG: EmuMovies types for {media_field}: {emumovies_types}")
+                        if not emumovies_types:
+                            print(f"⚠️ DEBUG: No EmuMovies types mapped for {media_field}, skipping")
                             continue
                         
-                        media_type_index = system_index[emumovies_type]
-                        index_len = len(media_type_index) if isinstance(media_type_index, dict) else 0
-                        print(f"🔧 DEBUG: Media type index type: {type(media_type_index)}, has {index_len} entries")
+                        # Try to find match in index for each media type (in priority order)
+                        matched_filename = None
+                        matched_media_type = None
                         
-                        if index_len == 0:
-                            print(f"⚠️ WARNING: {emumovies_type} index is EMPTY - database may need to be rebuilt or this media type may not be available for {emumovies_system}")
-                            # Check raw database to see if files exist
-                            try:
-                                db_path = os.path.join('var/db/emumovies/emumovies.json')
-                                if os.path.exists(db_path):
-                                    with open(db_path, 'r', encoding='utf-8') as db_f:
-                                        raw_db = json.load(db_f)
-                                    if emumovies_system in raw_db and emumovies_type in raw_db[emumovies_system]:
-                                        raw_count = len(raw_db[emumovies_system][emumovies_type]) if isinstance(raw_db[emumovies_system][emumovies_type], dict) else 0
-                                        print(f"🔧 DEBUG: Raw database has {raw_count} files for {emumovies_type} - index needs regeneration!")
-                            except Exception as e:
-                                print(f"🔧 DEBUG: Could not check raw database: {e}")
-                        elif isinstance(media_type_index, dict) and len(media_type_index) > 0:
-                            # Show sample keys
-                            sample_keys = list(media_type_index.keys())[:5]
-                            print(f"🔧 DEBUG: Sample keys in {emumovies_type}: {sample_keys}")
-                            # Check if our normalized names are close
-                            if normalized_romname:
-                                close_matches = [k for k in media_type_index.keys() if normalized_romname[:5] in k or k[:5] in normalized_romname][:5]
-                                if close_matches:
-                                    print(f"🔧 DEBUG: Close matches for '{normalized_romname}': {close_matches}")
+                        for emumovies_type in emumovies_types:
+                            print(f"🔧 DEBUG: Checking media type: {emumovies_type}")
+                            if emumovies_type not in system_index:
+                                print(f"⚠️ DEBUG: Media type {emumovies_type} not in system_index")
+                                continue
+                            
+                            media_type_index = system_index[emumovies_type]
+                            index_len = len(media_type_index) if isinstance(media_type_index, dict) else 0
+                            print(f"🔧 DEBUG: Media type index type: {type(media_type_index)}, has {index_len} entries")
+                            
+                            if index_len == 0:
+                                print(f"⚠️ WARNING: {emumovies_type} index is EMPTY - database may need to be rebuilt or this media type may not be available for {emumovies_system}")
+                                continue
+                            
+                            # Try normalized romname first
+                            if normalized_romname and normalized_romname in media_type_index:
+                                matched_value = media_type_index[normalized_romname]
+                                matched_media_type = emumovies_type
+                                
+                                # Handle array of files (multiple files normalize to same key)
+                                if isinstance(matched_value, list):
+                                    print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_romname}'")
+                                    # Try to find perfect match with romfilename or gamename
+                                    matched_filename = None
+                                    
+                                    # Check for perfect match with rom filename (without extension)
+                                    if rom_filename_no_ext:
+                                        for filename in matched_value:
+                                            filename_no_ext = os.path.splitext(filename)[0]
+                                            if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
+                                                matched_filename = filename
+                                                print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
+                                                break
+                                    
+                                    # Check for perfect match with game name
+                                    if not matched_filename and game_name:
+                                        for filename in matched_value:
+                                            filename_no_ext = os.path.splitext(filename)[0]
+                                            if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
+                                                matched_filename = filename
+                                                print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
+                                                break
+                                    
+                                    # If no perfect match, use first file from array
+                                    if not matched_filename:
+                                        matched_filename = matched_value[0]
+                                        print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
+                                else:
+                                    # Single file (backward compatibility)
+                                    matched_filename = matched_value
+                                    print(f"✅ DEBUG: Found match with romname '{normalized_romname}' -> '{matched_filename}'")
+                                
+                                break  # Found match, exit emumovies_type loop
+                            
+                            # Try normalized gamename if romname didn't match
+                            if not matched_filename and normalized_gamename and normalized_gamename in media_type_index:
+                                matched_value = media_type_index[normalized_gamename]
+                                matched_media_type = emumovies_type
+                                
+                                # Handle array of files (multiple files normalize to same key)
+                                if isinstance(matched_value, list):
+                                    print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_gamename}'")
+                                    # Try to find perfect match with romfilename or gamename
+                                    matched_filename = None
+                                    
+                                    # Check for perfect match with rom filename (without extension)
+                                    if rom_filename_no_ext:
+                                        for filename in matched_value:
+                                            filename_no_ext = os.path.splitext(filename)[0]
+                                            if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
+                                                matched_filename = filename
+                                                print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
+                                                break
+                                    
+                                    # Check for perfect match with game name
+                                    if not matched_filename and game_name:
+                                        for filename in matched_value:
+                                            filename_no_ext = os.path.splitext(filename)[0]
+                                            if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
+                                                matched_filename = filename
+                                                print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
+                                                break
+                                    
+                                    # If no perfect match, use first file from array
+                                    if not matched_filename:
+                                        matched_filename = matched_value[0]
+                                        print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
+                                else:
+                                    # Single file (backward compatibility)
+                                    matched_filename = matched_value
+                                    print(f"✅ DEBUG: Found match with gamename '{normalized_gamename}' -> '{matched_filename}'")
+                                
+                                break  # Found match, exit emumovies_type loop
                         
-                        # Try normalized romname first
-                        if normalized_romname and normalized_romname in media_type_index:
-                            matched_value = media_type_index[normalized_romname]
-                            matched_media_type = emumovies_type
-                            
-                            # Handle array of files (multiple files normalize to same key)
-                            if isinstance(matched_value, list):
-                                print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_romname}'")
-                                # Try to find perfect match with romfilename or gamename
-                                matched_filename = None
-                                
-                                # Check for perfect match with rom filename (without extension)
-                                if rom_filename_no_ext:
-                                    for filename in matched_value:
-                                        filename_no_ext = os.path.splitext(filename)[0]
-                                        if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
-                                            matched_filename = filename
-                                            print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
-                                            break
-                                
-                                # Check for perfect match with game name
-                                if not matched_filename and game_name:
-                                    for filename in matched_value:
-                                        filename_no_ext = os.path.splitext(filename)[0]
-                                        if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
-                                            matched_filename = filename
-                                            print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
-                                            break
-                                
-                                # If no perfect match, use first file from array
-                                if not matched_filename:
-                                    matched_filename = matched_value[0]
-                                    print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
-                            else:
-                                # Single file (backward compatibility)
-                                matched_filename = matched_value
-                                print(f"✅ DEBUG: Found match with romname '{normalized_romname}' -> '{matched_filename}'")
-                            
-                            break
+                        # Check if we found a match for this media field
+                        if not matched_filename or not matched_media_type:
+                            print(f"⚠️ DEBUG: No match found for {media_field}, skipping")
+                            continue
                         
-                        # Try normalized gamename if romname didn't match
-                        if normalized_gamename and normalized_gamename in media_type_index:
-                            matched_value = media_type_index[normalized_gamename]
-                            matched_media_type = emumovies_type
-                            
-                            # Handle array of files (multiple files normalize to same key)
-                            if isinstance(matched_value, list):
-                                print(f"🔧 DEBUG: Found {len(matched_value)} files for normalized key '{normalized_gamename}'")
-                                # Try to find perfect match with romfilename or gamename
-                                matched_filename = None
-                                
-                                # Check for perfect match with rom filename (without extension)
-                                if rom_filename_no_ext:
-                                    for filename in matched_value:
-                                        filename_no_ext = os.path.splitext(filename)[0]
-                                        if filename_no_ext == rom_filename_no_ext or filename_no_ext.lower() == rom_filename_no_ext.lower():
-                                            matched_filename = filename
-                                            print(f"✅ DEBUG: Perfect match with rom filename: '{matched_filename}'")
-                                            break
-                                
-                                # Check for perfect match with game name
-                                if not matched_filename and game_name:
-                                    for filename in matched_value:
-                                        filename_no_ext = os.path.splitext(filename)[0]
-                                        if filename_no_ext == game_name or filename_no_ext.lower() == game_name.lower():
-                                            matched_filename = filename
-                                            print(f"✅ DEBUG: Perfect match with game name: '{matched_filename}'")
-                                            break
-                                
-                                # If no perfect match, use first file from array
-                                if not matched_filename:
-                                    matched_filename = matched_value[0]
-                                    print(f"✅ DEBUG: Using first file from array: '{matched_filename}'")
-                            else:
-                                # Single file (backward compatibility)
-                                matched_filename = matched_value
-                                print(f"✅ DEBUG: Found match with gamename '{normalized_gamename}' -> '{matched_filename}'")
-                            
-                            break
-                        else:
-                            print(f"⚠️ DEBUG: No match found for '{normalized_romname}' or '{normalized_gamename}' in {emumovies_type}")
-                    
-                    if not matched_filename or not matched_media_type:
-                        print(f"⚠️ DEBUG: No match found for {media_field}, skipping")
-                        continue
-                    
-                    print(f"🔧 DEBUG: Proceeding to download {matched_media_type} -> {media_field} (filename: {matched_filename})")
-                    
-                    # Download media
-                    try:
-                        print(f"🔧 DEBUG: Starting download for {matched_filename}")
+                        print(f"🔧 DEBUG: Proceeding to download {matched_media_type} -> {media_field} (filename: {matched_filename})")
+                        
                         # Get media directory from config.json media_fields
                         media_fields_config = config.get('media_fields', {})
                         if media_field not in media_fields_config:
@@ -28785,164 +28813,236 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                             print(f"⚠️ DEBUG: No directory configured for media field '{media_field}', skipping")
                             continue
                         media_dir = os.path.join(roms_root, system_name, 'media', media_subdirectory)
-                        print(f"🔧 DEBUG: Media directory for {media_field}: {media_dir} (subdirectory: {media_subdirectory})")
                         os.makedirs(media_dir, exist_ok=True)
                         
-                        # Download media using API
-                        download_url = f"{service.base_url}/api/Media/Download"
-                        print(f"🔧 DEBUG: Download URL: {download_url}")
-                        headers = await service._get_authenticated_headers()
-                        
-                        params = {
-                            'systemName': emumovies_system,
-                            'mediaType': matched_media_type,
-                            'mediaSet': 'default',
-                            'filename': matched_filename
-                        }
-                        print(f"🔧 DEBUG: Download params: {params}")
-                        
-                        async with httpx.AsyncClient(timeout=30.0) as client:
-                            print(f"🔧 DEBUG: Sending download request...")
-                            response = await client.get(download_url, params=params, headers=headers, follow_redirects=True)
-                            print(f"🔧 DEBUG: Download response status: {response.status_code}")
+                        # Add download task to list for parallel processing
+                        batch_download_tasks.append({
+                            'game': game,
+                            'game_name': game_name,
+                            'rom_filename_no_ext': rom_filename_no_ext,
+                            'media_field': media_field,
+                            'matched_media_type': matched_media_type,
+                            'matched_filename': matched_filename,
+                            'media_dir': media_dir,
+                            'media_subdirectory': media_subdirectory
+                        })
+                        game_has_downloads = True
+                    
+                    # If no downloads were queued for this game, count it as skipped
+                    if not game_has_downloads:
+                        skipped_count += 1
+                    
+                    # Update progress for this game
+                    processed_count += 1
+                    progress_callback(processed_count, total_games)
+            
+            # Process downloads for this batch in parallel
+            if batch_download_tasks:
+                print(f"🔧 DEBUG: Processing {len(batch_download_tasks)} downloads for batch {batch_start//batch_size + 1} in parallel...")
+                max_concurrent = 10  # Limit concurrent downloads per batch
+                
+                async def download_single_media(download_task):
+                        """Download a single media file"""
+                        try:
+                            game = download_task['game']
+                            game_name = download_task['game_name']
+                            rom_filename_no_ext = download_task['rom_filename_no_ext']
+                            media_field = download_task['media_field']
+                            matched_media_type = download_task['matched_media_type']
+                            matched_filename = download_task['matched_filename']
+                            media_dir = download_task['media_dir']
+                            media_subdirectory = download_task['media_subdirectory']
                             
-                            if response.status_code == 200:
-                                print(f"✅ DEBUG: Download successful, processing file...")
-                                # Determine file extension from content-type or filename
-                                content_type = response.headers.get('content-type', '').lower()
+                            print(f"🔧 DEBUG: Starting download for {matched_filename} -> {media_field} for {game_name}")
+                            
+                            params = {
+                                'systemName': emumovies_system,
+                                'mediaType': matched_media_type,
+                                'mediaSet': 'default',
+                                'filename': matched_filename
+                            }
+                            
+                            async with httpx.AsyncClient(timeout=30.0) as client:
+                                print(f"🔧 DEBUG: Sending download request...")
+                                response = await client.get(download_url, params=params, headers=headers, follow_redirects=True)
+                                print(f"🔧 DEBUG: Download response status: {response.status_code}")
                                 
-                                # Determine if this is a video or PDF (manual)
-                                is_video = 'video' in content_type or matched_media_type.startswith('Video') or media_field == 'video'
-                                is_pdf = 'pdf' in content_type or matched_media_type == 'Manual' or media_field == 'manual' or matched_filename.lower().endswith('.pdf')
-                                
-                                # Get extension from filename first, then content-type
-                                ext = os.path.splitext(matched_filename)[1]
-                                if not ext or ext == '':
-                                    if is_video:
-                                        ext = '.mp4'  # Default video extension
-                                    elif is_pdf:
-                                        ext = '.pdf'  # Default PDF extension
-                                    elif 'image' in content_type:
-                                        ext = '.jpg' if 'jpeg' in content_type else '.png'
-                                    else:
-                                        ext = '.jpg'  # Default to jpg for images
-                                
-                                # Normalize extension (lowercase, ensure it starts with dot)
-                                ext = ext.lower()
-                                if not ext.startswith('.'):
-                                    ext = '.' + ext
-                                
-                                # Generate final filename based on ROM filename (without extension) + media extension
-                                if not rom_filename_no_ext:
-                                    print(f"⚠️ DEBUG: No ROM filename available, skipping")
-                                    continue
-                                
-                                final_filename = f"{rom_filename_no_ext}{ext}"
-                                final_path = os.path.join(media_dir, final_filename)
-                                
-                                # Handle filename conflicts
-                                counter = 1
-                                while os.path.exists(final_path):
-                                    final_filename = f"{rom_filename_no_ext}_{counter}{ext}"
-                                    final_path = os.path.join(media_dir, final_filename)
-                                    counter += 1
-                                
-                                # Save file directly (no processing for videos/PDFs)
-                                if is_video or is_pdf:
-                                    print(f"🔧 DEBUG: Saving {matched_media_type} directly (no processing): {final_path}")
-                                    with open(final_path, 'wb') as f:
-                                        f.write(response.content)
-                                    final_path_used = final_path
-                                else:
-                                    # For images, save to temp file first, then process
-                                    temp_file = os.path.join(media_dir, f'temp_{secrets.token_hex(8)}{ext}')
-                                    with open(temp_file, 'wb') as f:
-                                        f.write(response.content)
+                                if response.status_code == 200:
+                                    print(f"✅ DEBUG: Download successful, processing file...")
+                                    # Determine file extension from content-type or filename
+                                    content_type = response.headers.get('content-type', '').lower()
                                     
-                                    # Use convert_and_resize_image_replace to process
-                                    processed_path, process_status = convert_and_resize_image_replace(
-                                        temp_file,
-                                        target_extension=None,  # Let function determine
-                                        target_width=0,
-                                        target_height=0
-                                    )
+                                    # Determine if this is a video or PDF (manual)
+                                    is_video = 'video' in content_type or matched_media_type.startswith('Video') or media_field == 'video'
+                                    is_pdf = 'pdf' in content_type or matched_media_type == 'Manual' or media_field == 'manual' or matched_filename.lower().endswith('.pdf')
                                     
-                                    # Move processed file to final location with correct ROM filename
-                                    if processed_path and os.path.exists(processed_path):
-                                        # Get the extension from the processed file
-                                        processed_ext = os.path.splitext(processed_path)[1]
-                                        if not processed_ext:
-                                            processed_ext = ext
-                                        
-                                        # Update final_path with correct extension (ROM filename + processed extension)
-                                        final_path = os.path.join(media_dir, f"{rom_filename_no_ext}{processed_ext}")
-                                        
-                                        # Handle conflicts again with new extension
-                                        counter = 1
-                                        while os.path.exists(final_path):
-                                            final_path = os.path.join(media_dir, f"{rom_filename_no_ext}_{counter}{processed_ext}")
-                                            counter += 1
-                                        
-                                        # Move processed file to final location
-                                        import shutil
-                                        if processed_path != final_path:
-                                            shutil.move(processed_path, final_path)
-                                        final_path_used = final_path
-                                        
-                                        # Remove temp file if it still exists and is different
-                                        if os.path.exists(temp_file) and temp_file != processed_path and temp_file != final_path:
-                                            try:
-                                                os.remove(temp_file)
-                                            except:
-                                                pass
-                                    else:
-                                        # Processing failed, move temp file to final location with ROM filename
-                                        import shutil
-                                        if os.path.exists(temp_file):
-                                            shutil.move(temp_file, final_path)
-                                            final_path_used = final_path
-                                            print(f"⚠️ DEBUG: Image processing failed, saved as: {final_path}")
+                                    # Get extension from filename first, then content-type
+                                    ext = os.path.splitext(matched_filename)[1]
+                                    if not ext or ext == '':
+                                        if is_video:
+                                            ext = '.mp4'  # Default video extension
+                                        elif is_pdf:
+                                            ext = '.pdf'  # Default PDF extension
+                                        elif 'image' in content_type:
+                                            ext = '.jpg' if 'jpeg' in content_type else '.png'
                                         else:
-                                            print(f"❌ DEBUG: Image processing failed and temp file missing")
-                                            continue
-                                
-                                # Calculate relative path using the media subdirectory from config
-                                # Media paths in gamelist.xml are relative to roms/<system_name>/
-                                media_filename = os.path.basename(final_path_used)
-                                relative_path = f'./media/{media_subdirectory}/{media_filename}'
-                                # Normalize path separators for XML
-                                relative_path = relative_path.replace('\\', '/')
-                                print(f"🔧 DEBUG: Constructed relative path: {relative_path} (using subdirectory: {media_subdirectory})")
-                                
-                                # Update gamelist.xml
-                                game[media_field] = relative_path
-                                print(f"🔧 DEBUG: Set {media_field} to: {relative_path}")
-                                
-                                if not game_media_downloaded:
+                                            ext = '.jpg'  # Default to jpg for images
+                                    
+                                    # Normalize extension (lowercase, ensure it starts with dot)
+                                    ext = ext.lower()
+                                    if not ext.startswith('.'):
+                                        ext = '.' + ext
+                                    
+                                    # Generate final filename based on ROM filename (without extension) + media extension
+                                    if not rom_filename_no_ext:
+                                        print(f"⚠️ DEBUG: No ROM filename available, skipping")
+                                        return False
+                                    
+                                    final_filename = f"{rom_filename_no_ext}{ext}"
+                                    final_path = os.path.join(media_dir, final_filename)
+                                    
+                                    # Handle filename conflicts
+                                    counter = 1
+                                    while os.path.exists(final_path):
+                                        final_filename = f"{rom_filename_no_ext}_{counter}{ext}"
+                                        final_path = os.path.join(media_dir, final_filename)
+                                        counter += 1
+                                    
+                                    # Save file directly (no processing for videos/PDFs)
+                                    if is_video or is_pdf:
+                                        print(f"🔧 DEBUG: Saving {matched_media_type} directly (no processing): {final_path}")
+                                        with open(final_path, 'wb') as f:
+                                            f.write(response.content)
+                                        final_path_used = final_path
+                                    else:
+                                        # For images, save to temp file first, then process
+                                        import secrets
+                                        temp_file = os.path.join(media_dir, f'temp_{secrets.token_hex(8)}{ext}')
+                                        with open(temp_file, 'wb') as f:
+                                            f.write(response.content)
+                                        
+                                        # Use convert_and_resize_image_replace to process
+                                        processed_path, process_status = convert_and_resize_image_replace(
+                                            temp_file,
+                                            target_extension=None,  # Let function determine
+                                            target_width=0,
+                                            target_height=0
+                                        )
+                                        
+                                        # Move processed file to final location with correct ROM filename
+                                        if processed_path and os.path.exists(processed_path):
+                                            # Get the extension from the processed file
+                                            processed_ext = os.path.splitext(processed_path)[1]
+                                            if not processed_ext:
+                                                processed_ext = ext
+                                            
+                                            # Update final_path with correct extension (ROM filename + processed extension)
+                                            final_path = os.path.join(media_dir, f"{rom_filename_no_ext}{processed_ext}")
+                                            
+                                            # Handle conflicts again with new extension
+                                            counter = 1
+                                            while os.path.exists(final_path):
+                                                final_path = os.path.join(media_dir, f"{rom_filename_no_ext}_{counter}{processed_ext}")
+                                                counter += 1
+                                            
+                                            # Move processed file to final location
+                                            import shutil
+                                            if processed_path != final_path:
+                                                shutil.move(processed_path, final_path)
+                                            final_path_used = final_path
+                                            
+                                            # Remove temp file if it still exists and is different
+                                            if os.path.exists(temp_file) and temp_file != processed_path and temp_file != final_path:
+                                                try:
+                                                    os.remove(temp_file)
+                                                except:
+                                                    pass
+                                        else:
+                                            # Processing failed, move temp file to final location with ROM filename
+                                            import shutil
+                                            if os.path.exists(temp_file):
+                                                shutil.move(temp_file, final_path)
+                                                final_path_used = final_path
+                                                print(f"⚠️ DEBUG: Image processing failed, saved as: {final_path}")
+                                            else:
+                                                print(f"❌ DEBUG: Image processing failed and temp file missing")
+                                                return False
+                                    
+                                    # Calculate relative path using the media subdirectory from config
+                                    # Media paths in gamelist.xml are relative to roms/<system_name>/
+                                    media_filename = os.path.basename(final_path_used)
+                                    relative_path = f'./media/{media_subdirectory}/{media_filename}'
+                                    # Normalize path separators for XML
+                                    relative_path = relative_path.replace('\\', '/')
+                                    print(f"🔧 DEBUG: Constructed relative path: {relative_path} (using subdirectory: {media_subdirectory})")
+                                    
+                                    # Update gamelist.xml
+                                    game[media_field] = relative_path
+                                    print(f"🔧 DEBUG: Set {media_field} to: {relative_path}")
+                                    
+                                    print(f"✅ Downloaded {matched_media_type} -> {media_field} for {game_name}")
+                                    return True
+                                else:
+                                    print(f"❌ Failed to download {matched_filename}: HTTP {response.status_code}")
+                                    return False
+                        except Exception as e:
+                            import traceback
+                            traceback.print_exc()
+                            print(f"❌ Error downloading media for {game_name}: {e}")
+                            return False
+                
+                # Process downloads in sub-batches (if more than max_concurrent)
+                for i in range(0, len(batch_download_tasks), max_concurrent):
+                    # Check for cancellation before each sub-batch
+                    if is_cancelled():
+                        print(f"EmuMovies task {task_id} was cancelled during download sub-batch")
+                        break
+                        
+                    sub_batch = batch_download_tasks[i:i + max_concurrent]
+                    print(f"🔧 DEBUG: Processing download sub-batch {i//max_concurrent + 1} with {len(sub_batch)} downloads")
+                    
+                    # Execute sub-batch in parallel
+                    sub_batch_results = await asyncio.gather(*[download_single_media(task) for task in sub_batch], return_exceptions=True)
+                    
+                    # Process results
+                    for j, result in enumerate(sub_batch_results):
+                        if j < len(sub_batch):
+                            task = sub_batch[j]
+                            game = task['game']
+                            game_name = task['game_name']
+                            media_field = task['media_field']
+                            matched_media_type = task['matched_media_type']
+                            
+                            if isinstance(result, Exception):
+                                print(f"❌ Error in download sub-batch task {j}: {result}")
+                                if t:
+                                    t.log_message(f"Error downloading {matched_media_type} -> {media_field} for {game_name}: {str(result)}")
+                            elif result:
+                                # Track which games had media downloaded (only count once per game)
+                                if not any(dt['game'] == game and dt.get('downloaded', False) for dt in batch_download_tasks[:i+j+1]):
                                     media_downloaded_count += 1
-                                    game_media_downloaded = True
-                                
-                                print(f"✅ Downloaded {matched_media_type} -> {media_field} for {game_name}")
-                                
+                                # Mark this task as downloaded
+                                task['downloaded'] = True
                                 if t:
                                     t.log_message(f"Downloaded {matched_media_type} -> {media_field} for {game_name}")
                             else:
-                                print(f"❌ Failed to download {matched_filename}: HTTP {response.status_code}")
                                 if t:
-                                    t.log_message(f"Failed to download {matched_filename}: HTTP {response.status_code}")
-                    except Exception as e:
-                        import traceback
-                        traceback.print_exc()
-                        print(f"❌ Error downloading media for {game_name}: {e}")
-                        if t:
-                            t.log_message(f"Error downloading media for {game_name}: {str(e)}")
+                                    t.log_message(f"Failed to download {matched_media_type} -> {media_field} for {game_name}")
+                    
+                    # Small delay between sub-batches to be respectful to the server
+                    if i + max_concurrent < len(batch_download_tasks):
+                        await asyncio.sleep(0.1)
                 
-                processed_count += 1
-                print(f"🔧 DEBUG: Processed {processed_count}/{total_games} games")
-                progress_callback(processed_count, total_games)
+                print(f"🔧 DEBUG: Completed batch {batch_start//batch_size + 1} downloads ({len(batch_download_tasks)} downloads)")
+            else:
+                print(f"🔧 DEBUG: No downloads for batch {batch_start//batch_size + 1}")
             
-            # Save gamelist
-            print(f"🔧 DEBUG: Saving gamelist with {media_downloaded_count} media downloads, {skipped_count} skipped")
+            # Save gamelist after each batch to preserve progress
+            save_gamelist_xml(gamelist_path, all_games)
+            print(f"🔧 DEBUG: Saved gamelist after batch {batch_start//batch_size + 1}")
+        
+            # Final save and notification (after all batches are processed)
+            print(f"🔧 DEBUG: Saving final gamelist with {media_downloaded_count} media downloads, {skipped_count} skipped")
             save_gamelist_xml(gamelist_path, all_games)
             notify_gamelist_updated(system_name, len(all_games), updated_count=media_downloaded_count)
             
