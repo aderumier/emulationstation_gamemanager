@@ -28824,7 +28824,8 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                             'matched_media_type': matched_media_type,
                             'matched_filename': matched_filename,
                             'media_dir': media_dir,
-                            'media_subdirectory': media_subdirectory
+                            'media_subdirectory': media_subdirectory,
+                            'overwrite_media_fields': overwrite_media_fields
                         })
                         game_has_downloads = True
                     
@@ -28835,13 +28836,14 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                     # Update progress for this game
                     processed_count += 1
                     progress_callback(processed_count, total_games)
-            
-            # Process downloads for this batch in parallel
-            if batch_download_tasks:
-                print(f"🔧 DEBUG: Processing {len(batch_download_tasks)} downloads for batch {batch_start//batch_size + 1} in parallel...")
-                max_concurrent = 10  # Limit concurrent downloads per batch
                 
-                async def download_single_media(download_task):
+                # Process downloads for this batch in parallel
+                print(f"🔧 DEBUG: Batch {batch_start//batch_size + 1}: Collected {len(batch_download_tasks)} download tasks")
+                if batch_download_tasks:
+                    print(f"🔧 DEBUG: Processing {len(batch_download_tasks)} downloads for batch {batch_start//batch_size + 1} in parallel...")
+                    max_concurrent = 10  # Limit concurrent downloads per batch
+                
+                    async def download_single_media(download_task):
                         """Download a single media file"""
                         try:
                             game = download_task['game']
@@ -28852,6 +28854,7 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                             matched_filename = download_task['matched_filename']
                             media_dir = download_task['media_dir']
                             media_subdirectory = download_task['media_subdirectory']
+                            overwrite_media_fields = download_task['overwrite_media_fields']
                             
                             print(f"🔧 DEBUG: Starting download for {matched_filename} -> {media_field} for {game_name}")
                             
@@ -28900,13 +28903,7 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                                     
                                     final_filename = f"{rom_filename_no_ext}{ext}"
                                     final_path = os.path.join(media_dir, final_filename)
-                                    
-                                    # Handle filename conflicts
-                                    counter = 1
-                                    while os.path.exists(final_path):
-                                        final_filename = f"{rom_filename_no_ext}_{counter}{ext}"
-                                        final_path = os.path.join(media_dir, final_filename)
-                                        counter += 1
+                                    # Always use the ROM filename - will overwrite if file exists
                                     
                                     # Save file directly (no processing for videos/PDFs)
                                     if is_video or is_pdf:
@@ -28938,12 +28935,7 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                                             
                                             # Update final_path with correct extension (ROM filename + processed extension)
                                             final_path = os.path.join(media_dir, f"{rom_filename_no_ext}{processed_ext}")
-                                            
-                                            # Handle conflicts again with new extension
-                                            counter = 1
-                                            while os.path.exists(final_path):
-                                                final_path = os.path.join(media_dir, f"{rom_filename_no_ext}_{counter}{processed_ext}")
-                                                counter += 1
+                                            # Always use the ROM filename - will overwrite if file exists
                                             
                                             # Move processed file to final location
                                             import shutil
@@ -28990,52 +28982,52 @@ def run_emumovies_task(system_name, task_id, selected_games=None, selected_field
                             traceback.print_exc()
                             print(f"❌ Error downloading media for {game_name}: {e}")
                             return False
-                
-                # Process downloads in sub-batches (if more than max_concurrent)
-                for i in range(0, len(batch_download_tasks), max_concurrent):
-                    # Check for cancellation before each sub-batch
-                    if is_cancelled():
-                        print(f"EmuMovies task {task_id} was cancelled during download sub-batch")
-                        break
-                        
-                    sub_batch = batch_download_tasks[i:i + max_concurrent]
-                    print(f"🔧 DEBUG: Processing download sub-batch {i//max_concurrent + 1} with {len(sub_batch)} downloads")
                     
-                    # Execute sub-batch in parallel
-                    sub_batch_results = await asyncio.gather(*[download_single_media(task) for task in sub_batch], return_exceptions=True)
-                    
-                    # Process results
-                    for j, result in enumerate(sub_batch_results):
-                        if j < len(sub_batch):
-                            task = sub_batch[j]
-                            game = task['game']
-                            game_name = task['game_name']
-                            media_field = task['media_field']
-                            matched_media_type = task['matched_media_type']
+                    # Process downloads in sub-batches (if more than max_concurrent)
+                    for i in range(0, len(batch_download_tasks), max_concurrent):
+                        # Check for cancellation before each sub-batch
+                        if is_cancelled():
+                            print(f"EmuMovies task {task_id} was cancelled during download sub-batch")
+                            break
                             
-                            if isinstance(result, Exception):
-                                print(f"❌ Error in download sub-batch task {j}: {result}")
-                                if t:
-                                    t.log_message(f"Error downloading {matched_media_type} -> {media_field} for {game_name}: {str(result)}")
-                            elif result:
-                                # Track which games had media downloaded (only count once per game)
-                                if not any(dt['game'] == game and dt.get('downloaded', False) for dt in batch_download_tasks[:i+j+1]):
-                                    media_downloaded_count += 1
-                                # Mark this task as downloaded
-                                task['downloaded'] = True
-                                if t:
-                                    t.log_message(f"Downloaded {matched_media_type} -> {media_field} for {game_name}")
-                            else:
-                                if t:
-                                    t.log_message(f"Failed to download {matched_media_type} -> {media_field} for {game_name}")
+                        sub_batch = batch_download_tasks[i:i + max_concurrent]
+                        print(f"🔧 DEBUG: Processing download sub-batch {i//max_concurrent + 1} with {len(sub_batch)} downloads")
+                        
+                        # Execute sub-batch in parallel
+                        sub_batch_results = await asyncio.gather(*[download_single_media(task) for task in sub_batch], return_exceptions=True)
+                        
+                        # Process results
+                        for j, result in enumerate(sub_batch_results):
+                            if j < len(sub_batch):
+                                task = sub_batch[j]
+                                game = task['game']
+                                game_name = task['game_name']
+                                media_field = task['media_field']
+                                matched_media_type = task['matched_media_type']
+                                
+                                if isinstance(result, Exception):
+                                    print(f"❌ Error in download sub-batch task {j}: {result}")
+                                    if t:
+                                        t.log_message(f"Error downloading {matched_media_type} -> {media_field} for {game_name}: {str(result)}")
+                                elif result:
+                                    # Track which games had media downloaded (only count once per game)
+                                    if not any(dt['game'] == game and dt.get('downloaded', False) for dt in batch_download_tasks[:i+j+1]):
+                                        media_downloaded_count += 1
+                                    # Mark this task as downloaded
+                                    task['downloaded'] = True
+                                    if t:
+                                        t.log_message(f"Downloaded {matched_media_type} -> {media_field} for {game_name}")
+                                else:
+                                    if t:
+                                        t.log_message(f"Failed to download {matched_media_type} -> {media_field} for {game_name}")
+                        
+                        # Small delay between sub-batches to be respectful to the server
+                        if i + max_concurrent < len(batch_download_tasks):
+                            await asyncio.sleep(0.1)
                     
-                    # Small delay between sub-batches to be respectful to the server
-                    if i + max_concurrent < len(batch_download_tasks):
-                        await asyncio.sleep(0.1)
-                
-                print(f"🔧 DEBUG: Completed batch {batch_start//batch_size + 1} downloads ({len(batch_download_tasks)} downloads)")
-            else:
-                print(f"🔧 DEBUG: No downloads for batch {batch_start//batch_size + 1}")
+                    print(f"🔧 DEBUG: Completed batch {batch_start//batch_size + 1} downloads ({len(batch_download_tasks)} downloads)")
+                else:
+                    print(f"🔧 DEBUG: No downloads for batch {batch_start//batch_size + 1}")
             
             # Save gamelist after each batch to preserve progress
             save_gamelist_xml(gamelist_path, all_games)
