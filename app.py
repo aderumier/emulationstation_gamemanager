@@ -5807,6 +5807,22 @@ def list_rom_systems():
     
     return jsonify(systems)
 
+@app.route('/api/config/genres')
+@login_required
+def get_genres():
+    """Get list of genres from genres.json"""
+    try:
+        genres_path = os.path.join('var', 'config', 'genres.json')
+        if os.path.exists(genres_path):
+            with open(genres_path, 'r', encoding='utf-8') as f:
+                genres = json.load(f)
+            return jsonify(genres)
+        else:
+            return jsonify([]), 404
+    except Exception as e:
+        print(f"Error loading genres: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/config', methods=['GET', 'PUT'])
 @login_required
 def get_config():

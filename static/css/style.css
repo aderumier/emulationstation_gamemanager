@@ -2016,3 +2016,50 @@ body.dark-mode {
 .ag-theme-alpine .ag-filter-popup button {
     font-size: 10.8px;
 }
+
+/* Genre Editor Tree Styles */
+.genre-tree-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.genre-tree-item label {
+    margin-bottom: 0;
+    user-select: none;
+}
+
+.genre-tree-children {
+    margin-top: 4px;
+}
+
+/* Genre Editor Modal - Higher z-index to appear above game edit modal */
+#genreEditorModal {
+    z-index: 1060 !important;
+}
+
+#genreEditorModal .modal-backdrop {
+    z-index: 1059 !important;
+}
+
+#genreTreeContainer {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 10px;
+    background-color: #fff;
+    min-height: 300px;
+    font-size: 0.75rem; /* Further reduce font size */
+}
+
+#genreTreeContainer .treejs {
+    font-size: 0.75rem; /* Further reduce font size for tree elements */
+}
+
+#genreTreeContainer .treejs-node {
+    font-size: 0.75rem; /* Further reduce font size for tree nodes */
+}
+
+#genreTreeContainer .treejs-checkbox,
+#genreTreeContainer .treejs-switcher {
+    font-size: 0.75rem; /* Further reduce size for checkboxes and switchers */
+}

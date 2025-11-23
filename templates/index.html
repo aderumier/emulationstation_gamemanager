@@ -47,6 +47,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     
+    <!-- Treejs CSS for genre tree view -->
+    <link rel="stylesheet" href="https://unpkg.com/@widgetjs/tree@1.0.0/dist/tree.min.css">
+    
     <!-- Manual Crop CSS -->
     <style>
         .crop-controls {
@@ -791,6 +794,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- Genre Editor Modal -->
+    <div class="modal fade" id="genreEditorModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg" style="z-index: 1060;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Genres</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="genreTreeContainer" style="max-height: 500px; overflow-y: auto; min-height: 300px;">
+                        <!-- Genre tree will be generated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="genreEditorApplyBtn">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Clean Missing Media Fields Modal -->
     <div class="modal fade" id="cleanMissingMediasModal" tabindex="-1" aria-labelledby="cleanMissingMediasModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -1089,6 +1113,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             <div class="input-group">
                                                 <span class="input-group-text right-col-label">Genre</span>
                                                 <input type="text" class="form-control" id="editGenre">
+                                                <button type="button" class="btn btn-outline-secondary" id="editGenreBtn" title="Open Genre Editor">
+                                                    <i class="bi bi-list-nested"></i>
+                                                </button>
                                             </div>
                                         </div>
                                         <div class="mb-3">
@@ -4522,6 +4549,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         }
     </style>
 
+    <!-- Treejs for genre tree view -->
+    <script src="https://unpkg.com/@widgetjs/tree@1.0.0/dist/tree.min.js"></script>
+    
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     

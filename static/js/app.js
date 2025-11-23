@@ -148,6 +148,9 @@ class GameCollectionManager {
         // Add event listener for edit modal cleanup when closed
         this.initializeEditModalCleanup();
         
+        // Initialize genre editor
+        this.initializeGenreEditor();
+        
         // Initialize search modal cleanup
         this.initializeSearchModalCleanup();
         
@@ -4545,6 +4548,10 @@ class GameCollectionManager {
         
         // Initialize take screenshot button
         this.initializeTakeScreenshotButton(game);
+        
+        // Initialize genre editor button (called after modal is populated)
+        // Note: This is also called in constructor for initial setup
+        this.initializeGenreEditorButton();
     }
     initializeEditModalTabs() {
         // Ensure the first tab is active and visible
@@ -13158,6 +13165,439 @@ class GameCollectionManager {
         }
     }
     
+    initializeGenreEditor() {
+        // Load genres and build tree structure
+        this.genresTree = null;
+        this.genresTreejsData = null;
+        this.genreTreeInstance = null;
+        this.selectedGenres = new Set();
+        
+        // Load genres.json
+        fetch('/api/config/genres')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load genres');
+                }
+                return response.json();
+            })
+            .then(genres => {
+                this.genresTreejsData = this.buildGenreTreeForTreejs(genres);
+            })
+            .catch(error => {
+                console.error('Error loading genres:', error);
+            });
+    }
+    
+    buildGenreTreeForTreejs(genres) {
+        // Build a tree structure compatible with Treejs format
+        const tree = {};
+        const genreSet = new Set(genres);
+        
+        // First pass: build the tree structure
+        genres.forEach(genre => {
+            const parts = genre.split(' / ');
+            let current = tree;
+            
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                const fullPath = parts.slice(0, i + 1).join(' / ');
+                
+                if (!current[part]) {
+                    current[part] = {
+                        children: {},
+                        fullPath: fullPath,
+                        isGenre: genreSet.has(fullPath)
+                    };
+                } else {
+                    if (genreSet.has(fullPath)) {
+                        current[part].isGenre = true;
+                    }
+                }
+                
+                current = current[part].children;
+            }
+        });
+        
+        // Convert to Treejs format: array of {id, text, children}
+        const convertToTreejsFormat = (nodeTree, parentPath = '') => {
+            const result = [];
+            const sortedKeys = Object.keys(nodeTree).sort();
+            
+            sortedKeys.forEach(key => {
+                const node = nodeTree[key];
+                const fullPath = node.fullPath;
+                const id = fullPath.replace(/[^a-zA-Z0-9]/g, '-');
+                
+                const treejsNode = {
+                    id: id,
+                    text: key,
+                    fullPath: fullPath,
+                    isGenre: node.isGenre
+                };
+                
+                // Only include children if they exist
+                if (Object.keys(node.children).length > 0) {
+                    treejsNode.children = convertToTreejsFormat(node.children, fullPath);
+                }
+                
+                result.push(treejsNode);
+            });
+            
+            return result;
+        };
+        
+        return convertToTreejsFormat(tree);
+    }
+    
+    initializeGenreEditorButton() {
+        // Handle button clicks in both modal and panel using event delegation
+        // This works for both static modal content and dynamically loaded panel content
+        // Only add the listener once
+        if (this.genreEditorButtonInitialized) {
+            return;
+        }
+        this.genreEditorButtonInitialized = true;
+        
+        const handler = (e) => {
+            // Check if the clicked element or its parent is the genre editor button
+            // Handle clicks on button, icon, or any child element
+            let button = null;
+            
+            if (e.target.id === 'editGenreBtn') {
+                button = e.target;
+            } else if (e.target.closest('#editGenreBtn')) {
+                button = e.target.closest('#editGenreBtn');
+            } else if (e.target.classList.contains('bi-list-nested') && e.target.closest('button')) {
+                button = e.target.closest('button');
+            }
+            
+            if (button && (button.id === 'editGenreBtn' || button.querySelector('#editGenreBtn'))) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Genre editor button clicked', button, 'from:', e.target);
+                this.openGenreEditor();
+            }
+        };
+        
+        // Use capture phase to catch the event early, before any form handlers
+        document.addEventListener('click', handler, true);
+        console.log('Genre editor button handler initialized');
+    }
+    
+    ensureGenreEditorButtonInitialized() {
+        // Ensure the genre editor button handler is set up
+        // This is called after panel content is dynamically loaded
+        if (!this.genreEditorButtonInitialized) {
+            this.initializeGenreEditorButton();
+        }
+        
+        // Also verify the button exists in the panel and add a direct click handler as fallback
+        const panelButton = document.querySelector('#rightPanelContent #editGenreBtn');
+        if (panelButton) {
+            // Remove any existing direct handlers to avoid duplicates
+            const newButton = panelButton.cloneNode(true);
+            panelButton.parentNode.replaceChild(newButton, panelButton);
+            
+            // Add direct click handler as fallback
+            newButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Genre editor button clicked directly in panel');
+                this.openGenreEditor();
+            });
+        }
+    }
+    
+    openGenreEditor() {
+        console.log('openGenreEditor called');
+        console.log('genresTreejsData:', this.genresTreejsData);
+        
+        if (!this.genresTreejsData) {
+            this.showAlert('Genres are still loading. Please try again in a moment.', 'warning');
+            return;
+        }
+        
+        // Get current genre value
+        const genreField = document.getElementById('editGenre');
+        const currentGenres = genreField ? (genreField.value || '').split(',').map(g => g.trim()).filter(g => g) : [];
+        
+        // Convert genre paths to IDs, but filter out child nodes if parent is also selected
+        // This prevents children from being auto-selected when only parent is in the field
+        const genrePaths = new Set(currentGenres);
+        const filteredGenres = currentGenres.filter(genre => {
+            // Check if this genre is a child of any other selected genre
+            const parts = genre.split(' / ');
+            for (let i = 1; i < parts.length; i++) {
+                const parentPath = parts.slice(0, i).join(' / ');
+                if (genrePaths.has(parentPath)) {
+                    // This is a child of a selected parent, exclude it
+                    return false;
+                }
+            }
+            return true;
+        });
+        
+        // Get selected genre IDs (full paths converted to IDs)
+        const selectedIds = filteredGenres.map(g => g.replace(/[^a-zA-Z0-9]/g, '-'));
+        
+        // Get container
+        const container = document.getElementById('genreTreeContainer');
+        if (!container) {
+            console.error('genreTreeContainer not found');
+            this.showAlert('Genre editor container not found', 'danger');
+            return;
+        }
+        
+        // Clear container
+        container.innerHTML = '';
+        
+        // Include all nodes in the tree (both genres and parent categories)
+        // All nodes will have checkboxes and parent nodes will be collapsible
+        const prepareTreeData = (nodes) => {
+            const result = [];
+            nodes.forEach(node => {
+                const newNode = {
+                    id: node.id,
+                    text: node.text,
+                    fullPath: node.fullPath
+                };
+                
+                // Include children if they exist (makes parent nodes collapsible)
+                if (node.children && node.children.length > 0) {
+                    newNode.children = prepareTreeData(node.children);
+                }
+                
+                // Include all nodes (both genres and parent categories)
+                result.push(newNode);
+            });
+            return result;
+        };
+        
+        const treeData = prepareTreeData(this.genresTreejsData);
+        
+        // Initialize Treejs
+        try {
+            // Destroy existing instance if any
+            if (this.genreTreeInstance) {
+                // Treejs doesn't have a destroy method, so we'll just clear and recreate
+                container.innerHTML = '';
+                this.genreTreeInstance = null;
+            }
+            
+            // Create root node with all genres as children (following the demo pattern)
+            const rootData = [{ id: 'root', text: 'Genres', children: treeData }];
+            
+            // Store reference to self for use in callback
+            const self = this;
+            
+            // Initialize Treejs following the demo pattern exactly
+            this.genreTreeInstance = new Tree('#genreTreeContainer', {
+                data: rootData,
+                loaded: function() {
+                    // Override walkDown to prevent automatic child selection BEFORE setting values
+                    const originalWalkDown = this.walkDown;
+                    this.walkDown = function(node) {
+                        // Don't automatically select children when parent is selected
+                        // Just mark the parent node, but don't propagate to children
+                        return;
+                    };
+                    
+                    // Override setValue to prevent cascading BEFORE setting values
+                    const originalSetValue = this.setValue;
+                    this.setValue = function(nodeId) {
+                        const node = this.nodesById[nodeId];
+                        if (node) {
+                            const currentStatus = node.status;
+                            const newStatus = (currentStatus === 1 || currentStatus === 2) ? 0 : 2;
+                            node.status = newStatus;
+                            this.markWillUpdateNode(node);
+                            // Only walk up (to update parent state), not down (to avoid selecting children)
+                            this.walkUp(node);
+                            this.updateLiElements();
+                        }
+                    };
+                    
+                    // Set pre-selected values AFTER overriding methods to prevent cascading
+                    if (selectedIds.length > 0) {
+                        // Manually set each value to avoid cascading
+                        selectedIds.forEach(id => {
+                            const node = this.nodesById[id];
+                            if (node) {
+                                node.status = 2; // Fully checked
+                                this.markWillUpdateNode(node);
+                            }
+                        });
+                        // Update parent states (walk up) but don't walk down
+                        selectedIds.forEach(id => {
+                            const node = this.nodesById[id];
+                            if (node && node.parent) {
+                                this.walkUp(node);
+                            }
+                        });
+                        this.updateLiElements();
+                    }
+                    
+                    // Collapse folders by default if no child is selected
+                    const collapseNodesWithoutSelectedChildren = (nodeId) => {
+                        const node = this.nodesById[nodeId];
+                        if (!node || !node.children || node.children.length === 0) {
+                            return false; // Leaf node or no children
+                        }
+                        
+                        // Check if any child (or descendant) is selected
+                        let hasSelectedChild = false;
+                        for (const child of node.children) {
+                            if (child.status === 1 || child.status === 2) {
+                                hasSelectedChild = true;
+                                break;
+                            }
+                            // Recursively check descendants
+                            if (collapseNodesWithoutSelectedChildren(child.id)) {
+                                hasSelectedChild = true;
+                                break;
+                            }
+                        }
+                        
+                        // If no child is selected, collapse this node
+                        if (!hasSelectedChild) {
+                            const liElement = this.liElementsById[nodeId];
+                            if (liElement && !liElement.classList.contains('treejs-node__close')) {
+                                liElement.classList.add('treejs-node__close');
+                                const childrenUl = liElement.querySelector('.treejs-nodes');
+                                if (childrenUl) {
+                                    childrenUl.style.height = '0px';
+                                }
+                            }
+                        }
+                        
+                        return hasSelectedChild || node.status === 1 || node.status === 2;
+                    };
+                    
+                    // Collapse all nodes that don't have selected children
+                    for (const nodeId in this.nodesById) {
+                        if (this.nodesById.hasOwnProperty(nodeId)) {
+                            collapseNodesWithoutSelectedChildren(nodeId);
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error initializing Treejs:', error);
+            this.showAlert('Error initializing genre tree: ' + error.message, 'danger');
+            return;
+        }
+        
+        // Show modal with higher z-index
+        const modalElement = document.getElementById('genreEditorModal');
+        if (!modalElement) {
+            console.error('genreEditorModal not found');
+            this.showAlert('Genre editor modal not found', 'danger');
+            return;
+        }
+        
+        try {
+            // Remove any existing backdrop and ensure proper z-index
+            const existingBackdrop = document.querySelector('.modal-backdrop:not(:first-of-type)');
+            if (existingBackdrop) {
+                existingBackdrop.style.zIndex = '1059';
+            }
+            
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: 'static',
+                keyboard: true
+            });
+            modal.show();
+            
+            // Manually set z-index after showing
+            setTimeout(() => {
+                modalElement.style.zIndex = '1060';
+                const backdrop = document.querySelector('.modal-backdrop:last-of-type');
+                if (backdrop) {
+                    backdrop.style.zIndex = '1059';
+                }
+            }, 10);
+            
+            console.log('Genre editor modal shown');
+        } catch (error) {
+            console.error('Error showing genre editor modal:', error);
+            this.showAlert('Error opening genre editor: ' + error.message, 'danger');
+            return;
+        }
+        
+        // Setup apply button
+        const applyBtn = document.getElementById('genreEditorApplyBtn');
+        if (applyBtn) {
+            // Remove any existing handlers
+            const newHandler = () => {
+                this.applyGenreSelection();
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+            };
+            applyBtn.replaceWith(applyBtn.cloneNode(true)); // Remove all event listeners
+            const newApplyBtn = document.getElementById('genreEditorApplyBtn');
+            newApplyBtn.addEventListener('click', newHandler);
+        }
+    }
+    
+    applyGenreSelection() {
+        if (!this.genreTreeInstance) {
+            return;
+        }
+        
+        // Get selected values from Treejs
+        const selectedIds = this.genreTreeInstance.values || [];
+        
+        // Convert IDs back to genre paths
+        const findGenreByPath = (nodes, targetId) => {
+            for (const node of nodes) {
+                if (node.id === targetId) {
+                    return node.fullPath;
+                }
+                if (node.children) {
+                    const found = findGenreByPath(node.children, targetId);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        
+        // Only include genres that are actual genres (not just parent categories)
+        // We need to check which nodes have isGenre: true
+        const findNodeById = (nodes, targetId) => {
+            for (const node of nodes) {
+                if (node.id === targetId) {
+                    return node;
+                }
+                if (node.children) {
+                    const found = findNodeById(node.children, targetId);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        
+        const selectedGenres = selectedIds
+            .map(id => {
+                const node = findNodeById(this.genresTreejsData, id);
+                // Only return the fullPath if this node is an actual genre (isGenre: true)
+                if (node && node.isGenre) {
+                    return node.fullPath;
+                }
+                return null;
+            })
+            .filter(g => g !== null)
+            .sort();
+        
+        const genreValue = selectedGenres.join(', ');
+        
+        const genreField = document.getElementById('editGenre');
+        if (genreField) {
+            genreField.value = genreValue;
+        }
+    }
+
     initializeEditModalCleanup() {
         const editModal = document.getElementById('editGameModal');
         if (editModal) {
@@ -19845,6 +20285,9 @@ class GameCollectionManager {
         
         // Always use backup - never touch the live modal body
         rightPanelContent.innerHTML = this.modalBodyBackupHTML;
+        
+        // Re-initialize genre editor button for panel (since content is dynamically loaded)
+        this.ensureGenreEditorButtonInitialized();
         
         // Show tabs in right panel (like in modal)
         const panelTabs = rightPanelContent.querySelector('#editGameModalTabs');
