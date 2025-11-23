@@ -240,8 +240,15 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
                     if isinstance(nom, dict) and nom.get('langue') == 'en' and 'text' in nom:
                         genre_names.append(nom['text'])
                         break
+        
         if genre_names:
-            text_info['genre'] = '/'.join(genre_names)
+            # Use common function to process genres (deduplicate and map)
+            try:
+                from app import process_screenscraper_genres
+                text_info['genre'] = process_screenscraper_genres(genre_names)
+            except ImportError:
+                # If import fails (circular import), just join genres without processing
+                text_info['genre'] = '/'.join(genre_names)
     
     # Extract rating from note.text (ScreenScraper uses 0-20 scale)
     if 'note' in game_data and isinstance(game_data['note'], dict):

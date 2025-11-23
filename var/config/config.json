@@ -39,7 +39,7 @@
         },
         "boxart": {
             "directory": "box2d",
-            "target_extension": ".jpg",
+            "target_extension": ".png",
             "extensions": [
                 ".png",
                 ".jpg",

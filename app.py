@@ -826,6 +826,91 @@ def reload_systems_config():
 config = load_config()
 
 # ----------------------------
+# Genre mapping configuration
+# ----------------------------
+# Global variable to store genre mappings per scraper
+genre_mapping_cache = {}
+
+def load_genre_mapping():
+    """Load genre mapping from scrapper_genre_mapping.json"""
+    global genre_mapping_cache
+    try:
+        mapping_path = os.path.join('var', 'config', 'scrapper_genre_mapping.json')
+        if os.path.exists(mapping_path):
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                genre_mapping_cache = json.load(f)
+            print(f"✅ Genre mapping loaded from {mapping_path}")
+        else:
+            print(f"⚠️  Genre mapping file not found at {mapping_path}, genre mapping disabled")
+            genre_mapping_cache = {}
+    except Exception as e:
+        print(f"❌ Error loading genre mapping: {e}")
+        genre_mapping_cache = {}
+
+def map_genre(scraper_name, genre_text):
+    """
+    Map genre text using the scraper-specific mapping.
+    
+    Args:
+        scraper_name: Name of the scraper (e.g., 'screenscraper', 'igdb', 'launchbox', 'mobygames')
+        genre_text: Original genre text from the scraper
+    
+    Returns:
+        Mapped genre text, or original if no mapping found
+    """
+    if not genre_text or not genre_mapping_cache:
+        return genre_text
+    
+    # Normalize scraper name (lowercase)
+    scraper_name = scraper_name.lower()
+    
+    # Get scraper mapping
+    scraper_data = genre_mapping_cache.get(scraper_name, {})
+    if not isinstance(scraper_data, dict):
+        return genre_text
+    
+    mapping = scraper_data.get('map', {})
+    if not mapping:
+        return genre_text
+    
+    # Try exact match only - if not found, return original text
+    if genre_text in mapping:
+        mapped = mapping[genre_text]
+        print(f"🔧 DEBUG map_genre: Found mapping for '{genre_text}' -> '{mapped}'")
+        return mapped
+    else:
+        print(f"🔧 DEBUG map_genre: No mapping found for '{genre_text}', returning original")
+        return genre_text
+
+def process_screenscraper_genres(genre_names):
+    """
+    Process ScreenScraper genres: map all genres and join them.
+    
+    Args:
+        genre_names: List of genre names from ScreenScraper API
+    
+    Returns:
+        String with genres joined by ', ', after mapping
+    """
+    if not genre_names:
+        return None
+    
+    # Map each genre
+    mapped_genre_names = []
+    for genre_name in genre_names:
+        original_genre = genre_name
+        mapped_genre = map_genre('screenscraper', genre_name)
+        if original_genre != mapped_genre:
+            print(f"🔧 DEBUG Genre Mapping: Original='{original_genre}' -> Mapped='{mapped_genre}'")
+        mapped_genre_names.append(mapped_genre)
+    
+    # Join mapped genres with ', '
+    return ', '.join(mapped_genre_names)
+
+# Load genre mapping at startup
+load_genre_mapping()
+
+# ----------------------------
 # Logging configuration helper
 # ----------------------------
 def configure_logging(config):
@@ -1562,10 +1647,20 @@ def _run_launchbox_scraper_simplified(system_name, selected_games=None, enable_p
         if task:
             task.update_progress(f"✅ Processed {stats['processed_games']} games, matched {stats['matched_games']}, updated {stats['updated_games']}")
         
-        # Save updated gamelist
+        # Save updated gamelist (always save, even if no games were updated, to ensure consistency)
+        print("💾 Saving updated gamelist...")
+        save_gamelist_xml(gamelist_path, all_games)
         if stats['updated_games'] > 0:
-            save_gamelist_xml(gamelist_path, all_games)
             print(f"✅ Updated {stats['updated_games']} games in gamelist")
+        else:
+            print("💾 Gamelist saved (no games updated)")
+        
+        # Notify clients that gamelist was updated (refresh grid)
+        try:
+            notify_gamelist_updated(system_name, len(all_games), updated_count=stats['updated_games'])
+            print(f"🔔 Notified clients of gamelist update: {len(all_games)} total games, {stats['updated_games']} updated")
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to notify clients of gamelist update: {e}")
         
         return {
             'success': True,
@@ -1632,8 +1727,14 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
         
         # Update text fields
         print(f"🔧 DEBUG: Processing {len(mapping_config)} mapping entries: {list(mapping_config.items())}")
+        print(f"🔧 DEBUG: best_match keys: {list(best_match.keys())}")
+        print(f"🔧 DEBUG: selected_fields: {selected_fields}")
+        print(f"🔧 DEBUG: overwrite_text_fields: {overwrite_text_fields}")
         for launchbox_field, gamelist_field in mapping_config.items():
-            if launchbox_field in best_match and best_match[launchbox_field]:
+            field_exists = launchbox_field in best_match
+            field_has_value = field_exists and best_match[launchbox_field]
+            print(f"🔧 DEBUG: Checking field {launchbox_field}->{gamelist_field}: exists={field_exists}, has_value={field_has_value}")
+            if field_exists and field_has_value:
                 old_value = game_data.get(gamelist_field, '')
                 new_value = best_match[launchbox_field]
                 
@@ -1658,12 +1759,21 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                 if selected_fields:
                     # Check if the LaunchBox field (not gamelist field) is in selected_fields
                     # selected_fields contains LaunchBox field names like "Name", "Developer", etc.
-                    should_update = launchbox_field in selected_fields and (overwrite_text_fields or not old_value)
-                    print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: selected={launchbox_field in selected_fields}, overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
+                    # Special handling for Genre/Genres - accept either one
+                    is_selected = launchbox_field in selected_fields
+                    if not is_selected and launchbox_field == 'Genre':
+                        # Also check for "Genres" (plural) if "Genre" (singular) is in mapping
+                        is_selected = 'Genres' in selected_fields
+                    elif not is_selected and launchbox_field == 'Genres':
+                        # Also check for "Genre" (singular) if "Genres" (plural) is in mapping
+                        is_selected = 'Genre' in selected_fields
+                    
+                    should_update = is_selected and (overwrite_text_fields or not old_value)
+                    print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: selected={is_selected}, overwrite={overwrite_text_fields} (type: {type(overwrite_text_fields)}), old_value='{old_value}', empty={not old_value}, should_update={should_update}")
                 else:
                     # Update all fields based on overwrite setting or empty field check
                     should_update = overwrite_text_fields or not old_value
-                    print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: overwrite={overwrite_text_fields}, empty={not old_value}, should_update={should_update}")
+                    print(f"🔧 DEBUG: Field {launchbox_field}->{gamelist_field}: overwrite={overwrite_text_fields} (type: {type(overwrite_text_fields)}), old_value='{old_value}', empty={not old_value}, should_update={should_update}")
                 
                 if should_update and old_value != new_value:
                     game_data[gamelist_field] = new_value
@@ -2598,6 +2708,10 @@ def process_next_queued_task():
         selected_games = task_data.get('selected_games', [])
         selected_fields = task_data.get('selected_fields', [])
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_text_fields, str):
+            overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
+        overwrite_text_fields = bool(overwrite_text_fields)
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
         if system_name:
             # Use the existing queued task instead of creating a new one
@@ -2621,6 +2735,10 @@ def process_next_queued_task():
         selected_games = task_data.get('selected_games', [])
         selected_fields = task_data.get('selected_fields', [])
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_text_fields, str):
+            overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
+        overwrite_text_fields = bool(overwrite_text_fields)
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
         
         print(f"🔧 DEBUG: ScreenScraper task data - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
@@ -2647,6 +2765,10 @@ def process_next_queued_task():
         selected_fields = task_data.get('selected_fields', [])
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_text_fields, str):
+            overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
+        overwrite_text_fields = bool(overwrite_text_fields)
         if system_name:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2738,6 +2860,10 @@ def process_next_queued_task():
         selected_text_fields = task_data.get('selected_text_fields', [])
         selected_media_fields = task_data.get('selected_media_fields', [])
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_text_fields, str):
+            overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
+        overwrite_text_fields = bool(overwrite_text_fields)
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
         if system_name:
             # Use the existing queued task instead of creating a new one
@@ -2763,6 +2889,10 @@ def process_next_queued_task():
         selected_text_fields = task_data.get('selected_text_fields', [])
         selected_media_fields = task_data.get('selected_media_fields', [])
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_text_fields, str):
+            overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
+        overwrite_text_fields = bool(overwrite_text_fields)
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
         print(f"🔧 DEBUG: DAT Scrapper task data: system_name={system_name}, selected_games={selected_games}")
         
@@ -2795,6 +2925,10 @@ def process_next_queued_task():
         selected_games = task_data.get('selected_games', [])
         selected_fields = task_data.get('selected_fields', [])
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_text_fields, str):
+            overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
+        overwrite_text_fields = bool(overwrite_text_fields)
         force_download = task_data.get('force_download', False)
         enable_partial_match_modal = task_data.get('enable_partial_match_modal', False)
         if system_name:
@@ -4493,6 +4627,16 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config, selected_text_
             # Special handling for moby_score -> rating normalization (0-10 scale to 0-5 scale)
             if mobygames_field == 'moby_score' and gamelist_field == 'rating':
                 value = normalize_rating(value, 10)
+            
+            # Special handling for genres -> genre mapping
+            if mobygames_field == 'genres' and gamelist_field == 'genre':
+                # Join genres if it's a list
+                if isinstance(value, list):
+                    genre_text = ', '.join(value)
+                else:
+                    genre_text = str(value)
+                # Apply genre mapping for MobyGames
+                value = map_genre('mobygames', genre_text)
             
             text_fields[gamelist_field] = value
     
@@ -15554,7 +15698,9 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                             genre_names.append(f"Genre {genre_id}")
                     
                     if genre_names:
-                        text_fields['genre'] = ', '.join(genre_names)
+                        genre_text = ', '.join(genre_names)
+                        # Apply genre mapping for IGDB
+                        text_fields['genre'] = map_genre('igdb', genre_text)
                         print(f"✅ Found genres: {text_fields['genre']}")
                 except Exception as e:
                     print(f"Error getting genres: {e}")
@@ -15865,7 +16011,9 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
             if steam_data.get('genres'):
                 genre_names = [genre.get('description', '') for genre in steam_data['genres'] if genre.get('description')]
                 if genre_names:
-                    text_fields['genre'] = ', '.join(genre_names)
+                    genre_text = ', '.join(genre_names)
+                    # Apply genre mapping for Steam (using 'steam' as scraper name, or 'igdb' if similar)
+                    text_fields['genre'] = map_genre('steam', genre_text)
         
         # Extract media fields (arrays), using config mapping if present
         media_fields: Dict[str, List[str]] = {}
@@ -16155,7 +16303,8 @@ async def scrape_screenscraper_manual(game, system_name, system_config, target_m
                                 genre_names.append(nom['text'])
                                 break
                 if genre_names:
-                    text_fields['genre'] = '/'.join(genre_names)
+                    # Use common function to process genres (deduplicate and map)
+                    text_fields['genre'] = process_screenscraper_genres(genre_names)
             
             # Extract rating from note.text (ScreenScraper uses 0-20 scale, normalize to 0-5 scale)
             if detailed_data.get('note') and isinstance(detailed_data['note'], dict):
@@ -16351,8 +16500,9 @@ def extract_launchbox_text_fields(game_data, mapping_config):
             elif field_name in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
-                    text_fields['genre'] = text
-                    print(f"DEBUG: Set genre field from {field_name}: '{text[:100] if text else 'None'}'")
+                    # Apply genre mapping for LaunchBox
+                    text_fields['genre'] = map_genre('launchbox', text)
+                    print(f"DEBUG: Set genre field from {field_name}: '{text_fields['genre'][:100] if text_fields['genre'] else 'None'}'")
             elif field_name == 'ReleaseDate':
                 if text:
                     # Convert to ISO 8601 format
@@ -25930,6 +26080,14 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
             if updated_count == 0 and md5_updated_count == 0:
                 print("💾 Gamelist saved (no games updated)")
             
+            # Notify clients that gamelist was updated (refresh grid)
+            try:
+                total_updated = updated_count + text_updated_count + media_updated_count
+                notify_gamelist_updated(system_name, len(all_games), updated_count=total_updated)
+                print(f"🔔 Notified clients of gamelist update: {len(all_games)} total games, {total_updated} updated")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not notify clients of gamelist update: {e}")
+            
             # Complete task
             t = get_task(task_id)
             if t:
@@ -26825,9 +26983,13 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                         if mobygames_field == 'genres' and gamelist_field == 'genre':
                             # Join genres with comma
                             if isinstance(value, list):
-                                final_value = ', '.join(value)
+                                genre_text = ', '.join(value)
                             else:
-                                final_value = str(value)
+                                genre_text = str(value)
+                            # Apply genre mapping for MobyGames
+                            final_value = map_genre('mobygames', genre_text)
+                        else:
+                            final_value = value
                         
                         # Update the gamelist field if overwrite is enabled or field is empty
                         current_value = game.get(gamelist_field, '')
