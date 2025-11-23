@@ -13315,9 +13315,6 @@ class GameCollectionManager {
     }
     
     openGenreEditor() {
-        console.log('openGenreEditor called');
-        console.log('genresTreejsData:', this.genresTreejsData);
-        
         if (!this.genresTreejsData) {
             this.showAlert('Genres are still loading. Please try again in a moment.', 'warning');
             return;
@@ -13325,10 +13322,90 @@ class GameCollectionManager {
         
         // Get current genre value
         const genreField = document.getElementById('editGenre');
-        const currentGenres = genreField ? (genreField.value || '').split(',').map(g => g.trim()).filter(g => g) : [];
+        const genreString = genreField ? (genreField.value || '').trim() : '';
+        
+        // Parse genres by matching against the tree (longest match first)
+        // This handles genres with commas in their names correctly
+        // Example: "Shooter, Shooter / Plane, 3rd person" should be parsed as:
+        //   - "Shooter"
+        //   - "Shooter / Plane, 3rd person"
+        const parseGenresFromString = (str, allGenres) => {
+            if (!str) return [];
+            
+            const matchedGenres = [];
+            let remaining = str.trim();
+            
+            // Sort genres by length (longest first) to match longest genres first
+            const sortedGenres = [...allGenres].sort((a, b) => b.length - a.length);
+            
+            while (remaining.length > 0) {
+                let matched = false;
+                
+                // Try to match each genre (starting with longest)
+                for (const genre of sortedGenres) {
+                    // Escape special regex characters in genre name
+                    const escapedGenre = genre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    // Check if the remaining string starts with this genre (case-insensitive)
+                    // Followed by either end of string, comma, or whitespace
+                    const regex = new RegExp(`^${escapedGenre}(?:\\s*,\\s*|\\s*$)`, 'i');
+                    if (regex.test(remaining)) {
+                        matchedGenres.push(genre);
+                        // Remove the matched genre and any following comma/whitespace
+                        remaining = remaining.replace(regex, '').trim();
+                        matched = true;
+                        break;
+                    }
+                }
+                
+                // If no match found, try to extract a genre by splitting on comma
+                // This handles edge cases where a genre might not be in the tree
+                if (!matched) {
+                    const commaIndex = remaining.indexOf(',');
+                    if (commaIndex > 0) {
+                        const potentialGenre = remaining.substring(0, commaIndex).trim();
+                        if (potentialGenre) {
+                            matchedGenres.push(potentialGenre);
+                            remaining = remaining.substring(commaIndex + 1).trim();
+                        } else {
+                            // Skip empty segment
+                            remaining = remaining.substring(commaIndex + 1).trim();
+                        }
+                    } else {
+                        // No more commas, take the rest as a genre
+                        if (remaining) {
+                            matchedGenres.push(remaining);
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            return matchedGenres;
+        };
+        
+        // Get all genres from the tree (flatten the tree to get all fullPath values)
+        const getAllGenresFromTree = (nodes) => {
+            const genres = [];
+            for (const node of nodes) {
+                if (node.fullPath) {
+                    genres.push(node.fullPath);
+                }
+                if (node.children && node.children.length > 0) {
+                    genres.push(...getAllGenresFromTree(node.children));
+                }
+            }
+            return genres;
+        };
+        
+        const allGenres = getAllGenresFromTree(this.genresTreejsData);
+        const currentGenres = parseGenresFromString(genreString, allGenres);
+        
+        // Store reference to self for use in filter
+        const self = this;
         
         // Convert genre paths to IDs, but filter out child nodes if parent is also selected
         // This prevents children from being auto-selected when only parent is in the field
+        // However, if both parent and child are explicitly in the parsed genres, keep both
         const genrePaths = new Set(currentGenres);
         const filteredGenres = currentGenres.filter(genre => {
             // Check if this genre is a child of any other selected genre
@@ -13336,8 +13413,17 @@ class GameCollectionManager {
             for (let i = 1; i < parts.length; i++) {
                 const parentPath = parts.slice(0, i).join(' / ');
                 if (genrePaths.has(parentPath)) {
-                    // This is a child of a selected parent, exclude it
-                    return false;
+                    // This is a child of a selected parent
+                    // Only filter it out if the parent is NOT a valid genre itself
+                    // (i.e., if parent exists in originalGenresList, keep both)
+                    if (self.originalGenresList && self.originalGenresList.has(parentPath)) {
+                        // Parent is a valid genre, so both parent and child can coexist
+                        // Keep this child genre
+                        return true;
+                    } else {
+                        // Parent is not a valid genre, just a category - filter out the child
+                        return false;
+                    }
                 }
             }
             return true;
