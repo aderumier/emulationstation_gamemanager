@@ -10555,7 +10555,6 @@ def download_multiscraper_media_endpoint():
                                 final_path = os.path.join(media_dir, f"{rom_filename_no_ext}_{counter}{processed_ext}")
                                 counter += 1
                             
-                            import shutil
                             if processed_path != final_path:
                                 shutil.move(processed_path, final_path)
                             
@@ -10565,7 +10564,6 @@ def download_multiscraper_media_endpoint():
                                 except:
                                     pass
                         else:
-                            import shutil
                             shutil.move(temp_file, final_path)
                     
                     # Update gamelist
