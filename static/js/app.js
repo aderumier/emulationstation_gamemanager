@@ -13171,6 +13171,7 @@ class GameCollectionManager {
         this.genresTreejsData = null;
         this.genreTreeInstance = null;
         this.selectedGenres = new Set();
+        this.originalGenresList = null; // Store original genres list for validation
         
         // Load genres.json
         fetch('/api/config/genres')
@@ -13181,6 +13182,7 @@ class GameCollectionManager {
                 return response.json();
             })
             .then(genres => {
+                this.originalGenresList = new Set(genres); // Store for validation
                 this.genresTreejsData = this.buildGenreTreeForTreejs(genres);
             })
             .catch(error => {
@@ -13209,6 +13211,7 @@ class GameCollectionManager {
                         isGenre: genreSet.has(fullPath)
                     };
                 } else {
+                    // Always update isGenre if this path exists in genres
                     if (genreSet.has(fullPath)) {
                         current[part].isGenre = true;
                     }
@@ -13219,7 +13222,7 @@ class GameCollectionManager {
         });
         
         // Convert to Treejs format: array of {id, text, children}
-        const convertToTreejsFormat = (nodeTree, parentPath = '') => {
+        const convertToTreejsFormat = (nodeTree) => {
             const result = [];
             const sortedKeys = Object.keys(nodeTree).sort();
             
@@ -13228,16 +13231,19 @@ class GameCollectionManager {
                 const fullPath = node.fullPath;
                 const id = fullPath.replace(/[^a-zA-Z0-9]/g, '-');
                 
+                // Double-check isGenre against genreSet to ensure it's correct
+                const isGenre = genreSet.has(fullPath);
+                
                 const treejsNode = {
                     id: id,
                     text: key,
                     fullPath: fullPath,
-                    isGenre: node.isGenre
+                    isGenre: isGenre // Always check against genreSet for accuracy
                 };
                 
                 // Only include children if they exist
                 if (Object.keys(node.children).length > 0) {
-                    treejsNode.children = convertToTreejsFormat(node.children, fullPath);
+                    treejsNode.children = convertToTreejsFormat(node.children);
                 }
                 
                 result.push(treejsNode);
@@ -13375,6 +13381,54 @@ class GameCollectionManager {
         
         const treeData = prepareTreeData(this.genresTreejsData);
         
+        // Sort tree to show selected items and parents with selected children at the top
+        const sortTreeBySelection = (nodes, selectedIdsSet) => {
+            if (!nodes || nodes.length === 0) return nodes;
+            
+            return nodes.map(node => {
+                // Recursively sort children
+                if (node.children && node.children.length > 0) {
+                    node.children = sortTreeBySelection(node.children, selectedIdsSet);
+                }
+                return node;
+            }).sort((a, b) => {
+                const aId = a.id;
+                const bId = b.id;
+                const aSelected = selectedIdsSet.has(aId);
+                const bSelected = selectedIdsSet.has(bId);
+                
+                // Check if node has selected children
+                const aHasSelectedChild = hasSelectedChild(a, selectedIdsSet);
+                const bHasSelectedChild = hasSelectedChild(b, selectedIdsSet);
+                
+                // Priority: selected nodes first, then nodes with selected children
+                if (aSelected && !bSelected) return -1;
+                if (!aSelected && bSelected) return 1;
+                if (aHasSelectedChild && !bHasSelectedChild) return -1;
+                if (!aHasSelectedChild && bHasSelectedChild) return 1;
+                
+                // Otherwise maintain alphabetical order
+                return a.text.localeCompare(b.text);
+            });
+        };
+        
+        // Helper function to check if a node has selected children
+        const hasSelectedChild = (node, selectedIdsSet) => {
+            if (!node.children || node.children.length === 0) return false;
+            for (const child of node.children) {
+                if (selectedIdsSet.has(child.id) || hasSelectedChild(child, selectedIdsSet)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        
+        // Create set of selected IDs for fast lookup
+        const selectedIdsSet = new Set(selectedIds);
+        
+        // Sort the tree data
+        const sortedTreeData = sortTreeBySelection(treeData, selectedIdsSet);
+        
         // Initialize Treejs
         try {
             // Destroy existing instance if any
@@ -13385,7 +13439,7 @@ class GameCollectionManager {
             }
             
             // Create root node with all genres as children (following the demo pattern)
-            const rootData = [{ id: 'root', text: 'Genres', children: treeData }];
+            const rootData = [{ id: 'root', text: 'Genres', children: sortedTreeData }];
             
             // Store reference to self for use in callback
             const self = this;
@@ -13546,25 +13600,25 @@ class GameCollectionManager {
             return;
         }
         
-        // Get selected values from Treejs
-        const selectedIds = this.genreTreeInstance.values || [];
-        
-        // Convert IDs back to genre paths
-        const findGenreByPath = (nodes, targetId) => {
-            for (const node of nodes) {
-                if (node.id === targetId) {
-                    return node.fullPath;
-                }
-                if (node.children) {
-                    const found = findGenreByPath(node.children, targetId);
-                    if (found) return found;
+        // Treejs.values only returns leaf node IDs, but we need ALL selected nodes (including parents)
+        // We need to check nodesById to find all nodes with status 2 (fully checked)
+        const selectedIds = [];
+        if (this.genreTreeInstance.nodesById) {
+            for (const nodeId in this.genreTreeInstance.nodesById) {
+                const node = this.genreTreeInstance.nodesById[nodeId];
+                // Status 2 = fully checked (selected)
+                if (node && node.status === 2) {
+                    selectedIds.push(nodeId);
                 }
             }
-            return null;
-        };
+        }
         
-        // Only include genres that are actual genres (not just parent categories)
-        // We need to check which nodes have isGenre: true
+        // Fallback to values if nodesById not available
+        if (selectedIds.length === 0) {
+            selectedIds.push(...(this.genreTreeInstance.values || []));
+        }
+        
+        // Convert IDs back to genre paths
         const findNodeById = (nodes, targetId) => {
             for (const node of nodes) {
                 if (node.id === targetId) {
@@ -13578,12 +13632,23 @@ class GameCollectionManager {
             return null;
         };
         
+        // Get all selected genre paths - include all selected nodes that are actual genres
         const selectedGenres = selectedIds
             .map(id => {
                 const node = findNodeById(this.genresTreejsData, id);
-                // Only return the fullPath if this node is an actual genre (isGenre: true)
-                if (node && node.isGenre) {
-                    return node.fullPath;
+                
+                if (node && node.fullPath) {
+                    // Check against original genres list first (most reliable)
+                    if (this.originalGenresList) {
+                        if (this.originalGenresList.has(node.fullPath)) {
+                            return node.fullPath;
+                        }
+                    }
+                    
+                    // Fallback: use isGenre property if originalGenresList not loaded
+                    if (node.isGenre) {
+                        return node.fullPath;
+                    }
                 }
                 return null;
             })
