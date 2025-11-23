@@ -907,6 +907,104 @@ def process_screenscraper_genres(genre_names):
     # Join mapped genres with ', '
     return ', '.join(mapped_genre_names)
 
+def process_launchbox_genres(genre_text):
+    """
+    Process LaunchBox genres: split by semicolon, map each genre, and join with ', '.
+    
+    Args:
+        genre_text: Genre string from LaunchBox (may contain semicolons)
+    
+    Returns:
+        Comma-separated string of mapped genres
+    """
+    if not genre_text:
+        return ''
+    
+    # Split by semicolon
+    genre_list = [g.strip() for g in str(genre_text).split(';') if g.strip()]
+    
+    if not genre_list:
+        return ''
+    
+    # Map each genre
+    mapped_genres = []
+    for genre in genre_list:
+        mapped = map_genre('launchbox', genre)
+        if mapped:
+            mapped_genres.append(mapped)
+    
+    # Join with ', ' (comma and space)
+    return ', '.join(mapped_genres)
+
+def process_igdb_genres(genre_text):
+    """
+    Process IGDB genres: split by comma, map each genre, and join with ', '.
+    
+    Args:
+        genre_text: Genre string from IGDB (may contain commas)
+    
+    Returns:
+        Comma-separated string of mapped genres
+    """
+    if not genre_text:
+        return ''
+    
+    # Split by comma
+    genre_list = [g.strip() for g in str(genre_text).split(',') if g.strip()]
+    
+    if not genre_list:
+        return ''
+    
+    # Map each genre
+    mapped_genres = []
+    for genre in genre_list:
+        mapped = map_genre('igdb', genre)
+        if mapped:
+            mapped_genres.append(mapped)
+    
+    # Join with ', ' (comma and space)
+    return ', '.join(mapped_genres)
+
+def process_mobygames_genres(genre_value):
+    """
+    Process MobyGames genres: handle list or comma-separated string, map each genre, and join with ', '.
+    
+    Args:
+        genre_value: Genre value from MobyGames (can be a list or comma-separated string)
+    
+    Returns:
+        Comma-separated string of mapped genres
+    """
+    if not genre_value:
+        return ''
+    
+    # If it's a list, join with comma first
+    if isinstance(genre_value, list):
+        genre_text = ', '.join(str(g) for g in genre_value if g)
+    else:
+        genre_text = str(genre_value)
+    
+    if not genre_text:
+        return ''
+    
+    # Split by comma
+    genre_list = [g.strip() for g in genre_text.split(',') if g.strip()]
+    
+    if not genre_list:
+        return ''
+    
+    # Map each genre, but skip genres that map to "Various" and avoid duplicates
+    mapped_genres = []
+    seen_mapped = set()
+    for genre in genre_list:
+        mapped = map_genre('mobygames', genre)
+        if mapped and mapped != 'Various' and mapped not in seen_mapped:
+            mapped_genres.append(mapped)
+            seen_mapped.add(mapped)
+    
+    # Join with ', ' (comma and space)
+    return ', '.join(mapped_genres)
+
 # Load genre mapping at startup
 load_genre_mapping()
 
@@ -1753,6 +1851,11 @@ def update_game_data_from_launchbox(game_data, best_match, mapping_config, overw
                 # Special handling for CommunityRating - normalize to 0-5 scale with 2 decimals
                 if launchbox_field == 'CommunityRating' and gamelist_field == 'rating':
                     new_value = normalize_rating(new_value, 5)
+                
+                # Special handling for Genre/Genres - split by semicolon, map each, join with comma
+                if launchbox_field in ['Genre', 'Genres'] and gamelist_field == 'genre':
+                    new_value = process_launchbox_genres(new_value)
+                    print(f"🔧 DEBUG: Processed LaunchBox genres: '{best_match[launchbox_field]}' -> '{new_value}'")
                 
                 # Check if we should update this field
                 should_update = False
@@ -4630,13 +4733,8 @@ def extract_mobygames_text_fields(mobygames_game, mapping_config, selected_text_
             
             # Special handling for genres -> genre mapping
             if mobygames_field == 'genres' and gamelist_field == 'genre':
-                # Join genres if it's a list
-                if isinstance(value, list):
-                    genre_text = ', '.join(value)
-                else:
-                    genre_text = str(value)
-                # Apply genre mapping for MobyGames
-                value = map_genre('mobygames', genre_text)
+                # Process MobyGames genres: handle list or comma-separated string, map each, join with comma
+                value = process_mobygames_genres(value)
             
             text_fields[gamelist_field] = value
     
@@ -15699,8 +15797,8 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
                     
                     if genre_names:
                         genre_text = ', '.join(genre_names)
-                        # Apply genre mapping for IGDB
-                        text_fields['genre'] = map_genre('igdb', genre_text)
+                        # Process IGDB genres: split by comma, map each, join with comma
+                        text_fields['genre'] = process_igdb_genres(genre_text)
                         print(f"✅ Found genres: {text_fields['genre']}")
                 except Exception as e:
                     print(f"Error getting genres: {e}")
@@ -16500,8 +16598,8 @@ def extract_launchbox_text_fields(game_data, mapping_config):
             elif field_name in ['Genre', 'Genres']:
                 # Handle both Genre and Genres fields for genre
                 if 'genre' not in text_fields or not text_fields['genre']:
-                    # Apply genre mapping for LaunchBox
-                    text_fields['genre'] = map_genre('launchbox', text)
+                    # Process LaunchBox genres: split by semicolon, map each, join with comma
+                    text_fields['genre'] = process_launchbox_genres(text)
                     print(f"DEBUG: Set genre field from {field_name}: '{text_fields['genre'][:100] if text_fields['genre'] else 'None'}'")
             elif field_name == 'ReleaseDate':
                 if text:
@@ -24749,7 +24847,9 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
                     else:
                         genre_names.append(f"Genre {genre_id}")
                 
-                value = ', '.join(genre_names)
+                genre_text = ', '.join(genre_names)
+                # Process IGDB genres: split by comma, map each, join with comma
+                value = process_igdb_genres(genre_text)
                 
                 # Set the gamelist field
                 if existing_elem is None:
@@ -25733,15 +25833,22 @@ def _run_igdb_scraper_worker(system_name, task_id, selected_games, result_q, can
                 if batch_company_ids:
                     company_cache = await ensure_igdb_company_cache(list(batch_company_ids))
             
-            # Save updated gamelist
+            # Save updated gamelist (always save, even if no games were updated, to ensure consistency)
+            print("💾 Saving updated gamelist...")
             save_formatted_gamelist_xml(tree, gamelist_path)
+            if found_count > 0:
+                print(f"✅ Updated {found_count} games in gamelist")
+            else:
+                print("💾 Gamelist saved (no games updated)")
             
             # Complete task
             result_q.put({
                 'type': 'result',
                 'task_id': task_id,
                 'success': True,
-                'message': f"✅ IGDB scraping completed! Found {found_count} games, {error_count} errors"
+                'message': f"✅ IGDB scraping completed! Found {found_count} games, {error_count} errors",
+                'total_games': total_games,
+                'updated_count': found_count
             })
             print(f"IGDB scraper completed for {system_name}: {found_count} games found, {error_count} errors")
             
@@ -25804,6 +25911,15 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
                     t = tasks[task_id]
                     if res.get('success'):
                         t.complete(True, res.get('message', 'IGDB scraping completed successfully'))
+                        
+                        # Notify clients that gamelist was updated (refresh grid)
+                        try:
+                            total_games = res.get('total_games', 0)
+                            updated_count = res.get('updated_count', 0)
+                            notify_gamelist_updated(system_name, total_games, updated_count=updated_count)
+                            print(f"🔔 Notified clients of gamelist update: {total_games} total games, {updated_count} updated")
+                        except Exception as e:
+                            print(f"⚠️ Warning: Failed to notify clients of gamelist update: {e}")
                         
                         # Emit task completion event to refresh task grid
                         socketio.emit('task_completed', {
@@ -26981,13 +27097,8 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                         # Note: moby_score normalization is already done in extract_mobygames_text_fields
                         final_value = value
                         if mobygames_field == 'genres' and gamelist_field == 'genre':
-                            # Join genres with comma
-                            if isinstance(value, list):
-                                genre_text = ', '.join(value)
-                            else:
-                                genre_text = str(value)
-                            # Apply genre mapping for MobyGames
-                            final_value = map_genre('mobygames', genre_text)
+                            # Process MobyGames genres: handle list or comma-separated string, map each, join with comma
+                            final_value = process_mobygames_genres(value)
                         else:
                             final_value = value
                         
@@ -27129,9 +27240,20 @@ def run_mobygames_task(system_name, task_id, selected_games=None, selected_text_
                 print(f"❌ Error processing game '{game.get('name', 'Unknown')}': {e}")
                 continue
         
-        # Save updated gamelist
-        print(f"💾 Saving updated gamelist for {system_name}")
+        # Save updated gamelist (always save, even if no games were updated, to ensure consistency)
+        print("💾 Saving updated gamelist...")
         write_gamelist_xml(all_games, gamelist_path)
+        if updated_count > 0:
+            print(f"✅ Updated {updated_count} games in gamelist")
+        else:
+            print("💾 Gamelist saved (no games updated)")
+        
+        # Notify clients that gamelist was updated (refresh grid)
+        try:
+            notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+            print(f"🔔 Notified clients of gamelist update: {len(all_games)} total games, {updated_count} updated")
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to notify clients of gamelist update: {e}")
         
         # Final progress update
         t = get_task(task_id)
