@@ -1868,6 +1868,62 @@ class GameCollectionManager {
             }
         });
         
+        // Keyboard shortcut: Tab key to toggle right panel
+        document.addEventListener('keydown', async (event) => {
+            // Only handle Tab key when not in an input field, textarea, or contenteditable element
+            if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+                const activeElement = document.activeElement;
+                const isInputField = activeElement && (
+                    activeElement.tagName === 'INPUT' ||
+                    activeElement.tagName === 'TEXTAREA' ||
+                    activeElement.isContentEditable ||
+                    activeElement.closest('.modal') !== null // Don't interfere with modals
+                );
+                
+                // Only toggle if not in an input field and not in a modal
+                if (!isInputField) {
+                    event.preventDefault();
+                    const rightPanel = document.getElementById('rightPanel');
+                    const isVisible = rightPanel && rightPanel.style.display !== 'none';
+                    const willBeEnabled = !isVisible;
+                    
+                    localStorage.setItem('guiPreferences_rightPanel', willBeEnabled.toString());
+                    
+                    // Update checkbox if it exists
+                    const rightPanelToggle = document.getElementById('rightPanelToggle');
+                    if (rightPanelToggle) {
+                        rightPanelToggle.checked = willBeEnabled;
+                    }
+                    
+                    this.toggleRightPanel(willBeEnabled);
+                    
+                    // If enabling the panel, load the currently selected row or first row (same as button click)
+                    if (willBeEnabled && this.gridApi) {
+                        let gameToLoad = null;
+                        
+                        // Try to get selected row first
+                        const selectedRows = this.gridApi.getSelectedRows();
+                        if (selectedRows.length > 0) {
+                            gameToLoad = selectedRows[0];
+                        } else {
+                            // If no row selected, get the first row
+                            const allRows = this.gridApi.getRenderedNodes();
+                            if (allRows.length > 0) {
+                                gameToLoad = allRows[0].data;
+                            } else {
+                                // Fallback to first game in games array
+                                gameToLoad = this.games[0];
+                            }
+                        }
+                        
+                        if (gameToLoad) {
+                            await this.editGameInPanel(gameToLoad);
+                        }
+                    }
+                }
+            }
+        });
+        
         // Initialize toggle button state on page load
         const savedRightPanel = localStorage.getItem('guiPreferences_rightPanel') === 'true';
         if (savedRightPanel) {
@@ -3209,6 +3265,8 @@ class GameCollectionManager {
                     closeOnApply: true
                 }
             },
+            // Enable multi-column sorting (hold Shift key while clicking column headers)
+            enableMultiSort: true,
             // Filter configuration
             suppressMenuHide: true,
             // Ensure grid stays visible during filtering
