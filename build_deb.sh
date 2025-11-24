@@ -56,6 +56,8 @@ cp -r templates/* debian/opt/gamemanager/templates/
 cp var/config/config.json debian/opt/gamemanager/var/config/config.json
 cp var/config/scrappers.json debian/opt/gamemanager/var/config/scrappers.json
 cp var/config/systems.json debian/opt/gamemanager/var/config/systems.json
+cp var/config/scrapper_genre_mapping.json debian/opt/gamemanager/var/config/scrapper_genre_mapping.json
+cp var/config/genres.json debian/opt/gamemanager/var/config/genres.json
 
 # MobyGames databases
 echo "📦 Copying MobyGames databases..."
