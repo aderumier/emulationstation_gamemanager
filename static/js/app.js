@@ -694,7 +694,7 @@ class GameCollectionManager {
         
         // If row count changed significantly, it's the first load, or we're clearing the grid, use setGridOption
         if (currentRowCount === 0 || Math.abs(currentRowCount - newRowCount) > 5 || newRowCount === 0) {
-            this.gridApi.setGridOption('rowData', dedupedGames);
+            this.setGridDataPreservingSort(dedupedGames);
         // Update our stored data
         this.currentGameData.clear();
         dedupedGames.forEach(game => {
@@ -738,7 +738,7 @@ class GameCollectionManager {
         // Handle game additions and removals
         if (gamesToAdd.length > 0 || gamesToRemove.length > 0) {
             // If we have structural changes, fall back to setGridOption
-            this.gridApi.setGridOption('rowData', dedupedGames);
+            this.setGridDataPreservingSort(dedupedGames);
             this.currentGameData = newDataMap;
             
             // Update the games counter to reflect displayed rows
@@ -789,6 +789,53 @@ class GameCollectionManager {
                     await this.editGameInPanel(updatedGame);
                 }
             }
+        }
+    }
+
+    captureCurrentSortState() {
+        if (!this.gridApi || typeof this.gridApi.getColumnState !== 'function') {
+            return null;
+        }
+        const columnState = this.gridApi.getColumnState();
+        return columnState
+            .filter(col => col.sort)
+            .map(col => ({
+                colId: col.colId,
+                sort: col.sort,
+                sortIndex: col.sortIndex
+            }));
+    }
+
+    restoreCapturedSortState(sortState) {
+        if (!this.gridApi || !sortState || sortState.length === 0 || typeof this.gridApi.applyColumnState !== 'function') {
+            return;
+        }
+        this.gridApi.applyColumnState({
+            state: sortState,
+            applyOrder: false,
+            defaultState: { sort: null }
+        });
+        if (typeof this.gridApi.refreshClientSideRowModel === 'function') {
+            this.gridApi.refreshClientSideRowModel('sort');
+        }
+    }
+
+    setGridDataPreservingSort(rowData) {
+        if (!this.gridApi) {
+            return;
+        }
+        const sortState = this.captureCurrentSortState();
+        this.gridApi.setGridOption('rowData', rowData);
+        if (!sortState || sortState.length === 0) {
+            return;
+        }
+        const restore = () => this.restoreCapturedSortState(sortState);
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(restore);
+        } else if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(restore);
+        } else {
+            setTimeout(restore, 0);
         }
     }
 
@@ -3184,11 +3231,30 @@ class GameCollectionManager {
                     headerName: 'Video', 
                     editable: false, 
                     sortable: true, 
-                    filter: true,
+                    filter: 'agNumberColumnFilter',
+                    filterParams: {
+                        buttons: ['apply', 'reset'],
+                        closeOnApply: true
+                    },
                     resizable: true,
                     initialWidth: 30,
                     minWidth: 30,
                     cellRenderer: this.mediaCellRenderer,
+                    valueGetter: (params) => {
+                        const rawValue = params.data ? params.data.video : null;
+                        if (rawValue === undefined || rawValue === null) {
+                            return 0;
+                        }
+                        if (typeof rawValue === 'string') {
+                            return rawValue.trim() !== '' ? 1 : 0;
+                        }
+                        return rawValue ? 1 : 0;
+                    },
+                    comparator: (valueA, valueB) => {
+                        const a = typeof valueA === 'number' ? valueA : parseInt(valueA, 10) || 0;
+                        const b = typeof valueB === 'number' ? valueB : parseInt(valueB, 10) || 0;
+                        return a - b;
+                    },
                     wrapHeaderText: wrapHeaderText,
                     autoHeaderHeight: true
                 },
@@ -3265,8 +3331,9 @@ class GameCollectionManager {
                     closeOnApply: true
                 }
             },
-            // Enable multi-column sorting (hold Shift key while clicking column headers)
+            // Enable multi-column sorting (hold Ctrl/Cmd key while clicking column headers)
             enableMultiSort: true,
+            multiSortKey: 'ctrl',
             // Filter configuration
             suppressMenuHide: true,
             // Ensure grid stays visible during filtering
@@ -3294,7 +3361,10 @@ class GameCollectionManager {
             onColumnResized: () => {
                 this.saveMainGridState();
             },
-            onSortChanged: () => {
+            onSortChanged: (event) => {
+                const sortState = event && event.columnApi && typeof event.columnApi.getColumnState === 'function'
+                    ? event.columnApi.getColumnState().filter(col => col.sort)
+                    : [];
                 this.saveMainGridState();
                 this.updateNavigationIndexFromSelection();
             },
@@ -3660,14 +3730,14 @@ class GameCollectionManager {
         }
     }
 
-    // Custom cell renderer for media fields - shows 0 or 1
+    // Custom cell renderer for media fields - shows 0 or 1 based on presence
     mediaCellRenderer(params) {
         const value = params.value;
-        if (value && value.trim() !== '') {
+        const hasMedia = value === 1 || value === '1' || value === true;
+        if (hasMedia) {
             return '<span class="badge bg-success">1</span>';
-        } else {
-            return '<span class="badge bg-secondary">0</span>';
         }
+        return '<span class="badge bg-secondary">0</span>';
     }
 
     // Ensure grid visibility during filter operations
@@ -4012,7 +4082,7 @@ class GameCollectionManager {
                 });
 
                 // Force update the grid with the new data
-                this.gridApi.setGridOption('rowData', [...this.games]);
+                this.setGridDataPreservingSort([...this.games]);
                 
                 // Restore filter state after data update
                 if (currentFilterModel && Object.keys(currentFilterModel).length > 0) {
@@ -4032,7 +4102,7 @@ class GameCollectionManager {
                     // If hidden filter is active, refresh it to show newly hidden games
                     if (this.hiddenFilterActive) {
                         // Force refresh the grid to show all games including newly hidden ones
-                        this.gridApi.setGridOption('rowData', [...this.games]);
+                        this.setGridDataPreservingSort([...this.games]);
                     }
                 }, 100);
                 
@@ -5037,11 +5107,30 @@ class GameCollectionManager {
                 headerName: headerName,
                 editable: false,
                 sortable: true,
-                filter: true,
+                filter: 'agNumberColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'reset'],
+                    closeOnApply: true
+                },
                 resizable: true,
                 initialWidth: 40,
                 minWidth: 40,
                 cellRenderer: this.mediaCellRenderer,
+                valueGetter: (params) => {
+                    const rawValue = params.data ? params.data[fieldName] : null;
+                    if (rawValue === undefined || rawValue === null) {
+                        return 0;
+                    }
+                    if (typeof rawValue === 'string') {
+                        return rawValue.trim() !== '' ? 1 : 0;
+                    }
+                    return rawValue ? 1 : 0;
+                },
+                comparator: (valueA, valueB) => {
+                    const a = typeof valueA === 'number' ? valueA : parseInt(valueA, 10) || 0;
+                    const b = typeof valueB === 'number' ? valueB : parseInt(valueB, 10) || 0;
+                    return a - b;
+                },
                 wrapHeaderText: wrapHeaderText,
                 autoHeaderHeight: true
             });
@@ -22385,7 +22474,7 @@ class GameCollectionManager {
             hiddenBtn.innerHTML = '<i class="bi bi-eye"></i> Hide Hidden';
             
             // Force complete refresh to show all games (including hidden ones)
-            this.gridApi.setGridOption('rowData', [...this.games]);
+            this.setGridDataPreservingSort([...this.games]);
             
             const hiddenGames = this.findHiddenGames();
             if (hiddenGames.length > 0) {
@@ -22408,7 +22497,7 @@ class GameCollectionManager {
             duplicatesBtn.innerHTML = '<i class="bi bi-dup"></i> Show Duplicates';
             
             // Restore original games data
-            this.gridApi.setGridOption('rowData', this.games);
+            this.setGridDataPreservingSort(this.games);
             this.showToast('Duplicates filter disabled - showing all games', 'info');
         } else {
             // Turn on duplicates filter
