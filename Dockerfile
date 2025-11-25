@@ -78,8 +78,10 @@ RUN mkdir -p \
 RUN cp /opt/gamemanager/var/config/config.json /opt/gamemanager/config.json.default && \
     cp /opt/gamemanager/var/config/scrappers.json /opt/gamemanager/scrappers.json.default && \
     cp /opt/gamemanager/var/config/systems.json /opt/gamemanager/systems.json.default && \
-    chmod 644 /opt/gamemanager/config.json.default /opt/gamemanager/scrappers.json.default /opt/gamemanager/systems.json.default && \
-    chown appuser:appuser /opt/gamemanager/config.json.default /opt/gamemanager/scrappers.json.default /opt/gamemanager/systems.json.default
+    cp /opt/gamemanager/var/config/genres.json /opt/gamemanager/genres.json.default && \
+    cp /opt/gamemanager/var/config/scrapper_genre_mapping.json /opt/gamemanager/scrapper_genre_mapping.json.default && \
+    chmod 644 /opt/gamemanager/config.json.default /opt/gamemanager/scrappers.json.default /opt/gamemanager/systems.json.default /opt/gamemanager/genres.json.default /opt/gamemanager/scrapper_genre_mapping.json.default && \
+    chown appuser:appuser /opt/gamemanager/config.json.default /opt/gamemanager/scrappers.json.default /opt/gamemanager/systems.json.default /opt/gamemanager/genres.json.default /opt/gamemanager/scrapper_genre_mapping.json.default
 
 # Copy platform cache files to default location outside var (for volume mount scenarios)
 RUN (cp /opt/gamemanager/var/db/screenscraper/platforms.json /opt/gamemanager/screenscraper_platforms.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/screenscraper_platforms.json.default) && \
@@ -171,6 +173,16 @@ fi
 if [ ! -f /opt/gamemanager/var/config/systems.json ]; then
     echo "Copying default systems.json to var/config/"
     cp /opt/gamemanager/systems.json.default /opt/gamemanager/var/config/systems.json
+fi
+
+if [ ! -f /opt/gamemanager/var/config/genres.json ]; then
+    echo "Copying default genres.json to var/config/"
+    cp /opt/gamemanager/genres.json.default /opt/gamemanager/var/config/genres.json
+fi
+
+if [ ! -f /opt/gamemanager/var/config/scrapper_genre_mapping.json ]; then
+    echo "Copying default scrapper_genre_mapping.json to var/config/"
+    cp /opt/gamemanager/scrapper_genre_mapping.json.default /opt/gamemanager/var/config/scrapper_genre_mapping.json
 fi
 
 
