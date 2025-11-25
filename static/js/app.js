@@ -75,6 +75,9 @@ class GameCollectionManager {
         // Modal state management
         this.isModalOpen = false;
         this.modalEventListenersAdded = false; // Prevent duplicate modal event listeners
+        this.genreEditorButtonInitialized = false;
+        this.genreEditorModalListenersInitialized = false;
+        this.genreEditorClosingWithEditModalOpen = false;
         
         // Task grid management
         this.taskGridApi = null;
@@ -13335,6 +13338,74 @@ class GameCollectionManager {
             .catch(error => {
                 console.error('Error loading genres:', error);
             });
+
+        this.initializeGenreEditorModalListeners();
+    }
+
+    initializeGenreEditorModalListeners() {
+        if (this.genreEditorModalListenersInitialized) {
+            return;
+        }
+
+        const modalElement = document.getElementById('genreEditorModal');
+        if (!modalElement) {
+            return;
+        }
+
+        this.genreEditorModalListenersInitialized = true;
+
+        modalElement.addEventListener('hide.bs.modal', () => {
+            // Before the genre editor modal hides, check if edit modal is still open
+            const editModal = document.getElementById('editGameModal');
+            const isEditModalOpen = editModal && editModal.classList.contains('show');
+            
+            if (isEditModalOpen) {
+                // Store that we need to restore edit modal state
+                this.genreEditorClosingWithEditModalOpen = true;
+            }
+        });
+
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            // After the genre editor modal is fully hidden
+            const editModal = document.getElementById('editGameModal');
+            const isEditModalOpen = editModal && editModal.classList.contains('show');
+            
+            if (isEditModalOpen || this.genreEditorClosingWithEditModalOpen) {
+                // Edit modal should still be open, restore its state
+                setTimeout(() => {
+                    // Ensure edit modal backdrop exists and is visible
+                    let backdrops = document.querySelectorAll('.modal-backdrop');
+                    if (backdrops.length === 0 && editModal && editModal.classList.contains('show')) {
+                        // Create backdrop for edit modal if it doesn't exist
+                        const backdrop = document.createElement('div');
+                        backdrop.className = 'modal-backdrop fade show';
+                        backdrop.style.zIndex = '1050';
+                        document.body.appendChild(backdrop);
+                    } else if (backdrops.length > 0) {
+                        // Ensure the remaining backdrop has correct z-index
+                        backdrops[0].style.zIndex = '1050';
+                    }
+                    
+                    // Restore body state for edit modal
+                    if (editModal && editModal.classList.contains('show')) {
+                        document.body.classList.add('modal-open');
+                        document.body.style.overflow = 'hidden';
+                    }
+                    
+                    this.genreEditorClosingWithEditModalOpen = false;
+                }, 50);
+            } else {
+                // No modals are open, clean up completely
+                setTimeout(() => {
+                    if (!document.querySelector('.modal.show')) {
+                        document.body.classList.remove('modal-open');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+                        document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+                    }
+                }, 50);
+            }
+        });
     }
     
     buildGenreTreeForTreejs(genres) {
