@@ -227,10 +227,9 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     overflow-x: hidden;
 }
 
-/* Keep action toolbar (e.g., Find Best Match dropdown) above the grid */
+/* Keep action toolbar dropdown (e.g., Find Best Match) above the grid */
 .action-toolbar-row {
     position: relative;
-    z-index: 1100;
     overflow: visible !important;
 }
 
@@ -240,7 +239,6 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
 
 .action-toolbar-row .btn-group {
     position: relative;
-    z-index: 1101;
 }
 
 .action-toolbar-row .dropdown-menu {
