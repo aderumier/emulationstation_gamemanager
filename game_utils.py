@@ -46,7 +46,9 @@ def romain_vers_arabe_1_9(texte: str) -> str:
     }
 
     # Regex : capture uniquement I–IX, isolés, insensible à la casse
-    pattern = r'(?<![A-Za-z])\b(?:IX|VIII|VII|VI|V|IV|III|II|I)\b(?![A-Za-z])'
+    # Exclude "I" when it's part of an abbreviation (preceded or followed by a period)
+    # For "I" specifically, require it's not part of an abbreviation pattern like "G.I." or "U.S.A."
+    pattern = r'(?<![A-Za-z.])(?:IX|VIII|VII|VI|V|IV|III|II|(?!\.)I(?!\.))\b(?![A-Za-z.])'
 
     def remplacement(match):
         romain = match.group(0).upper()  # normalisation
