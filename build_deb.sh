@@ -7,20 +7,18 @@ set -e  # Exit on any error
 
 echo "🔨 Building GameManager Debian Package..."
 
-# Get version from git tag
-if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
-    # We're on a tag, use it as version
-    GIT_TAG=$(git describe --tags --exact-match HEAD)
+# Get version from latest git tag
+if GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null); then
     # Remove 'v' prefix if present for Debian package version
     VERSION_NUMBER=${GIT_TAG#v}
     VERSION="${VERSION_NUMBER}-1"
-    echo "🏷️  Using git tag: $GIT_TAG -> version: $VERSION"
+    echo "🏷️  Using latest git tag: $GIT_TAG -> version: $VERSION"
 else
-    # Not on a tag, use control file version
+    # No tags found, use control file version
     VERSION=$(grep "^Version:" debian/DEBIAN/control | cut -d' ' -f2)
     # Extract version number (remove -1 suffix for HTML display)
     VERSION_NUMBER=${VERSION%-1}
-    echo "⚠️  Not on a git tag, using control file version: $VERSION"
+    echo "⚠️  No git tags found, using control file version: $VERSION"
 fi
 
 PACKAGE_NAME="gamemanager_${VERSION}_all.deb"
