@@ -5399,10 +5399,13 @@ class GameCollectionManager {
                     
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
+                            <button class="btn btn-sm btn-outline-secondary image-action-btn" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0.8; transition: opacity 0.2s ease;" onclick="gameManager.showImageActionMenu(event, this.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')" title="Image Actions">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
@@ -11714,10 +11717,13 @@ class GameCollectionManager {
                     const cacheBuster = new Date().getTime();
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" oncontextmenu="gameManager.showImageContextMenu(event, this.parentElement.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
+                            <button class="btn btn-sm btn-outline-secondary image-action-btn" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0.8; transition: opacity 0.2s ease;" onclick="gameManager.showImageActionMenu(event, this.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')" title="Image Actions">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                             <small class="text-center flex-grow-1">${field}</small>
@@ -28425,7 +28431,11 @@ class GameCollectionManager {
         const contextMenu = document.getElementById('imageContextMenu');
         if (!contextMenu) return;
         
-        // Store current image info for rotation and cropping
+        // Get the image element and its source
+        const img = imageElement.querySelector('img');
+        if (!img) return;
+        
+        // Store current image info for rotation, cropping, and Google Lens search
         this.currentRotatingImage = {
             element: imageElement,
             game: game,
@@ -28435,6 +28445,12 @@ class GameCollectionManager {
             element: imageElement,
             game: game,
             field: field
+        };
+        this.currentGoogleLensImage = {
+            element: imageElement,
+            game: game,
+            field: field,
+            imageSrc: img.src
         };
         
         // Position the context menu
@@ -28453,6 +28469,92 @@ class GameCollectionManager {
         if (rect.bottom > window.innerHeight) {
             contextMenu.style.top = (y - rect.height) + 'px';
         }
+    }
+    
+    showImageActionMenu(event, imageElement, game, field) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (!contextMenu) return;
+        
+        // Get the image element and its source
+        const img = imageElement.querySelector('img');
+        if (!img) return;
+        
+        // Store current image info for rotation, cropping, and Google Lens search
+        this.currentRotatingImage = {
+            element: imageElement,
+            game: game,
+            field: field
+        };
+        this.currentCroppingImage = {
+            element: imageElement,
+            game: game,
+            field: field
+        };
+        this.currentGoogleLensImage = {
+            element: imageElement,
+            game: game,
+            field: field,
+            imageSrc: img.src
+        };
+        
+        // Position the context menu at the button position (bottom center of image)
+        const button = event.target.closest('.image-action-btn');
+        if (button) {
+            const rect = button.getBoundingClientRect();
+            const x = rect.left + (rect.width / 2);
+            const y = rect.bottom + 5; // 5px below the button
+            
+            contextMenu.style.left = x + 'px';
+            contextMenu.style.top = y + 'px';
+            contextMenu.style.display = 'block';
+            
+            // Adjust position if menu goes off screen
+            const menuRect = contextMenu.getBoundingClientRect();
+            if (menuRect.right > window.innerWidth) {
+                contextMenu.style.left = (x - menuRect.width) + 'px';
+            }
+            if (menuRect.bottom > window.innerHeight) {
+                contextMenu.style.top = (rect.top - menuRect.height - 5) + 'px';
+            }
+        }
+    }
+    
+    searchImageWithGoogleLens() {
+        if (!this.currentGoogleLensImage) {
+            this.showAlert('No image selected for Google Lens search', 'error');
+            return;
+        }
+        
+        const { imageSrc } = this.currentGoogleLensImage;
+        
+        // Hide context menu
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+        
+        // Extract the base URL (remove query parameters like cache buster)
+        const imageUrl = imageSrc.split('?')[0];
+        
+        // Get the full URL (if relative, make it absolute)
+        let fullImageUrl = imageUrl;
+        if (imageUrl.startsWith('/')) {
+            // Relative URL - make it absolute using current origin
+            fullImageUrl = window.location.origin + imageUrl;
+        } else if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+            // Relative path without leading slash
+            fullImageUrl = window.location.origin + '/' + imageUrl;
+        }
+        
+        // Open Google Lens with the image URL
+        // Use Google's reverse image search which includes Lens results
+        const googleLensUrl = `https://www.google.com/searchbyimage?image_url=${encodeURIComponent(fullImageUrl)}&safe=off`;
+        
+        // Open in new tab
+        window.open(googleLensUrl, '_blank');
     }
     
     openImageCropModal() {

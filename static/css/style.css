@@ -162,6 +162,22 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     margin-bottom: 0;
 }
 
+/* Image action button styling */
+.image-action-btn {
+    z-index: 10;
+}
+
+.image-action-btn:hover {
+    opacity: 1 !important;
+    background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Show action button on hover of media item */
+.media-preview-item:hover .image-action-btn,
+.media-item:hover .image-action-btn {
+    opacity: 1;
+}
+
 .card-header {
     background-color: #fff;
     border-bottom: 1px solid #e9ecef;
