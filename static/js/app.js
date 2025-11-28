@@ -12800,6 +12800,9 @@ class GameCollectionManager {
         this.currentCropVideoPath = null;
     }
     forceImageSize(img) {
+        // Check if this is for image or video cropper
+        const isImageCropper = img.id === 'cropImageElement';
+        
         // Calculate optimal size based on available space and image dimensions
         const container = img.parentElement;
         let containerWidth = container.clientWidth;
@@ -12808,7 +12811,8 @@ class GameCollectionManager {
         // Fallback if container dimensions are not available yet
         if (containerWidth === 0 || containerHeight === 0) {
             // Use modal dimensions as fallback
-            const modal = document.getElementById('videoCroppingModal');
+            const modalId = isImageCropper ? 'imageCroppingModal' : 'videoCroppingModal';
+            const modal = document.getElementById(modalId);
             if (modal) {
                 const modalContent = modal.querySelector('.modal-content');
                 if (modalContent) {
@@ -12819,7 +12823,7 @@ class GameCollectionManager {
             
             // Final fallback to reasonable defaults
             if (containerWidth === 0) containerWidth = 800;
-            if (containerHeight === 0) containerHeight = 600;
+            if (containerHeight === 0) containerHeight = isImageCropper ? 900 : 600;
         }
         
         // Get natural image dimensions
@@ -12835,8 +12839,8 @@ class GameCollectionManager {
         // Use container dimensions as base, but ensure minimum size
         const minWidth = 600;
         const minHeight = 400;
-        const maxWidth = Math.min(containerWidth * 0.9, 1000);
-        const maxHeight = Math.min(containerHeight * 0.8, 700);
+        const maxWidth = isImageCropper ? Math.min(containerWidth * 0.9, 1200) : Math.min(containerWidth * 0.9, 1000);
+        const maxHeight = isImageCropper ? 900 : Math.min(containerHeight * 0.8, 700);
         
         // Calculate size that fits within bounds while maintaining aspect ratio
         if (containerWidth / containerHeight > aspectRatio) {
@@ -12862,6 +12866,8 @@ class GameCollectionManager {
         // Apply calculated dimensions
         img.style.width = `${Math.round(targetWidth)}px`;
         img.style.height = `${Math.round(targetHeight)}px`;
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = isImageCropper ? '900px' : 'none';
         img.style.objectFit = 'contain';
         img.style.display = 'block';
         
@@ -12876,10 +12882,35 @@ class GameCollectionManager {
             this.cropper.destroy();
         }
         
+        // Check if this is for image or video cropper
+        const isImageCropper = image.id === 'cropImageElement';
+        const storageKey = isImageCropper ? 'lastImageCropData' : 'lastVideoCropData';
+        
+        // Store original image dimensions for crop calculations
+        this.originalImageWidth = image.naturalWidth;
+        this.originalImageHeight = image.naturalHeight;
+        
+        // Try to load last crop data from localStorage
+        let savedCropData = null;
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                savedCropData = JSON.parse(saved);
+                // Check if image dimensions match
+                if (savedCropData.imageWidth !== this.originalImageWidth || 
+                    savedCropData.imageHeight !== this.originalImageHeight) {
+                    savedCropData = null; // Dimensions don't match, don't use saved data
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load saved crop data:', e);
+            savedCropData = null;
+        }
+        
         // Initialize Cropper.js with options
         this.cropper = new Cropper(image, {
-            aspectRatio: 4 / 3, // Set 4:3 aspect ratio as default
-            viewMode: 1, // Restrict crop box to not exceed the size of the canvas (image)
+            aspectRatio: isImageCropper ? NaN : 4 / 3, // Free aspect ratio for images, 4:3 for video
+            viewMode: 1, // Restrict crop box to not exceed the size of the canvas (image) - same for both
             dragMode: 'move', // Allow moving the crop box
             autoCropArea: 1.0, // Use full area initially, will be adjusted
             restore: false,
@@ -12889,7 +12920,6 @@ class GameCollectionManager {
             cropBoxMovable: true,
             cropBoxResizable: true,
             toggleDragModeOnDblclick: false,
-            // Allow free resizing by not forcing aspect ratio
             checkCrossOrigin: false,
             background: true,
             modal: true,
@@ -12897,15 +12927,30 @@ class GameCollectionManager {
             checkOrientation: false,
             crop: (event) => {
                 this.updateCropInfo();
+            },
+            ready: () => {
+                // After cropper is ready, restore saved crop data if available
+                if (savedCropData && savedCropData.cropBoxData) {
+                    setTimeout(() => {
+                        try {
+                            this.cropper.setCropBoxData(savedCropData.cropBoxData);
+                            this.updateCropInfo();
+                        } catch (e) {
+                            console.warn('Failed to restore saved crop data:', e);
+                            // Fall back to default crop area
+                            if (!isImageCropper) {
+                                this.setDefaultCropArea();
+                            }
+                        }
+                    }, 100);
+                } else {
+                    // No saved data, use default
+                    if (!isImageCropper) {
+                        this.setDefaultCropArea();
+                    }
+                }
             }
         });
-        
-        // Store original image dimensions for crop calculations
-        this.originalImageWidth = image.naturalWidth;
-        this.originalImageHeight = image.naturalHeight;
-        
-        // Set default crop area size with 4:3 ratio and height = image height
-        this.setDefaultCropArea();
         
         // Setup event listeners
         this.setupCropperEventListeners();
@@ -12970,26 +13015,61 @@ class GameCollectionManager {
     }
     
     setupCropperEventListeners() {
-        // Keep aspect ratio checkbox
+        // Keep aspect ratio checkbox (for video cropper)
         const keepAspectCheckbox = document.getElementById('keepAspectRatio');
-        keepAspectCheckbox.addEventListener('change', (e) => {
-            if (this.cropper) {
-                if (e.target.checked) {
-                    // Set aspect ratio to 4:3 (default video ratio)
-                    this.cropper.setAspectRatio(4 / 3);
-                } else {
-                    // Free aspect ratio - allow free resizing
-                    this.cropper.setAspectRatio(NaN);
-                    // Enable free resizing by setting cropBoxResizable to true
-                    this.cropper.setOptions({
-                        cropBoxResizable: true,
-                        cropBoxMovable: true
-                    });
-                }
+        if (keepAspectCheckbox) {
+            if (keepAspectCheckbox._aspectRatioHandler) {
+                keepAspectCheckbox.removeEventListener('change', keepAspectCheckbox._aspectRatioHandler);
             }
-        });
+            keepAspectCheckbox._aspectRatioHandler = (e) => {
+                if (this.cropper) {
+                    if (e.target.checked) {
+                        // Set aspect ratio to 4:3 (default video ratio)
+                        this.cropper.setAspectRatio(4 / 3);
+                    } else {
+                        // Free aspect ratio - allow free resizing
+                        this.cropper.setAspectRatio(NaN);
+                        // Enable free resizing by setting cropBoxResizable to true
+                        this.cropper.setOptions({
+                            cropBoxResizable: true,
+                            cropBoxMovable: true
+                        });
+                    }
+                }
+            };
+            keepAspectCheckbox.addEventListener('change', keepAspectCheckbox._aspectRatioHandler);
+        }
         
-        // Reset button
+        // Keep aspect ratio checkbox (for image cropper)
+        const imageKeepAspectCheckbox = document.getElementById('imageKeepAspectRatio');
+        if (imageKeepAspectCheckbox) {
+            if (imageKeepAspectCheckbox._aspectRatioHandler) {
+                imageKeepAspectCheckbox.removeEventListener('change', imageKeepAspectCheckbox._aspectRatioHandler);
+            }
+            imageKeepAspectCheckbox._aspectRatioHandler = (e) => {
+                if (this.cropper) {
+                    if (e.target.checked) {
+                        // Set aspect ratio to match original image
+                        if (this.originalImageWidth && this.originalImageHeight) {
+                            const ratio = this.originalImageWidth / this.originalImageHeight;
+                            this.cropper.setAspectRatio(ratio);
+                        } else {
+                            this.cropper.setAspectRatio(4 / 3);
+                        }
+                    } else {
+                        // Free aspect ratio - allow free resizing
+                        this.cropper.setAspectRatio(NaN);
+                        this.cropper.setOptions({
+                            cropBoxResizable: true,
+                            cropBoxMovable: true
+                        });
+                    }
+                }
+            };
+            imageKeepAspectCheckbox.addEventListener('change', imageKeepAspectCheckbox._aspectRatioHandler);
+        }
+        
+        // Reset button (for video cropper)
         const resetBtn = document.getElementById('resetCropBtn');
         if (resetBtn) {
             if (resetBtn._resetCropHandler) {
@@ -13004,7 +13084,22 @@ class GameCollectionManager {
             resetBtn.addEventListener('click', resetBtn._resetCropHandler);
         }
         
-        // Apply crop button
+        // Reset button (for image cropper)
+        const imageResetBtn = document.getElementById('imageResetCropBtn');
+        if (imageResetBtn) {
+            if (imageResetBtn._resetCropHandler) {
+                imageResetBtn.removeEventListener('click', imageResetBtn._resetCropHandler);
+            }
+            imageResetBtn._resetCropHandler = () => {
+                if (this.cropper) {
+                    this.cropper.reset();
+                    this.updateCropInfo();
+                }
+            };
+            imageResetBtn.addEventListener('click', imageResetBtn._resetCropHandler);
+        }
+        
+        // Apply crop button (for video cropper)
         const applyBtn = document.getElementById('applyCropBtn');
         if (applyBtn) {
             if (applyBtn._applyCropHandler) {
@@ -13015,12 +13110,26 @@ class GameCollectionManager {
             };
             applyBtn.addEventListener('click', applyBtn._applyCropHandler);
         }
+        
+        // Apply crop button (for image cropper)
+        const imageApplyBtn = document.getElementById('imageApplyCropBtn');
+        if (imageApplyBtn) {
+            if (imageApplyBtn._applyCropHandler) {
+                imageApplyBtn.removeEventListener('click', imageApplyBtn._applyCropHandler);
+            }
+            imageApplyBtn._applyCropHandler = () => {
+                this.applyImageCropperCrop();
+            };
+            imageApplyBtn.addEventListener('click', imageApplyBtn._applyCropHandler);
+        }
     }
     
     updateCropInfo() {
         if (!this.cropper) return;
         
         const cropData = this.cropper.getData();
+        
+        // Update video cropper info
         const dimensions = document.getElementById('cropDimensions');
         const position = document.getElementById('cropPosition');
         
@@ -13033,6 +13142,20 @@ class GameCollectionManager {
         if (position) {
             position.textContent = `(${Math.round(cropData.x)}, ${Math.round(cropData.y)})`;
         }
+        
+        // Update image cropper info
+        const imageDimensions = document.getElementById('imageCropDimensions');
+        const imagePosition = document.getElementById('imageCropPosition');
+        
+        if (imageDimensions) {
+            const width = Math.round(cropData.width);
+            const height = Math.round(cropData.height);
+            imageDimensions.textContent = `${width} x ${height}`;
+        }
+        
+        if (imagePosition) {
+            imagePosition.textContent = `(${Math.round(cropData.x)}, ${Math.round(cropData.y)})`;
+        }
     }
     
     applyCropperCrop() {
@@ -13042,6 +13165,19 @@ class GameCollectionManager {
         }
         
         const cropData = this.cropper.getData();
+        const cropBoxData = this.cropper.getCropBoxData();
+        
+        // Save crop data to localStorage for future use
+        try {
+            const saveData = {
+                imageWidth: this.originalImageWidth,
+                imageHeight: this.originalImageHeight,
+                cropBoxData: cropBoxData
+            };
+            localStorage.setItem('lastVideoCropData', JSON.stringify(saveData));
+        } catch (e) {
+            console.warn('Failed to save crop data to localStorage:', e);
+        }
         
         // Convert crop data to crop dimensions string (width:height:x:y)
         const width = Math.round(cropData.width);
@@ -13093,14 +13229,21 @@ class GameCollectionManager {
     }
     
     showCropWaitingState() {
-        // Disable apply button and show waiting state
+        // Disable apply button and show waiting state (for video cropper)
         const applyBtn = document.getElementById('applyCropBtn');
         if (applyBtn) {
             applyBtn.disabled = true;
             applyBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Processing...';
         }
         
-        // Show waiting overlay on the crop image
+        // Disable apply button and show waiting state (for image cropper)
+        const imageApplyBtn = document.getElementById('imageApplyCropBtn');
+        if (imageApplyBtn) {
+            imageApplyBtn.disabled = true;
+            imageApplyBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Processing...';
+        }
+        
+        // Show waiting overlay on the crop image (for video cropper)
         const imageContainer = document.querySelector('#videoCroppingModal .card-body .text-center');
         if (imageContainer) {
             const waitingOverlay = document.createElement('div');
@@ -13120,20 +13263,54 @@ class GameCollectionManager {
             imageContainer.style.position = 'relative';
             imageContainer.appendChild(waitingOverlay);
         }
+        
+        // Show waiting overlay on the crop image (for image cropper)
+        const imageContainer2 = document.querySelector('#imageCroppingModal .card-body .text-center');
+        if (imageContainer2) {
+            const waitingOverlay = document.createElement('div');
+            waitingOverlay.id = 'imageCropWaitingOverlay';
+            waitingOverlay.className = 'position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center';
+            waitingOverlay.style.cssText = 'background-color: rgba(0,0,0,0.7); z-index: 1000;';
+            waitingOverlay.innerHTML = `
+                <div class="text-center text-white">
+                    <div class="spinner-border mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div>Processing crop...</div>
+                </div>
+            `;
+            
+            // Make container relative positioned
+            imageContainer2.style.position = 'relative';
+            imageContainer2.appendChild(waitingOverlay);
+        }
     }
     
     hideCropWaitingState() {
-        // Re-enable apply button
+        // Re-enable apply button (for video cropper)
         const applyBtn = document.getElementById('applyCropBtn');
         if (applyBtn) {
             applyBtn.disabled = false;
             applyBtn.innerHTML = '<i class="bi bi-scissors me-1"></i>Apply Crop';
         }
         
-        // Remove waiting overlay
+        // Re-enable apply button (for image cropper)
+        const imageApplyBtn = document.getElementById('imageApplyCropBtn');
+        if (imageApplyBtn) {
+            imageApplyBtn.disabled = false;
+            imageApplyBtn.innerHTML = '<i class="bi bi-scissors me-1"></i>Apply Crop';
+        }
+        
+        // Remove waiting overlay (for video cropper)
         const waitingOverlay = document.getElementById('cropWaitingOverlay');
         if (waitingOverlay) {
             waitingOverlay.remove();
+        }
+        
+        // Remove waiting overlay (for image cropper)
+        const imageWaitingOverlay = document.getElementById('imageCropWaitingOverlay');
+        if (imageWaitingOverlay) {
+            imageWaitingOverlay.remove();
         }
     }
     
@@ -13161,6 +13338,43 @@ class GameCollectionManager {
                         this.showEditGameVideo(this.currentCropGame);
                     });
                 }
+            } else {
+                // Task failed - show error message if available
+                if (data.error || data.message) {
+                    this.showAlert(data.error || data.message, 'error');
+                }
+            }
+        }
+        
+        // Check if this is an image crop task completion (success or failure)
+        if (data.task_type === 'image_crop') {
+            
+            // Always hide waiting state, even on failure
+            this.hideCropWaitingState();
+            
+            if (data.success) {
+                // Close the crop modal if it's open
+                const modal = bootstrap.Modal.getInstance(document.getElementById('imageCroppingModal'));
+                if (modal) {
+                    modal.hide();
+                    // Cleanup will be handled by the modal hidden event
+                }
+                
+                // Refresh the media preview to show the cropped image
+                if (this.currentCropImageGame) {
+                    // Reload the system to get updated game data
+                    this.loadRomSystem(this.currentSystem).then(() => {
+                        // Find the updated game in the games array
+                        const gameIndex = this.games.findIndex(g => g.id === this.currentCropImageGame.id);
+                        if (gameIndex >= 0) {
+                            const updatedGame = this.games[gameIndex];
+                            // Refresh the media preview with cache buster
+                            this.showMediaPreview(updatedGame);
+                        }
+                    });
+                }
+                
+                this.showAlert('Image cropped successfully!', 'success');
             } else {
                 // Task failed - show error message if available
                 if (data.error || data.message) {
@@ -28211,8 +28425,13 @@ class GameCollectionManager {
         const contextMenu = document.getElementById('imageContextMenu');
         if (!contextMenu) return;
         
-        // Store current image info for rotation
+        // Store current image info for rotation and cropping
         this.currentRotatingImage = {
+            element: imageElement,
+            game: game,
+            field: field
+        };
+        this.currentCroppingImage = {
             element: imageElement,
             game: game,
             field: field
@@ -28234,6 +28453,199 @@ class GameCollectionManager {
         if (rect.bottom > window.innerHeight) {
             contextMenu.style.top = (y - rect.height) + 'px';
         }
+    }
+    
+    openImageCropModal() {
+        if (!this.currentCroppingImage) {
+            this.showAlert('No image selected for cropping', 'error');
+            return;
+        }
+        
+        const { game, field } = this.currentCroppingImage;
+        
+        if (!game[field] || !game[field].trim()) {
+            this.showAlert('No image found for cropping', 'error');
+            return;
+        }
+        
+        const imagePath = game[field];
+        
+        // Convert relative path to absolute path
+        let absoluteImagePath = imagePath;
+        if (imagePath.startsWith('./')) {
+            absoluteImagePath = `/roms/${this.currentSystem}/${imagePath.substring(2)}`;
+        } else if (!imagePath.startsWith('/roms/')) {
+            absoluteImagePath = `/roms/${this.currentSystem}/${imagePath}`;
+        }
+        
+        // Store current game and image info
+        this.currentCropImageGame = game;
+        this.currentCropImageField = field;
+        this.currentCropImagePath = absoluteImagePath;
+        
+        // Hide context menu
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('imageCroppingModal'));
+        modal.show();
+        
+        // Wait for modal to be fully shown before loading image
+        const modalElement = document.getElementById('imageCroppingModal');
+        modalElement.addEventListener('shown.bs.modal', () => {
+            this.loadImageAndSetupCropper(absoluteImagePath);
+        }, { once: true });
+        
+        // Add cleanup when modal is hidden
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            this.cleanupImageCropper();
+        }, { once: true });
+    }
+    
+    loadImageAndSetupCropper(imagePath) {
+        try {
+            // Show loading state
+            const imageContainer = document.querySelector('#imageCroppingModal .card-body .text-center');
+            if (imageContainer) {
+                imageContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split"></i> Loading image...</div>';
+            }
+            
+            // Create new image element
+            const img = document.createElement('img');
+            img.id = 'cropImageElement';
+            img.alt = 'Image to Crop';
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '900px';
+            img.style.display = 'block';
+            
+            // Load image and setup Cropper.js using the same method as video
+            img.onload = () => {
+                // Replace loading message with image
+                if (imageContainer) {
+                    imageContainer.innerHTML = '';
+                    imageContainer.appendChild(img);
+                }
+                
+                // Wait for modal to be fully rendered before sizing
+                setTimeout(() => {
+                    this.forceImageSize(img);
+                    this.setupCropper(img);
+                }, 200);
+            };
+            
+            img.onerror = () => {
+                if (imageContainer) {
+                    imageContainer.innerHTML = '<div class="text-center p-4 text-muted">Failed to load image</div>';
+                }
+                throw new Error('Failed to load image');
+            };
+            
+            // Add cache buster and load image
+            const cacheBuster = new Date().getTime();
+            img.src = `${imagePath}?v=${cacheBuster}`;
+        } catch (error) {
+            this.showAlert(`Error loading image: ${error.message}`, 'error');
+            const imageContainer = document.querySelector('#imageCroppingModal .card-body .text-center');
+            if (imageContainer) {
+                imageContainer.innerHTML = '<div class="text-center p-4 text-muted">Failed to load image</div>';
+            }
+        }
+    }
+    
+    applyImageCropperCrop() {
+        if (!this.cropper || !this.currentCropImageGame) {
+            this.showAlert('No crop area selected', 'error');
+            return;
+        }
+        
+        const cropData = this.cropper.getData();
+        const cropBoxData = this.cropper.getCropBoxData();
+        
+        // Save crop data to localStorage for future use
+        try {
+            const saveData = {
+                imageWidth: this.originalImageWidth,
+                imageHeight: this.originalImageHeight,
+                cropBoxData: cropBoxData
+            };
+            localStorage.setItem('lastImageCropData', JSON.stringify(saveData));
+        } catch (e) {
+            console.warn('Failed to save crop data to localStorage:', e);
+        }
+        
+        // Convert crop data to crop dimensions string (width:height:x:y)
+        const width = Math.round(cropData.width);
+        const height = Math.round(cropData.height);
+        const x = Math.round(cropData.x);
+        const y = Math.round(cropData.y);
+        
+        const cropDimensions = `${width}:${height}:${x}:${y}`;
+        
+        console.log('Applying image crop with dimensions:', cropDimensions);
+        console.log('Current crop game:', this.currentCropImageGame);
+        console.log('Current system:', this.currentSystem);
+        console.log('Current crop image path:', this.currentCropImagePath);
+        
+        // Show waiting state
+        this.showCropWaitingState();
+        
+        // Prepare request data
+        const requestData = {
+            image_path: this.currentCropImagePath,
+            crop_dimensions: cropDimensions,
+            game_id: this.currentCropImageGame.id,
+            system_name: this.currentSystem,
+            rom_file: this.currentCropImageGame.path,
+            media_field: this.currentCropImageField
+        };
+        
+        console.log('Sending request data:', requestData);
+        
+        // Call the image crop API
+        fetch('/api/apply-image-crop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                // Don't show alert or close modal here - wait for task completion
+                // The task completion handler will show the alert, close modal, and refresh
+            } else {
+                this.showAlert(result.error || 'Failed to crop image', 'error');
+                this.hideCropWaitingState();
+            }
+        })
+        .catch(error => {
+            console.error('Error applying image crop:', error);
+            this.showAlert('Failed to crop image: ' + error.message, 'error');
+            this.hideCropWaitingState();
+        });
+    }
+    
+    cleanupImageCropper() {
+        // Clean up cropper instance (use same cleanup as video)
+        if (this.cropper) {
+            this.cropper.destroy();
+            this.cropper = null;
+        }
+        
+        // Clean up resize listener
+        if (this.imageResizeHandler) {
+            window.removeEventListener('resize', this.imageResizeHandler);
+            this.imageResizeHandler = null;
+        }
+        
+        // Clear crop image data
+        this.currentCropImageGame = null;
+        this.currentCropImageField = null;
+        this.currentCropImagePath = null;
     }
     
     async rotateImage(direction) {

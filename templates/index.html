@@ -178,6 +178,35 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             display: flex;
             flex-direction: column;
         }
+        #imageCroppingModal .modal-dialog {
+            max-width: 95vw;
+            width: 1200px;
+        }
+        #imageCroppingModal .card-body {
+            min-height: 400px;
+            max-height: 900px;
+            overflow: auto;
+        }
+        #imageCroppingModal .text-center {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+            max-height: 900px;
+            overflow: hidden;
+            position: relative;
+        }
+        #imageCroppingModal .modal-body {
+            padding: 1rem;
+        }
+        #imageCroppingModal .card {
+            height: 100%;
+        }
+        #imageCroppingModal #cropImageElement {
+            max-width: 100%;
+            max-height: 900px;
+            display: block;
+        }
         
         /* Thumbnail View Styles */
         .thumbnail-view .ag-cell {
@@ -5160,6 +5189,72 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         <div class="image-context-menu-item" onclick="gameManager.rotateImage('right')">
             <i class="bi bi-arrow-clockwise"></i>
             <span>Rotate Right</span>
+        </div>
+        <div class="image-context-menu-item" onclick="gameManager.openImageCropModal()">
+            <i class="bi bi-crop"></i>
+            <span>Crop</span>
+        </div>
+    </div>
+
+    <!-- Image Cropping Modal -->
+    <div class="modal fade" id="imageCroppingModal" tabindex="-1" aria-labelledby="imageCroppingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageCroppingModalLabel">
+                        <i class="bi bi-crop me-2 text-warning"></i>Image Cropping
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Image Preview</h6>
+                                </div>
+                                <div class="card-body p-2" style="max-height: 900px; overflow: auto;">
+                                    <div class="text-center" style="position: relative;">
+                                        <img id="cropImageElement" alt="Image to Crop" style="max-width: 100%; max-height: 900px; display: block;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Crop Settings</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Crop Area</label>
+                                        <div class="alert alert-info">
+                                            <strong>Dimensions:</strong> <span id="imageCropDimensions">-</span><br>
+                                            <strong>Position:</strong> <span id="imageCropPosition">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="imageKeepAspectRatio" checked>
+                                            <label class="form-check-label" for="imageKeepAspectRatio">
+                                                Keep Aspect Ratio
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button id="imageResetCropBtn" class="btn btn-outline-secondary">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Reset Crop
+                                        </button>
+                                        <button id="imageApplyCropBtn" class="btn btn-success">
+                                            <i class="bi bi-scissors me-1"></i>Apply Crop
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </body>

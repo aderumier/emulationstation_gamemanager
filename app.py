@@ -14521,6 +14521,81 @@ def apply_manual_crop():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/apply-image-crop', methods=['POST'])
+@login_required
+def apply_image_crop():
+    """Apply manual crop to image"""
+    try:
+        data = request.get_json()
+        image_path = data.get('image_path')
+        crop_dimensions = data.get('crop_dimensions')
+        game_id = data.get('game_id')
+        system_name = data.get('system_name')
+        rom_file = data.get('rom_file')
+        media_field = data.get('media_field')
+        
+        # Debug: Log received parameters
+        print(f"Image crop API received data: {data}")
+        print(f"image_path: {image_path}")
+        print(f"crop_dimensions: {crop_dimensions}")
+        print(f"game_id: {game_id}")
+        print(f"system_name: {system_name}")
+        print(f"rom_file: {rom_file}")
+        print(f"media_field: {media_field}")
+        
+        if not all([image_path, crop_dimensions, game_id, system_name, rom_file, media_field]):
+            missing_params = []
+            if not image_path: missing_params.append('image_path')
+            if not crop_dimensions: missing_params.append('crop_dimensions')
+            if not game_id: missing_params.append('game_id')
+            if not system_name: missing_params.append('system_name')
+            if not rom_file: missing_params.append('rom_file')
+            if not media_field: missing_params.append('media_field')
+            return jsonify({'error': f'Missing required parameters: {missing_params}'}), 400
+        
+        # Convert web path to file system path if needed
+        if image_path.startswith('/roms/'):
+            # Convert /roms/system/path to actual file system path
+            image_path = os.path.join(ROMS_FOLDER, image_path[6:])  # Remove '/roms/' prefix
+        
+        print(f"Applying image crop to path: {image_path}")
+        
+        # Check if image file exists
+        if not os.path.exists(image_path):
+            return jsonify({'error': f'Image file not found: {image_path}'}), 404
+        
+        # Create and start the crop task
+        task_data = {
+            'image_path': image_path,
+            'crop_dimensions': crop_dimensions,
+            'game_id': game_id,
+            'system_name': system_name,
+            'rom_file': rom_file,
+            'media_field': media_field
+        }
+        
+        task = create_task('image_crop', task_data)
+        current_task_id = task.id
+        task.start()
+        
+        # Start image crop in background thread
+        thread = threading.Thread(target=run_image_crop_task, args=(task.id, task_data))
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Image crop started',
+            'task_id': task.id,
+            'status': 'running'
+        })
+        
+    except Exception as e:
+        print(f"Image crop error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/rom-system/<system_name>/game/rotate-media', methods=['POST'])
 @login_required
 def rotate_game_media(system_name):
@@ -21300,6 +21375,189 @@ def run_manual_crop_task(task_id, data):
             # Emit task failure event
             socketio.emit('task_completed', {
                 'task_type': 'manual_crop',
+                'success': False,
+                'message': str(e),
+                'game_id': data.get('game_id'),
+                'system_name': data.get('system_name')
+            })
+
+def run_image_crop_task(task_id, data):
+    """Run image crop task in background thread"""
+    global current_task_id
+    
+    try:
+        if not task_id or task_id not in tasks:
+            print(f"Error: Task {task_id} not found for image crop")
+            return
+        
+        task = tasks[task_id]
+        
+        # Extract parameters
+        image_path = data.get('image_path')
+        crop_dimensions = data.get('crop_dimensions')
+        game_id = data.get('game_id')
+        system_name = data.get('system_name')
+        rom_file = data.get('rom_file')
+        media_field = data.get('media_field')
+        
+        # Log the received parameters
+        task.update_progress(f"Received parameters:")
+        task.update_progress(f"Image path: {image_path}")
+        task.update_progress(f"Crop dimensions: {crop_dimensions}")
+        task.update_progress(f"Game ID: {game_id}")
+        task.update_progress(f"System: {system_name}")
+        task.update_progress(f"ROM file: {rom_file}")
+        task.update_progress(f"Media field: {media_field}")
+        
+        # Validate system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            task.complete(False, f'System {system_name} not found')
+            return
+        
+        # Check if image file exists
+        if not os.path.exists(image_path):
+            task.complete(False, f'Image file not found: {image_path}')
+            return
+        
+        # Parse crop dimensions (width:height:x:y)
+        try:
+            parts = crop_dimensions.split(':')
+            if len(parts) != 4:
+                raise ValueError("Crop dimensions must be in format width:height:x:y")
+            crop_width = int(parts[0])
+            crop_height = int(parts[1])
+            crop_x = int(parts[2])
+            crop_y = int(parts[3])
+        except (ValueError, IndexError) as e:
+            task.complete(False, f'Invalid crop dimensions format: {crop_dimensions}')
+            return
+        
+        # Get original image directory
+        original_dir = os.path.dirname(image_path)
+        original_filename = os.path.basename(image_path)
+        
+        # Create temp directory for image processing
+        temp_images_dir = os.path.abspath(os.path.join('var', 'temp', 'medias'))
+        os.makedirs(temp_images_dir, exist_ok=True)
+        
+        # Create temporary filename for crop
+        temp_filename = f"temp_crop_{original_filename}"
+        temp_path = os.path.join(temp_images_dir, temp_filename)
+        
+        task.update_progress(f"Output path: {image_path}")
+        task.update_progress(f"Temporary path: {temp_path}")
+        
+        # Check if ImageMagick is available
+        try:
+            result = subprocess.run(['convert', '-version'], capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                task.complete(False, 'ImageMagick is not installed or not available')
+                return
+            task.update_progress(f"ImageMagick version: {result.stdout.split('Version:')[1].split()[0] if 'Version:' in result.stdout else 'available'}")
+        except FileNotFoundError:
+            task.complete(False, 'ImageMagick is not installed')
+            return
+        except subprocess.TimeoutExpired:
+            task.complete(False, 'ImageMagick check timed out')
+            return
+        
+        # Apply crop using ImageMagick
+        task.update_progress(f"Applying image crop with dimensions: {crop_width}x{crop_height} at ({crop_x},{crop_y})")
+        
+        # ImageMagick crop syntax: -crop WIDTHxHEIGHT+X+Y
+        crop_cmd = [
+            'convert',
+            image_path,
+            '-crop', f'{crop_width}x{crop_height}+{crop_x}+{crop_y}',
+            '+repage',  # Remove virtual canvas
+            temp_path
+        ]
+        
+        task.update_progress(f"ImageMagick command: {' '.join(crop_cmd)}")
+        
+        # Run ImageMagick
+        result = subprocess.run(crop_cmd, capture_output=True, text=True, timeout=60)
+        
+        if result.returncode != 0:
+            task.update_progress(f"ImageMagick error: {result.stderr}")
+            task.complete(False, f'Failed to apply crop: {result.stderr}')
+            return
+        
+        task.update_progress("Crop applied successfully!")
+        
+        # Move temporary file to final location (replace original)
+        shutil.move(temp_path, image_path)
+        task.update_progress(f"Moved cropped image to final location: {image_path}")
+        
+        # Verify the final file exists
+        if not os.path.exists(image_path):
+            task.complete(False, 'Cropped image file not found after processing')
+            return
+        
+        file_size = os.path.getsize(image_path)
+        task.update_progress(f"Final cropped image size: {file_size} bytes")
+        
+        # Update gamelist.xml if needed (the path should already be correct, but verify)
+        try:
+            gamelist_path = os.path.join(system_path, 'gamelist.xml')
+            if os.path.exists(gamelist_path):
+                tree = ET.parse(gamelist_path)
+                root = tree.getroot()
+                
+                # Find the game element by ROM file path
+                game_element = None
+                for game in root.findall('game'):
+                    if game.find('path') is not None:
+                        game_path = game.find('path').text
+                        if game_path and rom_file and rom_file in game_path:
+                            game_element = game
+                            task.update_progress(f"Found game element with ROM file: {rom_file}")
+                            break
+                
+                if game_element is not None:
+                    # The image path should already be correct in gamelist.xml
+                    # Just verify it exists
+                    media_element = game_element.find(media_field)
+                    if media_element is not None:
+                        task.update_progress(f"Media field '{media_field}' exists in gamelist.xml")
+                    else:
+                        task.update_progress(f"Warning: Media field '{media_field}' not found in gamelist.xml")
+                else:
+                    task.update_progress("Warning: Could not find game in gamelist.xml")
+            
+            # Notify clients about the update
+            socketio.emit('game_updated', {
+                'system': system_name,
+                'game_id': game_id,
+                'message': 'Image cropped successfully'
+            })
+            
+        except Exception as e:
+            task.update_progress(f"Warning: Error updating gamelist: {str(e)}")
+            # Don't fail the task if gamelist update fails
+        
+        task.complete(True, 'Image cropped successfully')
+        
+        # Emit task completion event
+        socketio.emit('task_completed', {
+            'task_type': 'image_crop',
+            'success': True,
+            'message': 'Image cropped successfully',
+            'game_id': game_id,
+            'system_name': system_name
+        })
+        
+    except Exception as e:
+        print(f"Error in image crop task: {e}")
+        import traceback
+        traceback.print_exc()
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+            
+            # Emit task failure event
+            socketio.emit('task_completed', {
+                'task_type': 'image_crop',
                 'success': False,
                 'message': str(e),
                 'game_id': data.get('game_id'),
