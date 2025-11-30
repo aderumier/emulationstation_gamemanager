@@ -243,8 +243,9 @@ def convert_and_resize_image_replace(file_path: str, target_extension: str = Non
         # Add resize operation if needed
         if needs_resize:
             if target_width > 0 and target_height > 0:
-                # Both width and height specified - resize to exact dimensions
-                resize_spec = f"{target_width}x{target_height}"
+                # Both width and height specified - resize to exact dimensions (no aspect ratio preservation)
+                # Use '!' suffix to force exact dimensions
+                resize_spec = f"{target_width}x{target_height}!"
                 new_width = target_width
                 new_height = target_height
             elif target_height > 0:

@@ -3487,6 +3487,7 @@ class GameCollectionManager {
                             'genre': 'editGenre',
                             'developer': 'editDeveloper',
                             'publisher': 'editPublisher',
+                            'family': 'editFamily',
                             'rating': 'editRating',
                             'players': 'editPlayers',
                             'releasedate': 'editReleasedate',
@@ -4539,6 +4540,7 @@ class GameCollectionManager {
         clearField('editGenre');
         clearField('editDeveloper');
         clearField('editPublisher');
+        clearField('editFamily');
         clearField('editRating');
         clearField('editPlayers');
         clearField('editReleasedate');
@@ -4586,6 +4588,7 @@ class GameCollectionManager {
         setField('editGenre', game.genre);
         setField('editDeveloper', game.developer);
         setField('editPublisher', game.publisher);
+        setField('editFamily', game.family);
         setField('editRating', game.rating);
         setField('editPlayers', game.players);
         
@@ -7004,6 +7007,7 @@ class GameCollectionManager {
         game.genre = document.getElementById('editGenre').value;
         game.developer = document.getElementById('editDeveloper').value;
         game.publisher = document.getElementById('editPublisher').value;
+        game.family = document.getElementById('editFamily').value;
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
         // Convert date input back to internal format
@@ -7033,6 +7037,7 @@ class GameCollectionManager {
         if (originalGame.genre !== game.genre) changedFields.push('genre');
         if (originalGame.developer !== game.developer) changedFields.push('developer');
         if (originalGame.publisher !== game.publisher) changedFields.push('publisher');
+        if (originalGame.family !== game.family) changedFields.push('family');
         if (originalGame.rating !== game.rating) changedFields.push('rating');
         if (originalGame.players !== game.players) changedFields.push('players');
         if (originalGame.releasedate !== game.releasedate) changedFields.push('releasedate');
@@ -15598,7 +15603,7 @@ class GameCollectionManager {
         } catch (error) {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
-                'name', 'summary', 'developer', 'publisher', 'genre', 
+                'name', 'summary', 'developer', 'publisher', 'family', 'genre', 
                 'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
             ];
             
@@ -15624,7 +15629,7 @@ class GameCollectionManager {
             
             // Get ScreenScraper field mappings from config
             // For text fields, use hardcoded field names since ScreenScraper doesn't have a text field mapping
-            const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
+            const textFields = ['name', 'description', 'developer', 'publisher', 'family', 'genre', 'rating', 'players', 'release_date'];
             const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
@@ -15647,7 +15652,7 @@ class GameCollectionManager {
         } catch (error) {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
-                'name', 'description', 'developer', 'publisher', 'genre', 
+                'name', 'description', 'developer', 'publisher', 'family', 'genre', 
                 'rating', 'players', 'release_date', 'screenshot', 'titleshot', 
                 'marquee', 'boxart', 'boxback', 'cartridge', 'fanart', 'video', 'manual', 'extra1'
             ];
@@ -15671,7 +15676,7 @@ class GameCollectionManager {
 
             // Get ScreenScraper field mappings from config
             // For text fields, use hardcoded field names since ScreenScraper doesn't have a text field mapping
-            const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
+            const textFields = ['name', 'description', 'developer', 'publisher', 'family', 'genre', 'rating', 'players', 'release_date'];
             const mediaFields = Object.keys(config.screenscraper?.image_type_mappings || {});
             const allFields = [...textFields, ...mediaFields];
             
@@ -15707,7 +15712,7 @@ class GameCollectionManager {
             // If no fields found in config, use fallback
             if (allFields.length === 0) {
                 const fallbackFields = [
-                    'name', 'summary', 'developer', 'publisher', 'genre', 
+                    'name', 'summary', 'developer', 'publisher', 'family', 'genre', 
                     'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
                 ];
                 return fallbackFields;
@@ -15743,7 +15748,7 @@ class GameCollectionManager {
         } catch (error) {
             // Fallback to hardcoded fields if config fetch fails
             const fallbackFields = [
-                'name', 'summary', 'developer', 'publisher', 'genre', 
+                'name', 'summary', 'developer', 'publisher', 'family', 'genre', 
                 'rating', 'players', 'release_date', 'cover', 'screenshots', 'artworks', 'logos'
             ];
             return fallbackFields;
@@ -15871,7 +15876,7 @@ class GameCollectionManager {
         
         // For text fields, we need to use the hardcoded field names that match the HTML checkboxes
         // since ScreenScraper doesn't have a text field mapping in the config
-        const textFields = ['name', 'description', 'developer', 'publisher', 'genre', 'rating', 'players', 'release_date'];
+        const textFields = ['name', 'description', 'developer', 'publisher', 'family', 'genre', 'rating', 'players', 'release_date'];
         
         const allFields = [...textFields, ...mediaFields];
 
@@ -20648,6 +20653,7 @@ class GameCollectionManager {
         const currentGenre = getFieldValue('editGenre');
         const currentDeveloper = getFieldValue('editDeveloper');
         const currentPublisher = getFieldValue('editPublisher');
+        const currentFamily = getFieldValue('editFamily');
         const currentRating = getFieldValue('editRating');
         const currentPlayers = getFieldValue('editPlayers');
         const currentYoutubeurl = getFieldValue('editYoutubeurl');
@@ -20691,6 +20697,7 @@ class GameCollectionManager {
         if (normalize(original.genre) !== normalize(currentGenre)) return true;
         if (normalize(original.developer) !== normalize(currentDeveloper)) return true;
         if (normalize(original.publisher) !== normalize(currentPublisher)) return true;
+        if (normalize(original.family) !== normalize(currentFamily)) return true;
         if (normalizeNumber(original.rating) !== normalizeNumber(currentRating)) return true;
         if (normalizeNumber(original.players) !== normalizeNumber(currentPlayers)) return true;
         if (normalize(original.releasedate) !== normalize(currentReleasedate)) return true;
@@ -20756,6 +20763,7 @@ class GameCollectionManager {
         const currentGenre = getFieldValue('editGenre');
         const currentDeveloper = getFieldValue('editDeveloper');
         const currentPublisher = getFieldValue('editPublisher');
+        const currentFamily = getFieldValue('editFamily');
         const currentRating = getFieldValue('editRating');
         const currentPlayers = getFieldValue('editPlayers');
         const currentYoutubeurl = getFieldValue('editYoutubeurl');
@@ -20799,6 +20807,7 @@ class GameCollectionManager {
         if (normalize(original.genre) !== normalize(currentGenre)) return true;
         if (normalize(original.developer) !== normalize(currentDeveloper)) return true;
         if (normalize(original.publisher) !== normalize(currentPublisher)) return true;
+        if (normalize(original.family) !== normalize(currentFamily)) return true;
         if (normalizeNumber(original.rating) !== normalizeNumber(currentRating)) return true;
         if (normalizeNumber(original.players) !== normalizeNumber(currentPlayers)) return true;
         if (normalize(original.releasedate) !== normalize(currentReleasedate)) return true;
@@ -21038,6 +21047,7 @@ class GameCollectionManager {
         clearField('editGenre');
         clearField('editDeveloper');
         clearField('editPublisher');
+        clearField('editFamily');
         clearField('editRating');
         clearField('editPlayers');
         clearField('editReleasedate');
@@ -21063,6 +21073,7 @@ class GameCollectionManager {
         setField('editGenre', game.genre);
         setField('editDeveloper', game.developer);
         setField('editPublisher', game.publisher);
+        setField('editFamily', game.family);
         setField('editRating', game.rating);
         setField('editPlayers', game.players);
         

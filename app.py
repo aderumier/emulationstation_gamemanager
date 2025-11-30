@@ -5628,6 +5628,8 @@ def parse_gamelist_xml(file_path):
                     game_data['developer'] = text
                 elif tag == 'publisher':
                     game_data['publisher'] = text
+                elif tag == 'family':
+                    game_data['family'] = text
                 elif tag == 'rating':
                     game_data['rating'] = text
                 elif tag == 'players':
@@ -26422,6 +26424,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                         'publisher': 'publisher', 
                         'developer': 'developer',
                         'description': 'desc',  # Map description to desc for gamelist XML
+                        'family': 'family',
                         'genre': 'genre',
                         'rating': 'rating',  # Rating is already normalized in extract_text_info
                         'players': 'players'

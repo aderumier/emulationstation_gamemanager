@@ -155,13 +155,15 @@ def select_best_media_by_region(media_list: List[Dict], region_priority: List[st
     return media_list[0]
 
 
-def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) -> Dict[str, str]:
+def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None, selected_fields: List[str] = None, familles_cache: Dict[str, str] = None) -> Dict[str, str]:
     """
     Extract text information from ScreenScraper game data.
     
     Args:
         game_data: Game data dictionary from ScreenScraper API
         rom_filename: Original ROM filename to preserve parentheses text
+        selected_fields: List of selected fields to extract (if None, extract all)
+        familles_cache: Dictionary mapping famille ID to nom (for family field extraction)
         
     Returns:
         Dictionary with extracted text information
@@ -279,7 +281,144 @@ def extract_text_info_from_game_data(game_data: Dict, rom_filename: str = None) 
             else:
                 text_info['players'] = players_text
     
+    # Extract family from familles if 'family' is in selected_fields
+    if (selected_fields is None or 'family' in selected_fields) and familles_cache is not None:
+        # Check for familles structure: familles { familles_id [famille_id] }
+        if 'familles' in game_data:
+            familles_data = game_data['familles']
+            famille_id = None
+            
+            # Handle different possible structures
+            if isinstance(familles_data, dict):
+                # Check for familles_id key (which might be a list)
+                if 'familles_id' in familles_data:
+                    familles_id_value = familles_data['familles_id']
+                    if isinstance(familles_id_value, list) and len(familles_id_value) > 0:
+                        famille_id = familles_id_value[0]
+                    else:
+                        famille_id = familles_id_value
+                # Check for famille_id key (which might be a list)
+                elif 'famille_id' in familles_data:
+                    famille_id_value = familles_data['famille_id']
+                    if isinstance(famille_id_value, list) and len(famille_id_value) > 0:
+                        famille_id = famille_id_value[0]
+                    else:
+                        famille_id = famille_id_value
+            elif isinstance(familles_data, list) and len(familles_data) > 0:
+                # If it's a list, get the first item (take first family from array)
+                first_item = familles_data[0]
+                if isinstance(first_item, dict):
+                    # Try famille_id first, then id
+                    famille_id = first_item.get('famille_id')
+                    if not famille_id:
+                        famille_id = first_item.get('id')
+                    print(f"🔍 DEBUG: Extracting family from list, first item: {first_item}, extracted id: {famille_id}")
+                elif isinstance(first_item, str):
+                    famille_id = first_item
+            
+            # Map famille_id to nom using cache
+            if famille_id:
+                famille_id_str = str(famille_id)
+                if famille_id_str in familles_cache:
+                    text_info['family'] = familles_cache[famille_id_str]
+                    print(f"📝 Extracted family: {text_info['family']} (from famille_id: {famille_id})")
+                else:
+                    print(f"⚠️ Famille ID {famille_id} not found in cache")
+            else:
+                print(f"⚠️ Could not extract famille_id from familles data: {type(familles_data)}")
+    
     return text_info
+
+
+def get_screenscraper_familles(devid: str, devpassword: str, ssid: str = 'test', sspassword: str = 'test', force_refresh: bool = False) -> Dict[str, str]:
+    """
+    Get ScreenScraper familles mapping (id -> nom) with caching
+    
+    Args:
+        devid: ScreenScraper developer ID
+        devpassword: ScreenScraper developer password
+        ssid: ScreenScraper user ID (default: 'test')
+        sspassword: ScreenScraper user password (default: 'test')
+        force_refresh: Force refresh cache even if valid
+        
+    Returns:
+        Dictionary mapping famille ID to nom
+    """
+    import requests
+    import xml.etree.ElementTree as ET
+    
+    cache_dir = "var/db/screenscraper"
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, "familles.json")
+    
+    # Check if cache is valid (24 hours)
+    if not force_refresh and os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+            cache_time = datetime.fromisoformat(cache_data.get('timestamp', ''))
+            if datetime.now() - cache_time < timedelta(hours=24):
+                print(f"📋 Using cached ScreenScraper familles (count: {len(cache_data.get('familles', {}))})")
+                return cache_data.get('familles', {})
+        except Exception as e:
+            print(f"⚠️ Error reading ScreenScraper familles cache: {e}")
+    
+    # Check if credentials are provided
+    if not devid or not devpassword:
+        print("⚠️ ScreenScraper credentials not provided, using expired cache if available")
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                print(f"📋 Using expired cache due to missing credentials (count: {len(cache_data.get('familles', {}))})")
+                return cache_data.get('familles', {})
+            except Exception as e:
+                print(f"⚠️ Error reading expired cache: {e}")
+        return {}
+    
+    try:
+        api_url = f"https://api.screenscraper.fr/api2/famillesListe.php?devid={devid}&devpassword={devpassword}&softname=cursorscraper&output=xml&ssid={ssid}&sspassword={sspassword}"
+        print(f"🌐 Fetching ScreenScraper familles from API...")
+        response = requests.get(api_url, timeout=30)
+        response.raise_for_status()
+        
+        # Parse XML response
+        root = ET.fromstring(response.content)
+        familles = {}
+        
+        # Find all famille elements
+        for famille in root.findall('.//famille'):
+            famille_id_elem = famille.find('id')
+            nom_elem = famille.find('nom')
+            if famille_id_elem is not None and nom_elem is not None:
+                famille_id = famille_id_elem.text
+                nom = nom_elem.text
+                if famille_id and nom:
+                    familles[famille_id] = nom
+        
+        # Cache the results
+        cache_data = {
+            'familles': familles,
+            'timestamp': datetime.now().isoformat()
+        }
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ ScreenScraper familles cached (count: {len(familles)})")
+        return familles
+        
+    except Exception as e:
+        print(f"❌ Error fetching ScreenScraper familles: {e}")
+        # Try to return cached data even if expired
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                print(f"⚠️ Using expired cache due to API error (count: {len(cache_data.get('familles', {}))})")
+                return cache_data.get('familles', {})
+            except Exception as e2:
+                print(f"⚠️ Error reading expired cache: {e2}")
+        return {}
 
 
 def get_screenscraper_systems(devid: str, devpassword: str, force_refresh: bool = False) -> Dict[int, str]:
@@ -984,6 +1123,21 @@ class ScreenScraperService:
         if games:
             print(f"First game structure: {games[0]}")
         
+        # Load familles cache if 'family' is in selected_fields
+        familles_cache = None
+        if selected_fields and 'family' in selected_fields:
+            print(f"📋 Loading ScreenScraper familles cache for family field extraction...")
+            familles_cache = get_screenscraper_familles(
+                self.devid,
+                self.devpassword,
+                self.ssid,
+                self.sspassword
+            )
+            if familles_cache:
+                print(f"✅ Loaded {len(familles_cache)} familles from cache")
+            else:
+                print(f"⚠️ No familles cache available")
+        
         results = {}
         total_games = len(games)
         
@@ -1149,7 +1303,7 @@ class ScreenScraperService:
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Extracting text information for {game_name}")
                     
-                    text_info = extract_text_info_from_game_data(game_data, rom_filename)
+                    text_info = extract_text_info_from_game_data(game_data, rom_filename, selected_fields, familles_cache)
                     if text_info:
                         print(f"📝 Extracted text info: {text_info}")
                         if detailed_progress_callback:
