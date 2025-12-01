@@ -10702,13 +10702,20 @@ def download_multiscraper_media_endpoint():
         
         success = False
         normalized_local_path = media_url.strip()
+        print(f"🔧 DEBUG: Original media_url: '{media_url}', normalized: '{normalized_local_path}'")
+        
         if normalized_local_path.startswith('./'):
             normalized_local_path = normalized_local_path[2:]
-        if normalized_local_path.startswith('/'):
-            normalized_local_path = normalized_local_path[1:]
+            print(f"🔧 DEBUG: After removing './': '{normalized_local_path}'")
         
         # Handle local media files (already present under roms/)
-        if normalized_local_path.startswith('roms/'):
+        # Check for both /roms/ and roms/ formats
+        is_local_path = normalized_local_path.startswith('roms/') or normalized_local_path.startswith('/roms/')
+        print(f"🔧 DEBUG: Is local path? {is_local_path} (starts with 'roms/' or '/roms/')")
+        if is_local_path:
+            # Remove leading slash if present
+            if normalized_local_path.startswith('/'):
+                normalized_local_path = normalized_local_path[1:]
             print(f"🔧 DEBUG: Using local media file: {normalized_local_path}")
             local_absolute_path = os.path.abspath(normalized_local_path)
             roms_root = os.path.abspath('roms')
