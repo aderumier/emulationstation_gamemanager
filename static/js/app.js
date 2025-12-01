@@ -2352,6 +2352,19 @@ class GameCollectionManager {
         document.addEventListener('keydown', (event) => {
             // Handle Delete key with priority: thumbnails first, then media, then games
             if (event.key === 'Delete') {
+                // Check if user is currently editing a cell - if so, let Delete work normally for text editing
+                const activeElement = document.activeElement;
+                const isEditingCell = activeElement && (
+                    activeElement.classList.contains('ag-cell-edit-input') ||
+                    activeElement.closest('.ag-cell-edit-input') ||
+                    activeElement.tagName === 'INPUT' && activeElement.closest('.ag-cell')
+                );
+                
+                if (isEditingCell) {
+                    // User is editing a cell, let Delete key work normally for text deletion
+                    return; // Don't prevent default, allow normal text editing behavior
+                }
+                
                 // If thumbnails are selected, delete thumbnails (highest priority)
                 if (this.selectedThumbnails && this.selectedThumbnails.length > 0) {
                     event.preventDefault();
@@ -5417,13 +5430,15 @@ class GameCollectionManager {
                                 <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-image"></i>
                                 </button>
-                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-google"></i>
-                                </button>
                                 ` : ''}
                                 ${field === 'marquee' ? `
                                 <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-badge-ad"></i>
+                                </button>
+                                ` : ''}
+                                ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-google"></i>
                                 </button>
                                 ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -5509,37 +5524,39 @@ class GameCollectionManager {
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                         <small class="text-center flex-grow-1">${field}</small>
-                        <div class="d-flex gap-1">
-                            ${field === 'video' ? `
-                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-youtube"></i>
-                            </button>
-                            ` : ''}
-                            ${field === 'fanart' ? `
-                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-image"></i>
-                            </button>
-                            <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-google"></i>
-                            </button>
-                            ` : ''}
-                            ${field === 'marquee' ? `
-                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-badge-ad"></i>
-                            </button>
-                            ` : ''}
-                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-search"></i>
-                            </button>
-                        </div>
-                    </div>
-                `;
-                
-                // Add double-click handler for upload
-                mediaItem.addEventListener('dblclick', (e) => {
-                    e.stopPropagation();
-                    this.uploadMediaForGame(game, field);
-                });
+                <div class="d-flex gap-1">
+                    ${field === 'video' ? `
+                    <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                        <i class="bi bi-youtube"></i>
+                    </button>
+                    ` : ''}
+                    ${field === 'fanart' ? `
+                    <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                        <i class="bi bi-image"></i>
+                    </button>
+                    ` : ''}
+                    ${field === 'marquee' ? `
+                    <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                        <i class="bi bi-badge-ad"></i>
+                    </button>
+                    ` : ''}
+                    ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-google"></i>
+                    </button>
+                    ` : ''}
+                    <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Add double-click handler for upload
+        mediaItem.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            this.uploadMediaForGame(game, field);
+        });
                 
                 // Add hover effect
                 mediaItem.addEventListener('mouseenter', () => {
@@ -11637,13 +11654,15 @@ class GameCollectionManager {
                                         <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                             <i class="bi bi-image"></i>
                                         </button>
-                                        <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                            <i class="bi bi-google"></i>
-                                        </button>
                                         ` : ''}
                                         ${field === 'marquee' ? `
                                         <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                             <i class="bi bi-badge-ad"></i>
+                                        </button>
+                                        ` : ''}
+                                        ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                                        <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                            <i class="bi bi-google"></i>
                                         </button>
                                         ` : ''}
                                         ${field === 'manual' || field === 'map' || field === 'magazine' ? `
@@ -11737,13 +11756,15 @@ class GameCollectionManager {
                                 <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-image"></i>
                                 </button>
-                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                    <i class="bi bi-google"></i>
-                                </button>
                                 ` : ''}
                                 ${field === 'marquee' ? `
                                 <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-badge-ad"></i>
+                                </button>
+                                ` : ''}
+                                ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                    <i class="bi bi-google"></i>
                                 </button>
                                 ` : ''}
                                 <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -11840,13 +11861,15 @@ class GameCollectionManager {
                             <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-image"></i>
                             </button>
-                            <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                                <i class="bi bi-google"></i>
-                            </button>
                             ` : ''}
                             ${field === 'marquee' ? `
                             <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-badge-ad"></i>
+                            </button>
+                            ` : ''}
+                            ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                            <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-google"></i>
                             </button>
                             ` : ''}
                             <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -11910,13 +11933,15 @@ class GameCollectionManager {
                     <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                         <i class="bi bi-image"></i>
                     </button>
-                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                        <i class="bi bi-google"></i>
-                    </button>
                     ` : ''}
                     ${field === 'marquee' ? `
                     <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                         <i class="bi bi-badge-ad"></i>
+                    </button>
+                    ` : ''}
+                    ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                        <i class="bi bi-google"></i>
                     </button>
                     ` : ''}
                     <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
@@ -28493,7 +28518,7 @@ class GameCollectionManager {
         const img = imageElement.querySelector('img');
         if (!img) return;
         
-        // Store current image info for rotation, cropping, and Google Lens search
+        // Store current image info for rotation, cropping, Google Lens search, and background removal
         this.currentRotatingImage = {
             element: imageElement,
             game: game,
@@ -28510,6 +28535,19 @@ class GameCollectionManager {
             field: field,
             imageSrc: img.src
         };
+        this.currentBackgroundRemovalImage = {
+            element: imageElement,
+            game: game,
+            field: field
+        };
+        
+        // Show/hide remove background option based on file extension
+        const removeBackgroundMenuItem = document.getElementById('removeBackgroundMenuItem');
+        if (removeBackgroundMenuItem) {
+            const imagePath = game[field] || '';
+            const isPng = imagePath.toLowerCase().endsWith('.png');
+            removeBackgroundMenuItem.style.display = isPng ? 'flex' : 'none';
+        }
         
         // Position the context menu at the button position (bottom center of image)
         const button = event.target.closest('.image-action-btn');
@@ -28848,6 +28886,96 @@ class GameCollectionManager {
             
             // Show error message
             this.showAlert(`Failed to rotate image: ${error.message}`, 'danger');
+        }
+    }
+    
+    async removeImageBackground() {
+        if (!this.currentBackgroundRemovalImage) return;
+        
+        const { element, game, field } = this.currentBackgroundRemovalImage;
+        const img = element.querySelector('img');
+        if (!img) return;
+        
+        // Check if it's a PNG file
+        const imagePath = game[field] || '';
+        if (!imagePath.toLowerCase().endsWith('.png')) {
+            this.showAlert('Background removal is only available for PNG images', 'error');
+            return;
+        }
+        
+        // Show loading state
+        const originalSrc = img.src;
+        img.style.opacity = '0.5';
+        img.style.filter = 'grayscale(100%)';
+        
+        try {
+            // Call server-side background removal API
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/game/remove-background`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    rom_path: game.path,
+                    media_field: field
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                // Add cache-busting parameter to force image refresh
+                const baseUrl = originalSrc.split('?')[0];
+                const newSrc = `${baseUrl}?v=${Date.now()}`;
+                
+                // Try to reload the image with retry mechanism
+                let retryCount = 0;
+                const maxRetries = 3;
+                
+                const loadImageWithRetry = () => {
+                    img.src = newSrc;
+                    
+                    img.onerror = () => {
+                        if (retryCount < maxRetries) {
+                            retryCount++;
+                            console.log(`Image reload failed after background removal, retrying (${retryCount}/${maxRetries})...`);
+                            setTimeout(() => {
+                                img.src = `${baseUrl}?v=${Date.now()}`;
+                            }, 200 * retryCount);
+                        } else {
+                            console.error('Failed to reload image after background removal after multiple retries');
+                            img.style.opacity = '1';
+                            img.style.filter = 'none';
+                            this.showAlert('Background removed but failed to reload. Please refresh the page.', 'warning');
+                        }
+                    };
+                    
+                    img.onload = () => {
+                        img.style.opacity = '1';
+                        img.style.filter = 'none';
+                        img.onerror = null;
+                    };
+                };
+                
+                loadImageWithRetry();
+                
+                // Hide context menu
+                const contextMenu = document.getElementById('imageContextMenu');
+                if (contextMenu) {
+                    contextMenu.style.display = 'none';
+                }
+                
+                // Show success message
+                this.showAlert('Background removed successfully', 'success');
+            } else {
+                throw new Error(result.error || 'Failed to remove background');
+            }
+            
+        } catch (error) {
+            console.error('Background removal error:', error);
+            img.style.opacity = '1';
+            img.style.filter = 'none';
+            this.showAlert('Error removing background: ' + error.message, 'error');
         }
     }
 }

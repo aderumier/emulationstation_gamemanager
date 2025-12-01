@@ -73,23 +73,29 @@ def normalize_game_name(name, remove_paranthesis=True, remove_articles=True):
     name = remove_brackets(name)
     
     # When remove_articles=False, convert trailing articles (after comma) to beginning after removing parentheses
-    # This way we can properly match ", The" at the end even if it was followed by parentheses
+    # This way we can properly match ", The" at the end even if it was followed by parentheses or separators
     if not remove_articles:
-        # Match patterns: ",The", ",A", ",La", ",Le", ",L'" at the end (case insensitive)
+        # Match patterns: ",The", ",A", ",La", ",Le", ",L'", ",Der", ",Die", ",Das" at the end or followed by separator (- or :)
         # Order matters: match longer patterns first (L' before L)
         patterns = [
-            (r',\s*The\s*$', 'The'),
-            (r',\s*La\s*$', 'La'),
-            (r',\s*Le\s*$', 'Le'),
-            (r",\s*L'\s*$", "L'"),
-            (r',\s*A\s*$', 'A'),
+            (r',\s*The\s*(?:$|[-:])', 'The'),
+            (r',\s*La\s*(?:$|[-:])', 'La'),
+            (r',\s*Le\s*(?:$|[-:])', 'Le'),
+            (r",\s*L'\s*(?:$|[-:])", "L'"),
+            (r',\s*Der\s*(?:$|[-:])', 'Der'),
+            (r',\s*Die\s*(?:$|[-:])', 'Die'),
+            (r',\s*Das\s*(?:$|[-:])', 'Das'),
+            (r',\s*A\s*(?:$|[-:])', 'A'),
         ]
         
         for pattern, article in patterns:
             matched = re.search(pattern, name, flags=re.IGNORECASE)
             if matched:
-                # Remove the matched pattern
+                # Remove the matched pattern (including the separator if present)
+                # The pattern matches ", The" followed by end or separator, so we replace it with empty string
                 name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+                # Clean up any extra spaces or separators that might remain
+                name = re.sub(r'\s*[-:]\s*', ' ', name).strip()
                 # Add article at the beginning
                 if article == "L'":
                     # L' doesn't have a space after it

@@ -8953,9 +8953,8 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
     print(f"🔍 DEBUG: Platform partition has {len(platform_partition)} entries")
     
     for normalized_game_name_with_parens, launchboxid in platform_partition.items():
-        # Normalize index entry name without parentheses for comparison
-        # The index was built with parentheses, but we want to compare without them
-        normalized_game_name = normalize_game_name(normalized_game_name_with_parens, remove_paranthesis=False, remove_articles=False)
+        # Index keys are already normalized, use them directly
+        normalized_game_name = normalized_game_name_with_parens
         
         # Only search games that start with the same character (partition optimization)
         if normalized_game_name.startswith(first_char):
@@ -8994,6 +8993,76 @@ def get_top_matches(game_name, metadata_games, target_platform, top_n=20, mappin
                         matches.append(match_info)
                         print(f"🔍 DEBUG: Found match: '{game.get('Name', '')}' -> similarity: {similarity:.4f}")
                         break
+    
+    # Check if we already have a perfect match (100% similarity)
+    has_perfect_match = False
+    for match in matches:
+        if match.get('score', 0) >= 1.0:
+            has_perfect_match = True
+            print(f"🔍 DEBUG: Found perfect match (100%), skipping first part search")
+            break
+    
+    # If game name contains ":" or "-", do an extra search with the first part
+    # But skip if we already have a perfect match
+    if not has_perfect_match and (':' in game_name or '-' in game_name):
+        import re
+        # Split by ":" or "-" and get the first part
+        first_part = re.split(r'[:\-]', game_name, 1)[0].strip()
+        if first_part and first_part != game_name:
+            print(f"🔍 DEBUG: Game name contains ':' or '-', doing extra search with first part: '{first_part}'")
+            
+            # Normalize the first part
+            normalized_first_part = normalize_game_name(first_part, remove_paranthesis=True, remove_articles=False)
+            print(f"🔍 DEBUG: Normalized first part: '{normalized_first_part}'")
+            
+            if normalized_first_part:
+                # Get the first character for partition search
+                first_char_first_part = normalized_first_part[0] if normalized_first_part else 'other'
+                print(f"🔍 DEBUG: Searching first part in partition '{first_char_first_part}'")
+                
+                # Search through all games in the platform partition for the first part
+                for normalized_game_name_with_parens, launchboxid in platform_partition.items():
+                    # Normalize index entry name without parentheses for comparison
+                    normalized_game_name = normalized_game_name_with_parens
+                    
+                    # Only search games that start with the same character (partition optimization)
+                    if normalized_game_name.startswith(first_char_first_part):
+                        # Calculate similarity using configured algorithm
+                        # Compare normalized first part of source against full normalized database name
+                        from game_utils import calculate_similarity
+                        similarity = calculate_similarity(normalized_first_part, normalized_game_name)
+                    
+                        # Only consider good matches
+                        if similarity >= 0.7:
+                            # Find the game in metadata_games
+                            for game in metadata_games:
+                                if str(game.get('DatabaseID', '')) == str(launchboxid):
+                                    # Get box image URL for this game
+                                    database_id = game.get('DatabaseID', '')
+                                    box_image_url = get_launchbox_box_image_url(database_id) if database_id else None
+                                    
+                                    # Create match info
+                                    match_info = {
+                                        'game': game,
+                                        'score': similarity,
+                                        'match_type': 'first_part',  # Mark as first part match
+                                        'matched_name': game.get('Name', ''),
+                                        'database_id': database_id,
+                                        'name': game.get('Name', ''),
+                                        'overview': game.get('Overview', ''),
+                                        'developer': game.get('Developer', ''),
+                                        'publisher': game.get('Publisher', ''),
+                                        'box_image_url': box_image_url
+                                    }
+                                    
+                                    # Add mapped fields dynamically based on mapping configuration
+                                    if mapping_config:
+                                        for launchbox_field, gamelist_field in mapping_config.items():
+                                            match_info[gamelist_field] = game.get(launchbox_field, '')
+                                    
+                                    matches.append(match_info)
+                                    print(f"🔍 DEBUG: Found first part match: '{game.get('Name', '')}' -> similarity: {similarity:.4f}")
+                                    break
     
     print(f"🔍 DEBUG: Found {len(matches)} total matches before deduplication")
     
@@ -14704,6 +14773,146 @@ def rotate_game_media(system_name):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rom-system/<system_name>/game/remove-background', methods=['POST'])
+@login_required
+def remove_game_media_background(system_name):
+    """Remove black or white background from a PNG image, making it transparent"""
+    try:
+        # Check if system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Check if game exists in gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        rom_path = data.get('rom_path')
+        media_field = data.get('media_field')
+        
+        if not all([rom_path, media_field]):
+            return jsonify({'error': 'Missing required fields: rom_path, media_field'}), 400
+        
+        # Parse gamelist to find the game
+        games = parse_gamelist_xml(gamelist_path)
+        game = next((g for g in games if g.get('path') == rom_path), None)
+        if not game:
+            return jsonify({'error': f'Game not found with ROM path: {rom_path}'}), 404
+        
+        # Get the media file path
+        media_path = game.get(media_field)
+        if not media_path:
+            return jsonify({'error': f'No media file found for field: {media_field}'}), 404
+        
+        # Check if it's a PNG file
+        if not media_path.lower().endswith('.png'):
+            return jsonify({'error': 'Background removal is only available for PNG images'}), 400
+        
+        # Construct full path to media file
+        if media_path.startswith('./'):
+            media_path = media_path[2:]  # Remove './' prefix
+        
+        full_media_path = os.path.join(ROMS_FOLDER, system_name, media_path)
+        
+        if not os.path.exists(full_media_path):
+            return jsonify({'error': f'Media file not found: {full_media_path}'}), 404
+        
+        # Remove background using ImageMagick
+        # First, detect the background color from the top-left pixel
+        from PIL import Image
+        import subprocess
+        import tempfile
+        import shutil
+        
+        try:
+            # Detect background color from top-left pixel
+            with Image.open(full_media_path) as img:
+                # Get the top-left pixel color
+                # Convert to RGB if needed
+                if img.mode != 'RGB':
+                    img_rgb = img.convert('RGB')
+                else:
+                    img_rgb = img
+                
+                # Get top-left pixel (0, 0)
+                pixel_color = img_rgb.getpixel((0, 0))
+                r, g, b = pixel_color
+                
+                # Determine if it's closer to black or white
+                # Calculate average brightness
+                brightness = (r + g + b) / 3
+                
+                # Use threshold of 128 to determine if it's black-ish or white-ish
+                if brightness < 128:
+                    # Closer to black
+                    background_color = 'black'
+                    print(f"🔍 Detected black background (RGB: {r}, {g}, {b}, brightness: {brightness:.1f})")
+                else:
+                    # Closer to white
+                    background_color = 'white'
+                    print(f"🔍 Detected white background (RGB: {r}, {g}, {b}, brightness: {brightness:.1f})")
+            
+            # Create a temporary file for atomic replacement
+            temp_dir = os.path.dirname(full_media_path)
+            with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix='.png') as temp_file:
+                temp_path = temp_file.name
+            
+            try:
+                # Use ImageMagick to remove the detected background color
+                # -fuzz 10% handles slight variations in color
+                # -transparent removes the detected background color
+                cmd = [
+                    'convert',
+                    full_media_path,
+                    '-fuzz', '10%',  # 10% threshold for color matching
+                    '-transparent', background_color,  # Remove detected background color
+                    temp_path
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                
+                if result.returncode != 0:
+                    raise Exception(f"ImageMagick failed: {result.stderr}")
+                
+                # Atomically replace the original file
+                shutil.move(temp_path, full_media_path)
+                
+                print(f"✅ Successfully removed {background_color} background from image: {full_media_path}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Background ({background_color}) removed successfully',
+                    'media_path': media_path
+                })
+                
+            except subprocess.TimeoutExpired:
+                raise Exception("ImageMagick command timed out")
+            except FileNotFoundError:
+                raise Exception("ImageMagick not found. Please install ImageMagick.")
+            except Exception as process_error:
+                # Clean up temporary file if something goes wrong
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                raise process_error
+                
+        except Exception as img_error:
+            print(f"❌ Error removing background: {img_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': f'Failed to remove background: {str(img_error)}'}), 500
+        
+    except Exception as e:
+        print(f"❌ Error in remove_game_media_background: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/game/delete-media', methods=['POST'])
 @login_required
