@@ -9682,6 +9682,12 @@ class GameCollectionManager {
                 // Refresh the grid to show updated values (same method used after scraping tasks)
                 await this.loadRomSystem(this.currentSystem);
                 console.log('🔧 DEBUG: Grid refresh completed');
+                
+                // Force a grid update to ensure changes are visible
+                if (this.gridApi) {
+                    this.gridApi.refreshCells({ force: true });
+                    console.log('🔧 DEBUG: Grid cells refreshed');
+                }
             }
             
             // Clear pending changes
@@ -10000,7 +10006,11 @@ class GameCollectionManager {
         // Check if all games are processed
         if (this.globalMatchResults.size === 0) {
             // Save pending changes before closing modal
+            console.log('🔧 DEBUG: All games processed, saving and refreshing...');
             await this.savePendingGlobalMatchChanges();
+            console.log('🔧 DEBUG: Save and refresh completed, closing modal');
+            // Small delay to ensure grid refresh is visible before closing modal
+            await new Promise(resolve => setTimeout(resolve, 100));
             this.hideGlobalMatchModal();
             this.showAlert('All matches have been processed!', 'success');
         }
