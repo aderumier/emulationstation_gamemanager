@@ -9685,16 +9685,43 @@ class GameCollectionManager {
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
                 
                 // Refresh the grid (same method used after scraping tasks)
+                // For batch updates with many games, we need to force a full reload
+                // to ensure all changes are visible
                 console.log('🔧 DEBUG: Calling loadRomSystem for', this.currentSystem);
-                await this.loadRomSystem(this.currentSystem);
+                
+                // Store the current system before reload
+                const systemToReload = this.currentSystem;
+                
+                // Force a full grid reload by temporarily clearing and reloading
+                // This ensures all changes are visible, especially with large datasets
+                if (this.gridApi && gamesArray.length > 10) {
+                    console.log('🔧 DEBUG: Many games updated, forcing full grid reload');
+                    // Clear the grid first to force a full reload
+                    this.gridApi.setGridOption('rowData', []);
+                    // Wait a frame for the clear to take effect
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                }
+                
+                await this.loadRomSystem(systemToReload);
                 console.log('🔧 DEBUG: loadRomSystem completed');
                 
                 // Force grid refresh to ensure changes are visible (especially for large datasets)
                 if (this.gridApi) {
                     console.log('🔧 DEBUG: Forcing grid refresh');
+                    // Wait a bit for the grid to finish updating (especially for large datasets)
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Force refresh all cells
                     this.gridApi.refreshCells({ force: true });
                     // Also ensure the grid is redrawn
                     this.gridApi.redrawRows();
+                    // Wait another frame to ensure refresh is rendered
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                    // Force another refresh to catch any missed updates
+                    this.gridApi.refreshCells({ force: true });
+                    // If we have many games, also try to force a full row model refresh
+                    if (typeof this.gridApi.refreshClientSideRowModel === 'function') {
+                        this.gridApi.refreshClientSideRowModel('filter');
+                    }
                     console.log('🔧 DEBUG: Grid refresh forced');
                 }
             }
