@@ -493,7 +493,6 @@ class GameCollectionManager {
         } finally {
             // Always reset the flag, even if there was an error
             this.isRefreshingTasks = false;
-            console.log(`Task refresh completed (calls: ${this.refreshCallCount}, skipped: ${this.refreshSkipCount})`);
         }
     }
 
