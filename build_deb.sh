@@ -74,6 +74,11 @@ mkdir -p debian/opt/gamemanager/var/db/emumovies
 cp var/db/emumovies/emumovies.json debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies JSON database found, skipping..."
 cp var/db/emumovies/emumovies_index.pkl debian/opt/gamemanager/var/db/emumovies/ 2>/dev/null || echo "⚠️  No EmuMovies index pickle file found, skipping..."
 
+# Custom databases
+echo "📦 Copying Custom databases..."
+mkdir -p debian/opt/gamemanager/var/db/custom
+cp var/db/custom/*.json debian/opt/gamemanager/var/db/custom/ 2>/dev/null || echo "⚠️  No Custom JSON databases found, skipping..."
+
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
 

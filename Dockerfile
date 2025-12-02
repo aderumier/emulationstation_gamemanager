@@ -119,6 +119,15 @@ RUN mkdir -p /opt/gamemanager/emumovies_db.default && \
     chmod -R 644 /opt/gamemanager/emumovies_db.default/* 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/emumovies_db.default/
 
+# Copy Custom database files to default location outside var (for volume mount scenarios)
+RUN mkdir -p /opt/gamemanager/custom_db.default && \
+    chmod -R 755 /opt/gamemanager/var/db/custom/ 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/db/custom/*.json 2>/dev/null || true && \
+    (cp /opt/gamemanager/var/db/custom/*.json /opt/gamemanager/custom_db.default/ 2>/dev/null || echo "No Custom JSON databases found") && \
+    chmod -R 755 /opt/gamemanager/custom_db.default/ && \
+    chmod -R 644 /opt/gamemanager/custom_db.default/*.json 2>/dev/null || true && \
+    chown -R appuser:appuser /opt/gamemanager/custom_db.default/
+
 # Copy mediatype files to default location outside var (for volume mount scenarios)
 RUN (cp /opt/gamemanager/var/db/igdb/mediatype.txt /opt/gamemanager/igdb_mediatype.txt.default 2>/dev/null || echo 'cover\nscreenshots\nartworks\nlogos' > /opt/gamemanager/igdb_mediatype.txt.default) && \
     (cp /opt/gamemanager/var/db/launchbox/mediatype.json /opt/gamemanager/launchbox_mediatype.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/launchbox_mediatype.json.default) && \
@@ -148,6 +157,7 @@ mkdir -p /opt/gamemanager/var/db/igdb
 mkdir -p /opt/gamemanager/var/db/screenscraper
 mkdir -p /opt/gamemanager/var/db/mobygames
 mkdir -p /opt/gamemanager/var/db/emumovies
+mkdir -p /opt/gamemanager/var/db/custom
 mkdir -p /opt/gamemanager/var/db/steam
 mkdir -p /opt/gamemanager/var/db/steamgrid
 mkdir -p /opt/gamemanager/var/db/dats
@@ -236,6 +246,15 @@ else
     echo "⚠️  No EmuMovies database files found in default location"
 fi
 
+# Copy Custom database files to var/db (always copy to ensure they're in the volume)
+echo "Copying Custom database files to var/db/custom..."
+if [ -d /opt/gamemanager/custom_db.default ] && [ "$(ls -A /opt/gamemanager/custom_db.default 2>/dev/null)" ]; then
+    cp /opt/gamemanager/custom_db.default/*.json /opt/gamemanager/var/db/custom/
+    echo "✅ Custom database files copied to volume"
+else
+    echo "⚠️  No Custom database files found in default location"
+fi
+
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/screenscraper/* 2>/dev/null || true
@@ -243,6 +262,7 @@ chmod 644 /opt/gamemanager/var/db/igdb/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/launchbox/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/mobygames/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/emumovies/* 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/db/custom/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steam/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steamgrid/* 2>/dev/null || true
 

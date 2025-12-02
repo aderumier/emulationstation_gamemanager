@@ -157,6 +157,8 @@ var/
 !var/db/screenscraper/platforms.json
 !var/db/mobygames/
 !var/db/mobygames/*.json
+!var/db/custom/
+!var/db/custom/*.json
 # Exclude credentials files for security
 var/config/credentials.json
 var/config/credentials.enc
