@@ -406,7 +406,6 @@ class GameCollectionManager {
         
         this.isRefreshingTasks = true;
         this.refreshCallCount++;
-        console.log(`Starting task refresh... (call #${this.refreshCallCount})`);
         
         try {
             // Use the combined endpoint to get both tasks and queue status in one call
