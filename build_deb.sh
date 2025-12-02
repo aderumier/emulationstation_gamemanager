@@ -44,6 +44,7 @@ cp steamgrid_service.py debian/opt/gamemanager/steamgrid_service.py
 cp mobygames_service.py debian/opt/gamemanager/mobygames_service.py
 cp igdb_service.py debian/opt/gamemanager/igdb_service.py
 cp emumovies_service.py debian/opt/gamemanager/emumovies_service.py
+cp custom_scraper_service.py debian/opt/gamemanager/custom_scraper_service.py
 cp requirements.txt debian/opt/gamemanager/requirements.txt
 
 # Static files
