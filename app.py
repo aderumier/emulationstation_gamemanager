@@ -7933,8 +7933,12 @@ def custom_scraper_search():
         for match in matches:
             # Only include matches with similarity > 0.7 (70%)
             if match.get('similarity', 0) > 0.7:
+                # Format game_id as '<database>/<id>'
+                game_id = match.get('game_id', '')
+                formatted_game_id = format_customid(database_name, game_id)
+                
                 formatted_matches.append({
-                    'game_id': match['game_id'],
+                    'game_id': formatted_game_id,
                     'name': match['name'],
                     'similarity': match['similarity'],
                     'game_data': match['game_data']
@@ -12659,9 +12663,13 @@ def find_best_matches_custom_endpoint():
                 mapped_matches = []
                 for match in matches:
                     game_data_from_db = match.get('game_data', {})
+                    # Format game_id as '<database>/<id>'
+                    game_id = match.get('game_id', '')
+                    formatted_game_id = format_customid(custom_database, game_id)
+                    
                     mapped_match = {
                         'name': match.get('name', ''),
-                        'game_id': match.get('game_id', ''),
+                        'game_id': formatted_game_id,
                         'similarity_score': match.get('similarity', 0),
                         'publisher': game_data_from_db.get('publisher', ''),
                         'developer': game_data_from_db.get('developer', ''),
@@ -17459,6 +17467,20 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
         if not customid:
             return None
         
+        # Parse customid to extract database and game ID
+        db_from_customid, game_id = parse_customid(customid)
+        
+        # Use database from customid if available, otherwise fall back to system config (backward compatibility)
+        if db_from_customid:
+            custom_database = db_from_customid
+        else:
+            # Backward compatibility: use system config database
+            custom_database = system_config.get('custom', '')
+            game_id = customid  # Use full customid as game_id for backward compatibility
+        
+        if not custom_database or not game_id:
+            return None
+        
         # Get Custom Scraper service
         service = load_custom_scraper_service()
         if not service:
@@ -17484,7 +17506,7 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
                 continue
             
             # Get media URL from custom database using the custom_field (key)
-            media_url = service.get_media_url(custom_database, customid, custom_field)
+            media_url = service.get_media_url(custom_database, game_id, custom_field)
             
             if media_url:
                 # Add to media_fields using the gamelist_field (value) as the key
@@ -17494,13 +17516,13 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
                 media_fields[gamelist_field].append({
                     'url': media_url,
                     'type': custom_field,
-                    'customid': customid,
+                    'customid': format_customid(custom_database, game_id),
                     'database': custom_database
                 })
         
         # Extract text fields from custom database
         text_fields = {}
-        game_data = service.get_game_by_id(custom_database, customid)
+        game_data = service.get_game_by_id(custom_database, game_id)
         if game_data:
             # Map custom database fields to gamelist fields
             if game_data.get('name'):
@@ -28780,8 +28802,8 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     matched_name = game_data.get('name', game_id)
                     print(f"✅ Found Custom match for '{display_name}': {matched_name}")
                     
-                    # Store customid
-                    game['customid'] = game_id
+                    # Store customid in format '<database>/<id>'
+                    game['customid'] = format_customid(custom_db, game_id)
                     
                     # Extract text fields - only process selected fields
                     text_fields = {}
