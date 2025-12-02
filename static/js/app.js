@@ -2024,7 +2024,12 @@ class GameCollectionManager {
         if (globalMatchModal) {
             globalMatchModal.addEventListener('hidden.bs.modal', async () => {
                 console.log('🔧 DEBUG: globalMatchModal hidden event triggered');
-                await this.savePendingGlobalMatchChanges();
+                try {
+                    await this.savePendingGlobalMatchChanges();
+                    console.log('🔧 DEBUG: savePendingGlobalMatchChanges completed');
+                } catch (error) {
+                    console.error('🔧 DEBUG: Error in savePendingGlobalMatchChanges:', error);
+                }
             });
         }
 
@@ -9649,12 +9654,15 @@ class GameCollectionManager {
     }
     
     async savePendingGlobalMatchChanges() {
+        console.log('🔧 DEBUG: savePendingGlobalMatchChanges called, pending changes:', this.pendingGlobalMatchChanges.size);
         if (this.pendingGlobalMatchChanges.size === 0) {
+            console.log('🔧 DEBUG: No pending changes, returning early');
             return; // No pending changes
         }
         
         try {
             const changes = Array.from(this.pendingGlobalMatchChanges.values());
+            console.log('🔧 DEBUG: Processing', changes.length, 'changes');
             
             // Remove duplicates (same game might have multiple changes)
             const uniqueGames = new Map();
@@ -9667,20 +9675,27 @@ class GameCollectionManager {
             
             // Save all games in a single batch operation to avoid race conditions
             const gamesArray = Array.from(uniqueGames.values());
+            console.log('🔧 DEBUG: Saving', gamesArray.length, 'unique games');
             if (gamesArray.length > 0) {
                 // Save gamelist (same as scraping tasks - backend saves automatically)
+                console.log('🔧 DEBUG: Calling saveGamesBatch...');
                 await this.saveGamesBatch(gamesArray);
+                console.log('🔧 DEBUG: saveGamesBatch completed');
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
                 
                 // Refresh the grid (same method used after scraping tasks)
+                console.log('🔧 DEBUG: Calling loadRomSystem for', this.currentSystem);
                 await this.loadRomSystem(this.currentSystem);
+                console.log('🔧 DEBUG: loadRomSystem completed');
             }
             
             // Clear pending changes
             this.pendingGlobalMatchChanges.clear();
+            console.log('🔧 DEBUG: savePendingGlobalMatchChanges finished successfully');
         } catch (error) {
-            console.error('Error saving pending global match changes:', error);
+            console.error('🔧 DEBUG: Error in savePendingGlobalMatchChanges:', error);
+            console.error('🔧 DEBUG: Error stack:', error.stack);
             this.showAlert(`Error saving changes: ${error.message}`, 'danger');
         }
     }
