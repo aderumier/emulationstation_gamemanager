@@ -17610,6 +17610,7 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
                 if gamelist_field not in media_fields:
                     media_fields[gamelist_field] = []
                 
+                print(f"🔧 DEBUG scrape_custom_manual: Adding media - gamelist_field='{gamelist_field}', custom_field='{custom_field}', url='{media_url}'")
                 media_fields[gamelist_field].append({
                     'url': media_url,
                     'type': custom_field,
