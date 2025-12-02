@@ -9764,7 +9764,11 @@ class GameCollectionManager {
             bestMatch = result.match_data || result.best_match; // Backend returns match_data, fallback to best_match for compatibility
             allMatches = result.all_matches || [];
         } else if (databaseType === 'custom') {
-            currentId = result.existing_customid || 'None';
+            // Handle empty string explicitly - don't convert to 'None'
+            currentId = (result.existing_customid && result.existing_customid.trim()) ? result.existing_customid : '';
+            if (!currentId) {
+                currentId = 'No ID';
+            }
             bestMatch = result.best_match;
             allMatches = result.all_matches || [];
         }
@@ -10262,15 +10266,12 @@ class GameCollectionManager {
             currentId = result.existing_igdbid || 'None';
             topMatches = result.all_matches || [];
         } else if (databaseType === 'custom') {
-            currentId = result.existing_customid || 'None';
+            // Handle empty string explicitly - don't convert to 'None'
+            currentId = (result.existing_customid && result.existing_customid.trim()) ? result.existing_customid : '';
+            if (!currentId) {
+                currentId = 'No ID';
+            }
             topMatches = result.all_matches || [];
-            // Debug logging
-            console.log('🔧 DEBUG createGlobalMatchRow custom:', {
-                currentId,
-                topMatchesLength: topMatches ? topMatches.length : 0,
-                topMatches,
-                result
-            });
         }
         
         // Get publisher or developer from game data if available
