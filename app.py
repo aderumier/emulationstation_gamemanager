@@ -16446,8 +16446,7 @@ def apply_manual_scrap(system_name):
                         'filename': emumovies_filename
                     }
                     
-                    # Use synchronous requests for download
-                    import requests
+                    # Use synchronous requests for download (requests already imported at top of file)
                     response = requests.get(download_url, params=params, headers=headers, timeout=30, allow_redirects=True)
                     success = False
                     
