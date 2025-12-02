@@ -9655,7 +9655,6 @@ class GameCollectionManager {
         
         try {
             const changes = Array.from(this.pendingGlobalMatchChanges.values());
-            const gamesToSave = changes.map(change => change.game);
             
             // Remove duplicates (same game might have multiple changes)
             const uniqueGames = new Map();
