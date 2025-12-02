@@ -9269,11 +9269,16 @@ class GameCollectionManager {
                 })
             });
             
+            const data = await response.json();
+            
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorMessage = data.error || `HTTP error! status: ${response.status}`;
+                throw new Error(errorMessage);
             }
             
-            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
             
             if (data.success && data.results && data.results.length > 0) {
                 
@@ -9308,6 +9313,7 @@ class GameCollectionManager {
             }
             
         } catch (error) {
+            console.error('Error in findBestMatchForSelectedCustom:', error);
             this.showAlert('Error finding best matches: ' + error.message, 'danger');
             this.hideGlobalMatchModal();
         } finally {
@@ -10685,6 +10691,9 @@ class GameCollectionManager {
             
             // Populate DAT Scrapper combobox
             await this.populateDatscrapperMapping();
+            
+            // Populate Custom Database combobox
+            await this.populateCustomCombobox();
             
             // Load current system mappings
             const response = await fetch('/api/systems');
