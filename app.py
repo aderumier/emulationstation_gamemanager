@@ -1297,8 +1297,22 @@ def is_local_image_cache_valid(cache_entry):
 
 def format_customid(database_name, game_id):
     """Format customid as '<database>/<id>'"""
+    # Ensure both parameters are strings and not empty
     if not database_name or not game_id:
-        return game_id or ''
+        # If database_name is missing, log warning but still return game_id for backward compatibility
+        if not database_name:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"format_customid called with empty database_name, game_id={game_id}")
+        return str(game_id) if game_id else ''
+    
+    # Ensure both are strings
+    database_name = str(database_name).strip()
+    game_id = str(game_id).strip()
+    
+    if not database_name or not game_id:
+        return str(game_id) if game_id else ''
+    
     return f"{database_name}/{game_id}"
 
 def parse_customid(customid):
