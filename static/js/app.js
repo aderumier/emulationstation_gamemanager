@@ -9673,6 +9673,9 @@ class GameCollectionManager {
                 await this.saveGamesBatch(gamesArray);
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
+                
+                // Refresh the grid to show updated values
+                await this.refreshGameGridWithData();
             }
             
             // Clear pending changes
