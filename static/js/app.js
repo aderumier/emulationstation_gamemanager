@@ -10017,6 +10017,8 @@ class GameCollectionManager {
         if (this.globalMatchResults.size === 0) {
             // Save pending changes and refresh grid (same pattern as scraping tasks)
             await this.savePendingGlobalMatchChanges();
+            // Small delay to ensure grid refresh is processed before closing modal
+            await new Promise(resolve => setTimeout(resolve, 200));
             this.hideGlobalMatchModal();
             this.showAlert('All matches have been processed!', 'success');
         }
