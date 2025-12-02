@@ -9674,8 +9674,8 @@ class GameCollectionManager {
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
                 
-                // Refresh the grid to show updated values
-                await this.refreshGameGridWithData();
+                // Refresh the grid to show updated values (same method used after scraping tasks)
+                await this.loadRomSystem(this.currentSystem);
             }
             
             // Clear pending changes
