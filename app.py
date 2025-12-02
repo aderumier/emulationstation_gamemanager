@@ -28884,7 +28884,9 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     print(f"✅ Found Custom match for '{display_name}': {matched_name}")
                     
                     # Store customid in format '<database>/<id>'
-                    game['customid'] = format_customid(custom_db, game_id)
+                    formatted_customid = format_customid(custom_db, game_id)
+                    print(f"🔧 DEBUG: Formatting customid - custom_db='{custom_db}', game_id='{game_id}', formatted='{formatted_customid}'")
+                    game['customid'] = formatted_customid
                     
                     # Extract text fields - only process selected fields
                     text_fields = {}
