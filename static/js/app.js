@@ -9685,17 +9685,16 @@ class GameCollectionManager {
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
                 
                 // Refresh the grid (same method used after scraping tasks)
-                // For batch updates with many games, we need to force a full reload
-                // to ensure all changes are visible
+                // Always force a full grid reload to ensure all changes are visible
                 console.log('🔧 DEBUG: Calling loadRomSystem for', this.currentSystem);
                 
                 // Store the current system before reload
                 const systemToReload = this.currentSystem;
                 
-                // Force a full grid reload by temporarily clearing and reloading
+                // Always force a full grid reload by temporarily clearing and reloading
                 // This ensures all changes are visible, especially with large datasets
-                if (this.gridApi && gamesArray.length > 10) {
-                    console.log('🔧 DEBUG: Many games updated, forcing full grid reload');
+                if (this.gridApi) {
+                    console.log('🔧 DEBUG: Forcing full grid reload');
                     // Clear the grid first to force a full reload
                     this.gridApi.setGridOption('rowData', []);
                     // Wait a frame for the clear to take effect
