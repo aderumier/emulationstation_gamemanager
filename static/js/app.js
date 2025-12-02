@@ -9682,7 +9682,6 @@ class GameCollectionManager {
             this.pendingGlobalMatchChanges.clear();
         } catch (error) {
             console.error('Error saving pending global match changes:', error);
-            console.error('Error stack:', error.stack);
             this.showAlert(`Error saving changes: ${error.message}`, 'danger');
         }
     }
