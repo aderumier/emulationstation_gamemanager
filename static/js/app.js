@@ -9688,6 +9688,15 @@ class GameCollectionManager {
                 console.log('🔧 DEBUG: Calling loadRomSystem for', this.currentSystem);
                 await this.loadRomSystem(this.currentSystem);
                 console.log('🔧 DEBUG: loadRomSystem completed');
+                
+                // Force grid refresh to ensure changes are visible (especially for large datasets)
+                if (this.gridApi) {
+                    console.log('🔧 DEBUG: Forcing grid refresh');
+                    this.gridApi.refreshCells({ force: true });
+                    // Also ensure the grid is redrawn
+                    this.gridApi.redrawRows();
+                    console.log('🔧 DEBUG: Grid refresh forced');
+                }
             }
             
             // Clear pending changes
