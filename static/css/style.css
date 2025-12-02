@@ -205,6 +205,34 @@ div.btn-group .dropdown-menu[aria-labelledby="globalFindBestMatchBtn"] {
     border-color: #1e7e34;
 }
 
+.btn-purple {
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+    color: #fff;
+}
+
+.btn-purple:hover {
+    background-color: #5a32a3;
+    border-color: #5a32a3;
+    color: #fff;
+}
+
+.btn-outline-purple {
+    color: #6f42c1;
+    border-color: #6f42c1;
+    background-color: transparent;
+}
+
+.btn-outline-purple:hover {
+    color: #fff;
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+}
+
+.btn-outline-purple:focus {
+    box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.5);
+}
+
 /* Table styling */
 .table {
     background-color: #fff;

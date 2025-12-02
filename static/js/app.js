@@ -106,6 +106,7 @@ class GameCollectionManager {
             mobygamesSystems: null,
             emumoviesSystems: null,
             datscrapperFiles: null,
+            customDatabases: null,
             lastUpdated: null,
             cacheTimeout: 5 * 60 * 1000 // 5 minutes
         };
@@ -181,6 +182,9 @@ class GameCollectionManager {
         
         // Initialize DAT Scrapper configuration modal
         this.initializeDatscrapperConfigModal();
+        
+        // Initialize Custom configuration modal
+        this.initializeCustomConfigModal();
         
         // Initialize SteamGridDB configuration modal
         this.initializeSteamgriddbConfigModal();
@@ -867,6 +871,7 @@ class GameCollectionManager {
             oldGame.igdbid !== newGame.igdbid ||
             oldGame.launchboxid !== newGame.launchboxid ||
             oldGame.mobygamesid !== newGame.mobygamesid ||
+            oldGame.customid !== newGame.customid ||
             oldGame.steamid !== newGame.steamid ||
             oldGame.screenscraperid !== newGame.screenscraperid ||
             oldGame.steamgridid !== newGame.steamgridid ||
@@ -1839,6 +1844,11 @@ class GameCollectionManager {
             this.scrapDatscrapper();
         });
         
+        document.getElementById('scrapCustomBtn').addEventListener('click', async () => {
+            await this.ensurePanelGameSavedIfOpen();
+            this.scrapCustom();
+        });
+        
         // Add event listeners for find best match dropdown options
         document.getElementById('findBestMatchLaunchboxBtn').addEventListener('click', async (e) => {
             e.preventDefault();
@@ -1864,6 +1874,11 @@ class GameCollectionManager {
             e.preventDefault();
             await this.ensurePanelGameSavedIfOpen();
             this.findBestMatchForSelectedIgdb(); // Use IGDB-specific functionality
+        });
+        document.getElementById('findBestMatchCustomBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
+            this.findBestMatchForSelectedCustom(); // Use Custom-specific functionality
         });
         
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', async () => {
@@ -3162,6 +3177,29 @@ class GameCollectionManager {
                         color: '#000'
                     }
                 },
+                {
+                    field: 'customid', 
+                    headerName: 'Custom', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 55,
+                    minWidth: 55,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
+                    headerTooltip: 'Custom Database ID for exact matching. Auto-populated when scraping.',
+                    valueGetter: function(params) {
+                        const value = params.data?.customid;
+                        return value ? String(value) : '';
+                    },
+                    cellStyle: { 
+                        backgroundColor: '#e7d3ff',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em',
+                        color: '#000'
+                    }
+                },
 
                 { 
                     field: 'path', 
@@ -3510,6 +3548,7 @@ class GameCollectionManager {
                             'steamid': 'editSteamId',
                             'steamgridid': 'editSteamgridid',
                             'mobygamesid': 'editMobygamesid',
+                            'customid': 'editCustomid',
                             'youtubeurl': 'editYoutubeurl'
                         };
                         
@@ -4466,6 +4505,7 @@ class GameCollectionManager {
             steamid: String(game.steamid || '').trim(),
             steamgridid: String(game.steamgridid || '').trim(),
             mobygamesid: String(game.mobygamesid || '').trim(),
+            customid: String(game.customid || '').trim(),
             youtubeurl: String(game.youtubeurl || '').trim(),
             favorite: game.favorite === true || game.favorite === 'true',
             kidgame: game.kidgame === true || game.kidgame === 'true'
@@ -4563,6 +4603,7 @@ class GameCollectionManager {
         clearField('editSteamId');
         clearField('editSteamgridid');
         clearField('editMobygamesid');
+        clearField('editCustomid');
            clearField('editMd5');
            clearField('editYoutubeurl');
            
@@ -4627,6 +4668,7 @@ class GameCollectionManager {
         setField('editSteamId', game.steamid);
         setField('editSteamgridid', game.steamgridid);
         setField('editMobygamesid', game.mobygamesid);
+        setField('editCustomid', game.customid);
         setField('editMd5', game.md5);
         setField('editYoutubeurl', game.youtubeurl);
         
@@ -4680,6 +4722,9 @@ class GameCollectionManager {
         
         // Initialize MobyGames search button for edit modal
         this.initializeEditModalMobygamesSearch();
+        
+        // Initialize Custom search button for edit modal
+        this.initializeEditModalCustomSearch();
         
         // Initialize YouTube preview button for edit modal
         this.initializeEditModalYoutubePreview();
@@ -7036,6 +7081,7 @@ class GameCollectionManager {
         game.steamid = document.getElementById('editSteamId').value;
         game.steamgridid = document.getElementById('editSteamgridid').value;
         game.mobygamesid = document.getElementById('editMobygamesid').value;
+        game.customid = document.getElementById('editCustomid').value;
         // MD5 is readonly, but we can read it if it was updated elsewhere
         game.md5 = document.getElementById('editMd5').value;
         game.youtubeurl = document.getElementById('editYoutubeurl').value;
@@ -7064,6 +7110,7 @@ class GameCollectionManager {
         if (originalGame.steamid !== game.steamid) changedFields.push('steamid');
         if (originalGame.steamgridid !== game.steamgridid) changedFields.push('steamgridid');
         if (originalGame.mobygamesid !== game.mobygamesid) changedFields.push('mobygamesid');
+        if (originalGame.customid !== game.customid) changedFields.push('customid');
         if (originalGame.youtubeurl !== game.youtubeurl) changedFields.push('youtubeurl');
         if (originalGame.favorite !== game.favorite) changedFields.push('favorite');
         if (originalGame.kidgame !== game.kidgame) changedFields.push('kidgame');
@@ -7383,8 +7430,8 @@ class GameCollectionManager {
                 this.setTextFieldSelection(row, 'current');
             });
 
-            // Source columns (IGDB, ScreenScraper, LaunchBox, MobyGames)
-            const sources = ['igdb', 'screenscraper', 'launchbox', 'mobygames'];
+            // Source columns (IGDB, ScreenScraper, LaunchBox, MobyGames, Custom)
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'mobygames', 'custom'];
             sources.forEach(source => {
                 const sourceCell = document.createElement('td');
                 const sourceValue = fieldData.sources[source] || '';
@@ -7517,7 +7564,7 @@ class GameCollectionManager {
             this.manualScrapSelectedMedia[mediaKey] = { source: 'current', index: -1, url: mediaData.current };
 
             // Add tiles for each source. Each source may be an array of URLs or metadata objects.
-            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb', 'mobygames', 'emumovies'];
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'steam', 'steamgriddb', 'mobygames', 'emumovies', 'custom'];
             sources.forEach(source => {
                 const values = mediaData.sources[source];
                 if (!values) return;
@@ -9178,6 +9225,90 @@ class GameCollectionManager {
         }
     }
 
+    async findBestMatchForSelectedCustom() {
+        // Custom find best match functionality with auto-selection
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            // Store database type for reload functionality
+            this.lastGlobalMatchDatabaseType = 'custom';
+            
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Finding Matches...';
+            }
+
+            // Show the modal with loading state
+            this.showGlobalMatchModal();
+            
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            // Use the Custom API endpoint
+            const response = await fetch('/api/find-best-matches-custom', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.results && data.results.length > 0) {
+                
+                // Store the results as a Map with ROM path as key
+                this.globalMatchResults = new Map();
+                data.results.forEach(result => {
+                    // Check if game_data exists and has a path
+                    if (result.game_data && result.game_data.path) {
+                        this.globalMatchResults.set(result.game_data.path, result);
+                    } else {
+                        console.error('🔧 DEBUG: Invalid result structure:', result);
+                        // Fallback to game_path if available
+                        if (result.game_path) {
+                            this.globalMatchResults.set(result.game_path, result);
+                        }
+                    }
+                });
+                
+                // Debug: Log results to see what we have
+                console.log('🔧 DEBUG Custom Find Best Match: Results stored:', this.globalMatchResults.size);
+                if (this.globalMatchResults.size > 0) {
+                    const firstResult = Array.from(this.globalMatchResults.values())[0];
+                    console.log('🔧 DEBUG Custom Find Best Match: First result:', firstResult);
+                    console.log('🔧 DEBUG Custom Find Best Match: all_matches:', firstResult.all_matches);
+                    console.log('🔧 DEBUG Custom Find Best Match: best_match:', firstResult.best_match);
+                }
+                
+                this.populateGlobalMatchTable('custom');
+        } else {
+                this.showGlobalMatchEmpty();
+                this.showAlert('No matches found for the selected games', 'info');
+            }
+            
+        } catch (error) {
+            this.showAlert('Error finding best matches: ' + error.message, 'danger');
+            this.hideGlobalMatchModal();
+        } finally {
+            // Reset button state
+            const button = document.getElementById('globalFindBestMatchBtn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-search"></i> Find Best Match';
+            }
+        }
+    }
+
     async findBestMatchForSelectedDatscrapper() {
         // DAT Scrapper find best match functionality with auto-selection
         try {
@@ -9568,6 +9699,10 @@ class GameCollectionManager {
             currentId = result.existing_igdbid || 'None';
             bestMatch = result.match_data || result.best_match; // Backend returns match_data, fallback to best_match for compatibility
             allMatches = result.all_matches || [];
+        } else if (databaseType === 'custom') {
+            currentId = result.existing_customid || 'None';
+            bestMatch = result.best_match;
+            allMatches = result.all_matches || [];
         }
         
         // Game name cell
@@ -9608,7 +9743,8 @@ class GameCollectionManager {
             allMatches.forEach((match, matchIndex) => {
                 // Skip invalid matches (missing required fields)
                 if (!match || (databaseType === 'igdb' && !match.id) || (databaseType === 'launchbox' && !match.database_id) || 
-                    (databaseType === 'mobygames' && !match.game_id) || (databaseType === 'steam' && !match.appid)) {
+                    (databaseType === 'mobygames' && !match.game_id) || (databaseType === 'steam' && !match.appid) ||
+                    (databaseType === 'custom' && !match.game_id)) {
                     console.warn(`Skipping invalid match at index ${matchIndex}:`, match);
                     return;
                 }
@@ -9626,6 +9762,11 @@ class GameCollectionManager {
                     option.textContent = `${match.name || 'Unknown'} (${(match.similarity_score * 100).toFixed(1)}%)`;
                 } else if (databaseType === 'igdb') {
                     option.value = match.id;
+                    const matchName = match.name || 'Unknown';
+                    const similarityScore = match.similarity_score || 0;
+                    option.textContent = `${matchName} (${(similarityScore * 100).toFixed(1)}%)`;
+                } else if (databaseType === 'custom') {
+                    option.value = match.game_id;
                     const matchName = match.name || 'Unknown';
                     const similarityScore = match.similarity_score || 0;
                     option.textContent = `${matchName} (${(similarityScore * 100).toFixed(1)}%)`;
@@ -9648,6 +9789,8 @@ class GameCollectionManager {
                 select.value = bestMatch.appid;
             } else if (databaseType === 'igdb' && bestMatch.id) {
                 select.value = bestMatch.id.toString();
+            } else if (databaseType === 'custom' && bestMatch.game_id) {
+                select.value = bestMatch.game_id;
             }
         }
         
@@ -9750,6 +9893,13 @@ class GameCollectionManager {
                 this.showAlert(`Invalid IGDB match selected. Index: ${selectedIndex}, Array length: ${allMatches.length}`, 'error');
                 return;
             }
+        } else if (databaseType === 'custom') {
+            // For custom, the select value is the game_id directly
+            matchId = select.value;
+            if (!matchId) {
+                this.showAlert('No Custom match selected', 'error');
+                return;
+            }
         }
         
         if (!matchId) {
@@ -9766,6 +9916,8 @@ class GameCollectionManager {
             await this.applySteamMatch(gamePath, matchId);
         } else if (databaseType === 'igdb') {
             await this.applyIgdbMatch(gamePath, matchId);
+        } else if (databaseType === 'custom') {
+            await this.applyCustomMatch(gamePath, matchId);
         }
         
         // Remove the row from the table
@@ -9875,6 +10027,50 @@ class GameCollectionManager {
             this.showAlert(`Error saving IGDB ID: ${error.message}`, 'danger');
         }
     }
+    
+    async applyCustomMatch(gamePath, customId) {
+        try {
+            // For single game search from edit modal, gamePath might be empty
+            // In that case, update the edit modal field directly
+            if (!gamePath) {
+                const editCustomIdField = document.getElementById('editCustomid');
+                if (editCustomIdField) {
+                    editCustomIdField.value = customId;
+                    
+                    // Also update in panel if it's open
+                    const panelContent = document.getElementById('rightPanelContent');
+                    if (panelContent) {
+                        const panelCustomId = panelContent.querySelector('#editCustomid');
+                        if (panelCustomId) {
+                            panelCustomId.value = customId;
+                        }
+                    }
+                    
+                    this.showAlert(`Custom ID set to ${customId}`, 'success');
+                    return;
+                }
+            }
+            
+            // Find the game in the grid using ROM path
+            const game = this.games.find(g => g.path === gamePath);
+            if (game) {
+                game.customid = customId;
+                
+                // Mark game as modified
+                this.markGameAsModified(game);
+                
+                // Save single game update (optimized - only sends the validated game)
+                await this.saveSingleGameUpdate(game);
+                
+                this.showAlert(`Custom ID set to ${customId} for "${game.name}"`, 'success');
+            } else {
+                this.showAlert(`Game with path "${gamePath}" not found`, 'error');
+            }
+        } catch (error) {
+            console.error('Error in applyCustomMatch:', error);
+            this.showAlert(`Error saving Custom ID: ${error.message}`, 'danger');
+        }
+    }
 
     populateGlobalMatchTable(databaseType = 'launchbox') {
         const progressDiv = document.getElementById('globalMatchProgress');
@@ -9904,7 +10100,7 @@ class GameCollectionManager {
             if (databaseType === 'launchbox') {
                 scoreA = a.top_matches && a.top_matches.length > 0 ? a.top_matches[0].score : 0;
                 scoreB = b.top_matches && b.top_matches.length > 0 ? b.top_matches[0].score : 0;
-            } else if (databaseType === 'mobygames' || databaseType === 'steam' || databaseType === 'igdb') {
+            } else if (databaseType === 'mobygames' || databaseType === 'steam' || databaseType === 'igdb' || databaseType === 'custom') {
                 // For IGDB, use match_data instead of best_match (backend returns match_data)
                 if (databaseType === 'igdb') {
                     scoreA = (a.match_data && a.match_data.similarity_score) ? a.match_data.similarity_score : 
@@ -9912,7 +10108,7 @@ class GameCollectionManager {
                     scoreB = (b.match_data && b.match_data.similarity_score) ? b.match_data.similarity_score : 
                              ((b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0);
                 } else {
-                    // Use best_match for mobygames and steam
+                    // Use best_match for mobygames, steam, and custom
                     scoreA = (a.best_match && a.best_match.similarity_score) ? a.best_match.similarity_score : 0;
                     scoreB = (b.best_match && b.best_match.similarity_score) ? b.best_match.similarity_score : 0;
                 }
@@ -9954,6 +10150,16 @@ class GameCollectionManager {
         } else if (databaseType === 'igdb') {
             currentId = result.existing_igdbid || 'None';
             topMatches = result.all_matches || [];
+        } else if (databaseType === 'custom') {
+            currentId = result.existing_customid || 'None';
+            topMatches = result.all_matches || [];
+            // Debug logging
+            console.log('🔧 DEBUG createGlobalMatchRow custom:', {
+                currentId,
+                topMatchesLength: topMatches ? topMatches.length : 0,
+                topMatches,
+                result
+            });
         }
         
         // Get publisher or developer from game data if available
@@ -9995,10 +10201,21 @@ class GameCollectionManager {
         select.style.padding = '4px 6px';
         select.id = `globalMatchSelect_${index}`;
         
+        // Add "No Match" option
+        const noMatchOption = document.createElement('option');
+        noMatchOption.value = '';
+        noMatchOption.textContent = 'No Match';
+        select.appendChild(noMatchOption);
+        
         // Add match options (already sorted by score, highest first)
+        // Ensure topMatches is an array
+        if (!Array.isArray(topMatches)) {
+            console.warn(`topMatches is not an array for ${databaseType}:`, topMatches);
+            topMatches = [];
+        }
+        
         topMatches.forEach((match, matchIndex) => {
             const option = document.createElement('option');
-            option.value = matchIndex;
             
             let score, name, publisher, id;
             
@@ -10007,21 +10224,31 @@ class GameCollectionManager {
                 name = match.matched_name;
                 publisher = match.publisher || 'Unknown Publisher';
                 id = match.database_id;
+                option.value = matchIndex; // Use index for launchbox
             } else if (databaseType === 'steam') {
                 score = (match.similarity_score * 100).toFixed(1);
                 name = match.name;
                 publisher = match.publisher || 'Unknown Publisher';
                 id = match.appid;
+                option.value = matchIndex; // Use index for steam
             } else if (databaseType === 'mobygames') {
                 score = (match.similarity_score * 100).toFixed(1);
                 name = match.name;
                 publisher = match.publisher || 'Unknown Publisher';
                 id = match.game_id;
+                option.value = matchIndex; // Use index for mobygames
             } else if (databaseType === 'igdb') {
                 score = (match.similarity_score * 100).toFixed(1);
                 name = match.name;
                 publisher = match.publisher || 'Unknown Publisher';
                 id = match.id;
+                option.value = matchIndex; // Use index for igdb
+            } else if (databaseType === 'custom') {
+                score = (match.similarity_score * 100).toFixed(1);
+                name = match.name;
+                publisher = match.publisher || 'Unknown Publisher';
+                id = match.game_id;
+                option.value = id; // Use game_id directly for custom
             }
             
             let optionText = `${score}%: ${name} (${publisher})`;
@@ -10041,6 +10268,8 @@ class GameCollectionManager {
                 option.dataset.gameId = id;
             } else if (databaseType === 'steam') {
                 option.dataset.appId = id;
+            } else if (databaseType === 'custom') {
+                option.dataset.gameId = id;
             }
             
             select.appendChild(option);
@@ -10048,7 +10277,13 @@ class GameCollectionManager {
         
         // Auto-select the first (highest scoring) match
         if (topMatches.length > 0) {
-            select.value = '0'; // Select the first option (highest score)
+            if (databaseType === 'custom') {
+                // For custom, select by game_id
+                select.value = topMatches[0].game_id;
+            } else {
+                // For other types, select by index
+                select.value = '0'; // Select the first option (highest score)
+            }
         }
         
         matchCell.appendChild(select);
@@ -10372,6 +10607,7 @@ class GameCollectionManager {
                 document.getElementById('screenscraperMapping').value = systemConfig.screenscraper || '';
                 document.getElementById('emumoviesMapping').value = systemConfig.emumovies || '';
                 document.getElementById('datscrapperMapping').value = systemConfig.dat_file || '';
+                document.getElementById('customMapping').value = systemConfig.custom || '';
                 
                 // Set extensions value (empty if system doesn't exist)
                 const extensions = systemConfig.extensions || [];
@@ -10446,10 +10682,39 @@ class GameCollectionManager {
             console.error('Error loading DAT files:', error);
         }
     }
+    
+    async populateCustomCombobox() {
+        try {
+            const response = await fetch('/api/custom/databases');
+            const data = await response.json();
+            
+            const select = document.getElementById('customMapping');
+            if (!select) return;
+            
+            // Clear existing options except the first one
+            select.innerHTML = '<option value="">Select custom database...</option>';
+            
+            if (data.success && data.databases) {
+                // Sort databases alphabetically
+                const sortedDatabases = [...data.databases].sort((a, b) => {
+                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                });
+                
+                sortedDatabases.forEach(db => {
+                    const option = document.createElement('option');
+                    option.value = db;
+                    option.textContent = db;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading custom databases:', error);
+        }
+    }
 
     highlightScraperField(scraperType) {
         // Remove existing highlights
-        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping', 'emumoviesMapping', 'datscrapperMapping'];
+        const fields = ['launchboxMapping', 'igdbMapping', 'mobygamesMapping', 'screenscraperMapping', 'emumoviesMapping', 'datscrapperMapping', 'customMapping'];
         fields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field) {
@@ -10466,7 +10731,8 @@ class GameCollectionManager {
             'mobygames': 'mobygamesMapping',
             'screenscraper': 'screenscraperMapping',
             'emumovies': 'emumoviesMapping',
-            'datscrapper': 'datscrapperMapping'
+            'datscrapper': 'datscrapperMapping',
+            'custom': 'customMapping'
         };
         
         const targetFieldId = fieldMap[scraperType];
@@ -12366,6 +12632,282 @@ class GameCollectionManager {
                 this.showGameEditMobygamesSearch();
             });
         }
+    }
+    
+    initializeEditModalCustomSearch() {
+        // Find button in modal or panel
+        const modalFindCustomMatchBtn = document.getElementById('modalFindCustomMatchBtn');
+        const panelContent = document.getElementById('rightPanelContent');
+        const panelFindCustomMatchBtn = panelContent ? panelContent.querySelector('#modalFindCustomMatchBtn') : null;
+        
+        const buttons = [modalFindCustomMatchBtn, panelFindCustomMatchBtn].filter(btn => btn !== null && btn.parentNode !== null);
+        
+        buttons.forEach(btn => {
+            try {
+                // Remove any existing event listeners to prevent duplicates
+                // Clone the button and replace it to remove all event listeners
+                const newBtn = btn.cloneNode(true);
+                if (btn.parentNode) {
+                    btn.parentNode.replaceChild(newBtn, btn);
+                    
+                    // Add the event listener to the new button
+                    newBtn.addEventListener('click', () => {
+                        this.showGameEditCustomSearch();
+                    });
+                }
+            } catch (error) {
+                console.warn('Error initializing custom search button:', error);
+                // Fallback: just add event listener directly if replaceChild fails
+                btn.addEventListener('click', () => {
+                    this.showGameEditCustomSearch();
+                });
+            }
+        });
+    }
+    
+    async showGameEditCustomSearch() {
+        // Get current game data from edit modal or panel
+        const gameNameField = document.getElementById('editName');
+        const gameName = gameNameField ? gameNameField.value : '';
+        const systemName = this.currentSystem;
+        
+        if (!gameName || !systemName) {
+            this.showAlert('Please select a game and system first', 'warning');
+            return;
+        }
+        
+        // Get the custom database name for this system
+        try {
+            const response = await fetch('/api/systems');
+            const data = await response.json();
+            
+            if (!data.success || !data.systems) {
+                this.showAlert('Failed to load system configuration', 'danger');
+                return;
+            }
+            
+            // systems is an object/dictionary, not an array
+            const systemsConfig = data.systems;
+            const systemConfig = systemsConfig[systemName] || {};
+            const customDatabase = systemConfig.custom || '';
+            
+            if (!customDatabase) {
+                this.showAlert('No custom database configured for this system. Please configure it in Systems Configuration.', 'warning');
+                return;
+            }
+            
+            // Show the custom search modal
+            this.showCustomSearchModal(gameName, systemName, customDatabase);
+        } catch (error) {
+            this.showAlert('Error loading system configuration: ' + error.message, 'danger');
+        }
+    }
+    
+    async showCustomSearchModal(gameName, systemName, databaseName) {
+        // Set the game name in the editable input field
+        document.getElementById('customSearchGameNameInput').value = gameName;
+        
+        // Store system name and database name for use in results display
+        this.currentCustomSearchSystem = systemName;
+        this.currentCustomSearchDatabase = databaseName;
+        
+        // Clear previous results
+        document.getElementById('customSearchResults').innerHTML = '';
+        document.getElementById('customSearchError').style.display = 'none';
+        
+        // Clean up any existing backdrops before opening new modal
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('customSearchModal'), {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        modal.show();
+        
+        // Focus on the input field
+        document.getElementById('customSearchGameNameInput').focus();
+        
+        // Show spinner
+        document.getElementById('customSearchSpinner').style.display = 'inline-block';
+        
+        try {
+            // Perform initial search
+            await this.performCustomSearch();
+        } catch (error) {
+            document.getElementById('customSearchSpinner').style.display = 'none';
+            this.showCustomSearchError('Error searching Custom database: ' + error.message);
+        }
+    }
+    
+    async performCustomSearch() {
+        try {
+            const gameName = document.getElementById('customSearchGameNameInput').value.trim();
+            if (!gameName) {
+                this.showCustomSearchError('Please enter a game name to search');
+                return;
+            }
+            
+            // Show spinner
+            document.getElementById('customSearchSpinner').style.display = 'inline-block';
+            
+            const response = await fetch('/api/custom-scraper/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    system_name: this.currentCustomSearchSystem,
+                    database_name: this.currentCustomSearchDatabase
+                })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
+            const result = await response.json();
+            
+            // Hide spinner
+            document.getElementById('customSearchSpinner').style.display = 'none';
+            
+            if (result.success) {
+                this.displayCustomSearchResults(result.matches || []);
+            } else {
+                this.showCustomSearchError(result.error || 'Failed to search Custom database');
+            }
+            
+        } catch (error) {
+            document.getElementById('customSearchSpinner').style.display = 'none';
+            this.showCustomSearchError('Error searching Custom database: ' + error.message);
+        }
+    }
+    
+    displayCustomSearchResults(matches) {
+        const resultsContainer = document.getElementById('customSearchResults');
+        
+        // Filter matches to only show those with >70% similarity
+        const filteredMatches = matches.filter(match => {
+            const similarity = match.similarity || 0;
+            return similarity > 0.7;
+        });
+        
+        if (!filteredMatches || filteredMatches.length === 0) {
+            resultsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">No games found in Custom database with >70% match.</div></div>';
+            return;
+        }
+        
+        let html = '';
+        filteredMatches.forEach((match) => {
+            const similarity = match.similarity ? ` (${(match.similarity * 100).toFixed(1)}% match)` : '';
+            const gameName = match.name || match.game_data?.name || match.game_id;
+            const escapedGameId = String(match.game_id).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const escapedGameName = String(gameName).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            
+            // Get image URL - priority: boxfront > titleshot > screenshot
+            const gameData = match.game_data || {};
+            let imageUrl = null;
+            if (gameData.boxfront) {
+                imageUrl = gameData.boxfront;
+            } else if (gameData.titleshot) {
+                imageUrl = gameData.titleshot;
+            } else if (gameData.screenshot) {
+                imageUrl = gameData.screenshot;
+            }
+            
+            // Get additional info
+            const developer = gameData.developer || '';
+            const publisher = gameData.publisher || '';
+            const releaseDate = gameData.release_date || '';
+            
+            // Build info HTML
+            let infoHtml = `<strong>ID:</strong> ${match.game_id}<br>`;
+            infoHtml += `<strong>Database:</strong> ${this.currentCustomSearchDatabase || ''}`;
+            
+            if (developer) {
+                infoHtml += `<br><strong>Developer:</strong> ${developer}`;
+            }
+            if (publisher) {
+                infoHtml += `<br><strong>Publisher:</strong> ${publisher}`;
+            }
+            if (releaseDate) {
+                infoHtml += `<br><strong>Release Date:</strong> ${releaseDate}`;
+            }
+            
+            // Create image HTML
+            const imageHtml = imageUrl ? 
+                `<img src="${imageUrl}" 
+                     class="card-img-top" 
+                     style="height: 200px; object-fit: contain; background-color: #f8f9fa;" 
+                     alt="${gameName}"
+                     onerror="this.style.display='none';">` : 
+                `<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;"><i class="bi bi-image text-muted" style="font-size: 2rem;"></i></div>`;
+            
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        ${imageHtml}
+                        <div class="card-body">
+                            <h6 class="card-title">${gameName}${similarity}</h6>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    ${infoHtml}
+                                </small>
+                            </p>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn btn-purple btn-sm w-100" onclick="gameManager.selectCustomGame('${escapedGameId}', '${escapedGameName}')">
+                                <i class="bi bi-check-circle me-1"></i>Select This Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+    }
+    
+    showCustomSearchError(message) {
+        const errorContainer = document.getElementById('customSearchError');
+        errorContainer.innerHTML = message;
+        errorContainer.style.display = 'block';
+    }
+    
+    selectCustomGame(gameId, gameTitle) {
+        // Set the Custom ID in the edit modal
+        const editCustomIdField = document.getElementById('editCustomid');
+        if (editCustomIdField) {
+            editCustomIdField.value = gameId;
+        }
+        
+        // Also update in panel if it's open
+        const panelContent = document.getElementById('rightPanelContent');
+        if (panelContent) {
+            const panelCustomId = panelContent.querySelector('#editCustomid');
+            if (panelCustomId) {
+                panelCustomId.value = gameId;
+            }
+        }
+        
+        // Close the search modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('customSearchModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        // Also remove any backdrop that might remain
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
+        // Show success message
+        this.showAlert(`Custom ID set to ${gameId} for "${gameTitle}"`, 'success');
     }
     
     initializeEditModalYoutubePreview() {
@@ -14398,6 +14940,15 @@ class GameCollectionManager {
             openEmumoviesModal.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.openEmumoviesScrapPreferencesModal();
+            });
+        }
+
+        // Add event listener for opening Custom modal
+        const openCustomModal = document.getElementById('openCustomModal');
+        if (openCustomModal) {
+            openCustomModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openCustomScrapPreferencesModal();
             });
         }
 
@@ -17267,6 +17818,7 @@ class GameCollectionManager {
                                 <th style="width: 11%">MobyGames</th>
                                 <th style="width: 11%">EmuMovies</th>
                                 <th style="width: 11%">DAT File</th>
+                                <th style="width: 11%">Custom</th>
                                 <th style="width: 24%">Extensions</th>
                             </tr>
                         </thead>
@@ -17307,7 +17859,8 @@ class GameCollectionManager {
                 mobygames: document.getElementById('mobygamesMapping').value,
                 screenscraper: document.getElementById('screenscraperMapping').value,
                 emumovies: document.getElementById('emumoviesMapping').value,
-                dat_file: document.getElementById('datscrapperMapping').value
+                dat_file: document.getElementById('datscrapperMapping').value,
+                custom: document.getElementById('customMapping') ? document.getElementById('customMapping').value : ''
             };
             
             // Get extensions value and convert to array
@@ -17329,6 +17882,7 @@ class GameCollectionManager {
                     mobygames_platform: mappings.mobygames,
                     emumovies_platform: mappings.emumovies,
                     dat_file: mappings.dat_file,
+                    custom: mappings.custom,
                     extensions: extensions
                 })
             });
@@ -17438,6 +17992,7 @@ class GameCollectionManager {
         this.systemsConfigCache.mobygamesSystems = null;
         this.systemsConfigCache.emumoviesSystems = null;
         this.systemsConfigCache.datscrapperFiles = null;
+        this.systemsConfigCache.customDatabases = null;
         this.systemsConfigCache.lastUpdated = null;
         console.log('Cleared systems configuration cache');
     }
@@ -17453,13 +18008,14 @@ class GameCollectionManager {
         if (!tbody) return;
         
         // Check if we have valid cached data
-        if (this.isSystemsConfigCacheValid() && 
+            if (this.isSystemsConfigCacheValid() && 
             this.systemsConfigCache.platforms && 
             this.systemsConfigCache.screenscraperSystems && 
             this.systemsConfigCache.igdbPlatforms && 
             this.systemsConfigCache.mobygamesSystems &&
             this.systemsConfigCache.emumoviesSystems &&
-            this.systemsConfigCache.datscrapperFiles) {
+            this.systemsConfigCache.datscrapperFiles &&
+            this.systemsConfigCache.customDatabases) {
             
             console.log('Using cached systems configuration data');
             // Load systems data for cached version
@@ -17472,6 +18028,7 @@ class GameCollectionManager {
                         this.systemsConfigCache.mobygamesSystems,
                         this.systemsConfigCache.emumoviesSystems,
                         this.systemsConfigCache.datscrapperFiles,
+                        this.systemsConfigCache.customDatabases,
                         data.systems
                     );
                 } else {
@@ -17488,7 +18045,7 @@ class GameCollectionManager {
         // Show loading message while fetching platform data
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center py-4">
+                <td colspan="9" class="text-center py-4">
                     <div class="d-flex align-items-center justify-content-center">
                         <div class="spinner-border spinner-border-sm me-2" role="status">
                             <span class="visually-hidden">Loading...</span>
@@ -17499,17 +18056,18 @@ class GameCollectionManager {
             </tr>
         `;
         
-        // Load LaunchBox platforms, ScreenScraper systems, IGDB platforms, MobyGames systems, EmuMovies systems, and DAT files for comboboxes
-        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [], emumoviesSystems = [], datscrapperFiles = [];
+        // Load LaunchBox platforms, ScreenScraper systems, IGDB platforms, MobyGames systems, EmuMovies systems, DAT files, and Custom databases for comboboxes
+        let platforms = [], screenscraperSystems = [], igdbPlatforms = [], mobygamesSystems = [], emumoviesSystems = [], datscrapperFiles = [], customDatabases = [];
         
         try {
-            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles] = await Promise.all([
+            [platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases] = await Promise.all([
                 this.loadLaunchBoxPlatforms(),
                 this.loadScreenScraperSystems(),
                 this.loadIgdbPlatforms(),
                 this.loadMobygamesSystems(),
                 this.loadEmumoviesSystems(),
-                this.loadDatscrapperFiles()
+                this.loadDatscrapperFiles(),
+                this.loadCustomDatabases()
             ]);
 
             // Cache the results
@@ -17519,6 +18077,7 @@ class GameCollectionManager {
             this.systemsConfigCache.mobygamesSystems = mobygamesSystems;
             this.systemsConfigCache.emumoviesSystems = emumoviesSystems;
             this.systemsConfigCache.datscrapperFiles = datscrapperFiles;
+            this.systemsConfigCache.customDatabases = customDatabases;
             this.systemsConfigCache.lastUpdated = Date.now();
             
             console.log('Cached systems configuration data');
@@ -17527,7 +18086,7 @@ class GameCollectionManager {
             // Show error message
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center py-4">
+                    <td colspan="9" class="text-center py-4">
                         <div class="alert alert-warning mb-0">
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             Error loading platform data. Some comboboxes may be empty.
@@ -17544,7 +18103,7 @@ class GameCollectionManager {
             return fetch('/api/systems').then(response => response.json());
         }).then(data => {
             if (data.success) {
-                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, data.systems);
+                this.populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases, data.systems);
             } else {
                 throw new Error('Failed to load systems data');
             }
@@ -17552,7 +18111,7 @@ class GameCollectionManager {
             console.error('Error loading systems config:', error);
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center py-4">
+                    <td colspan="9" class="text-center py-4">
                         <div class="alert alert-warning mb-0">
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             Error loading systems configuration.
@@ -17563,7 +18122,7 @@ class GameCollectionManager {
         });
     }
     
-    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, systems) {
+    populateSystemsTableWithData(platforms, screenscraperSystems, igdbPlatforms, mobygamesSystems, emumoviesSystems, datscrapperFiles, customDatabases, systems) {
         const tbody = document.getElementById('systemsTableBody');
         if (!tbody) return;
         
@@ -17612,6 +18171,8 @@ class GameCollectionManager {
                         // Replace underscores with spaces for display
                         return value ? value.replace(/_/g, ' ') : 'Not set';
                     case 'emumovies':
+                        return value || 'Not set';
+                    case 'custom':
                         return value || 'Not set';
                     default:
                         return value;
@@ -17690,6 +18251,17 @@ class GameCollectionManager {
                          style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
                          title="Click to change DAT file">
                         <span class="platform-display">${systemData.dat_file || 'Not set'}</span>
+                        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+                    </div>
+                </td>
+                <td>
+                    <div class="platform-field" 
+                         data-system="${systemName}" 
+                         data-field="custom" 
+                         data-type="custom"
+                         style="cursor: pointer; padding: 0.375rem 0.75rem; border: 1px solid #ced4da; border-radius: 0.375rem; background-color: #fff; min-height: 38px; display: flex; align-items: center;"
+                         title="Click to change Custom database">
+                        <span class="platform-display">${getDisplayName(systemData.custom, 'custom')}</span>
                         <i class="bi bi-chevron-down ms-auto text-muted"></i>
                     </div>
                 </td>
@@ -17826,6 +18398,27 @@ class GameCollectionManager {
         }
     }
     
+    async loadCustomDatabases() {
+        try {
+            const response = await fetch('/api/custom/databases');
+            
+            if (!response.ok) {
+                return [];
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.databases) {
+                // Return database names sorted alphabetically
+                return data.databases.sort((a, b) => a.localeCompare(b));
+            } else {
+                return [];
+            }
+        } catch (error) {
+            return [];
+        }
+    }
+    
     async showPlatformSelector(systemName, fieldType, platformType, fieldElement) {
         try {
             let options = [];
@@ -17856,6 +18449,9 @@ class GameCollectionManager {
                     break;
                 case 'datscrapper':
                     options = await this.loadDatscrapperFiles();
+                    break;
+                case 'custom':
+                    options = await this.loadCustomDatabases();
                     break;
             }
             
@@ -17926,6 +18522,10 @@ class GameCollectionManager {
                     isSelected = option === currentValue;
                     break;
                 case 'datscrapper':
+                    value = text = option;
+                    isSelected = option === currentValue;
+                    break;
+                case 'custom':
                     value = text = option;
                     isSelected = option === currentValue;
                     break;
@@ -18024,6 +18624,7 @@ class GameCollectionManager {
                 mobygames_platform: currentSystem.mobygames || '',
                 emumovies_platform: currentSystem.emumovies || '',
                 dat_file: currentSystem.dat_file || '',
+                custom: currentSystem.custom || '',
                 extensions: Array.isArray(currentSystem.extensions) ? currentSystem.extensions : []
             };
             
@@ -18040,6 +18641,8 @@ class GameCollectionManager {
                 updateData.emumovies_platform = value.trim();
             } else if (field === 'dat_file') {
                 updateData.dat_file = value.trim();
+            } else if (field === 'custom') {
+                updateData.custom = value.trim();
             } else if (field === 'extensions') {
                 // Parse extensions from comma-separated string
                 updateData.extensions = value.trim() ? 
@@ -18413,6 +19016,7 @@ class GameCollectionManager {
         await this.loadMobygamesMappingsData();
         await this.loadDatscrapperMappingsData();
         await this.loadEmumoviesMappingsData();
+        await this.loadCustomMappingsData();
         
         // Load credentials values for all services
         await this.loadScreenscraperCredentialsValues();
@@ -19925,6 +20529,331 @@ class GameCollectionManager {
         this.loadDatscrapperMappingsData();
     }
     
+    async loadCustomMappingsData() {
+        try {
+            const response = await fetch('/api/custom-mappings');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.populateCustomMappingsTable(data.custom_mappings, data.media_fields, data.custom_image_types);
+            } else {
+                this.showAlert('Failed to load Custom mappings data', 'danger');
+            }
+        } catch (error) {
+            console.error('Error loading Custom mappings data:', error);
+            this.showAlert('Error loading Custom mappings data', 'danger');
+        }
+    }
+    
+    populateCustomMappingsTable(customMappings, mediaFields, customImageTypes) {
+        const tbody = document.getElementById('customMappingsTableBody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
+        
+        // Ensure mediaFields is an object
+        if (!mediaFields || typeof mediaFields !== 'object') {
+            console.error('mediaFields is not a valid object:', mediaFields);
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center text-danger">Error: Media fields not available</td></tr>';
+            return;
+        }
+        
+        // Get media field keys
+        const mediaFieldKeys = Object.keys(mediaFields);
+        if (mediaFieldKeys.length === 0) {
+            console.warn('No media fields found in config');
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted">No media fields configured</td></tr>';
+            return;
+        }
+        
+        console.log('Populating Custom mappings table with media fields:', mediaFieldKeys);
+        console.log('Custom mappings:', customMappings);
+        console.log('Custom image types:', customImageTypes);
+        
+        // Create rows for all media fields, not just the ones that are mapped
+        mediaFieldKeys.forEach(mediaField => {
+            // Find which custom image type maps to this media field
+            // customMappings structure: { "boxfront": "boxart", "boxback": "boxback", ... }
+            // We need to reverse lookup: find customType where customMappings[customType] === mediaField
+            let mappedCustomType = '';
+            for (const [customType, mappedField] of Object.entries(customMappings || {})) {
+                if (mappedField === mediaField) {
+                    mappedCustomType = customType;
+                    break;
+                }
+            }
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <span class="media-field-display">${mediaField}</span>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" 
+                            data-media-field="${mediaField}" 
+                            onchange="gameManager.updateCustomMapping(this.value, '${mediaField}')">
+                        <option value="">-- Select Custom Image Type --</option>
+                        ${(customImageTypes || []).map(customType => 
+                            `<option value="${customType}" ${customType === mappedCustomType ? 'selected' : ''}>${customType}</option>`
+                        ).join('')}
+                    </select>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    async updateCustomMapping(customType, mediaField) {
+        try {
+            const response = await fetch('/api/custom-mappings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    custom_type: customType,
+                    media_field: mediaField
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Custom mapping updated: ${mediaField} ← ${customType || 'cleared'}`, 'success');
+                // Reload data to refresh the table
+                this.loadCustomMappingsData();
+            } else {
+                this.showAlert(`Failed to update Custom mapping: ${data.error}`, 'danger');
+                // Reload data to revert changes
+                this.loadCustomMappingsData();
+            }
+        } catch (error) {
+            console.error('Error updating Custom mapping:', error);
+            this.showAlert('Error updating Custom mapping', 'danger');
+            // Reload data to revert changes
+            this.loadCustomMappingsData();
+        }
+    }
+    
+    async showCustomScrapPreferencesModal() {
+        // This is a placeholder - preferences modal can be added later if needed
+        // For now, we'll use cookies to store preferences
+        return Promise.resolve();
+    }
+    
+    async openCustomScrapPreferencesModal() {
+        // Load current settings before opening modal
+        this.loadCustomSettings();
+        
+        // Populate dynamic field checkboxes
+        await this.populateCustomFieldCheckboxes();
+        
+        // Initialize field checkboxes
+        this.initializeCustomFieldCheckboxes();
+        
+        // Add event listener for overwrite text fields checkbox
+        const overwriteTextCheckbox = document.getElementById('overwriteTextFieldsCustomModal');
+        if (overwriteTextCheckbox) {
+            overwriteTextCheckbox.addEventListener('change', (e) => {
+                this.setCookie('overwriteTextFieldsCustom', e.target.checked.toString(), 365);
+            });
+        }
+        
+        // Add event listener for overwrite media fields checkbox
+        const overwriteMediaCheckbox = document.getElementById('overwriteMediaFieldsCustomModal');
+        if (overwriteMediaCheckbox) {
+            overwriteMediaCheckbox.addEventListener('change', (e) => {
+                this.setCookie('overwriteMediaFieldsCustom', e.target.checked.toString(), 365);
+            });
+        }
+        
+        // Open the modal
+        const modal = new bootstrap.Modal(document.getElementById('customConfigurationModal'));
+        modal.show();
+    }
+    
+    loadCustomSettings() {
+        // Load saved settings from cookies
+        const overwriteTextFields = this.getCookie('overwriteTextFieldsCustom') === 'true';
+        const overwriteMediaFields = this.getCookie('overwriteMediaFieldsCustom') === 'true';
+        
+        // Set checkbox states
+        const overwriteTextCheckbox = document.getElementById('overwriteTextFieldsCustomModal');
+        const overwriteMediaCheckbox = document.getElementById('overwriteMediaFieldsCustomModal');
+        
+        if (overwriteTextCheckbox) {
+            overwriteTextCheckbox.checked = overwriteTextFields;
+        }
+        
+        if (overwriteMediaCheckbox) {
+            overwriteMediaCheckbox.checked = overwriteMediaFields;
+        }
+    }
+    
+    async populateCustomFieldCheckboxes() {
+        try {
+            // Fetch custom mappings to get mapped media fields
+            const mappingsResponse = await fetch('/api/custom-mappings');
+            const mappingsData = await mappingsResponse.json();
+            
+            if (!mappingsData.success) {
+                console.error('Failed to load custom mappings');
+                return;
+            }
+            
+            const customMappings = mappingsData.custom_mappings || {};
+            const mediaFields = mappingsData.media_fields || {};
+            
+            // Get only the mapped media fields (values from customMappings)
+            const mappedMediaFields = Object.values(customMappings).filter(field => field);
+            
+            // Populate text fields
+            const textFieldsContainer = document.getElementById('customTextFieldsContainer');
+            if (textFieldsContainer) {
+                textFieldsContainer.innerHTML = '';
+                
+                // Get available text fields - only the ones supported by custom scraper
+                const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre'];
+                
+                textFields.forEach(field => {
+                    const checkbox = document.createElement('div');
+                    checkbox.className = 'form-check';
+                    checkbox.innerHTML = `
+                        <input class="form-check-input" type="checkbox" value="${field}" id="customTextField_${field}">
+                        <label class="form-check-label" for="customTextField_${field}">
+                            ${field.charAt(0).toUpperCase() + field.slice(1)}
+                        </label>
+                    `;
+                    textFieldsContainer.appendChild(checkbox);
+                });
+            }
+            
+            // Populate media fields - only show mapped ones
+            const mediaFieldsContainer = document.getElementById('customMediaFieldsContainer');
+            if (mediaFieldsContainer) {
+                mediaFieldsContainer.innerHTML = '';
+                
+                if (mappedMediaFields.length === 0) {
+                    mediaFieldsContainer.innerHTML = '<div class="text-muted small">No media fields mapped. Configure mappings in Scraper Configuration > Custom tab.</div>';
+                    return;
+                }
+                
+                mappedMediaFields.forEach(field => {
+                    // Get display name - mediaFields[field] might be an object or string
+                    let displayName = field;
+                    if (mediaFields[field]) {
+                        if (typeof mediaFields[field] === 'object' && mediaFields[field].name) {
+                            displayName = mediaFields[field].name;
+                        } else if (typeof mediaFields[field] === 'string') {
+                            displayName = mediaFields[field];
+                        }
+                    }
+                    
+                    const checkbox = document.createElement('div');
+                    checkbox.className = 'form-check';
+                    checkbox.innerHTML = `
+                        <input class="form-check-input" type="checkbox" value="${field}" id="customMediaField_${field}">
+                        <label class="form-check-label" for="customMediaField_${field}">
+                            ${displayName}
+                        </label>
+                    `;
+                    mediaFieldsContainer.appendChild(checkbox);
+                });
+            }
+        } catch (error) {
+            console.error('Error populating Custom field checkboxes:', error);
+        }
+    }
+    
+    initializeCustomFieldCheckboxes() {
+        // Load saved selections from cookies and set checkbox states
+        const textCheckboxes = document.querySelectorAll('#customTextFieldsContainer input[type="checkbox"]');
+        textCheckboxes.forEach(checkbox => {
+            const field = checkbox.value;
+            const savedState = this.getCookie(`customField_${field}`);
+            
+            // If cookie exists, use its value; if not, default to checked
+            if (savedState !== null) {
+                checkbox.checked = savedState === 'true';
+            } else {
+                // Default to checked for all text fields
+                checkbox.checked = true;
+            }
+            
+            // Add event listener to save individual cookie when checkbox changes
+            checkbox.addEventListener('change', (e) => {
+                this.setCookie(`customField_${field}`, e.target.checked.toString(), 365);
+            });
+        });
+        
+        const mediaCheckboxes = document.querySelectorAll('#customMediaFieldsContainer input[type="checkbox"]');
+        mediaCheckboxes.forEach(checkbox => {
+            const field = checkbox.value;
+            const savedState = this.getCookie(`customMediaField_${field}`);
+            
+            // If cookie exists, use its value; if not, default to checked
+            if (savedState !== null) {
+                checkbox.checked = savedState === 'true';
+            } else {
+                // Default to checked for all media fields
+                checkbox.checked = true;
+            }
+            
+            // Add event listener to save individual cookie when checkbox changes
+            checkbox.addEventListener('change', (e) => {
+                this.setCookie(`customMediaField_${field}`, e.target.checked.toString(), 365);
+            });
+        });
+        
+        // Add event listeners for Select All / Deselect All buttons
+        const selectAllBtn = document.getElementById('selectAllCustomFields');
+        const deselectAllBtn = document.getElementById('deselectAllCustomFields');
+        
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                // Select all text fields
+                textCheckboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                    const field = checkbox.value;
+                    this.setCookie(`customField_${field}`, 'true', 365);
+                });
+                // Select all media fields
+                mediaCheckboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                    const field = checkbox.value;
+                    this.setCookie(`customMediaField_${field}`, 'true', 365);
+                });
+            });
+        }
+        
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', () => {
+                // Deselect all text fields
+                textCheckboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                    const field = checkbox.value;
+                    this.setCookie(`customField_${field}`, 'false', 365);
+                });
+                // Deselect all media fields
+                mediaCheckboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                    const field = checkbox.value;
+                    this.setCookie(`customMediaField_${field}`, 'false', 365);
+                });
+            });
+        }
+    }
+    
+    initializeCustomConfigModal() {
+        // Load custom mappings when the custom tab is shown
+        const customTab = document.getElementById('custom-tab');
+        if (customTab) {
+            customTab.addEventListener('shown.bs.tab', () => {
+                this.loadCustomMappingsData();
+            });
+        }
+    }
+    
     initializeSteamgriddbConfigModal() {
         // Refresh button
         const refreshSteamgriddbMappingsBtn = document.getElementById('refreshSteamgriddbMappingsBtn');
@@ -20688,6 +21617,7 @@ class GameCollectionManager {
         const currentSteamId = getFieldValue('editSteamId');
         const currentSteamgridid = getFieldValue('editSteamgridid');
         const currentMobygamesid = getFieldValue('editMobygamesid');
+        const currentCustomid = getFieldValue('editCustomid');
         
         // Handle release date - compare in date input format (not ISO8601)
         const currentReleasedate = getFieldValue('editReleasedate');
@@ -20732,6 +21662,7 @@ class GameCollectionManager {
         if (normalizeNumber(original.steamid) !== normalizeNumber(currentSteamId)) return true;
         if (normalizeNumber(original.steamgridid) !== normalizeNumber(currentSteamgridid)) return true;
         if (normalizeNumber(original.mobygamesid) !== normalizeNumber(currentMobygamesid)) return true;
+        if (normalize(original.customid) !== normalize(currentCustomid)) return true;
         if (normalize(original.youtubeurl) !== normalize(currentYoutubeurl)) return true;
         if (Boolean(original.favorite) !== Boolean(currentFavorite)) return true;
         if (Boolean(original.kidgame) !== Boolean(currentKidgame)) return true;
@@ -20798,6 +21729,7 @@ class GameCollectionManager {
         const currentSteamId = getFieldValue('editSteamId');
         const currentSteamgridid = getFieldValue('editSteamgridid');
         const currentMobygamesid = getFieldValue('editMobygamesid');
+        const currentCustomid = getFieldValue('editCustomid');
         
         // Handle release date - compare in date input format (not ISO8601)
         const currentReleasedate = getFieldValue('editReleasedate');
@@ -20842,6 +21774,7 @@ class GameCollectionManager {
         if (normalizeNumber(original.steamid) !== normalizeNumber(currentSteamId)) return true;
         if (normalizeNumber(original.steamgridid) !== normalizeNumber(currentSteamgridid)) return true;
         if (normalizeNumber(original.mobygamesid) !== normalizeNumber(currentMobygamesid)) return true;
+        if (normalize(original.customid) !== normalize(currentCustomid)) return true;
         if (normalize(original.youtubeurl) !== normalize(currentYoutubeurl)) return true;
         if (Boolean(original.favorite) !== Boolean(currentFavorite)) return true;
         if (Boolean(original.kidgame) !== Boolean(currentKidgame)) return true;
@@ -21051,6 +21984,7 @@ class GameCollectionManager {
             steamid: String(game.steamid || '').trim(),
             steamgridid: String(game.steamgridid || '').trim(),
             mobygamesid: String(game.mobygamesid || '').trim(),
+            customid: String(game.customid || '').trim(),
             youtubeurl: String(game.youtubeurl || '').trim(),
             favorite: game.favorite === true || game.favorite === 'true',
             kidgame: game.kidgame === true || game.kidgame === 'true'
@@ -21082,6 +22016,7 @@ class GameCollectionManager {
         clearField('editSteamId');
         clearField('editSteamgridid');
         clearField('editMobygamesid');
+        clearField('editCustomid');
         clearField('editMd5');
         clearField('editYoutubeurl');
         
@@ -21116,6 +22051,7 @@ class GameCollectionManager {
         setField('editSteamId', game.steamid);
         setField('editSteamgridid', game.steamgridid);
         setField('editMobygamesid', game.mobygamesid);
+        setField('editCustomid', game.customid);
         setField('editMd5', game.md5);
         setField('editYoutubeurl', game.youtubeurl);
         
@@ -21181,6 +22117,7 @@ class GameCollectionManager {
         this.initializeEditModalSteamSearch();
         this.initializeEditModalSteamgridSearch();
         this.initializeEditModalMobygamesSearch();
+        this.initializeEditModalCustomSearch();
         this.initializeEditModalYoutubePreview();
         this.initializeDeleteVideoButton(game);
         this.initializeUploadVideoButton(game);
@@ -23283,6 +24220,11 @@ class GameCollectionManager {
             datscrapperBtn.disabled = false; // Allow DAT Scrapper scraping
         }
 
+        const customBtn = document.getElementById('scrapCustomBtn');
+        if (customBtn) {
+            customBtn.disabled = false; // Allow Custom scraping
+        }
+
         // Update selection display
         this.updateSelectionDisplay();
         
@@ -23919,6 +24861,176 @@ class GameCollectionManager {
             const button = document.getElementById('scrapDatscrapperBtn');
             button.innerHTML = '<i class="bi bi-file-earmark-code"></i> DAT';
             button.disabled = false;
+        }
+    }
+
+    async scrapCustom() {
+        if (!this.currentSystem) {
+            this.showAlert('❌ Please select a system first', 'warning');
+            return;
+        }
+
+        // Check if custom database is configured for this system
+        const response = await fetch('/api/systems');
+        const data = await response.json();
+        
+        if (!data.success) {
+            this.showAlert('❌ Failed to load systems configuration', 'danger');
+            return;
+        }
+        
+        const systemConfig = data.systems[this.currentSystem];
+        
+        if (!systemConfig || !systemConfig.custom) {
+            this.showAlert('❌ No custom database configured for this system. Please configure it in Systems Configuration.', 'warning');
+            await this.openSystemsConfigForCurrentSystem('custom');
+            return;
+        }
+        
+        try {
+            const button = document.getElementById('scrapCustomBtn');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Starting...';
+            button.disabled = true;
+            
+            // Get selected games
+            const selectedGames = this.selectedGames.map(game => game.path);
+            
+            // Get selected fields for Custom scraping
+            const fieldSelections = await this.getSelectedCustomFields();
+            
+            // Get overwrite settings from cookies
+            const overwriteTextFields = this.getCookie('overwriteTextFieldsCustom') === 'true';
+            const overwriteMediaFields = this.getCookie('overwriteMediaFieldsCustom') === 'true';
+            
+            const response = await fetch(`/api/scrap-custom/${this.currentSystem}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    selected_games: selectedGames,
+                    selected_text_fields: fieldSelections.selected_text_fields,
+                    selected_media_fields: fieldSelections.selected_media_fields,
+                    overwrite_text_fields: overwriteTextFields,
+                    overwrite_media_fields: overwriteMediaFields
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showAlert(`✅ Custom scraper task started for ${this.currentSystem}`, 'success');
+                
+                // Refresh tasks to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert(`❌ Failed to start Custom scraper task: ${result.error}`, 'danger');
+            }
+            
+        } catch (error) {
+            this.showAlert(`❌ Error starting Custom scraper task: ${error.message}`, 'danger');
+        } finally {
+            // Restore button state
+            const button = document.getElementById('scrapCustomBtn');
+            button.innerHTML = '<i class="bi bi-database"></i> Custom';
+            button.disabled = false;
+        }
+    }
+
+    async getSelectedCustomFields() {
+        try {
+            // Fetch custom mappings to get mapped media fields
+            const mappingsResponse = await fetch('/api/custom-mappings');
+            const mappingsData = await mappingsResponse.json();
+            
+            if (!mappingsData.success) {
+                console.error('Failed to load custom mappings');
+                return {
+                    selected_text_fields: [],
+                    selected_media_fields: []
+                };
+            }
+            
+            const customMappings = mappingsData.custom_mappings || {};
+            
+            // Get only the mapped media fields (values from customMappings)
+            const mappedMediaFields = Object.values(customMappings).filter(field => field);
+            
+            // Text fields available in custom scraper preferences
+            const textFields = ['name', 'publisher', 'developer', 'releasedate', 'genre'];
+            
+            // Read field selections directly from cookies
+            const selectedGamelistTextFields = [];
+            const selectedGamelistMediaFields = [];
+            let hasUncheckedTextFields = false;
+            let hasUncheckedMediaFields = false;
+            
+            // Check text fields - cookies use field names like 'name', 'publisher', etc.
+            textFields.forEach(field => {
+                const cookieName = `customField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedGamelistTextFields.push(field);
+                    } else {
+                        hasUncheckedTextFields = true;
+                    }
+                } else {
+                    // No cookie exists - default to checked (all fields selected)
+                    selectedGamelistTextFields.push(field);
+                }
+            });
+            
+            // Check media fields - cookies use gamelist field names (the mapped values)
+            mappedMediaFields.forEach(gamelistField => {
+                const cookieName = `customMediaField_${gamelistField}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedGamelistMediaFields.push(gamelistField);
+                    } else {
+                        hasUncheckedMediaFields = true;
+                    }
+                } else {
+                    // No cookie exists - default to checked (all fields selected)
+                    selectedGamelistMediaFields.push(gamelistField);
+                }
+            });
+            
+            // If we have some unchecked fields, return only the selected ones
+            if (hasUncheckedTextFields) {
+                // Return only selected text fields
+                return {
+                    selected_text_fields: selectedGamelistTextFields,
+                    selected_media_fields: hasUncheckedMediaFields ? selectedGamelistMediaFields : mappedMediaFields
+                };
+            }
+            
+            if (hasUncheckedMediaFields) {
+                // Return all text fields, only selected media fields
+                return {
+                    selected_text_fields: textFields,
+                    selected_media_fields: selectedGamelistMediaFields
+                };
+            }
+            
+            // If all fields are selected (no unchecked fields), return all fields
+            return {
+                selected_text_fields: textFields,
+                selected_media_fields: mappedMediaFields
+            };
+            
+        } catch (error) {
+            console.error('Error getting selected custom fields:', error);
+            return {
+                selected_text_fields: [],
+                selected_media_fields: []
+            };
         }
     }
 
@@ -24699,6 +25811,20 @@ class GameCollectionManager {
             mobygamesSearchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     this.performMobygamesSearch();
+                }
+            });
+        }
+        
+        // Custom Search Modal
+        const customSearchButton = document.getElementById('customSearchButton');
+        const customSearchInput = document.getElementById('customSearchGameNameInput');
+        if (customSearchButton && customSearchInput) {
+            customSearchButton.addEventListener('click', () => {
+                this.performCustomSearch();
+            });
+            customSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performCustomSearch();
                 }
             });
         }

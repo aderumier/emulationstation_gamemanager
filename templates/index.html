@@ -465,6 +465,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openEmumoviesModal">
                             <i class="bi bi-film me-2"></i>EmuMovies Scrap Preferences
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openCustomModal">
+                            <i class="bi bi-file-earmark-code me-2"></i>Custom Scrap Preferences
+                        </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('logout') }}">
                             <i class="bi bi-box-arrow-right me-2"></i>Logout
@@ -561,6 +564,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 <button id="scrapDatscrapperBtn" class="btn btn-dark btn-sm ms-2" disabled>
                     <i class="bi bi-file-earmark-code"></i> DAT
                 </button>
+                <button id="scrapCustomBtn" class="btn btn-purple btn-sm ms-2" disabled>
+                    <i class="bi bi-database"></i> Custom
+                </button>
                 <div class="btn-group ms-2" role="group">
                     <button type="button" class="btn btn-outline-info btn-sm dropdown-toggle" id="globalFindBestMatchBtn" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-offset="0,2" aria-expanded="false" disabled>
                         <i class="bi bi-search"></i> Find Best Match
@@ -580,6 +586,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </a></li>
                         <li><a class="dropdown-item" href="#" id="findBestMatchIgdbBtn">
                             <i class="bi bi-controller me-2"></i>IGDB
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="findBestMatchCustomBtn">
+                            <i class="bi bi-file-earmark-code me-2"></i>Custom
                         </a></li>
                     </ul>
                 </div>
@@ -961,6 +970,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <div class="form-text">Select the DAT file for this system.</div>
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="customMapping" class="form-label">Custom Database</label>
+                                    <select class="form-select" id="customMapping">
+                                        <option value="">Select custom database...</option>
+                                    </select>
+                                    <div class="form-text">Select the custom database JSON file for this system.</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -1133,6 +1151,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <input type="text" class="form-control" id="editMobygamesid">
                                                 <button type="button" class="btn btn-outline-danger" id="modalFindMobygamesMatchBtn" title="Search for the best matching game in the MobyGames database">
                                                     <i class="bi bi-database"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="input-group">
+                                                <span class="input-group-text" style="min-width: 140px;">Custom ID</span>
+                                                <input type="text" class="form-control" id="editCustomid">
+                                                <button type="button" class="btn btn-outline-purple" id="modalFindCustomMatchBtn" title="Search for the best matching game in the Custom database">
+                                                    <i class="bi bi-file-earmark-code"></i>
                                                 </button>
                                             </div>
                                         </div>
@@ -1335,6 +1362,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <option value="launchbox">LaunchBox</option>
                             <option value="mobygames">MobyGames</option>
                             <option value="emumovies">EmuMovies</option>
+                            <option value="custom">Custom</option>
                         </select>
                         <button type="button" class="btn btn-primary btn-sm" id="multiscraperSearchBtn">
                             <i class="bi bi-search me-1"></i>Search
@@ -1635,6 +1663,48 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <!-- Search results will be populated here -->
                     </div>
                     <div id="mobygamesSearchError" class="alert alert-danger" style="display: none;">
+                        <!-- Error messages will be shown here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Scraper Game Search Modal -->
+    <div class="modal fade" id="customSearchModal" tabindex="-1" aria-labelledby="customSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="customSearchModalLabel">
+                        <i class="bi bi-file-earmark-code me-2 text-purple"></i>Custom Game Search
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="customSearchGameNameInput" class="form-label"><strong>Search for:</strong></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="customSearchGameNameInput" placeholder="Enter game name to search">
+                            <button type="button" class="btn btn-outline-purple" id="customSearchButton">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span><strong>Search Results:</strong></span>
+                            <div class="spinner-border spinner-border-sm text-purple" id="customSearchSpinner" style="display: none;" role="status">
+                                <span class="visually-hidden">Searching...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="customSearchResults" class="row">
+                        <!-- Search results will be populated here -->
+                    </div>
+                    <div id="customSearchError" class="alert alert-danger" style="display: none;">
                         <!-- Error messages will be shown here -->
                     </div>
                 </div>
@@ -2798,6 +2868,94 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- Custom Scraper Configuration Modal -->
+    <div class="modal fade" id="customConfigurationModal" tabindex="-1" aria-labelledby="customConfigurationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="customConfigurationModalLabel">
+                        <i class="bi bi-file-earmark-code me-2"></i>Custom Scraper Preferences
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Scraping Options -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-file-earmark-code"></i> Scraping Options</h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Overwrite Text Fields Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="overwriteTextFieldsCustomModal">
+                                <label class="form-check-label" for="overwriteTextFieldsCustomModal">
+                                    <i class="bi bi-file-text me-2"></i>Overwrite Text Fields
+                                </label>
+                                <div class="form-text">Always overwrite text fields (name, description, year, publisher, developer, genre) during Custom scraping, even if they already have values</div>
+                            </div>
+                            
+                            <!-- Overwrite Media Fields Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="overwriteMediaFieldsCustomModal">
+                                <label class="form-check-label" for="overwriteMediaFieldsCustomModal">
+                                    <i class="bi bi-image me-2"></i>Overwrite Media Fields
+                                </label>
+                                <div class="form-text">Always overwrite media fields during Custom scraping, even if they already have values</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Field Selection -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-list-check"></i> Field Selection</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Text Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-file-text me-2"></i>Text Fields</h6>
+                                    <div id="customTextFieldsContainer">
+                                        <!-- Dynamic field checkboxes will be populated here -->
+                                    </div>
+                                </div>
+                                
+                                <!-- Media Fields -->
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-image me-2"></i>Media Fields</h6>
+                                    <div id="customMediaFieldsContainer">
+                                        <!-- Dynamic field checkboxes will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Actions -->
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary" id="selectAllCustomFields">
+                                        <i class="bi bi-check-all me-1"></i>Select All
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="deselectAllCustomFields">
+                                        <i class="bi bi-x-square me-1"></i>Deselect All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Information -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> These settings control how the Custom scraping process behaves. Custom databases are JSON files located in <code>var/db/custom/</code>. When disabled, only empty fields will be populated. Changes are applied immediately and will affect all future Custom scraping operations.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Application Configuration Modal -->
     <div class="modal fade" id="appConfigurationModal" tabindex="-1" aria-labelledby="appConfigurationModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -3426,6 +3584,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <th style="width: 11%">MobyGames</th>
                                     <th style="width: 11%">EmuMovies</th>
                                     <th style="width: 11%">DAT File</th>
+                                    <th style="width: 11%">Custom</th>
                                     <th style="width: 24%">Extensions</th>
                                 </tr>
                             </thead>
@@ -3503,6 +3662,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="emumovies-tab" data-bs-toggle="tab" data-bs-target="#emumovies" type="button" role="tab" aria-controls="emumovies" aria-selected="false">
                                 <i class="bi bi-film me-2"></i>EmuMovies
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="custom-tab" data-bs-toggle="tab" data-bs-target="#custom" type="button" role="tab" aria-controls="custom" aria-selected="false">
+                                <i class="bi bi-database me-2"></i>Custom
                             </button>
                         </li>
                     </ul>
@@ -3851,6 +4015,33 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom Tab -->
+                        <div class="tab-pane fade" id="custom" role="tabpanel" aria-labelledby="custom-tab">
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <h6>Custom Image Type Mappings</h6>
+                                    <p class="text-muted small">Configure which media fields each Custom image type maps to. These mappings determine how Custom images are categorized in your gamelist.</p>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped table-hover compact-table" id="customMappingsTable">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 50%">Media Field</th>
+                                                <th style="width: 50%">Custom Image Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="customMappingsTableBody">
+                                            <!-- Mappings will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-muted small mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    <strong>Note:</strong> Changes are saved automatically when you select a different media field from the dropdown.
                                 </div>
                             </div>
                         </div>
@@ -4674,6 +4865,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <th>ScreenScraper</th>
                                                 <th>LaunchBox</th>
                                                 <th>MobyGames</th>
+                                                <th>Custom</th>
                                             </tr>
                                         </thead>
                                         <tbody id="textFieldsTableBody">

@@ -60,6 +60,7 @@ from mobygames_service import MobyGamesService
 from igdb_service import IGDBService
 from datscrapper_service import DATScrapperService
 from emumovies_service import EmuMoviesService
+from custom_scraper_service import CustomScraperService
 
 # FFmpeg cropping functions for auto-cropping black borders
 def cropdetect(video_file_path, start_time, duration):
@@ -1609,6 +1610,7 @@ _screenscraper_cancel_maps = {}
 _rom_scan_cancel_maps = {}
 _mobygames_cancel_maps = {}
 _datscrapper_cancel_maps = {}
+_custom_scrapper_cancel_maps = {}
 _import_medias_cancel_maps = {}
 
 # Client tracking for system-specific notifications
@@ -3092,6 +3094,49 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_import_medias_task, args=(system_name, source_directory, target_field, overwrite_existing, task.id))
             thread.daemon = True
             thread.start()
+    elif task_type == 'custom_scrapper':
+        # Start Custom scraper task
+        system_name = task_data.get('system_name')
+        custom_db = task_data.get('custom_db') or task_data.get('custom_database')  # Support both field names
+        selected_games = task_data.get('selected_games', [])
+        selected_text_fields = task_data.get('selected_text_fields', [])
+        selected_media_fields = task_data.get('selected_media_fields', [])
+        overwrite_text_fields = task_data.get('overwrite_text_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_text_fields, str):
+            overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
+        overwrite_text_fields = bool(overwrite_text_fields)
+        overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        # Ensure boolean type (handle string "true"/"false" from frontend)
+        if isinstance(overwrite_media_fields, str):
+            overwrite_media_fields = overwrite_media_fields.lower() in ('true', '1', 'yes')
+        overwrite_media_fields = bool(overwrite_media_fields)
+        
+        print(f"🔧 DEBUG: Custom Scrapper task data: system_name={system_name}, custom_db={custom_db}, selected_games={len(selected_games) if selected_games else 0} games")
+        
+        if system_name and custom_db:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            print(f"🔧 DEBUG: Using task_id: {task_id}")
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+                print(f"🔧 DEBUG: Started existing task {task_id}")
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('custom_scrapper', task_data)
+                current_task_id = task.id
+                task.start()
+                print(f"🔧 DEBUG: Created and started new task {task.id}")
+            # Start Custom Scrapper in background thread
+            print(f"🔧 DEBUG: Starting Custom Scrapper thread with args: ({system_name}, {custom_db}, {task.id}, {selected_games}, {selected_text_fields}, {selected_media_fields}, {overwrite_text_fields}, {overwrite_media_fields})")
+            thread = threading.Thread(target=run_custom_scrapper_task, args=(system_name, custom_db, task.id, selected_games, selected_text_fields, selected_media_fields, overwrite_text_fields, overwrite_media_fields))
+            thread.daemon = True
+            thread.start()
+            print(f"🔧 DEBUG: Custom Scrapper thread started")
+        else:
+            print(f"🔧 DEBUG: No system_name or custom_db provided for Custom Scrapper task")
     else:
         print(f"Unknown task type: {task_type}")
         return
@@ -4611,6 +4656,9 @@ global_steam_service_loaded = False
 global_igdb_service = None
 global_igdb_service_loaded = False
 
+global_custom_scraper_service = None
+global_custom_scraper_service_loaded = False
+
 # Global LaunchBox partitioned indexes
 global_launchbox_partition_index = None
 global_launchbox_indexes_loaded = False
@@ -4970,6 +5018,38 @@ def load_mobygames_service():
     except Exception as e:
         print(f"❌ Failed to load MobyGames service: {e}")
         global_mobygames_service_loaded = True  # Mark as loaded to prevent retries
+        return None
+
+def load_custom_scraper_service():
+    """Load Custom Scraper service and build partitioned indexes"""
+    global global_custom_scraper_service, global_custom_scraper_service_loaded
+    
+    if global_custom_scraper_service_loaded:
+        return global_custom_scraper_service
+    
+    try:
+        print("🔄 Loading Custom Scraper databases and building partitioned indexes...")
+        start_time = time.time()
+        
+        # Load configs
+        config = load_config()
+        scrappers_config = load_scrappers_config()
+        systems_config = load_systems_config()
+        
+        # Initialize Custom Scraper service (this will build partitioned indexes)
+        global_custom_scraper_service = CustomScraperService(config, scrappers_config, systems_config)
+        
+        end_time = time.time()
+        print(f"✅ Custom Scraper service loaded with partitioned indexes in {end_time - start_time:.2f} seconds!")
+        global_custom_scraper_service_loaded = True
+        
+        return global_custom_scraper_service
+        
+    except Exception as e:
+        print(f"❌ Failed to load Custom Scraper service: {e}")
+        import traceback
+        traceback.print_exc()
+        global_custom_scraper_service_loaded = True  # Mark as loaded to prevent retries
         return None
 
 def load_datscrapper_service():
@@ -5668,6 +5748,8 @@ def parse_gamelist_xml(file_path):
                     game_data['screenscraperid'] = int(text) if text.isdigit() else None
                 elif tag == 'mobygamesid':
                     game_data['mobygamesid'] = text
+                elif tag == 'customid':
+                    game_data['customid'] = text
                 elif tag == 'nbvotes':
                     game_data['nbvotes'] = int(text) if text.isdigit() else None
                 elif tag == 'steamid':
@@ -5697,6 +5779,9 @@ def parse_gamelist_xml(file_path):
                 game_data['path'] = './unknown.zip'
             if 'desc' not in game_data:
                 game_data['desc'] = ''
+            # Initialize customid to empty string if not present (for grid display)
+            if 'customid' not in game_data:
+                game_data['customid'] = ''
             
             games.append(game_data)
         
@@ -6440,6 +6525,42 @@ def get_emumovies_systems():
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'Failed to get EmuMovies systems: {str(e)}'}), 500
 
+@app.route('/api/custom/databases', methods=['GET'])
+@login_required
+def get_custom_databases():
+    """Get list of available custom JSON database files"""
+    try:
+        import os
+        
+        custom_db_path = 'var/db/custom'
+        
+        if not os.path.exists(custom_db_path):
+            os.makedirs(custom_db_path, exist_ok=True)
+            return jsonify({
+                'success': True,
+                'databases': [],
+                'count': 0,
+                'message': 'No custom databases found'
+            })
+        
+        # Get all JSON files in the custom directory
+        json_files = [f for f in os.listdir(custom_db_path) if f.endswith('.json')]
+        
+        # Extract database names (filename without extension)
+        databases = [os.path.splitext(f)[0] for f in json_files]
+        databases.sort()  # Sort alphabetically
+        
+        return jsonify({
+            'success': True,
+            'databases': databases,
+            'count': len(databases)
+        })
+    except Exception as e:
+        logger.error(f"Error getting custom databases: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to get custom databases: {str(e)}'}), 500
+
 @app.route('/api/mobygames-systems/clear-cache', methods=['POST'])
 @login_required
 def clear_mobygames_cache():
@@ -6625,6 +6746,7 @@ def manage_systems():
                         'screenscraper': '',
                         'igdb': '',
                         'dat_file': '',
+                        'custom': '',
                         'extensions': []
                     }
                     added_systems.append(system_name)
@@ -6650,6 +6772,7 @@ def manage_systems():
                 screenscraper_platform = data.get('screenscraper_platform', '')
                 igdb_platform = data.get('igdb_platform', '')
                 dat_file = data.get('dat_file', '')
+                custom = data.get('custom', '')
                 extensions = data.get('extensions', [])
                 
                 # Convert numeric platforms to integers
@@ -6687,6 +6810,7 @@ def manage_systems():
                     'screenscraper': screenscraper_platform,
                     'igdb': igdb_platform,
                     'dat_file': dat_file,
+                    'custom': custom,
                     'extensions': extensions
                 }
                 
@@ -6713,6 +6837,7 @@ def manage_systems():
             mobygames_platform = data.get('mobygames_platform', '')
             emumovies_platform = data.get('emumovies_platform', '')
             dat_file = data.get('dat_file', '')
+            custom = data.get('custom', '')
             extensions = data.get('extensions', [])
             
             # Debug logging
@@ -6758,6 +6883,7 @@ def manage_systems():
                 'mobygames': mobygames_platform,
                 'emumovies': emumovies_platform,
                 'dat_file': dat_file,
+                'custom': custom,
                 'extensions': extensions
             }
             
@@ -7164,6 +7290,79 @@ def manage_igdb_mappings():
     
     except Exception as e:
         return jsonify({'error': f'Failed to manage IGDB mappings: {str(e)}'}), 500
+
+@app.route('/api/custom-mappings', methods=['GET', 'PUT'])
+@login_required
+def manage_custom_mappings():
+    """Manage Custom image type mappings"""
+    try:
+        scrappers_config = load_scrappers_config()
+        
+        if request.method == 'GET':
+            # Return current mappings and available media fields
+            custom_mappings = scrappers_config.get('custom', {}).get('image_type_mappings', {})
+            media_fields = config.get('media_fields', {})
+            
+            # Custom image types from the database
+            custom_image_types = ['boxfront', 'boxback', 'titleshot', 'screenshot']
+            
+            return jsonify({
+                'success': True, 
+                'custom_mappings': custom_mappings,
+                'media_fields': media_fields,
+                'custom_image_types': custom_image_types
+            })
+        
+        elif request.method == 'PUT':
+            # Update existing mapping
+            data = request.get_json()
+            if not data or 'custom_type' not in data or 'media_field' not in data:
+                return jsonify({'error': 'Custom type and media field are required'}), 400
+            
+            custom_type = data['custom_type']
+            media_field = data['media_field']
+            
+            # Validate that the media field exists
+            if media_field and media_field not in config.get('media_fields', {}):
+                return jsonify({'error': 'Invalid media field'}), 400
+            
+            # Validate custom type
+            valid_custom_types = ['boxfront', 'boxback', 'titleshot', 'screenshot']
+            if custom_type and custom_type not in valid_custom_types:
+                return jsonify({'error': f'Invalid custom type. Must be one of: {", ".join(valid_custom_types)}'}), 400
+            
+            # Update the mapping (custom_type -> media_field)
+            if 'custom' not in scrappers_config:
+                scrappers_config['custom'] = {}
+            if 'image_type_mappings' not in scrappers_config['custom']:
+                scrappers_config['custom']['image_type_mappings'] = {}
+            
+            # Remove any existing mapping for this media_field first
+            for key, value in list(scrappers_config['custom']['image_type_mappings'].items()):
+                if value == media_field:
+                    del scrappers_config['custom']['image_type_mappings'][key]
+            
+            # Remove any existing mapping for this custom_type first
+            if custom_type in scrappers_config['custom']['image_type_mappings']:
+                del scrappers_config['custom']['image_type_mappings'][custom_type]
+            
+            # Set the new mapping
+            if custom_type:
+                scrappers_config['custom']['image_type_mappings'][custom_type] = media_field
+            else:
+                # Remove mapping if empty
+                scrappers_config['custom']['image_type_mappings'].pop(custom_type, None)
+            
+            # Save to file
+            with open('var/config/scrappers.json', 'w') as f:
+                json.dump(scrappers_config, f, indent=4)
+            
+            return jsonify({'success': True, 'message': 'Mapping updated successfully'})
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to manage Custom mappings: {str(e)}'}), 500
 
 @app.route('/api/screenscraper-mappings', methods=['GET', 'PUT', 'POST'])
 @login_required
@@ -7696,6 +7895,121 @@ def scrap_datscrapper_system(system_name):
     except Exception as e:
         print(f"Error starting DAT Scrapper task: {e}")
         return jsonify({'error': f'Failed to start DAT Scrapper task: {str(e)}'}), 500
+
+@app.route('/api/custom-scraper/search', methods=['POST'])
+@login_required
+def custom_scraper_search():
+    """Search for games in Custom database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        game_name = data.get('game_name', '').strip()
+        system_name = data.get('system_name', '').strip()
+        database_name = data.get('database_name', '').strip()
+        
+        if not game_name:
+            return jsonify({'success': False, 'error': 'Game name is required'}), 400
+        
+        if not database_name:
+            return jsonify({'success': False, 'error': 'Database name is required'}), 400
+        
+        # Load Custom Scraper service
+        service = load_custom_scraper_service()
+        if not service:
+            return jsonify({'success': False, 'error': 'Custom Scraper service not available'}), 500
+        
+        # Check if database exists
+        if database_name not in service.databases:
+            return jsonify({'success': False, 'error': f'Database "{database_name}" not found'}), 400
+        
+        # Search for matches using find_best_matches (similarity search)
+        # Filter to only show matches with >70% similarity
+        matches = service.find_best_matches(database_name, game_name, max_results=10, min_similarity=0.7)
+        
+        # Format matches for frontend
+        formatted_matches = []
+        for match in matches:
+            # Only include matches with similarity > 0.7 (70%)
+            if match.get('similarity', 0) > 0.7:
+                formatted_matches.append({
+                    'game_id': match['game_id'],
+                    'name': match['name'],
+                    'similarity': match['similarity'],
+                    'game_data': match['game_data']
+                })
+        
+        return jsonify({
+            'success': True,
+            'matches': formatted_matches,
+            'count': len(formatted_matches)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/scrap-custom/<system_name>', methods=['POST'])
+@login_required
+def scrap_custom_system(system_name):
+    """Start Custom scraper task for a specific system"""
+    global current_task_id
+    
+    try:
+        if not system_name:
+            return jsonify({'error': 'System name is required'}), 400
+        
+        # Get request data
+        data = request.get_json() or {}
+        selected_games = data.get('selected_games', [])
+        selected_text_fields = data.get('selected_text_fields', [])
+        selected_media_fields = data.get('selected_media_fields', [])
+        overwrite_text_fields = data.get('overwrite_text_fields', False)
+        overwrite_media_fields = data.get('overwrite_media_fields', False)
+        
+        # Get system config to check custom database
+        current_systems_config = load_systems_config()
+        system_config = current_systems_config.get(system_name, {})
+        custom_db = system_config.get('custom', '')
+        
+        if not custom_db:
+            return jsonify({'error': f'No custom database configured for system {system_name}'}), 400
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Custom Scraper API - system: {system_name}, db: {custom_db}, selected_games: {len(selected_games)} games, selected_text_fields: {selected_text_fields}, selected_media_fields: {selected_media_fields}, overwrite_text: {overwrite_text_fields}, overwrite_media: {overwrite_media_fields}")
+        
+        # Create task object
+        task_data = {
+            'system_name': system_name,
+            'custom_db': custom_db,
+            'selected_games': selected_games,
+            'selected_text_fields': selected_text_fields,
+            'selected_media_fields': selected_media_fields,
+            'overwrite_text_fields': overwrite_text_fields,
+            'overwrite_media_fields': overwrite_media_fields
+        }
+        username = current_user.username if current_user.is_authenticated else 'anonymous'
+        task = add_task_to_queue('custom_scrapper', task_data, username)
+        
+        # Set current task and start it
+        current_task_id = task.id
+        task.start()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Custom scraper task started', 
+            'task_id': task.id,
+            'system': system_name
+        })
+        
+    except Exception as e:
+        print(f"Error starting Custom scraper task: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to start Custom scraper task: {str(e)}'}), 500
 
 @app.route('/api/datscrapper/search', methods=['POST'])
 @login_required
@@ -10061,6 +10375,7 @@ def multiscraper_search_endpoint():
         should_run_launchbox = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'launchbox'
         should_run_mobygames = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'mobygames'
         should_run_emumovies = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'emumovies'
+        should_run_custom = should_run_all or should_run_all_excluding_screenscraper or scrapers_selection == 'custom'
         
         import time
         total_start_time = time.time()
@@ -10290,6 +10605,32 @@ def multiscraper_search_endpoint():
                     print(f"🔧 DEBUG: mobygames traceback: {traceback.format_exc()}")
             else:
                 print(f"🔧 DEBUG: Skipping MobyGames - no mapping for media type '{media_type}'")
+        
+        # Execute Custom scraper if game has customid and supports the media type
+        if should_run_custom and current_game.get('customid'):
+            # Check if Custom supports this media type
+            # Mapping structure: {custom_field: gamelist_field}
+            # Example: {'boxfront': 'boxart', 'screenshot': 'image'}
+            # We need to check if media_type (gamelist field) is in the VALUES of the mapping
+            custom_image_mapping = scrappers_config.get('custom', {}).get('image_type_mappings', {})
+            if media_type in custom_image_mapping.values():
+                try:
+                    print(f"🔧 DEBUG: Running custom scraper...")
+                    custom_start_time = time.time()
+                    result = run_async_safely(scrape_custom_manual(current_game, system_name, sys_config, target_media_type=media_type))
+                    custom_end_time = time.time()
+                    print(f"⏱️ Custom scraper took {custom_end_time - custom_start_time:.3f} seconds")
+                    if result:
+                        print(f"🔧 DEBUG: custom scraper returned data with keys: {list(result.keys())}")
+                        scrap_results['custom'] = result
+                    else:
+                        print(f"🔧 DEBUG: custom scraper returned None")
+                except Exception as e:
+                    print(f"🔧 DEBUG: custom scraper failed: {e}")
+                    import traceback
+                    print(f"🔧 DEBUG: custom traceback: {traceback.format_exc()}")
+            else:
+                print(f"🔧 DEBUG: Skipping Custom - no mapping for media type '{media_type}'")
         
         # Execute EmuMovies scraper if system has EmuMovies mapping and supports the media type
         if should_run_emumovies:
@@ -12253,6 +12594,119 @@ def find_best_matches_igdb_endpoint():
         print(f"Error in find_best_matches_igdb endpoint: {e}")
         return jsonify({'error': f'Failed to find IGDB matches: {str(e)}'}), 500
 
+@app.route('/api/find-best-matches-custom', methods=['POST'])
+@login_required
+def find_best_matches_custom_endpoint():
+    """Find best matches for selected games using Custom database"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        selected_games = data.get('selected_games', [])
+        
+        if not system_name:
+            return jsonify({'error': 'System name required'}), 400
+        
+        if not selected_games:
+            return jsonify({'error': 'No games selected'}), 400
+        
+        # Get system configuration to retrieve custom database name
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        custom_database = system_config.get('custom', '')
+        
+        if not custom_database:
+            return jsonify({'error': f'No custom database configured for system "{system_name}"'}), 400
+        
+        # Get the global Custom Scraper service instance
+        custom_service = load_custom_scraper_service()
+        
+        if not custom_service:
+            return jsonify({'error': 'Custom Scraper service not available'}), 500
+        
+        # Check if database exists
+        if custom_database not in custom_service.databases:
+            return jsonify({'error': f'Custom database "{custom_database}" not found'}), 400
+        
+        # Load gamelist to get game details
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Find selected games in gamelist
+        games_to_process = [g for g in all_games if g.get('path') in selected_games]
+        
+        if not games_to_process:
+            return jsonify({'error': 'No selected games found in gamelist'}), 404
+        
+        results = []
+        for game_data in games_to_process:
+            game_name = game_data.get('name', '')
+            if not game_name:
+                continue
+            
+            # Search Custom database for best matches
+            matches = custom_service.find_best_matches(custom_database, game_name, max_results=10, min_similarity=0.3)
+            
+            if matches:
+                # Map Custom database data structure to expected format
+                mapped_matches = []
+                for match in matches:
+                    game_data_from_db = match.get('game_data', {})
+                    mapped_match = {
+                        'name': match.get('name', ''),
+                        'game_id': match.get('game_id', ''),
+                        'similarity_score': match.get('similarity', 0),
+                        'publisher': game_data_from_db.get('publisher', ''),
+                        'developer': game_data_from_db.get('developer', ''),
+                        'genre': game_data_from_db.get('genre', ''),
+                        'release_date': game_data_from_db.get('release_date', '')
+                    }
+                    mapped_matches.append(mapped_match)
+                
+                # Sort matches by similarity score (highest first)
+                mapped_matches.sort(key=lambda x: x.get('similarity_score', 0), reverse=True)
+                
+                # Get the best match (first result after sorting)
+                best_match = mapped_matches[0]
+                
+                results.append({
+                    'game_path': game_data.get('path', ''),
+                    'game_name': game_name,
+                    'existing_customid': game_data.get('customid'),
+                    'game_data': game_data,  # Include full game data
+                    'match_found': True,
+                    'best_match': best_match,
+                    'all_matches': mapped_matches
+                })
+            else:
+                results.append({
+                    'game_path': game_data.get('path', ''),
+                    'game_name': game_name,
+                    'existing_customid': game_data.get('customid'),
+                    'match_found': False,
+                    'best_match': None,
+                    'all_matches': []
+                })
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'total_games': len(games_to_process),
+            'matched_games': len([r for r in results if r['match_found']])
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error in find_best_matches_custom endpoint: {e}")
+        return jsonify({'error': f'Failed to find Custom matches: {str(e)}'}), 500
 
 @app.route('/api/scrap-launchbox-stop', methods=['POST'])
 @login_required
@@ -15228,6 +15682,14 @@ def manual_scrap_game(system_name):
             else:
                 print(f"DEBUG: EmuMovies not enabled or no system mapping. Config: {sys_config.get('emumovies')}")
             
+            # Custom scraping
+            custom_database = sys_config.get('custom', '')
+            if custom_database and current_game.get('customid'):
+                print(f"DEBUG: Adding Custom scraper for game: {current_game.get('name')} with ID: {current_game.get('customid')}")
+                scraper_tasks.append(('custom', lambda: asyncio.run(scrape_custom_manual(current_game, system_name, sys_config))))
+            else:
+                print(f"DEBUG: Custom not enabled or no ID found. Config: {sys_config.get('custom')}, Game ID: {current_game.get('customid')}")
+            
             # Run all scrapers in parallel using ThreadPoolExecutor
             if scraper_tasks:
                 print(f"🚀 MANUAL SCRAP: Starting {len(scraper_tasks)} scrapers in parallel threads at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
@@ -16978,6 +17440,91 @@ async def scrape_mobygames_manual(game, system_name, system_config, target_media
         logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
+async def scrape_custom_manual(game, system_name, system_config, target_media_type=None):
+    """Scrape Custom database data for manual scrap (returns data without writing files)"""
+    try:
+        # Get Custom configuration
+        scrappers_config = load_scrappers_config()
+        custom_config = scrappers_config.get('custom', {})
+        if not custom_config:
+            return None
+        
+        # Get Custom database name from system config
+        custom_database = system_config.get('custom', '')
+        if not custom_database:
+            return None
+        
+        # Get Custom ID from game
+        customid = game.get('customid')
+        if not customid:
+            return None
+        
+        # Get Custom Scraper service
+        service = load_custom_scraper_service()
+        if not service:
+            return None
+        
+        # Check if database exists
+        if custom_database not in service.databases:
+            return None
+        
+        # Get image type mappings
+        # Structure: {custom_field: gamelist_field}
+        # Example: {'boxfront': 'boxart', 'boxback': 'boxback', 'titleshot': 'titleshot', 'screenshot': 'image'}
+        image_type_mappings = custom_config.get('image_type_mappings', {})
+        
+        # Extract media fields
+        media_fields = {}
+        
+        # Process each media type mapping
+        # The mapping structure is {custom_field: gamelist_field}
+        for custom_field, gamelist_field in image_type_mappings.items():
+            # If target_media_type is specified, only process that type
+            if target_media_type and gamelist_field != target_media_type:
+                continue
+            
+            # Get media URL from custom database using the custom_field (key)
+            media_url = service.get_media_url(custom_database, customid, custom_field)
+            
+            if media_url:
+                # Add to media_fields using the gamelist_field (value) as the key
+                if gamelist_field not in media_fields:
+                    media_fields[gamelist_field] = []
+                
+                media_fields[gamelist_field].append({
+                    'url': media_url,
+                    'type': custom_field,
+                    'customid': customid,
+                    'database': custom_database
+                })
+        
+        # Extract text fields from custom database
+        text_fields = {}
+        game_data = service.get_game_by_id(custom_database, customid)
+        if game_data:
+            # Map custom database fields to gamelist fields
+            if game_data.get('name'):
+                text_fields['name'] = game_data['name']
+            if game_data.get('developer'):
+                text_fields['developer'] = game_data['developer']
+            if game_data.get('publisher'):
+                text_fields['publisher'] = game_data['publisher']
+            if game_data.get('release_date'):
+                text_fields['releasedate'] = game_data['release_date']
+            if game_data.get('genre'):
+                text_fields['genre'] = game_data['genre']
+        
+        return {
+            'text_fields': text_fields,
+            'media_fields': media_fields
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in Custom manual scraping: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return None
+
 async def scrape_emumovies_manual(game, system_name, system_config, target_media_type=None):
     """Scrape EmuMovies data for manual scrap (returns data without writing files)"""
     try:
@@ -17736,6 +18283,19 @@ def stop_task_endpoint(task_id):
                 print(f"DEBUG: Set DAT Scrapper cancel flag for task {task_id}")
             except Exception as e:
                 print(f"Warning: could not set DAT Scrapper cancel flag: {e}")
+        
+        # For Custom Scrapper tasks, we need to handle cancellation
+        if task.type == 'custom_scrapper':
+            task.update_progress("🛑 Custom Scrapper task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for Custom Scrapper tasks
+            try:
+                global _custom_scrapper_cancel_maps
+                if '_custom_scrapper_cancel_maps' not in globals():
+                    _custom_scrapper_cancel_maps = {}
+                _custom_scrapper_cancel_maps[task_id] = True
+                print(f"DEBUG: Set Custom Scrapper cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set Custom Scrapper cancel flag: {e}")
         
         # For Import Medias tasks, we need to handle cancellation
         if task.type == 'import_medias':
@@ -28058,6 +28618,296 @@ def run_datscrapper_task(system_name, task_id, selected_games=None, selected_tex
         if task_id in _datscrapper_cancel_maps:
             del _datscrapper_cancel_maps[task_id]
             logger.info(f"Removed task {task_id} from DAT Scrapper cancel map")
+
+# Custom Scrapper cancel maps
+_custom_scrapper_cancel_maps = {}
+
+def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=None, selected_text_fields=None, selected_media_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
+    """Run Custom Scrapper task for a specific system"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    print(f"🔧 DEBUG: run_custom_scrapper_task called with system_name={system_name}, custom_db={custom_db}, task_id={task_id}")
+    print(f"🔧 DEBUG: selected_games={selected_games}")
+    print(f"🔧 DEBUG: selected_text_fields={selected_text_fields}")
+    print(f"🔧 DEBUG: selected_media_fields={selected_media_fields}")
+    
+    # Add task to cancel map
+    global _custom_scrapper_cancel_maps
+    _custom_scrapper_cancel_maps[task_id] = False
+    
+    def is_cancelled():
+        """Check if the Custom Scrapper task should be cancelled"""
+        global _custom_scrapper_cancel_maps
+        return _custom_scrapper_cancel_maps.get(task_id, False)
+    
+    logger.info(f"Starting Custom Scrapper task for system: {system_name}, database: {custom_db}")
+    
+    # Get field mappings from config
+    custom_config = load_scrappers_config().get('custom', {})
+    text_field_mapping = custom_config.get('mapping', {})
+    media_field_mapping = custom_config.get('image_type_mappings', {})
+    
+    print(f"🔧 DEBUG: Custom Scrapper config: {custom_config}")
+    print(f"🔧 DEBUG: Text field mapping: {text_field_mapping}")
+    print(f"🔧 DEBUG: Media field mapping: {media_field_mapping}")
+    
+    # Use the parameters passed to the function directly
+    if selected_text_fields is None:
+        selected_text_fields = []
+    if selected_media_fields is None:
+        selected_media_fields = []
+    
+    try:
+        # Load config
+        config = load_config()
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        
+        if not custom_db:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"No custom database configured for system: {system_name}")
+            return
+        
+        # Load Custom Scraper service (uses global instance with pre-built indexes)
+        service = load_custom_scraper_service()
+        if not service:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"Failed to load Custom Scraper service")
+            return
+        
+        # Check if database exists
+        if custom_db not in service.databases:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"Custom database '{custom_db}' not found")
+            return
+        
+        logger.info(f"🔧 DEBUG: Custom Scraper service loaded, database '{custom_db}' found")
+        
+        # Get task object for progress updates
+        t = get_task(task_id)
+        if t:
+            t.update_progress("🔧 Loading Custom Scrapper configuration...")
+        
+        # Load games for the system
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"Gamelist not found for system: {system_name}")
+            return
+        
+        all_games = parse_gamelist_xml(gamelist_path)
+        if not all_games:
+            t = get_task(task_id)
+            if t:
+                t.complete(False, f"No games found for system: {system_name}")
+            return
+        
+        # Filter games if selection is provided
+        if selected_games:
+            selected_paths = set(selected_games)
+            games_to_process = [game for game in all_games if game['path'] in selected_paths]
+        else:
+            games_to_process = all_games
+        
+        total_games = len(games_to_process)
+        
+        if t:
+            t.update_progress(f"🎮 Processing {total_games} games for Custom scraping", progress_percentage=0, current_step=0, total_steps=total_games)
+        
+        processed_count = 0
+        updated_count = 0
+        
+        for i, game in enumerate(games_to_process):
+            # Check for cancellation
+            if is_cancelled():
+                logger.info(f"🛑 Custom Scrapper task cancelled for {system_name}")
+                t = get_task(task_id)
+                if t:
+                    t.complete(False, f"Custom Scrapper task cancelled for {system_name}")
+                return
+            
+            try:
+                game_name = game.get('name', '')
+                game_path = game.get('path', '')
+                
+                if not game_path:
+                    continue
+                
+                # Use ROM filename (without extension) for matching if game name is empty
+                rom_filename = os.path.basename(game_path)
+                rom_name_without_ext = os.path.splitext(rom_filename)[0]
+                display_name = game_name if game_name else rom_name_without_ext
+                
+                # Update progress
+                if t:
+                    progress_percent = int((i / total_games) * 100)
+                    t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {display_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
+                
+                # Try direct exact match using normalized game name or ROM name
+                game_data = None
+                game_id = None
+                match_found = False
+                
+                # Try with game name first
+                if game_name:
+                    print(f"🔍 DEBUG: Trying exact match with game_name='{game_name}'")
+                    result = service.find_game_exact(custom_db, game_name)
+                    if result:
+                        game_id, game_data = result
+                        match_found = True
+                        print(f"✅ DEBUG: Found exact match with game_name: {game_id}")
+                    else:
+                        print(f"❌ DEBUG: No exact match found with game_name='{game_name}'")
+                
+                # If no match with game name, try with ROM name (without extension)
+                if not match_found and rom_name_without_ext:
+                    print(f"🔍 DEBUG: Trying exact match with rom_name_without_ext='{rom_name_without_ext}'")
+                    result = service.find_game_exact(custom_db, rom_name_without_ext)
+                    if result:
+                        game_id, game_data = result
+                        match_found = True
+                        print(f"✅ DEBUG: Found exact match with rom_name: {game_id}")
+                    else:
+                        print(f"❌ DEBUG: No exact match found with rom_name_without_ext='{rom_name_without_ext}'")
+                
+                if match_found and game_data and game_id:
+                    # Get game name from game_data for logging
+                    matched_name = game_data.get('name', game_id)
+                    print(f"✅ Found Custom match for '{display_name}': {matched_name}")
+                    
+                    # Store customid
+                    game['customid'] = game_id
+                    
+                    # Extract text fields - only process selected fields
+                    text_fields = {}
+                    if selected_text_fields:
+                        for custom_field, gamelist_field in text_field_mapping.items():
+                            if gamelist_field in selected_text_fields:
+                                value = game_data.get(custom_field)
+                                if value:
+                                    text_fields[gamelist_field] = value
+                    
+                    # Extract media fields - only process selected fields
+                    media_fields = {}
+                    if selected_media_fields:
+                        for custom_field, gamelist_field in media_field_mapping.items():
+                            if gamelist_field in selected_media_fields:
+                                media_url = service.get_media_url(custom_db, game_id, custom_field)
+                                if media_url:
+                                    media_fields[gamelist_field] = media_url
+                    
+                    # Update text fields
+                    if text_fields:
+                        game_updated = False
+                        for field, value in text_fields.items():
+                            if overwrite_text_fields or not game.get(field):
+                                old_value = game.get(field)
+                                game[field] = value
+                                if old_value != value:
+                                    game_updated = True
+                        
+                        if game_updated:
+                            updated_count += 1
+                    
+                    # Update media fields (download and link)
+                    if media_fields:
+                        system_path = os.path.join(ROMS_FOLDER, system_name)
+                        for field, url in media_fields.items():
+                            if overwrite_media_fields or not game.get(field):
+                                # Download media
+                                try:
+                                    # Get media field configuration
+                                    media_config = config.get('media_fields', {}).get(field, {})
+                                    media_directory = media_config.get('directory', field)
+                                    target_extension = media_config.get('target_extension', '.jpg')
+                                    
+                                    # Generate filename
+                                    rom_filename = os.path.splitext(os.path.basename(game_path))[0]
+                                    media_filename = f"{rom_filename}{target_extension}"
+                                    
+                                    # Create media path
+                                    media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                    
+                                    # Create directory if it doesn't exist
+                                    os.makedirs(os.path.dirname(media_path), exist_ok=True)
+                                    
+                                    # Download the media file
+                                    import requests
+                                    response = requests.get(url, timeout=30)
+                                    if response.status_code == 200:
+                                        # Determine extension from content type or URL
+                                        content_type = response.headers.get('content-type', '').lower()
+                                        if 'image/png' in content_type:
+                                            ext = '.png'
+                                        elif 'image/jpeg' in content_type or 'image/jpg' in content_type:
+                                            ext = '.jpg'
+                                        else:
+                                            ext = os.path.splitext(url)[1] or target_extension
+                                        
+                                        # Update filename with correct extension
+                                        media_filename = f"{rom_filename}{ext}"
+                                        media_path = os.path.join(system_path, 'media', media_directory, media_filename)
+                                        
+                                        # Save file
+                                        with open(media_path, 'wb') as f:
+                                            f.write(response.content)
+                                        
+                                        # Update gamelist with relative path
+                                        relative_path = f"./media/{media_directory}/{media_filename}"
+                                        game[field] = relative_path
+                                        updated_count += 1
+                                        logger.info(f"✅ Downloaded {field} for '{display_name}': {relative_path}")
+                                except Exception as e:
+                                    logger.error(f"Error downloading media for {display_name}, field {field}: {e}")
+                                    import traceback
+                                    traceback.print_exc()
+                    
+                    processed_count += 1
+                else:
+                    print(f"❌ No Custom match found for '{display_name}'")
+                    processed_count += 1
+            
+            except Exception as e:
+                logger.error(f"❌ Error processing game {display_name}: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        # Complete the task
+        t = get_task(task_id)
+        if t:
+            success_message = f"Custom Scrapper completed: {processed_count} games processed, {updated_count} games updated"
+            t.complete(True, success_message)
+        
+        logger.info(f"✅ Custom Scrapper task completed for {system_name}: {processed_count} processed, {updated_count} updated")
+        
+        # Save the updated gamelist
+        save_gamelist_xml(gamelist_path, all_games)
+        logger.info(f"💾 Saved gamelist for {system_name} (updated: {updated_count}, processed: {processed_count})")
+        
+        # Notify clients of gamelist update
+        notify_gamelist_updated(system_name, len(all_games), updated_count=updated_count)
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error in run_custom_scrapper_task: {e}")
+        import traceback
+        traceback.print_exc()
+        t = get_task(task_id)
+        if t:
+            t.complete(False, f"Error in Custom Scrapper task: {str(e)}")
+        return False
+    finally:
+        # Cleanup: remove from cancel map
+        if task_id in _custom_scrapper_cancel_maps:
+            del _custom_scrapper_cancel_maps[task_id]
+            logger.info(f"Removed task {task_id} from Custom Scrapper cancel map")
 
 # =============================================================================
 # IGDB Scraper API Routes
