@@ -1295,6 +1295,27 @@ def is_local_image_cache_valid(cache_entry):
     return is_valid
 
 
+def format_customid(database_name, game_id):
+    """Format customid as '<database>/<id>'"""
+    if not database_name or not game_id:
+        return game_id or ''
+    return f"{database_name}/{game_id}"
+
+def parse_customid(customid):
+    """Parse customid format '<database>/<id>' and return (database, id)
+    Returns (None, customid) if format is not recognized (backward compatibility)
+    """
+    if not customid:
+        return (None, None)
+    
+    if '/' in customid:
+        parts = customid.split('/', 1)
+        if len(parts) == 2:
+            return (parts[0], parts[1])
+    
+    # Backward compatibility: if no slash, assume it's just the ID
+    return (None, customid)
+
 def get_gamelist_path(system_name):
     """Get the gamelist path for a system, ensuring the directory exists"""
     gamelist_dir = os.path.join(GAMELISTS_FOLDER, system_name)
