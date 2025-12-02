@@ -8899,6 +8899,66 @@ def flush_launchbox_caches():
     
     print("✅ All LaunchBox-related caches flushed successfully")
 
+@app.route('/api/rom-system/<system_name>/gamelist/batch', methods=['PUT'])
+@login_required
+def rom_system_gamelist_batch(system_name):
+    """Batch update multiple games in gamelist for a specific ROM system"""
+    try:
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Get gamelist path from var/gamelists
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        data = request.get_json()
+        if not data or 'games' not in data:
+            return jsonify({'error': 'Invalid request data: must provide games array'}), 400
+        
+        updated_games = data['games']
+        if not isinstance(updated_games, list) or len(updated_games) == 0:
+            return jsonify({'error': 'Invalid request data: games must be a non-empty array'}), 400
+        
+        # Load existing gamelist
+        games = parse_gamelist_xml(gamelist_path)
+        
+        # Create a map of rom_path -> updated_game for quick lookup
+        updated_games_map = {game.get('path'): game for game in updated_games}
+        
+        # Update all games in the gamelist
+        updated_count = 0
+        updated_paths = []
+        for i, game in enumerate(games):
+            rom_path = game.get('path')
+            if rom_path in updated_games_map:
+                # Update the game in place
+                games[i].update(updated_games_map[rom_path])
+                updated_count += 1
+                updated_paths.append(rom_path)
+        
+        if updated_count == 0:
+            return jsonify({'error': 'No games found to update'}), 404
+        
+        # Write updated gamelist once
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Notify about the batch update
+        notify_gamelist_updated(system_name, len(games), updated_count=updated_count)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully updated {updated_count} game(s)',
+            'count': len(games),
+            'updated_count': updated_count
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error updating gamelist: {str(e)}'}), 500
+
 @app.route('/api/rom-system/<system_name>/gamelist', methods=['GET', 'PUT'])
 @login_required
 def rom_system_gamelist(system_name):
@@ -8939,6 +8999,44 @@ def rom_system_gamelist(system_name):
             data = request.get_json()
             if not data:
                 return jsonify({'error': 'Invalid request data'}), 400
+            
+            # Check if this is a batch update (multiple games in one operation)
+            if 'games' in data and isinstance(data['games'], list) and len(data['games']) > 0:
+                # Batch update: update multiple games in a single operation
+                updated_games = data['games']
+                
+                # Load existing gamelist
+                games = parse_gamelist_xml(gamelist_path)
+                
+                # Create a map of rom_path -> updated_game for quick lookup
+                updated_games_map = {game.get('path'): game for game in updated_games}
+                
+                # Update all games in the gamelist
+                updated_count = 0
+                updated_paths = []
+                for i, game in enumerate(games):
+                    rom_path = game.get('path')
+                    if rom_path in updated_games_map:
+                        # Update the game in place
+                        games[i].update(updated_games_map[rom_path])
+                        updated_count += 1
+                        updated_paths.append(rom_path)
+                
+                if updated_count == 0:
+                    return jsonify({'error': 'No games found to update'}), 404
+                
+                # Write updated gamelist once
+                write_gamelist_xml(games, gamelist_path)
+                
+                # Notify about the batch update
+                notify_gamelist_updated(system_name, len(games), updated_count=updated_count)
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully updated {updated_count} game(s)',
+                    'count': len(games),
+                    'updated_count': updated_count
+                })
             
             # Check if this is a single game update (optimized path)
             if 'rom_path' in data and 'game' in data:

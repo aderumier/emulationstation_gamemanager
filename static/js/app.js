@@ -9667,11 +9667,10 @@ class GameCollectionManager {
                 }
             }
             
-            // Save all games in batch (parallel for better performance)
+            // Save all games in a single batch operation to avoid race conditions
             const gamesArray = Array.from(uniqueGames.values());
             if (gamesArray.length > 0) {
-                // Save all games in parallel
-                await Promise.all(gamesArray.map(game => this.saveSingleGameUpdate(game)));
+                await this.saveGamesBatch(gamesArray);
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
             }
@@ -11742,6 +11741,41 @@ class GameCollectionManager {
             }
         } catch (error) {
             this.showAlert('Error saving game update', 'danger');
+        }
+    }
+    
+    async saveGamesBatch(games) {
+        // Save multiple games in a single batch operation to avoid race conditions
+        try {
+            if (!games || games.length === 0) {
+                return;
+            }
+
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist/batch`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    games: games
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Clear modifiedGames for all saved games
+                games.forEach(game => {
+                    if (game.id !== undefined && game.id !== null) {
+                        this.modifiedGames.delete(game.id);
+                    }
+                });
+            } else {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Error saving games batch');
+            }
+        } catch (error) {
+            console.error('Error saving games batch:', error);
+            throw error;
         }
     }
 
