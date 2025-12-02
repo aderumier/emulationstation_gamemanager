@@ -28898,6 +28898,13 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     print(f"✅ Found Custom match for '{display_name}': {matched_name}")
                     
                     # Store customid in format '<database>/<id>'
+                    # Ensure custom_db is set (should always be set at this point)
+                    if not custom_db:
+                        logger.error(f"ERROR: custom_db is empty when formatting customid for game_id='{game_id}'")
+                        custom_db = system_config.get('custom', '')
+                        if not custom_db:
+                            logger.error(f"ERROR: custom_db not found in system_config either!")
+                    
                     formatted_customid = format_customid(custom_db, game_id)
                     print(f"🔧 DEBUG: Formatting customid - custom_db='{custom_db}', game_id='{game_id}', formatted='{formatted_customid}'")
                     game['customid'] = formatted_customid
