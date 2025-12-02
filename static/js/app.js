@@ -9649,9 +9649,7 @@ class GameCollectionManager {
     }
     
     async savePendingGlobalMatchChanges() {
-        console.log('🔧 DEBUG: savePendingGlobalMatchChanges called, pending changes:', this.pendingGlobalMatchChanges.size);
         if (this.pendingGlobalMatchChanges.size === 0) {
-            console.log('🔧 DEBUG: No pending changes, returning early');
             return; // No pending changes
         }
         
@@ -9995,12 +9993,8 @@ class GameCollectionManager {
         
         // Check if all games are processed
         if (this.globalMatchResults.size === 0) {
-            // Save pending changes before closing modal
-            console.log('🔧 DEBUG: All games processed, saving and refreshing...');
+            // Save pending changes and refresh grid (same pattern as scraping tasks)
             await this.savePendingGlobalMatchChanges();
-            console.log('🔧 DEBUG: Save and refresh completed, closing modal');
-            // Small delay to ensure grid refresh is visible before closing modal
-            await new Promise(resolve => setTimeout(resolve, 100));
             this.hideGlobalMatchModal();
             this.showAlert('All matches have been processed!', 'success');
         }
