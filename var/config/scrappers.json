@@ -214,5 +214,20 @@
                 "Artwork"
             ]
         }
+    },
+    "custom": {
+        "mapping": {
+            "name": "name",
+            "developer": "developer",
+            "publisher": "publisher",
+            "release_date": "releasedate",
+            "genre": "genre"
+        },
+        "image_type_mappings": {
+            "titleshot": "titleshot",
+            "boxfront": "boxart",
+            "boxback": "boxback",
+            "screenshot": "image"
+        }
     }
 }
