@@ -9661,10 +9661,11 @@ class GameCollectionManager {
                 }
             }
             
-            // Save all games in batch
+            // Save all games in batch (parallel for better performance)
             const gamesArray = Array.from(uniqueGames.values());
             if (gamesArray.length > 0) {
-                await this.saveGamesUpdate(gamesArray);
+                // Save all games in parallel
+                await Promise.all(gamesArray.map(game => this.saveSingleGameUpdate(game)));
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
             }
