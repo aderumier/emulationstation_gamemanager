@@ -12760,7 +12760,9 @@ def find_best_matches_custom_endpoint():
                     game_data_from_db = match.get('game_data', {})
                     # Format game_id as '<database>/<id>'
                     game_id = match.get('game_id', '')
+                    print(f"🔧 DEBUG find_best_matches_custom: custom_database='{custom_database}', game_id='{game_id}'")
                     formatted_game_id = format_customid(custom_database, game_id)
+                    print(f"🔧 DEBUG find_best_matches_custom: formatted_game_id='{formatted_game_id}'")
                     
                     mapped_match = {
                         'name': match.get('name', ''),
