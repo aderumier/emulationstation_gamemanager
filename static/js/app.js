@@ -126,6 +126,9 @@ class GameCollectionManager {
         // Delete modal state
         this.deleteModalBusy = false;
         
+        // Pending changes for global match modal (deferred saving)
+        this.pendingGlobalMatchChanges = new Map(); // Map<gamePath, {game, field, value, databaseType}>
+        
         this.initializeEventListeners();
         this.loadState();
         
@@ -2015,6 +2018,14 @@ class GameCollectionManager {
         if (taskLogModal) {
             taskLogModal.addEventListener('hidden.bs.modal', () => {
                 this.stopLiveLogStream();
+            });
+        }
+        
+        // Add event listener for global match modal to save pending changes on close
+        const globalMatchModal = document.getElementById('globalMatchModal');
+        if (globalMatchModal) {
+            globalMatchModal.addEventListener('hidden.bs.modal', () => {
+                this.savePendingGlobalMatchChanges();
             });
         }
 
@@ -9631,6 +9642,40 @@ class GameCollectionManager {
             modal.hide();
         }
     }
+    
+    async savePendingGlobalMatchChanges() {
+        if (this.pendingGlobalMatchChanges.size === 0) {
+            return; // No pending changes
+        }
+        
+        try {
+            const changes = Array.from(this.pendingGlobalMatchChanges.values());
+            const gamesToSave = changes.map(change => change.game);
+            
+            // Remove duplicates (same game might have multiple changes)
+            const uniqueGames = new Map();
+            for (const change of changes) {
+                const gamePath = change.game.path;
+                if (!uniqueGames.has(gamePath)) {
+                    uniqueGames.set(gamePath, change.game);
+                }
+            }
+            
+            // Save all games in batch
+            const gamesArray = Array.from(uniqueGames.values());
+            if (gamesArray.length > 0) {
+                await this.saveGamesUpdate(gamesArray);
+                const count = gamesArray.length;
+                this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
+            }
+            
+            // Clear pending changes
+            this.pendingGlobalMatchChanges.clear();
+        } catch (error) {
+            console.error('Error saving pending global match changes:', error);
+            this.showAlert(`Error saving changes: ${error.message}`, 'danger');
+        }
+    }
 
     showGlobalMatchEmpty() {
         const progressDiv = document.getElementById('globalMatchProgress');
@@ -9643,6 +9688,9 @@ class GameCollectionManager {
     }
 
     showGlobalMatchResultsModal(results, databaseType = 'launchbox') {
+        // Clear any pending changes from previous session
+        this.pendingGlobalMatchChanges.clear();
+        
         // Hide the progress div and show the table
         const progressDiv = document.getElementById('globalMatchProgress');
         const tableDiv = document.getElementById('globalMatchTable');
@@ -9907,17 +9955,17 @@ class GameCollectionManager {
             return;
         }
         
-        // Apply the match based on database type
+        // Apply the match based on database type (deferred saving for global match modal)
         if (databaseType === 'launchbox') {
-            await this.applyLaunchboxMatch(gamePath, matchId);
+            await this.applyLaunchboxMatch(gamePath, matchId, true); // true = deferred saving
         } else if (databaseType === 'mobygames') {
-            await this.applyMobygamesMatch(gamePath, matchId);
+            await this.applyMobygamesMatch(gamePath, matchId, true); // true = deferred saving
         } else if (databaseType === 'steam') {
-            await this.applySteamMatch(gamePath, matchId);
+            await this.applySteamMatch(gamePath, matchId, true); // true = deferred saving
         } else if (databaseType === 'igdb') {
-            await this.applyIgdbMatch(gamePath, matchId);
+            await this.applyIgdbMatch(gamePath, matchId, true); // true = deferred saving
         } else if (databaseType === 'custom') {
-            await this.applyCustomMatch(gamePath, matchId);
+            await this.applyCustomMatch(gamePath, matchId, true); // true = deferred saving
         }
         
         // Remove the row from the table
@@ -9936,7 +9984,7 @@ class GameCollectionManager {
         }
     }
     
-    async applyLaunchboxMatch(gamePath, launchboxId) {
+    async applyLaunchboxMatch(gamePath, launchboxId, deferSave = false) {
         try {
             // Find the game in the grid using ROM path
             const game = this.games.find(g => g.path === gamePath);
@@ -9946,10 +9994,19 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save single game update (optimized - only sends the validated game)
-                await this.saveSingleGameUpdate(game);
-                
-                this.showAlert(`LaunchBox ID set to ${launchboxId} for "${game.name}"`, 'success');
+                if (deferSave) {
+                    // Store in pending changes for batch save when modal closes
+                    this.pendingGlobalMatchChanges.set(gamePath, {
+                        game: game,
+                        field: 'launchboxid',
+                        value: launchboxId,
+                        databaseType: 'launchbox'
+                    });
+                } else {
+                    // Save single game update immediately (for single game edit modal)
+                    await this.saveSingleGameUpdate(game);
+                    this.showAlert(`LaunchBox ID set to ${launchboxId} for "${game.name}"`, 'success');
+                }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
@@ -9959,7 +10016,7 @@ class GameCollectionManager {
         }
     }
     
-    async applyMobygamesMatch(gamePath, mobygamesId) {
+    async applyMobygamesMatch(gamePath, mobygamesId, deferSave = false) {
         try {
             // Find the game in the grid using ROM path
             const game = this.games.find(g => g.path === gamePath);
@@ -9969,10 +10026,19 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save single game update (optimized - only sends the validated game)
-                await this.saveSingleGameUpdate(game);
-                
-                this.showAlert(`MobyGames ID set to ${mobygamesId} for "${game.name}"`, 'success');
+                if (deferSave) {
+                    // Store in pending changes for batch save when modal closes
+                    this.pendingGlobalMatchChanges.set(gamePath, {
+                        game: game,
+                        field: 'mobygamesid',
+                        value: mobygamesId,
+                        databaseType: 'mobygames'
+                    });
+                } else {
+                    // Save single game update immediately (for single game edit modal)
+                    await this.saveSingleGameUpdate(game);
+                    this.showAlert(`MobyGames ID set to ${mobygamesId} for "${game.name}"`, 'success');
+                }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
@@ -9982,7 +10048,7 @@ class GameCollectionManager {
         }
     }
     
-    async applySteamMatch(gamePath, steamId) {
+    async applySteamMatch(gamePath, steamId, deferSave = false) {
         try {
             // Find the game in the grid using ROM path
             const game = this.games.find(g => g.path === gamePath);
@@ -9992,10 +10058,19 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save single game update (optimized - only sends the validated game)
-                await this.saveSingleGameUpdate(game);
-                
-                this.showAlert(`Steam ID set to ${steamId} for "${game.name}"`, 'success');
+                if (deferSave) {
+                    // Store in pending changes for batch save when modal closes
+                    this.pendingGlobalMatchChanges.set(gamePath, {
+                        game: game,
+                        field: 'steamid',
+                        value: steamId,
+                        databaseType: 'steam'
+                    });
+                } else {
+                    // Save single game update immediately (for single game edit modal)
+                    await this.saveSingleGameUpdate(game);
+                    this.showAlert(`Steam ID set to ${steamId} for "${game.name}"`, 'success');
+                }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
@@ -10005,7 +10080,7 @@ class GameCollectionManager {
         }
     }
 
-    async applyIgdbMatch(gamePath, igdbId) {
+    async applyIgdbMatch(gamePath, igdbId, deferSave = false) {
         try {
             // Find the game in the grid using ROM path
             const game = this.games.find(g => g.path === gamePath);
@@ -10015,10 +10090,19 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save single game update (optimized - only sends the validated game)
-                await this.saveSingleGameUpdate(game);
-                
-                this.showAlert(`IGDB ID set to ${igdbId} for "${game.name}"`, 'success');
+                if (deferSave) {
+                    // Store in pending changes for batch save when modal closes
+                    this.pendingGlobalMatchChanges.set(gamePath, {
+                        game: game,
+                        field: 'igdbid',
+                        value: igdbId,
+                        databaseType: 'igdb'
+                    });
+                } else {
+                    // Save single game update immediately (for single game edit modal)
+                    await this.saveSingleGameUpdate(game);
+                    this.showAlert(`IGDB ID set to ${igdbId} for "${game.name}"`, 'success');
+                }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
@@ -10028,7 +10112,7 @@ class GameCollectionManager {
         }
     }
     
-    async applyCustomMatch(gamePath, customId) {
+    async applyCustomMatch(gamePath, customId, deferSave = false) {
         try {
             // For single game search from edit modal, gamePath might be empty
             // In that case, update the edit modal field directly
@@ -10059,10 +10143,19 @@ class GameCollectionManager {
                 // Mark game as modified
                 this.markGameAsModified(game);
                 
-                // Save single game update (optimized - only sends the validated game)
-                await this.saveSingleGameUpdate(game);
-                
-                this.showAlert(`Custom ID set to ${customId} for "${game.name}"`, 'success');
+                if (deferSave) {
+                    // Store in pending changes for batch save when modal closes
+                    this.pendingGlobalMatchChanges.set(gamePath, {
+                        game: game,
+                        field: 'customid',
+                        value: customId,
+                        databaseType: 'custom'
+                    });
+                } else {
+                    // Save single game update immediately (for single game edit modal)
+                    await this.saveSingleGameUpdate(game);
+                    this.showAlert(`Custom ID set to ${customId} for "${game.name}"`, 'success');
+                }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
             }
