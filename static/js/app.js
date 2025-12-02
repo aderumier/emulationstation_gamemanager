@@ -2024,8 +2024,9 @@ class GameCollectionManager {
         // Add event listener for global match modal to save pending changes on close
         const globalMatchModal = document.getElementById('globalMatchModal');
         if (globalMatchModal) {
-            globalMatchModal.addEventListener('hidden.bs.modal', () => {
-                this.savePendingGlobalMatchChanges();
+            globalMatchModal.addEventListener('hidden.bs.modal', async () => {
+                console.log('🔧 DEBUG: globalMatchModal hidden event triggered');
+                await this.savePendingGlobalMatchChanges();
             });
         }
 
@@ -9650,7 +9651,9 @@ class GameCollectionManager {
     }
     
     async savePendingGlobalMatchChanges() {
+        console.log('🔧 DEBUG: savePendingGlobalMatchChanges called, pending changes:', this.pendingGlobalMatchChanges.size);
         if (this.pendingGlobalMatchChanges.size === 0) {
+            console.log('🔧 DEBUG: No pending changes, returning early');
             return; // No pending changes
         }
         
@@ -9669,19 +9672,23 @@ class GameCollectionManager {
             
             // Save all games in a single batch operation to avoid race conditions
             const gamesArray = Array.from(uniqueGames.values());
+            console.log('🔧 DEBUG: Saving', gamesArray.length, 'games');
             if (gamesArray.length > 0) {
                 await this.saveGamesBatch(gamesArray);
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
                 
+                console.log('🔧 DEBUG: Refreshing grid for system:', this.currentSystem);
                 // Refresh the grid to show updated values (same method used after scraping tasks)
                 await this.loadRomSystem(this.currentSystem);
+                console.log('🔧 DEBUG: Grid refresh completed');
             }
             
             // Clear pending changes
             this.pendingGlobalMatchChanges.clear();
         } catch (error) {
             console.error('Error saving pending global match changes:', error);
+            console.error('Error stack:', error.stack);
             this.showAlert(`Error saving changes: ${error.message}`, 'danger');
         }
     }
