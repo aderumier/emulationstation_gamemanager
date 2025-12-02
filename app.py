@@ -17634,6 +17634,12 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
             if game_data.get('genre'):
                 text_fields['genre'] = game_data['genre']
         
+        print(f"🔧 DEBUG scrape_custom_manual: Returning media_fields keys: {list(media_fields.keys())}")
+        for field, items in media_fields.items():
+            print(f"🔧 DEBUG scrape_custom_manual: Field '{field}' has {len(items)} items")
+            for i, item in enumerate(items):
+                print(f"🔧 DEBUG scrape_custom_manual:   Item {i}: url='{item.get('url')}'")
+        
         return {
             'text_fields': text_fields,
             'media_fields': media_fields
