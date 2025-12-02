@@ -9678,6 +9678,16 @@ class GameCollectionManager {
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
                 
+                console.log('🔧 DEBUG: Updating local games array with saved changes');
+                // Update local games array with the saved changes
+                gamesArray.forEach(savedGame => {
+                    const index = this.games.findIndex(g => g.path === savedGame.path);
+                    if (index !== -1) {
+                        // Merge saved game data into existing game
+                        Object.assign(this.games[index], savedGame);
+                    }
+                });
+                
                 console.log('🔧 DEBUG: Refreshing grid for system:', this.currentSystem);
                 // Refresh the grid to show updated values (same method used after scraping tasks)
                 await this.loadRomSystem(this.currentSystem);
