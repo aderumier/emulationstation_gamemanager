@@ -9995,6 +9995,8 @@ class GameCollectionManager {
         
         // Check if all games are processed
         if (this.globalMatchResults.size === 0) {
+            // Save pending changes before closing modal
+            await this.savePendingGlobalMatchChanges();
             this.hideGlobalMatchModal();
             this.showAlert('All matches have been processed!', 'success');
         }
