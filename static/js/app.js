@@ -9670,32 +9670,14 @@ class GameCollectionManager {
             
             // Save all games in a single batch operation to avoid race conditions
             const gamesArray = Array.from(uniqueGames.values());
-            console.log('🔧 DEBUG: Saving', gamesArray.length, 'games');
             if (gamesArray.length > 0) {
+                // Save gamelist (same as scraping tasks - backend saves automatically)
                 await this.saveGamesBatch(gamesArray);
                 const count = gamesArray.length;
                 this.showAlert(`Successfully saved ${count} game${count > 1 ? 's' : ''} from Find Best Match`, 'success');
                 
-                console.log('🔧 DEBUG: Updating local games array with saved changes');
-                // Update local games array with the saved changes
-                gamesArray.forEach(savedGame => {
-                    const index = this.games.findIndex(g => g.path === savedGame.path);
-                    if (index !== -1) {
-                        // Merge saved game data into existing game
-                        Object.assign(this.games[index], savedGame);
-                    }
-                });
-                
-                console.log('🔧 DEBUG: Refreshing grid for system:', this.currentSystem);
-                // Refresh the grid to show updated values (same method used after scraping tasks)
+                // Refresh the grid (same method used after scraping tasks)
                 await this.loadRomSystem(this.currentSystem);
-                console.log('🔧 DEBUG: Grid refresh completed');
-                
-                // Force a grid update to ensure changes are visible
-                if (this.gridApi) {
-                    this.gridApi.refreshCells({ force: true });
-                    console.log('🔧 DEBUG: Grid cells refreshed');
-                }
             }
             
             // Clear pending changes
