@@ -168,6 +168,7 @@ mkdir -p /opt/gamemanager/var/cache
 mkdir -p /opt/gamemanager/var/temp
 mkdir -p /opt/gamemanager/var/temp/medias
 mkdir -p /opt/gamemanager/var/temp/videos
+mkdir -p /opt/gamemanager/var/fonts
 
 # Copy default config files if they don't exist in var/config
 if [ ! -f /opt/gamemanager/var/config/config.json ]; then
