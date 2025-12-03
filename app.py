@@ -22936,11 +22936,11 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                     
                     if result.returncode != 0:
-                    error_msg = f"ImageMagick failed for {game_name}: {result.stderr}"
-                    print(f"❌ ERROR: {error_msg}")
-                    task.update_progress(f"⚠️  {error_msg}")
-                    failed += 1
-                    continue
+                        error_msg = f"ImageMagick failed for {game_name}: {result.stderr}"
+                        print(f"❌ ERROR: {error_msg}")
+                        task.update_progress(f"⚠️  {error_msg}")
+                        failed += 1
+                        continue
                 
                 if not os.path.exists(output_path):
                     error_msg = f"Logo file not created for {game_name}"
