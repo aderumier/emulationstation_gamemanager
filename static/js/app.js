@@ -1924,6 +1924,27 @@ class GameCollectionManager {
                 this.updateLogoPreview();
             });
         }
+        
+        // Add event listeners for font style checkboxes
+        const logoBold = document.getElementById('logoGeneratorBold');
+        const logoItalic = document.getElementById('logoGeneratorItalic');
+        const logoUnderline = document.getElementById('logoGeneratorUnderline');
+        
+        if (logoBold) {
+            logoBold.addEventListener('change', () => {
+                this.updateLogoPreview();
+            });
+        }
+        if (logoItalic) {
+            logoItalic.addEventListener('change', () => {
+                this.updateLogoPreview();
+            });
+        }
+        if (logoUnderline) {
+            logoUnderline.addEventListener('change', () => {
+                this.updateLogoPreview();
+            });
+        }
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
             this.openYoutubeDownloadModal();
@@ -10593,10 +10614,77 @@ class GameCollectionManager {
         
         modal.show();
         
+        // Load fonts from server
+        this.loadAvailableFonts();
+        
         // Generate initial preview after modal is shown
         setTimeout(() => {
             this.updateLogoPreview();
         }, 300);
+    }
+
+    async loadAvailableFonts() {
+        try {
+            const fontSelect = document.getElementById('logoGeneratorFont');
+            if (!fontSelect) return;
+            
+            fontSelect.innerHTML = '<option value="">Loading fonts...</option>';
+            
+            const response = await fetch('/api/list-fonts');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.fonts && data.fonts.length > 0) {
+                fontSelect.innerHTML = '';
+                data.fonts.forEach(font => {
+                    const option = document.createElement('option');
+                    option.value = font;
+                    option.textContent = font;
+                    fontSelect.appendChild(option);
+                });
+                
+                // Set default to first font or Arial if available
+                const arialOption = Array.from(fontSelect.options).find(opt => 
+                    opt.value.toLowerCase().includes('arial') || opt.value.toLowerCase().includes('helvetica')
+                );
+                if (arialOption) {
+                    fontSelect.value = arialOption.value;
+                } else if (fontSelect.options.length > 0) {
+                    fontSelect.value = fontSelect.options[0].value;
+                }
+            } else {
+                // Fallback to default fonts if listing fails
+                const defaultFonts = ['Arial', 'Helvetica', 'Times-Roman', 'Courier', 'DejaVu-Sans', 
+                                     'DejaVu-Serif', 'DejaVu-Sans-Mono', 'Impact', 'Verdana', 'Georgia'];
+                fontSelect.innerHTML = '';
+                defaultFonts.forEach(font => {
+                    const option = document.createElement('option');
+                    option.value = font;
+                    option.textContent = font;
+                    fontSelect.appendChild(option);
+                });
+                fontSelect.value = 'Arial';
+            }
+        } catch (error) {
+            console.error('Error loading fonts:', error);
+            const fontSelect = document.getElementById('logoGeneratorFont');
+            if (fontSelect) {
+                // Fallback to default fonts
+                const defaultFonts = ['Arial', 'Helvetica', 'Times-Roman', 'Courier', 'DejaVu-Sans', 
+                                     'DejaVu-Serif', 'DejaVu-Sans-Mono', 'Impact', 'Verdana', 'Georgia'];
+                fontSelect.innerHTML = '';
+                defaultFonts.forEach(font => {
+                    const option = document.createElement('option');
+                    option.value = font;
+                    option.textContent = font;
+                    fontSelect.appendChild(option);
+                });
+                fontSelect.value = 'Arial';
+            }
+        }
     }
 
     async updateLogoPreview() {
@@ -10612,6 +10700,9 @@ class GameCollectionManager {
             const color = document.getElementById('logoGeneratorColorText').value || '#ffffff';
             const fontSize = parseInt(document.getElementById('logoGeneratorFontSize').value) || 72;
             const font = document.getElementById('logoGeneratorFont').value || 'Arial';
+            const bold = document.getElementById('logoGeneratorBold')?.checked || false;
+            const italic = document.getElementById('logoGeneratorItalic')?.checked || false;
+            const underline = document.getElementById('logoGeneratorUnderline')?.checked || false;
             
             // Validate color
             if (!/^#[0-9A-F]{6}$/i.test(color)) {
@@ -10636,7 +10727,10 @@ class GameCollectionManager {
                     text: previewGameName,
                     color: color,
                     font_size: fontSize,
-                    font: font
+                    font: font,
+                    bold: bold,
+                    italic: italic,
+                    underline: underline
                 })
             });
             
@@ -10679,6 +10773,9 @@ class GameCollectionManager {
             const color = document.getElementById('logoGeneratorColorText').value || '#ffffff';
             const fontSize = parseInt(document.getElementById('logoGeneratorFontSize').value) || 72;
             const font = document.getElementById('logoGeneratorFont').value || 'Arial';
+            const bold = document.getElementById('logoGeneratorBold')?.checked || false;
+            const italic = document.getElementById('logoGeneratorItalic')?.checked || false;
+            const underline = document.getElementById('logoGeneratorUnderline')?.checked || false;
             
             // Validate inputs
             if (!/^#[0-9A-F]{6}$/i.test(color)) {
@@ -10715,7 +10812,10 @@ class GameCollectionManager {
                     selected_games: selectedGamePaths,
                     color: color,
                     font_size: fontSize,
-                    font: font
+                    font: font,
+                    bold: bold,
+                    italic: italic,
+                    underline: underline
                 })
             });
             

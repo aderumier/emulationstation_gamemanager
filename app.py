@@ -2849,6 +2849,9 @@ def process_next_queued_task():
         color = task_data.get('color', '#ffffff')
         font_size = task_data.get('font_size', 72)
         font = task_data.get('font', 'Arial')
+        bold = task_data.get('bold', False)
+        italic = task_data.get('italic', False)
+        underline = task_data.get('underline', False)
         if system_name and selected_games:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2862,7 +2865,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start logo generation in background thread
-            thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font))
+            thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font, bold, italic, underline))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -22756,7 +22759,7 @@ def run_2d_box_generation_task(system_name, selected_games):
         # Process next queued task
         process_next_queued_task()
 
-def run_logo_generation_task(system_name, selected_games, color, font_size, font):
+def run_logo_generation_task(system_name, selected_games, color, font_size, font, bold=False, italic=False, underline=False):
     """Run logo generation task in background thread"""
     global current_task_id
     
@@ -22769,7 +22772,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
         
         print(f"🎨 Starting logo generation for system: {system_name}")
         print(f"🔧 DEBUG: Selected games: {selected_games}")
-        print(f"🔧 DEBUG: Color: {color}, Font size: {font_size}, Font: {font}")
+        print(f"🔧 DEBUG: Color: {color}, Font size: {font_size}, Font: {font}, Bold: {bold}, Italic: {italic}, Underline: {underline}")
         task.update_progress(f"Starting logo generation for {len(selected_games)} games")
         task.update_progress(f"System: {system_name}")
         
@@ -22871,19 +22874,65 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 escaped_name = game_name.replace('\\', '\\\\').replace('"', '\\"')
                 
                 # Create logo using ImageMagick label: with transparent background
-                # Format: convert -background none -fill color -font font -pointsize size label:"text" output.png
                 cmd = [
                     'convert',
                     '-background', 'none',  # Transparent background
                     '-fill', color,         # Text color
                     '-font', font,          # Font family
                     '-pointsize', str(font_size),  # Font size
-                    f'label:"{escaped_name}"',  # Text label
-                    output_path
                 ]
                 
+                # Add font style options
+                if bold:
+                    cmd.extend(['-weight', 'Bold'])
+                if italic:
+                    cmd.extend(['-style', 'Italic'])
+                
+                # For underline, we need to draw it separately
+                if underline:
+                    # First create the text image, then add underline
+                    temp_text = output_path.replace('.png', '_text.png')
+                    cmd_text = cmd + [f'label:"{escaped_name}"', temp_text]
+                    print(f"🔧 DEBUG: Running ImageMagick command (text): {' '.join(cmd_text)}")
+                    result = subprocess.run(cmd_text, capture_output=True, text=True, timeout=30)
+                    if result.returncode != 0:
+                        error_msg = f"ImageMagick failed for {game_name}: {result.stderr}"
+                        print(f"❌ ERROR: {error_msg}")
+                        task.update_progress(f"⚠️  {error_msg}")
+                        failed += 1
+                        continue
+                    
+                    # Get text dimensions and draw underline
+                    identify_cmd = ['identify', '-format', '%wx%h', temp_text]
+                    dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                    if dim_result.returncode == 0:
+                        width, height = dim_result.stdout.strip().split('x')
+                        # Draw underline at bottom of text
+                        underline_y = int(height) - 2
+                        cmd = [
+                            'convert', temp_text,
+                            '-stroke', color,
+                            '-strokewidth', '2',
+                            '-draw', f'line 0,{underline_y} {width},{underline_y}',
+                            output_path
+                        ]
+                        print(f"🔧 DEBUG: Running ImageMagick command (underline): {' '.join(cmd)}")
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                        if os.path.exists(temp_text):
+                            os.unlink(temp_text)
+                    else:
+                        # Fallback: just copy text image
+                        import shutil
+                        shutil.copy(temp_text, output_path)
+                        if os.path.exists(temp_text):
+                            os.unlink(temp_text)
+                else:
+                    cmd.append(f'label:"{escaped_name}"')  # Text label
+                    cmd.append(output_path)
+                
                 print(f"🔧 DEBUG: Running ImageMagick command: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                if not underline:  # Only run if not already run for underline
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                 
                 if result.returncode != 0:
                     error_msg = f"ImageMagick failed for {game_name}: {result.stderr}"
@@ -24231,6 +24280,9 @@ def generate_logo():
         color = data.get('color', '#ffffff')
         font_size = data.get('font_size', 72)
         font = data.get('font', 'Arial')
+        bold = data.get('bold', False)
+        italic = data.get('italic', False)
+        underline = data.get('underline', False)
         
         if not system_name or not selected_games:
             return jsonify({'error': 'Missing required parameters'}), 400
@@ -24248,7 +24300,10 @@ def generate_logo():
             'selected_games': selected_games,
             'color': color,
             'font_size': font_size,
-            'font': font
+            'font': font,
+            'bold': bold,
+            'italic': italic,
+            'underline': underline
         })
         
         return jsonify({
@@ -24270,6 +24325,9 @@ def generate_logo_preview():
         color = data.get('color', '#ffffff')
         font_size = data.get('font_size', 72)
         font = data.get('font', 'Arial')
+        bold = data.get('bold', False)
+        italic = data.get('italic', False)
+        underline = data.get('underline', False)
         
         # Validate inputs
         if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
@@ -24296,9 +24354,51 @@ def generate_logo_preview():
                 '-fill', color,         # Text color
                 '-font', font,          # Font family
                 '-pointsize', str(font_size),  # Font size
-                f'label:"{escaped_text}"',  # Text label
-                output_path
             ]
+            
+            # Add font style options
+            if bold:
+                cmd.extend(['-weight', 'Bold'])
+            if italic:
+                cmd.extend(['-style', 'Italic'])
+            
+            cmd.append(f'label:"{escaped_text}"')  # Text label
+            
+            # For underline, we need to draw it separately
+            if underline:
+                # First create the text image, then add underline
+                temp_text = output_path.replace('.png', '_text.png')
+                cmd_text = cmd[:-1] + [temp_text]
+                result = subprocess.run(cmd_text, capture_output=True, text=True, timeout=10)
+                if result.returncode != 0:
+                    return jsonify({'error': f'ImageMagick failed: {result.stderr}'}), 500
+                
+                # Get text dimensions and draw underline
+                # Use identify to get dimensions
+                identify_cmd = ['identify', '-format', '%wx%h', temp_text]
+                dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                if dim_result.returncode == 0:
+                    width, height = dim_result.stdout.strip().split('x')
+                    # Draw underline at bottom of text
+                    underline_y = int(height) - 2
+                    cmd = [
+                        'convert', temp_text,
+                        '-stroke', color,
+                        '-strokewidth', '2',
+                        '-draw', f'line 0,{underline_y} {width},{underline_y}',
+                        output_path
+                    ]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                    if os.path.exists(temp_text):
+                        os.unlink(temp_text)
+                else:
+                    # Fallback: just copy text image
+                    import shutil
+                    shutil.copy(temp_text, output_path)
+                    if os.path.exists(temp_text):
+                        os.unlink(temp_text)
+            else:
+                cmd.append(output_path)
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             
@@ -24330,6 +24430,54 @@ def generate_logo_preview():
         
     except Exception as e:
         return jsonify({'error': f'Failed to generate preview: {str(e)}'}), 500
+
+@app.route('/api/list-fonts', methods=['GET'])
+@login_required
+def list_fonts():
+    """List all available fonts on the server using ImageMagick"""
+    try:
+        # Use ImageMagick to list fonts
+        # Format: convert -list font returns font names
+        result = subprocess.run(['convert', '-list', 'font'], 
+                              capture_output=True, text=True, timeout=10)
+        
+        if result.returncode != 0:
+            return jsonify({'error': 'Failed to list fonts', 'fonts': []}), 500
+        
+        # Parse font list from ImageMagick output
+        # Extract unique font family names
+        font_families = set()
+        lines = result.stdout.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith('Font:'):
+                # Font name (may include style)
+                font_name = line.replace('Font:', '').strip()
+                if font_name:
+                    # Try to extract base family name (before any dash or style suffix)
+                    # Many fonts are named like "Arial-Bold" or "DejaVu-Sans"
+                    parts = font_name.split('-')
+                    if len(parts) > 0:
+                        base_name = parts[0].strip()
+                        if base_name:
+                            font_families.add(base_name)
+                    font_families.add(font_name)  # Also add full name
+            elif line.startswith('family:'):
+                # Font family name (preferred)
+                family = line.replace('family:', '').strip()
+                if family:
+                    font_families.add(family)
+        
+        # Convert to sorted list
+        fonts = sorted(list(font_families))
+        
+        return jsonify({'fonts': fonts})
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Timeout listing fonts', 'fonts': []}), 500
+    except Exception as e:
+        return jsonify({'error': f'Failed to list fonts: {str(e)}', 'fonts': []}), 500
 
 # =============================================================================
 # IGDB Integration Functions
