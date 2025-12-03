@@ -5657,39 +5657,39 @@ class GameCollectionManager {
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2" style="width: 100%; padding: 0 5px;">
                         <small class="text-center flex-grow-1">${field}</small>
-                <div class="d-flex gap-1">
-                    ${field === 'video' ? `
-                    <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                        <i class="bi bi-youtube"></i>
-                    </button>
-                    ` : ''}
-                    ${field === 'fanart' ? `
-                    <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                        <i class="bi bi-image"></i>
-                    </button>
-                    ` : ''}
-                    ${field === 'marquee' ? `
-                    <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
-                        <i class="bi bi-badge-ad"></i>
-                    </button>
+                        <div class="d-flex gap-1">
+                            ${field === 'video' ? `
+                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-youtube"></i>
+                            </button>
+                            ` : ''}
+                            ${field === 'fanart' ? `
+                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-image"></i>
+                            </button>
+                            ` : ''}
+                            ${field === 'marquee' ? `
+                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-badge-ad"></i>
+                            </button>
                     ` : ''}
                     ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
                     <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-google"></i>
                     </button>
-                    ` : ''}
-                    <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
-                        <i class="bi bi-search"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        // Add double-click handler for upload
-        mediaItem.addEventListener('dblclick', (e) => {
-            e.stopPropagation();
-            this.uploadMediaForGame(game, field);
-        });
+                            ` : ''}
+                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // Add double-click handler for upload
+                mediaItem.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.uploadMediaForGame(game, field);
+                });
                 
                 // Add hover effect
                 mediaItem.addEventListener('mouseenter', () => {
@@ -10143,8 +10143,8 @@ class GameCollectionManager {
                     });
                 } else {
                     // Save single game update immediately (for single game edit modal)
-                    await this.saveSingleGameUpdate(game);
-                    this.showAlert(`LaunchBox ID set to ${launchboxId} for "${game.name}"`, 'success');
+                await this.saveSingleGameUpdate(game);
+                this.showAlert(`LaunchBox ID set to ${launchboxId} for "${game.name}"`, 'success');
                 }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
@@ -10175,8 +10175,8 @@ class GameCollectionManager {
                     });
                 } else {
                     // Save single game update immediately (for single game edit modal)
-                    await this.saveSingleGameUpdate(game);
-                    this.showAlert(`MobyGames ID set to ${mobygamesId} for "${game.name}"`, 'success');
+                await this.saveSingleGameUpdate(game);
+                this.showAlert(`MobyGames ID set to ${mobygamesId} for "${game.name}"`, 'success');
                 }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
@@ -10207,8 +10207,8 @@ class GameCollectionManager {
                     });
                 } else {
                     // Save single game update immediately (for single game edit modal)
-                    await this.saveSingleGameUpdate(game);
-                    this.showAlert(`Steam ID set to ${steamId} for "${game.name}"`, 'success');
+                await this.saveSingleGameUpdate(game);
+                this.showAlert(`Steam ID set to ${steamId} for "${game.name}"`, 'success');
                 }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
@@ -10239,8 +10239,8 @@ class GameCollectionManager {
                     });
                 } else {
                     // Save single game update immediately (for single game edit modal)
-                    await this.saveSingleGameUpdate(game);
-                    this.showAlert(`IGDB ID set to ${igdbId} for "${game.name}"`, 'success');
+                await this.saveSingleGameUpdate(game);
+                this.showAlert(`IGDB ID set to ${igdbId} for "${game.name}"`, 'success');
                 }
             } else {
                 this.showAlert(`Game with path "${gamePath}" not found`, 'error');
@@ -10511,7 +10511,7 @@ class GameCollectionManager {
                 select.value = topMatches[0].game_id;
             } else {
                 // For other types, select by index
-                select.value = '0'; // Select the first option (highest score)
+            select.value = '0'; // Select the first option (highest score)
             }
         }
         
@@ -10880,6 +10880,7 @@ class GameCollectionManager {
             const bold = document.getElementById('logoGeneratorBold')?.checked || false;
             const italic = document.getElementById('logoGeneratorItalic')?.checked || false;
             const underline = document.getElementById('logoGeneratorUnderline')?.checked || false;
+            const uppercase = document.getElementById('logoGeneratorUppercase')?.checked || false;
             
             // Validate inputs
             if (!/^#[0-9A-F]{6}$/i.test(color)) {
@@ -18633,7 +18634,7 @@ class GameCollectionManager {
         if (!tbody) return;
         
         // Check if we have valid cached data
-            if (this.isSystemsConfigCacheValid() && 
+        if (this.isSystemsConfigCacheValid() && 
             this.systemsConfigCache.platforms && 
             this.systemsConfigCache.screenscraperSystems && 
             this.systemsConfigCache.igdbPlatforms && 
