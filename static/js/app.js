@@ -10685,12 +10685,10 @@ class GameCollectionManager {
                 }
                 
                 if (settings.font && font) {
-                    // Wait a bit for fonts to load, then set the value
-                    setTimeout(() => {
-                        if (font.querySelector(`option[value="${settings.font}"]`)) {
-                            font.value = settings.font;
-                        }
-                    }, 100);
+                    // Fonts should already be loaded, so set the value directly
+                    if (font.querySelector(`option[value="${settings.font}"]`)) {
+                        font.value = settings.font;
+                    }
                 }
                 
                 if (settings.bold !== null && settings.bold !== undefined) {
