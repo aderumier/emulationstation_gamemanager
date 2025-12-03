@@ -24374,60 +24374,46 @@ def generate_logo_preview():
             # Step 2: Apply effects
             cmd = ['convert', temp_base]
             
-            # Apply italic (shear) if needed
+            # Apply italic (shear) if needed - do this before bold
             if italic:
                 cmd.extend(['-shear', '15x0'])
             
-            # Apply bold (morphology thicken) if needed
+            # Apply bold (morphology dilate) if needed - expands text to make it bolder
             if bold:
-                # Use morphology to thicken the text
-                cmd.extend(['-morphology', 'Erode', 'Disk:0.5'])
+                # Use morphology dilate to expand the text, making it appear bolder
+                cmd.extend(['-morphology', 'Dilate', 'Disk:1'])
             
             cmd.append(output_path)
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                if os.path.exists(temp_base):
+                    os.unlink(temp_base)
+                return jsonify({'error': f'ImageMagick failed (effects): {result.stderr}'}), 500
             
             # Clean up temp file
             if os.path.exists(temp_base):
                 os.unlink(temp_base)
             
-            # For underline, we need to draw it separately
+            # Step 3: Add underline if needed
             if underline:
-                # First create the text image, then add underline
-                temp_text = output_path.replace('.png', '_text.png')
-                cmd_text = cmd[:-1] + [temp_text]
-                result = subprocess.run(cmd_text, capture_output=True, text=True, timeout=10)
-                if result.returncode != 0:
-                    return jsonify({'error': f'ImageMagick failed: {result.stderr}'}), 500
-                
                 # Get text dimensions and draw underline
-                # Use identify to get dimensions
-                identify_cmd = ['identify', '-format', '%wx%h', temp_text]
+                identify_cmd = ['identify', '-format', '%wx%h', output_path]
                 dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                 if dim_result.returncode == 0:
                     width, height = dim_result.stdout.strip().split('x')
                     # Draw underline at bottom of text
                     underline_y = int(height) - 2
-                    cmd = [
-                        'convert', temp_text,
+                    cmd_underline = [
+                        'convert', output_path,
                         '-stroke', color,
                         '-strokewidth', '2',
                         '-draw', f'line 0,{underline_y} {width},{underline_y}',
                         output_path
                     ]
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                    if os.path.exists(temp_text):
-                        os.unlink(temp_text)
-                else:
-                    # Fallback: just copy text image
-                    import shutil
-                    shutil.copy(temp_text, output_path)
-                    if os.path.exists(temp_text):
-                        os.unlink(temp_text)
-            else:
-                cmd.append(output_path)
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(cmd_underline, capture_output=True, text=True, timeout=10)
+                    if result.returncode != 0:
+                        return jsonify({'error': f'ImageMagick failed (underline): {result.stderr}'}), 500
             
             if result.returncode != 0:
                 return jsonify({'error': f'ImageMagick failed: {result.stderr}'}), 500
