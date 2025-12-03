@@ -2852,6 +2852,7 @@ def process_next_queued_task():
         bold = task_data.get('bold', False)
         italic = task_data.get('italic', False)
         underline = task_data.get('underline', False)
+        uppercase = task_data.get('uppercase', False)
         if system_name and selected_games:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -22855,6 +22856,10 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 # Use ROM filename as fallback
                 rom_filename = os.path.splitext(os.path.basename(game_path))[0]
                 game_name = rom_filename
+            
+            # Convert to uppercase if option is enabled
+            if uppercase:
+                game_name = game_name.upper()
             
             rom_filename = os.path.splitext(os.path.basename(game_path))[0]
             print(f"🔧 DEBUG: Found game: {game_name} (ROM: {rom_filename})")
