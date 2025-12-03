@@ -128,6 +128,15 @@ RUN mkdir -p /opt/gamemanager/custom_db.default && \
     chmod -R 644 /opt/gamemanager/custom_db.default/*.json 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/custom_db.default/
 
+# Copy font files to default location outside var (for volume mount scenarios)
+RUN mkdir -p /opt/gamemanager/fonts.default && \
+    chmod -R 755 /opt/gamemanager/var/fonts/ 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/fonts/* 2>/dev/null || true && \
+    (cp /opt/gamemanager/var/fonts/* /opt/gamemanager/fonts.default/ 2>/dev/null || echo "No font files found") && \
+    chmod -R 755 /opt/gamemanager/fonts.default/ && \
+    chmod -R 644 /opt/gamemanager/fonts.default/* 2>/dev/null || true && \
+    chown -R appuser:appuser /opt/gamemanager/fonts.default/
+
 # Copy mediatype files to default location outside var (for volume mount scenarios)
 RUN (cp /opt/gamemanager/var/db/igdb/mediatype.txt /opt/gamemanager/igdb_mediatype.txt.default 2>/dev/null || echo 'cover\nscreenshots\nartworks\nlogos' > /opt/gamemanager/igdb_mediatype.txt.default) && \
     (cp /opt/gamemanager/var/db/launchbox/mediatype.json /opt/gamemanager/launchbox_mediatype.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/launchbox_mediatype.json.default) && \
@@ -254,6 +263,15 @@ if [ -d /opt/gamemanager/custom_db.default ] && [ "$(ls -A /opt/gamemanager/cust
     echo "✅ Custom database files copied to volume"
 else
     echo "⚠️  No Custom database files found in default location"
+fi
+
+# Copy font files to var/fonts (always copy to ensure they're in the volume)
+echo "Copying font files to var/fonts..."
+if [ -d /opt/gamemanager/fonts.default ] && [ "$(ls -A /opt/gamemanager/fonts.default 2>/dev/null)" ]; then
+    cp /opt/gamemanager/fonts.default/* /opt/gamemanager/var/fonts/
+    echo "✅ Font files copied to volume"
+else
+    echo "⚠️  No font files found in default location"
 fi
 
 # Ensure proper permissions

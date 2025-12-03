@@ -80,6 +80,11 @@ echo "📦 Copying Custom databases..."
 mkdir -p debian/opt/gamemanager/var/db/custom
 cp var/db/custom/*.json debian/opt/gamemanager/var/db/custom/ 2>/dev/null || echo "⚠️  No Custom JSON databases found, skipping..."
 
+# Fonts
+echo "📦 Copying fonts..."
+mkdir -p debian/opt/gamemanager/var/fonts
+cp var/fonts/* debian/opt/gamemanager/var/fonts/ 2>/dev/null || echo "⚠️  No font files found, skipping..."
+
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
 
