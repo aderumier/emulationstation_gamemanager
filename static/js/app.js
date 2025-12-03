@@ -1887,6 +1887,26 @@ class GameCollectionManager {
             await this.ensurePanelGameSavedIfOpen();
             this.generate2DBoxForSelected();
         });
+        document.getElementById('globalLogoGeneratorBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
+            this.openLogoGeneratorModal();
+        });
+        document.getElementById('startLogoGeneratorBtn').addEventListener('click', () => this.startLogoGeneration());
+        // Sync color picker with text input
+        const logoColorPicker = document.getElementById('logoGeneratorColor');
+        const logoColorText = document.getElementById('logoGeneratorColorText');
+        if (logoColorPicker && logoColorText) {
+            logoColorPicker.addEventListener('input', (e) => {
+                logoColorText.value = e.target.value;
+            });
+            logoColorText.addEventListener('input', (e) => {
+                const color = e.target.value;
+                if (/^#[0-9A-F]{6}$/i.test(color)) {
+                    logoColorPicker.value = color;
+                }
+            });
+        }
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
             this.openYoutubeDownloadModal();
@@ -10514,6 +10534,100 @@ class GameCollectionManager {
             
         } catch (error) {
             this.showAlert('Error starting 2D box generation: ' + error.message, 'danger');
+        } finally {
+            // Reset button state
+            const button = document.getElementById('globalGeneratorBtn');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-magic"></i> Generator';
+            }
+        }
+    }
+
+    openLogoGeneratorModal() {
+        if (!this.currentSystem) {
+            this.showAlert('No system selected', 'warning');
+            return;
+        }
+        
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game first', 'warning');
+            return;
+        }
+        
+        // Open the logo generator modal
+        const modal = new bootstrap.Modal(document.getElementById('logoGeneratorModal'));
+        modal.show();
+    }
+
+    async startLogoGeneration() {
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            // Get configuration from modal
+            const color = document.getElementById('logoGeneratorColorText').value || '#ffffff';
+            const fontSize = parseInt(document.getElementById('logoGeneratorFontSize').value) || 72;
+            const font = document.getElementById('logoGeneratorFont').value || 'Arial';
+            
+            // Validate inputs
+            if (!/^#[0-9A-F]{6}$/i.test(color)) {
+                this.showAlert('Invalid color format. Please use hex format (e.g., #ffffff)', 'danger');
+                return;
+            }
+            
+            if (fontSize < 12 || fontSize > 300) {
+                this.showAlert('Font size must be between 12 and 300', 'danger');
+                return;
+            }
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('logoGeneratorModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Update button state
+            const button = document.getElementById('globalGeneratorBtn');
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating...';
+            }
+            
+            // Get the paths of selected games
+            const selectedGamePaths = this.selectedGames.map(game => game.path);
+            
+            const response = await fetch('/api/generate-logo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    selected_games: selectedGamePaths,
+                    color: color,
+                    font_size: fontSize,
+                    font: font
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`Logo generation started for ${data.games_count} games.`, 'success');
+                // Refresh the task grid to show the new task
+                this.refreshTasks();
+            } else {
+                this.showAlert('Error starting logo generation: ' + (data.error || 'Unknown error'), 'danger');
+            }
+            
+        } catch (error) {
+            this.showAlert('Error starting logo generation: ' + error.message, 'danger');
         } finally {
             // Reset button state
             const button = document.getElementById('globalGeneratorBtn');

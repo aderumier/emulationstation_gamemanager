@@ -2383,7 +2383,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation', 'import_medias']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation', 'logo_generation', 'import_medias']:
             self.grid_refresh_needed = True
         
         # Clear current task and start next queued task
@@ -2840,6 +2840,29 @@ def process_next_queued_task():
                 task.start()
             # Start 2D box generation in background thread
             thread = threading.Thread(target=run_2d_box_generation_task, args=(system_name, selected_games))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'logo_generation':
+        # Start logo generation task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        color = task_data.get('color', '#ffffff')
+        font_size = task_data.get('font_size', 72)
+        font = task_data.get('font', 'Arial')
+        if system_name and selected_games:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('logo_generation', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start logo generation in background thread
+            thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -22724,11 +22747,250 @@ def run_2d_box_generation_task(system_name, selected_games):
             tasks[current_task_id].complete(False, str(e))
         
         # Emit task failure event
-        print(f"🔧 DEBUG: Emitting task failure event")
-        socketio.emit('task_completed', {
+        socketio.emit('task_failed', {
             'task_type': '2d_box_generation',
-            'success': False,
-            'message': str(e),
+            'error': str(e),
+            'system_name': system_name
+        })
+    finally:
+        # Process next queued task
+        process_next_queued_task()
+
+def run_logo_generation_task(system_name, selected_games, color, font_size, font):
+    """Run logo generation task in background thread"""
+    global current_task_id
+    
+    try:
+        if not current_task_id or current_task_id not in tasks:
+            print(f"Error: No active task found for logo generation")
+            return
+        
+        task = tasks[current_task_id]
+        
+        print(f"🎨 Starting logo generation for system: {system_name}")
+        print(f"🔧 DEBUG: Selected games: {selected_games}")
+        print(f"🔧 DEBUG: Color: {color}, Font size: {font_size}, Font: {font}")
+        task.update_progress(f"Starting logo generation for {len(selected_games)} games")
+        task.update_progress(f"System: {system_name}")
+        
+        # Validate ImageMagick is available
+        try:
+            result = subprocess.run(['convert', '-version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode != 0:
+                task.complete(False, 'ImageMagick not available. Please install ImageMagick.')
+                return
+        except Exception as e:
+            task.complete(False, f'ImageMagick not available: {str(e)}')
+            return
+        
+        # Validate system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        print(f"🔧 DEBUG: System path: {system_path}")
+        if not os.path.exists(system_path):
+            error_msg = f'System not found: {system_path}'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
+            return
+        
+        # Load gamelist to get game data
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f'Gamelist not found: {gamelist_path}')
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            task.complete(False, 'No games found in gamelist')
+            return
+        
+        # Load media config to get marquee directory
+        media_config = load_media_config()
+        marquee_directory = get_media_directory('marquee')
+        
+        if not marquee_directory:
+            error_msg = f'No media mapping found for marquee field.'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
+            return
+        
+        # Create media directories
+        media_dir = os.path.join(system_path, 'media')
+        marquee_dir = os.path.join(media_dir, marquee_directory)
+        print(f"🔧 DEBUG: Creating media directory: {marquee_dir}")
+        os.makedirs(marquee_dir, exist_ok=True)
+        
+        # Process each selected game
+        processed = 0
+        failed = 0
+        print(f"🔧 DEBUG: Processing {len(selected_games)} games")
+        
+        for i, game_path in enumerate(selected_games):
+            if is_task_stopped():
+                print("🛑 Task stopped by user")
+                task.update_progress("🛑 Task stopped by user")
+                break
+            
+            print(f"🔧 DEBUG: Processing game {i+1}/{len(selected_games)}: {game_path}")
+            
+            # Find game in gamelist
+            game_data = None
+            for game in games:
+                if game.get('path') == game_path:
+                    game_data = game
+                    break
+            
+            if not game_data:
+                error_msg = f"Game not found in gamelist: {game_path}"
+                print(f"❌ ERROR: {error_msg}")
+                task.update_progress(f"⚠️  {error_msg}")
+                failed += 1
+                continue
+            
+            game_name = game_data.get('name', 'Unknown')
+            if not game_name or game_name == 'Unknown':
+                # Use ROM filename as fallback
+                rom_filename = os.path.splitext(os.path.basename(game_path))[0]
+                game_name = rom_filename
+            
+            rom_filename = os.path.splitext(os.path.basename(game_path))[0]
+            print(f"🔧 DEBUG: Found game: {game_name} (ROM: {rom_filename})")
+            
+            task.update_progress(f"Processing {i+1}/{len(selected_games)}: {game_name}")
+            
+            try:
+                # Generate logo using ImageMagick
+                # Use label: to create text image with transparent background
+                output_filename = create_media_filename(game_path, '.png')
+                output_path = os.path.join(marquee_dir, output_filename)
+                print(f"🔧 DEBUG: Generating logo for {game_name}")
+                print(f"🔧 DEBUG: Output path: {output_path}")
+                
+                # Escape special characters in game name for ImageMagick
+                # Replace quotes and backslashes
+                escaped_name = game_name.replace('\\', '\\\\').replace('"', '\\"')
+                
+                # Create logo using ImageMagick label: with transparent background
+                # Format: convert -background none -fill color -font font -pointsize size label:"text" output.png
+                cmd = [
+                    'convert',
+                    '-background', 'none',  # Transparent background
+                    '-fill', color,         # Text color
+                    '-font', font,          # Font family
+                    '-pointsize', str(font_size),  # Font size
+                    f'label:"{escaped_name}"',  # Text label
+                    output_path
+                ]
+                
+                print(f"🔧 DEBUG: Running ImageMagick command: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                
+                if result.returncode != 0:
+                    error_msg = f"ImageMagick failed for {game_name}: {result.stderr}"
+                    print(f"❌ ERROR: {error_msg}")
+                    task.update_progress(f"⚠️  {error_msg}")
+                    failed += 1
+                    continue
+                
+                if not os.path.exists(output_path):
+                    error_msg = f"Logo file not created for {game_name}"
+                    print(f"❌ ERROR: {error_msg}")
+                    task.update_progress(f"⚠️  {error_msg}")
+                    failed += 1
+                    continue
+                
+                print(f"✅ DEBUG: Successfully generated logo for {game_name}")
+                
+                # Update gamelist.xml with new logo
+                print(f"🔧 DEBUG: Updating gamelist.xml for {game_name}")
+                tree = ET.parse(gamelist_path)
+                root = tree.getroot()
+                
+                # Find the game element by path
+                game_element = None
+                for game in root.findall('game'):
+                    if game.find('path') is not None:
+                        xml_game_path = game.find('path').text
+                        if xml_game_path and xml_game_path == game_path:
+                            game_element = game
+                            break
+                
+                if game_element is not None:
+                    print(f"🔧 DEBUG: Found game element in gamelist for {game_name}")
+                    # Update or add the marquee field
+                    marquee_element = game_element.find('marquee')
+                    marquee_path = f"./media/{marquee_directory}/{output_filename}"
+                    if marquee_element is not None:
+                        marquee_element.text = marquee_path
+                        print(f"🔧 DEBUG: Updated marquee field: {marquee_path}")
+                    else:
+                        # Create new marquee element
+                        marquee_element = ET.SubElement(game_element, 'marquee')
+                        marquee_element.text = marquee_path
+                        print(f"🔧 DEBUG: Created marquee field: {marquee_path}")
+                    
+                    # Save the updated gamelist.xml
+                    print(f"🔧 DEBUG: Saving updated gamelist.xml")
+                    save_formatted_gamelist_xml(tree, gamelist_path)
+                    print(f"✅ DEBUG: Gamelist.xml saved successfully")
+                else:
+                    print(f"❌ ERROR: Game element not found in gamelist for {game_name}")
+                
+                task.update_progress(f"✅ Generated logo for {game_name}")
+                processed += 1
+                
+            except subprocess.TimeoutExpired:
+                error_msg = f"Timeout generating logo for {game_name}"
+                print(f"❌ ERROR: {error_msg}")
+                task.update_progress(f"⚠️  {error_msg}")
+                failed += 1
+                continue
+            except Exception as e:
+                task.update_progress(f"❌ Failed to generate logo for {game_name}: {e}")
+                print(f"❌ ERROR: Failed to generate logo for {game_name}: {e}")
+                import traceback
+                traceback.print_exc()
+                failed += 1
+                continue
+            
+            # Update progress
+            progress = int((i + 1) / len(selected_games) * 100)
+            task.update_progress(f"Progress: {progress}% ({i+1}/{len(selected_games)})", 
+                               progress_percentage=progress, current_step=i+1, total_steps=len(selected_games))
+        
+        # Complete the task
+        print(f"🔧 DEBUG: Task completed - Processed: {processed}, Failed: {failed}")
+        if processed > 0:
+            success_msg = f'Logo generation completed. Generated: {processed}, Failed: {failed}'
+            print(f"✅ DEBUG: {success_msg}")
+            task.complete(True, success_msg)
+        else:
+            error_msg = f'No logos were generated. Failed: {failed}'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
+        
+        # Emit task completion event
+        print(f"🔧 DEBUG: Emitting task completion event")
+        socketio.emit('task_completed', {
+            'task_type': 'logo_generation',
+            'success': processed > 0,
+            'message': f'Generated {processed} logos, {failed} failed',
+            'system_name': system_name
+        })
+        
+    except Exception as e:
+        error_msg = f"Error in logo generation task: {e}"
+        print(f"❌ ERROR: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        if current_task_id and current_task_id in tasks:
+            print(f"🔧 DEBUG: Completing task with error: {str(e)}")
+            tasks[current_task_id].complete(False, str(e))
+        
+        # Emit task failure event
+        socketio.emit('task_failed', {
+            'task_type': 'logo_generation',
+            'error': str(e),
             'system_name': system_name
         })
     finally:
@@ -23957,6 +24219,46 @@ def generate_2d_box():
         
     except Exception as e:
         return jsonify({'error': f'Failed to start 2D box generation: {str(e)}'}), 500
+
+@app.route('/api/generate-logo', methods=['POST'])
+@login_required
+def generate_logo():
+    """Start logo generation task for selected games"""
+    try:
+        data = request.get_json()
+        system_name = data.get('system_name')
+        selected_games = data.get('selected_games', [])
+        color = data.get('color', '#ffffff')
+        font_size = data.get('font_size', 72)
+        font = data.get('font', 'Arial')
+        
+        if not system_name or not selected_games:
+            return jsonify({'error': 'Missing required parameters'}), 400
+        
+        # Validate inputs
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            return jsonify({'error': 'Invalid color format. Use hex format (e.g., #ffffff)'}), 400
+        
+        if not isinstance(font_size, int) or font_size < 12 or font_size > 300:
+            return jsonify({'error': 'Font size must be between 12 and 300'}), 400
+        
+        # Add task to queue
+        task = add_task_to_queue('logo_generation', {
+            'system_name': system_name,
+            'selected_games': selected_games,
+            'color': color,
+            'font_size': font_size,
+            'font': font
+        })
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'games_count': len(selected_games)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to start logo generation: {str(e)}'}), 500
 
 # =============================================================================
 # IGDB Integration Functions
