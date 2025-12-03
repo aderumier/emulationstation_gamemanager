@@ -24372,11 +24372,28 @@ def generate_logo_preview():
             temp_base = output_path.replace('.png', '_base.png')
             
             # Step 1: Generate base text with label:
+            # Check if font is a custom font from var/fonts/
+            font_path = font
+            custom_fonts_dir = 'var/fonts'
+            if os.path.exists(custom_fonts_dir):
+                # Check if font file exists in custom fonts directory
+                font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
+                for ext in font_extensions:
+                    font_file = os.path.join(custom_fonts_dir, f"{font}{ext}")
+                    if os.path.exists(font_file):
+                        font_path = font_file
+                        break
+                    # Also check with exact filename match
+                    for filename in os.listdir(custom_fonts_dir):
+                        if os.path.splitext(filename)[0] == font:
+                            font_path = os.path.join(custom_fonts_dir, filename)
+                            break
+            
             cmd_base = [
                 'convert',
                 '-background', 'none',
                 '-fill', color,
-                '-font', font,
+                '-font', font_path,
                 '-pointsize', str(font_size),
                 f'label:"{escaped_text}"',
                 temp_base
@@ -24462,42 +24479,85 @@ def generate_logo_preview():
 @app.route('/api/list-fonts', methods=['GET'])
 @login_required
 def list_fonts():
-    """List all available fonts on the server using ImageMagick"""
+    """List all available fonts on the server using ImageMagick and var/fonts/ directory"""
     try:
-        # Use ImageMagick to list fonts
-        # Format: convert -list font returns font names
-        result = subprocess.run(['convert', '-list', 'font'], 
-                              capture_output=True, text=True, timeout=10)
-        
-        if result.returncode != 0:
-            return jsonify({'error': 'Failed to list fonts', 'fonts': []}), 500
-        
-        # Parse font list from ImageMagick output
-        # Extract unique font family names
         font_families = set()
-        lines = result.stdout.split('\n')
         
-        for line in lines:
-            line = line.strip()
-            if line.startswith('Font:'):
-                # Font name (may include style)
-                font_name = line.replace('Font:', '').strip()
-                if font_name:
-                    # Try to extract base family name (before any dash or style suffix)
-                    # Many fonts are named like "Arial-Bold" or "DejaVu-Sans"
-                    parts = font_name.split('-')
-                    if len(parts) > 0:
-                        base_name = parts[0].strip()
-                        if base_name:
-                            font_families.add(base_name)
-                    font_families.add(font_name)  # Also add full name
-            elif line.startswith('family:'):
-                # Font family name (preferred)
-                family = line.replace('family:', '').strip()
-                if family:
-                    font_families.add(family)
+        # Step 1: Get system fonts from ImageMagick
+        try:
+            result = subprocess.run(['convert', '-list', 'font'], 
+                                  capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                # Parse font list from ImageMagick output
+                lines = result.stdout.split('\n')
+                
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith('Font:'):
+                        # Font name (may include style)
+                        font_name = line.replace('Font:', '').strip()
+                        if font_name:
+                            # Try to extract base family name (before any dash or style suffix)
+                            parts = font_name.split('-')
+                            if len(parts) > 0:
+                                base_name = parts[0].strip()
+                                if base_name:
+                                    font_families.add(base_name)
+                            font_families.add(font_name)  # Also add full name
+                    elif line.startswith('family:'):
+                        # Font family name (preferred)
+                        family = line.replace('family:', '').strip()
+                        if family:
+                            font_families.add(family)
+        except Exception as e:
+            print(f"Warning: Could not list system fonts: {e}")
         
-        # Convert to sorted list
+        # Step 2: Scan var/fonts/ directory for custom fonts
+        custom_fonts_dir = 'var/fonts'
+        if os.path.exists(custom_fonts_dir):
+            try:
+                # Supported font file extensions
+                font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
+                
+                for filename in os.listdir(custom_fonts_dir):
+                    file_path = os.path.join(custom_fonts_dir, filename)
+                    if os.path.isfile(file_path):
+                        # Check if it's a font file
+                        _, ext = os.path.splitext(filename.lower())
+                        if ext in font_extensions:
+                            # Extract font name from filename (without extension)
+                            font_name = os.path.splitext(filename)[0]
+                            if font_name:
+                                # Add both the filename and the name without extension
+                                font_families.add(font_name)
+                                # Also try to get font family name using ImageMagick if possible
+                                try:
+                                    # Use identify to get font name from file
+                                    identify_cmd = ['identify', '-list', 'font', '-format', '%f', file_path]
+                                    identify_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                                    if identify_result.returncode == 0 and identify_result.stdout.strip():
+                                        font_families.add(identify_result.stdout.strip())
+                                except:
+                                    pass  # If we can't identify, just use the filename
+            except Exception as e:
+                print(f"Warning: Could not scan custom fonts directory: {e}")
+        else:
+            # Create the directory if it doesn't exist
+            try:
+                os.makedirs(custom_fonts_dir, exist_ok=True)
+                print(f"Created custom fonts directory: {custom_fonts_dir}")
+            except Exception as e:
+                print(f"Warning: Could not create custom fonts directory: {e}")
+        
+        # Step 3: Add basic system fonts if not already present (fallback)
+        basic_fonts = ['Arial', 'Helvetica', 'Times-Roman', 'Courier', 'DejaVu-Sans', 
+                      'DejaVu-Serif', 'DejaVu-Sans-Mono', 'Impact', 'Verdana', 'Georgia', 
+                      'Palatino', 'Comic-Sans-MS']
+        for font in basic_fonts:
+            font_families.add(font)
+        
+        # Convert to sorted list (system fonts first, then custom fonts)
         fonts = sorted(list(font_families))
         
         return jsonify({'fonts': fonts})
