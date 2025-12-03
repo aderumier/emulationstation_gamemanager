@@ -24353,25 +24353,43 @@ def generate_logo_preview():
             escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
             
             # Generate preview using ImageMagick
-            # For bold: use stroke with same color as fill to simulate bold
-            # For italic: use shear to skew text horizontally
-            cmd = [
+            # Use label: first, then apply effects
+            temp_base = output_path.replace('.png', '_base.png')
+            
+            # Step 1: Generate base text with label:
+            cmd_base = [
                 'convert',
-                '-background', 'none',  # Transparent background
-                '-fill', color,         # Text color
-                '-font', font,          # Font family
-                '-pointsize', str(font_size),  # Font size
+                '-background', 'none',
+                '-fill', color,
+                '-font', font,
+                '-pointsize', str(font_size),
+                f'label:"{escaped_text}"',
+                temp_base
             ]
             
-            # Simulate bold using stroke (outline text with same color)
-            if bold:
-                cmd.extend(['-stroke', color, '-strokewidth', '1'])
+            result = subprocess.run(cmd_base, capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                return jsonify({'error': f'ImageMagick failed: {result.stderr}'}), 500
             
-            # Add shear for italic effect (skew horizontally)
+            # Step 2: Apply effects
+            cmd = ['convert', temp_base]
+            
+            # Apply italic (shear) if needed
             if italic:
-                cmd.extend(['-shear', '15x0'])  # 15 degree horizontal shear
+                cmd.extend(['-shear', '15x0'])
             
-            cmd.append(f'label:"{escaped_text}"')  # Text label
+            # Apply bold (morphology thicken) if needed
+            if bold:
+                # Use morphology to thicken the text
+                cmd.extend(['-morphology', 'Erode', 'Disk:0.5'])
+            
+            cmd.append(output_path)
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            # Clean up temp file
+            if os.path.exists(temp_base):
+                os.unlink(temp_base)
             
             # For underline, we need to draw it separately
             if underline:
