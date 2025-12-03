@@ -21,6 +21,7 @@ if [ "$1" = "configure" ] && [ -z "$2" ]; then
     mkdir -p /opt/gamemanager/var/sessions
     mkdir -p /opt/gamemanager/var/config
     mkdir -p /opt/gamemanager/var/cache
+    mkdir -p /opt/gamemanager/var/fonts
     mkdir -p /opt/gamemanager/roms
 
     # Install default configuration files if they don't exist
