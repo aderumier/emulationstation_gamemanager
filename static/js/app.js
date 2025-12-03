@@ -1929,6 +1929,7 @@ class GameCollectionManager {
         const logoBold = document.getElementById('logoGeneratorBold');
         const logoItalic = document.getElementById('logoGeneratorItalic');
         const logoUnderline = document.getElementById('logoGeneratorUnderline');
+        const logoUppercase = document.getElementById('logoGeneratorUppercase');
         
         if (logoBold) {
             logoBold.addEventListener('change', () => {
@@ -1942,6 +1943,11 @@ class GameCollectionManager {
         }
         if (logoUnderline) {
             logoUnderline.addEventListener('change', () => {
+                this.updateLogoPreview();
+            });
+        }
+        if (logoUppercase) {
+            logoUppercase.addEventListener('change', () => {
                 this.updateLogoPreview();
             });
         }
@@ -10694,7 +10700,7 @@ class GameCollectionManager {
             }
             
             // Get first selected game name for preview
-            const previewGameName = this.selectedGames[0].name || 'Sample Game';
+            let previewGameName = this.selectedGames[0].name || 'Sample Game';
             
             // Get current settings
             const color = document.getElementById('logoGeneratorColorText').value || '#ffffff';
@@ -10703,6 +10709,12 @@ class GameCollectionManager {
             const bold = document.getElementById('logoGeneratorBold')?.checked || false;
             const italic = document.getElementById('logoGeneratorItalic')?.checked || false;
             const underline = document.getElementById('logoGeneratorUnderline')?.checked || false;
+            const uppercase = document.getElementById('logoGeneratorUppercase')?.checked || false;
+            
+            // Convert to uppercase if option is enabled
+            if (uppercase) {
+                previewGameName = previewGameName.toUpperCase();
+            }
             
             // Validate color
             if (!/^#[0-9A-F]{6}$/i.test(color)) {
@@ -10730,7 +10742,8 @@ class GameCollectionManager {
                     font: font,
                     bold: bold,
                     italic: italic,
-                    underline: underline
+                    underline: underline,
+                    uppercase: uppercase
                 })
             });
             
@@ -10815,7 +10828,8 @@ class GameCollectionManager {
                     font: font,
                     bold: bold,
                     italic: italic,
-                    underline: underline
+                    underline: underline,
+                    uppercase: uppercase
                 })
             });
             

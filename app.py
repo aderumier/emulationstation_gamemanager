@@ -2865,7 +2865,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start logo generation in background thread
-            thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font, bold, italic, underline))
+            thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font, bold, italic, underline, uppercase))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -24288,6 +24288,7 @@ def generate_logo():
         bold = data.get('bold', False)
         italic = data.get('italic', False)
         underline = data.get('underline', False)
+        uppercase = data.get('uppercase', False)
         
         if not system_name or not selected_games:
             return jsonify({'error': 'Missing required parameters'}), 400
@@ -24308,7 +24309,8 @@ def generate_logo():
             'font': font,
             'bold': bold,
             'italic': italic,
-            'underline': underline
+            'underline': underline,
+            'uppercase': uppercase
         })
         
         return jsonify({
@@ -24333,6 +24335,11 @@ def generate_logo_preview():
         bold = data.get('bold', False)
         italic = data.get('italic', False)
         underline = data.get('underline', False)
+        uppercase = data.get('uppercase', False)
+        
+        # Convert text to uppercase if option is enabled
+        if uppercase:
+            text = text.upper()
         
         # Validate inputs
         if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
