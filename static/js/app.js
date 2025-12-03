@@ -10628,16 +10628,16 @@ class GameCollectionManager {
         
         modal.show();
         
-        // Load fonts from server
-        this.loadAvailableFonts();
-        
-        // Load saved settings from localStorage
-        this.loadLogoGeneratorSettings();
-        
-        // Generate initial preview after modal is shown
-        setTimeout(() => {
-            this.updateLogoPreview();
-        }, 300);
+        // Load fonts from server, then load saved settings
+        this.loadAvailableFonts().then(() => {
+            // Load saved settings from localStorage after fonts are loaded
+            this.loadLogoGeneratorSettings();
+            
+            // Generate initial preview after settings are loaded
+            setTimeout(() => {
+                this.updateLogoPreview();
+            }, 100);
+        });
     }
 
     saveLogoGeneratorSettings() {
