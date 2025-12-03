@@ -1893,18 +1893,35 @@ class GameCollectionManager {
             this.openLogoGeneratorModal();
         });
         document.getElementById('startLogoGeneratorBtn').addEventListener('click', () => this.startLogoGeneration());
-        // Sync color picker with text input
+        // Sync color picker with text input and update preview
         const logoColorPicker = document.getElementById('logoGeneratorColor');
         const logoColorText = document.getElementById('logoGeneratorColorText');
+        const logoFontSize = document.getElementById('logoGeneratorFontSize');
+        const logoFont = document.getElementById('logoGeneratorFont');
+        
         if (logoColorPicker && logoColorText) {
             logoColorPicker.addEventListener('input', (e) => {
                 logoColorText.value = e.target.value;
+                this.updateLogoPreview();
             });
             logoColorText.addEventListener('input', (e) => {
                 const color = e.target.value;
                 if (/^#[0-9A-F]{6}$/i.test(color)) {
                     logoColorPicker.value = color;
+                    this.updateLogoPreview();
                 }
+            });
+        }
+        
+        if (logoFontSize) {
+            logoFontSize.addEventListener('input', () => {
+                this.updateLogoPreview();
+            });
+        }
+        
+        if (logoFont) {
+            logoFont.addEventListener('change', () => {
+                this.updateLogoPreview();
             });
         }
         document.getElementById('globalYoutubeDownloadBtn').addEventListener('click', async () => {
@@ -10556,8 +10573,99 @@ class GameCollectionManager {
         }
         
         // Open the logo generator modal
-        const modal = new bootstrap.Modal(document.getElementById('logoGeneratorModal'));
+        const modalElement = document.getElementById('logoGeneratorModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // Clean up preview image URL when modal closes
+        const cleanupPreview = () => {
+            const previewImage = document.getElementById('logoGeneratorPreviewImage');
+            if (previewImage && previewImage.src && previewImage.src.startsWith('blob:')) {
+                URL.revokeObjectURL(previewImage.src);
+                previewImage.src = '';
+            }
+        };
+        
+        // Add event listener for modal close (only once)
+        if (!modalElement.dataset.cleanupListenerAdded) {
+            modalElement.addEventListener('hidden.bs.modal', cleanupPreview);
+            modalElement.dataset.cleanupListenerAdded = 'true';
+        }
+        
         modal.show();
+        
+        // Generate initial preview after modal is shown
+        setTimeout(() => {
+            this.updateLogoPreview();
+        }, 300);
+    }
+
+    async updateLogoPreview() {
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                return;
+            }
+            
+            // Get first selected game name for preview
+            const previewGameName = this.selectedGames[0].name || 'Sample Game';
+            
+            // Get current settings
+            const color = document.getElementById('logoGeneratorColorText').value || '#ffffff';
+            const fontSize = parseInt(document.getElementById('logoGeneratorFontSize').value) || 72;
+            const font = document.getElementById('logoGeneratorFont').value || 'Arial';
+            
+            // Validate color
+            if (!/^#[0-9A-F]{6}$/i.test(color)) {
+                return;
+            }
+            
+            // Show loading state
+            const previewContainer = document.getElementById('logoGeneratorPreviewContainer');
+            const previewImage = document.getElementById('logoGeneratorPreviewImage');
+            const previewLoading = document.getElementById('logoGeneratorPreviewLoading');
+            const previewError = document.getElementById('logoGeneratorPreviewError');
+            
+            previewImage.style.display = 'none';
+            previewError.style.display = 'none';
+            previewLoading.style.display = 'block';
+            
+            // Generate preview via backend
+            const response = await fetch('/api/generate-logo-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: previewGameName,
+                    color: color,
+                    font_size: fontSize,
+                    font: font
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const blob = await response.blob();
+            const imageUrl = URL.createObjectURL(blob);
+            
+            previewImage.src = imageUrl;
+            previewImage.style.display = 'block';
+            previewLoading.style.display = 'none';
+            
+            // Clean up old URL when image loads
+            previewImage.onload = () => {
+                // Keep the URL for now, will be cleaned up when modal closes
+            };
+            
+        } catch (error) {
+            console.error('Error updating logo preview:', error);
+            const previewImage = document.getElementById('logoGeneratorPreviewImage');
+            const previewLoading = document.getElementById('logoGeneratorPreviewLoading');
+            const previewError = document.getElementById('logoGeneratorPreviewError');
+            
+            previewImage.style.display = 'none';
+            previewLoading.style.display = 'none';
+            previewError.style.display = 'block';
+        }
     }
 
     async startLogoGeneration() {

@@ -24260,6 +24260,77 @@ def generate_logo():
     except Exception as e:
         return jsonify({'error': f'Failed to start logo generation: {str(e)}'}), 500
 
+@app.route('/api/generate-logo-preview', methods=['POST'])
+@login_required
+def generate_logo_preview():
+    """Generate a preview of the logo with given settings"""
+    try:
+        data = request.get_json()
+        text = data.get('text', 'Sample Game')
+        color = data.get('color', '#ffffff')
+        font_size = data.get('font_size', 72)
+        font = data.get('font', 'Arial')
+        
+        # Validate inputs
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            return jsonify({'error': 'Invalid color format'}), 400
+        
+        if not isinstance(font_size, int) or font_size < 12 or font_size > 300:
+            return jsonify({'error': 'Invalid font size'}), 400
+        
+        # Create temporary file for output
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+            output_path = tmp_file.name
+        
+        try:
+            # Escape special characters in text for ImageMagick
+            escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
+            
+            # Generate preview using ImageMagick
+            cmd = [
+                'convert',
+                '-background', 'none',  # Transparent background
+                '-fill', color,         # Text color
+                '-font', font,          # Font family
+                '-pointsize', str(font_size),  # Font size
+                f'label:"{escaped_text}"',  # Text label
+                output_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode != 0:
+                return jsonify({'error': f'ImageMagick failed: {result.stderr}'}), 500
+            
+            if not os.path.exists(output_path):
+                return jsonify({'error': 'Preview file not created'}), 500
+            
+            # Read the generated image and return it
+            with open(output_path, 'rb') as f:
+                image_data = f.read()
+            
+            # Clean up temp file
+            os.unlink(output_path)
+            
+            # Return image as response
+            from flask import Response
+            return Response(image_data, mimetype='image/png')
+            
+        except subprocess.TimeoutExpired:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+            return jsonify({'error': 'Preview generation timeout'}), 500
+        except Exception as e:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+            return jsonify({'error': f'Failed to generate preview: {str(e)}'}), 500
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate preview: {str(e)}'}), 500
+
 # =============================================================================
 # IGDB Integration Functions
 # =============================================================================

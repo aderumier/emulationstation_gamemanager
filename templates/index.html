@@ -4210,6 +4210,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <div class="form-text">Select the font family for the logo</div>
                     </div>
                     
+                    <hr>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Preview</label>
+                        <div id="logoGeneratorPreviewContainer" class="text-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 8px; min-height: 150px; display: flex; align-items: center; justify-content: center; position: relative;">
+                            <div id="logoGeneratorPreviewLoading" class="text-white" style="display: none;">
+                                <i class="bi bi-hourglass-split me-2"></i>Generating preview...
+                            </div>
+                            <img id="logoGeneratorPreviewImage" src="" alt="Logo preview" style="max-width: 100%; max-height: 200px; object-fit: contain; display: none;">
+                            <div id="logoGeneratorPreviewError" class="text-white" style="display: none;">
+                                <i class="bi bi-exclamation-triangle me-2"></i>Preview unavailable
+                            </div>
+                        </div>
+                        <div class="form-text">Preview of how the logo will look (using first selected game name)</div>
+                    </div>
+                    
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Note:</strong> The logo generator will create text images based on game names. Generated logos will have transparent backgrounds and will be saved to the marquee field for each selected game.
