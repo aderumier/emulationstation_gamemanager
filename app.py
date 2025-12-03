@@ -24334,18 +24334,24 @@ def generate_logo():
         if not isinstance(font_size, int) or font_size < 12 or font_size > 300:
             return jsonify({'error': 'Font size must be between 12 and 300'}), 400
         
-        # Add task to queue
-        task = add_task_to_queue('logo_generation', {
+        # Add task to queue - ensure all parameters are included
+        task_data_dict = {
             'system_name': system_name,
             'selected_games': selected_games,
             'color': color,
             'font_size': font_size,
             'font': font,
-            'bold': bold,
-            'italic': italic,
-            'underline': underline,
-            'uppercase': uppercase
-        })
+            'bold': bool(bold),
+            'italic': bool(italic),
+            'underline': bool(underline),
+            'uppercase': bool(uppercase)
+        }
+        
+        # Verify all required fields are present
+        if not task_data_dict.get('system_name') or not task_data_dict.get('selected_games'):
+            return jsonify({'error': 'Missing required parameters'}), 400
+        
+        task = add_task_to_queue('logo_generation', task_data_dict)
         
         return jsonify({
             'success': True,
