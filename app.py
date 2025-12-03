@@ -22919,7 +22919,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 if underline:
                     # First create the text image, then add underline
                     temp_text = output_path.replace('.png', '_text.png')
-                    cmd_text = cmd + [f'label:"{escaped_name}"', temp_text]
+                    cmd_text = cmd + [f'label:{escaped_name}', temp_text]
                     print(f"🔧 DEBUG: Running ImageMagick command (text): {' '.join(cmd_text)}")
                     result = subprocess.run(cmd_text, capture_output=True, text=True, timeout=30)
                     if result.returncode != 0:
@@ -22954,7 +22954,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                         if os.path.exists(temp_text):
                             os.unlink(temp_text)
                 else:
-                    cmd.append(f'label:"{escaped_name}"')  # Text label
+                    cmd.append(f'label:{escaped_name}')  # Text label
                     cmd.append(output_path)
                 
                 # Run command (already run for underline case above)
@@ -24430,7 +24430,7 @@ def generate_logo_preview():
                 '-fill', color,
                 '-font', font_path,
                 '-pointsize', str(font_size),
-                f'label:"{escaped_text}"',
+                f'label:{escaped_text}',
                 temp_base
             ]
             
