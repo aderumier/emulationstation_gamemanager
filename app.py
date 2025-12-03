@@ -28873,49 +28873,95 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     progress_percent = int((i / total_games) * 100)
                     t.update_progress(f"🔍 Processing game {i+1}/{total_games}: {display_name}", progress_percentage=progress_percent, current_step=i+1, total_steps=total_games)
                 
-                # Try direct exact match using normalized game name or ROM name
+                # Check if game already has a customid - reuse it if it exists
+                existing_customid = game.get('customid')
                 game_data = None
                 game_id = None
                 match_found = False
+                db_to_use = custom_db
                 
-                # Try with game name first
-                if game_name:
-                    print(f"🔍 DEBUG: Trying exact match with game_name='{game_name}'")
-                    result = service.find_game_exact(custom_db, game_name)
-                    if result:
-                        game_id, game_data = result
-                        match_found = True
-                        print(f"✅ DEBUG: Found exact match with game_name: {game_id}")
+                if existing_customid and str(existing_customid).strip():
+                    # Parse existing customid to extract database and game ID
+                    db_from_customid, parsed_game_id = parse_customid(existing_customid)
+                    
+                    if db_from_customid and parsed_game_id:
+                        # Use database from customid if available
+                        db_to_use = db_from_customid
+                        game_id = parsed_game_id
+                        
+                        # Verify database exists
+                        if db_to_use in service.databases:
+                            # Get game data using existing ID
+                            game_data = service.get_game_by_id(db_to_use, game_id)
+                            if game_data:
+                                match_found = True
+                                print(f"♻️ Using existing customid '{existing_customid}' for {display_name} (db: {db_to_use}, id: {game_id})")
+                            else:
+                                print(f"⚠️ Existing customid '{existing_customid}' found but game data not available, will search for new match")
+                        else:
+                            print(f"⚠️ Existing customid '{existing_customid}' references unknown database '{db_to_use}', will search for new match")
                     else:
-                        print(f"❌ DEBUG: No exact match found with game_name='{game_name}'")
+                        # Backward compatibility: try using customid as-is with system config database
+                        if custom_db in service.databases:
+                            game_id = existing_customid
+                            db_to_use = custom_db
+                            game_data = service.get_game_by_id(custom_db, game_id)
+                            if game_data:
+                                match_found = True
+                                print(f"♻️ Using existing customid '{existing_customid}' for {display_name} (backward compatibility)")
+                            else:
+                                print(f"⚠️ Existing customid '{existing_customid}' not found in database, will search for new match")
                 
-                # If no match with game name, try with ROM name (without extension)
-                if not match_found and rom_name_without_ext:
-                    print(f"🔍 DEBUG: Trying exact match with rom_name_without_ext='{rom_name_without_ext}'")
-                    result = service.find_game_exact(custom_db, rom_name_without_ext)
-                    if result:
-                        game_id, game_data = result
-                        match_found = True
-                        print(f"✅ DEBUG: Found exact match with rom_name: {game_id}")
-                    else:
-                        print(f"❌ DEBUG: No exact match found with rom_name_without_ext='{rom_name_without_ext}'")
+                # If no existing customid or existing one didn't work, search for a match
+                if not match_found:
+                    # Try direct exact match using normalized game name or ROM name
+                    # Try with game name first
+                    if game_name:
+                        print(f"🔍 DEBUG: Trying exact match with game_name='{game_name}'")
+                        result = service.find_game_exact(custom_db, game_name)
+                        if result:
+                            game_id, game_data = result
+                            db_to_use = custom_db
+                            match_found = True
+                            print(f"✅ DEBUG: Found exact match with game_name: {game_id}")
+                        else:
+                            print(f"❌ DEBUG: No exact match found with game_name='{game_name}'")
+                    
+                    # If no match with game name, try with ROM name (without extension)
+                    if not match_found and rom_name_without_ext:
+                        print(f"🔍 DEBUG: Trying exact match with rom_name_without_ext='{rom_name_without_ext}'")
+                        result = service.find_game_exact(custom_db, rom_name_without_ext)
+                        if result:
+                            game_id, game_data = result
+                            db_to_use = custom_db
+                            match_found = True
+                            print(f"✅ DEBUG: Found exact match with rom_name: {game_id}")
+                        else:
+                            print(f"❌ DEBUG: No exact match found with rom_name_without_ext='{rom_name_without_ext}'")
                 
                 if match_found and game_data and game_id:
                     # Get game name from game_data for logging
                     matched_name = game_data.get('name', game_id)
-                    print(f"✅ Found Custom match for '{display_name}': {matched_name}")
                     
                     # Store customid in format '<database>/<id>'
-                    # Ensure custom_db is set (should always be set at this point)
-                    if not custom_db:
-                        logger.error(f"ERROR: custom_db is empty when formatting customid for game_id='{game_id}'")
-                        custom_db = system_config.get('custom', '')
-                        if not custom_db:
-                            logger.error(f"ERROR: custom_db not found in system_config either!")
+                    # Use db_to_use which may be from existing customid or from search
+                    if not db_to_use:
+                        logger.error(f"ERROR: db_to_use is empty when formatting customid for game_id='{game_id}'")
+                        db_to_use = system_config.get('custom', '')
+                        if not db_to_use:
+                            logger.error(f"ERROR: db_to_use not found in system_config either!")
                     
-                    formatted_customid = format_customid(custom_db, game_id)
-                    print(f"🔧 DEBUG: Formatting customid - custom_db='{custom_db}', game_id='{game_id}', formatted='{formatted_customid}'")
+                    formatted_customid = format_customid(db_to_use, game_id)
+                    print(f"🔧 DEBUG: Formatting customid - db_to_use='{db_to_use}', game_id='{game_id}', formatted='{formatted_customid}'")
                     game['customid'] = formatted_customid
+                    
+                    # If using existing customid and no fields are selected, skip processing entirely
+                    if existing_customid and str(existing_customid).strip() and not selected_text_fields and not selected_media_fields:
+                        print(f"⚡ No fields selected - skipping processing for existing customid {formatted_customid}")
+                        processed_count += 1
+                        continue
+                    
+                    print(f"✅ Found Custom match for '{display_name}': {matched_name}")
                     
                     # Extract text fields - only process selected fields
                     text_fields = {}
@@ -28931,7 +28977,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
                     if selected_media_fields:
                         for custom_field, gamelist_field in media_field_mapping.items():
                             if gamelist_field in selected_media_fields:
-                                media_url = service.get_media_url(custom_db, game_id, custom_field)
+                                media_url = service.get_media_url(db_to_use, game_id, custom_field)
                                 if media_url:
                                     media_fields[gamelist_field] = media_url
                     
