@@ -22879,13 +22879,31 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 escaped_name = game_name.replace('\\', '\\\\').replace('"', '\\"')
                 
                 # Create logo using ImageMagick label: with transparent background
+                # Check if font is a custom font from var/fonts/
+                font_path = font
+                custom_fonts_dir = 'var/fonts'
+                if os.path.exists(custom_fonts_dir):
+                    # Check if font file exists in custom fonts directory
+                    font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
+                    for ext in font_extensions:
+                        font_file = os.path.join(custom_fonts_dir, f"{font}{ext}")
+                        if os.path.exists(font_file):
+                            font_path = font_file
+                            break
+                    # Also check with exact filename match
+                    if font_path == font:
+                        for filename in os.listdir(custom_fonts_dir):
+                            if os.path.splitext(filename)[0] == font:
+                                font_path = os.path.join(custom_fonts_dir, filename)
+                                break
+                
                 # For bold: use stroke with same color as fill to simulate bold
                 # For italic: use shear to skew text horizontally
                 cmd = [
                     'convert',
                     '-background', 'none',  # Transparent background
                     '-fill', color,         # Text color
-                    '-font', font,          # Font family
+                    '-font', font_path,     # Font family (or path to custom font)
                     '-pointsize', str(font_size),  # Font size
                 ]
                 
