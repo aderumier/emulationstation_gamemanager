@@ -22874,6 +22874,8 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 escaped_name = game_name.replace('\\', '\\\\').replace('"', '\\"')
                 
                 # Create logo using ImageMagick label: with transparent background
+                # For bold: use stroke with same color as fill to simulate bold
+                # For italic: use shear to skew text horizontally
                 cmd = [
                     'convert',
                     '-background', 'none',  # Transparent background
@@ -22882,11 +22884,13 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                     '-pointsize', str(font_size),  # Font size
                 ]
                 
-                # Add font style options
+                # Simulate bold using stroke (outline text with same color)
                 if bold:
-                    cmd.extend(['-weight', 'Bold'])
+                    cmd.extend(['-stroke', color, '-strokewidth', '1'])
+                
+                # Add shear for italic effect (skew horizontally)
                 if italic:
-                    cmd.extend(['-style', 'Italic'])
+                    cmd.extend(['-shear', '15x0'])  # 15 degree horizontal shear
                 
                 # For underline, we need to draw it separately
                 if underline:
@@ -24349,6 +24353,8 @@ def generate_logo_preview():
             escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
             
             # Generate preview using ImageMagick
+            # For bold: use stroke with same color as fill to simulate bold
+            # For italic: use shear to skew text horizontally
             cmd = [
                 'convert',
                 '-background', 'none',  # Transparent background
@@ -24357,11 +24363,13 @@ def generate_logo_preview():
                 '-pointsize', str(font_size),  # Font size
             ]
             
-            # Add font style options
+            # Simulate bold using stroke (outline text with same color)
             if bold:
-                cmd.extend(['-weight', 'Bold'])
+                cmd.extend(['-stroke', color, '-strokewidth', '1'])
+            
+            # Add shear for italic effect (skew horizontally)
             if italic:
-                cmd.extend(['-style', 'Italic'])
+                cmd.extend(['-shear', '15x0'])  # 15 degree horizontal shear
             
             cmd.append(f'label:"{escaped_text}"')  # Text label
             
