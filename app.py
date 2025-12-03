@@ -24301,6 +24301,17 @@ def generate_2d_box():
 @login_required
 def generate_logo():
     """Start logo generation task for selected games"""
+    # Initialize all variables with defaults first
+    system_name = None
+    selected_games = []
+    color = '#ffffff'
+    font_size = 72
+    font = 'Arial'
+    bold = False
+    italic = False
+    underline = False
+    uppercase = False
+    
     try:
         data = request.get_json()
         system_name = data.get('system_name')
