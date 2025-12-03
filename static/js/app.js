@@ -10693,25 +10693,25 @@ class GameCollectionManager {
                     }, 100);
                 }
                 
-                if (bold !== null && bold !== undefined) {
+                if (settings.bold !== null && settings.bold !== undefined) {
                     if (document.getElementById('logoGeneratorBold')) {
                         document.getElementById('logoGeneratorBold').checked = settings.bold || false;
                     }
                 }
                 
-                if (italic !== null && italic !== undefined) {
+                if (settings.italic !== null && settings.italic !== undefined) {
                     if (document.getElementById('logoGeneratorItalic')) {
                         document.getElementById('logoGeneratorItalic').checked = settings.italic || false;
                     }
                 }
                 
-                if (underline !== null && underline !== undefined) {
+                if (settings.underline !== null && settings.underline !== undefined) {
                     if (document.getElementById('logoGeneratorUnderline')) {
                         document.getElementById('logoGeneratorUnderline').checked = settings.underline || false;
                     }
                 }
                 
-                if (uppercase !== null && uppercase !== undefined) {
+                if (settings.uppercase !== null && settings.uppercase !== undefined) {
                     if (document.getElementById('logoGeneratorUppercase')) {
                         document.getElementById('logoGeneratorUppercase').checked = settings.uppercase || false;
                     }
