@@ -10894,6 +10894,9 @@ class GameCollectionManager {
                 return;
             }
             
+            // Save settings before closing
+            this.saveLogoGeneratorSettings();
+            
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('logoGeneratorModal'));
             if (modal) {
