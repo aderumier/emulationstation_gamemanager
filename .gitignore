@@ -159,6 +159,8 @@ var/
 !var/db/mobygames/*.json
 !var/db/custom/
 !var/db/custom/*.json
+!var/fonts/
+!var/fonts/**
 # Exclude credentials files for security
 var/config/credentials.json
 var/config/credentials.enc
