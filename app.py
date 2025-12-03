@@ -22930,11 +22930,12 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                     cmd.append(f'label:"{escaped_name}"')  # Text label
                     cmd.append(output_path)
                 
-                print(f"🔧 DEBUG: Running ImageMagick command: {' '.join(cmd)}")
-                if not underline:  # Only run if not already run for underline
+                # Run command (already run for underline case above)
+                if not underline:
+                    print(f"🔧 DEBUG: Running ImageMagick command: {' '.join(cmd)}")
                     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-                
-                if result.returncode != 0:
+                    
+                    if result.returncode != 0:
                     error_msg = f"ImageMagick failed for {game_name}: {result.stderr}"
                     print(f"❌ ERROR: {error_msg}")
                     task.update_progress(f"⚠️  {error_msg}")
