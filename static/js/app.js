@@ -1902,12 +1902,14 @@ class GameCollectionManager {
         if (logoColorPicker && logoColorText) {
             logoColorPicker.addEventListener('input', (e) => {
                 logoColorText.value = e.target.value;
+                this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
             logoColorText.addEventListener('input', (e) => {
                 const color = e.target.value;
                 if (/^#[0-9A-F]{6}$/i.test(color)) {
                     logoColorPicker.value = color;
+                    this.saveLogoGeneratorSettings();
                     this.updateLogoPreview();
                 }
             });
@@ -1915,12 +1917,14 @@ class GameCollectionManager {
         
         if (logoFontSize) {
             logoFontSize.addEventListener('input', () => {
+                this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
         }
         
         if (logoFont) {
             logoFont.addEventListener('change', () => {
+                this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
         }
@@ -1933,21 +1937,25 @@ class GameCollectionManager {
         
         if (logoBold) {
             logoBold.addEventListener('change', () => {
+                this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
         }
         if (logoItalic) {
             logoItalic.addEventListener('change', () => {
+                this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
         }
         if (logoUnderline) {
             logoUnderline.addEventListener('change', () => {
+                this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
         }
         if (logoUppercase) {
             logoUppercase.addEventListener('change', () => {
+                this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
         }
@@ -10623,10 +10631,95 @@ class GameCollectionManager {
         // Load fonts from server
         this.loadAvailableFonts();
         
+        // Load saved settings from localStorage
+        this.loadLogoGeneratorSettings();
+        
         // Generate initial preview after modal is shown
         setTimeout(() => {
             this.updateLogoPreview();
         }, 300);
+    }
+
+    saveLogoGeneratorSettings() {
+        try {
+            const settings = {
+                color: document.getElementById('logoGeneratorColorText')?.value || '#ffffff',
+                fontSize: parseInt(document.getElementById('logoGeneratorFontSize')?.value) || 72,
+                font: document.getElementById('logoGeneratorFont')?.value || 'Arial',
+                bold: document.getElementById('logoGeneratorBold')?.checked || false,
+                italic: document.getElementById('logoGeneratorItalic')?.checked || false,
+                underline: document.getElementById('logoGeneratorUnderline')?.checked || false,
+                uppercase: document.getElementById('logoGeneratorUppercase')?.checked || false
+            };
+            localStorage.setItem('logoGeneratorSettings', JSON.stringify(settings));
+        } catch (error) {
+            console.error('Error saving logo generator settings:', error);
+        }
+    }
+
+    loadLogoGeneratorSettings() {
+        try {
+            const savedSettings = localStorage.getItem('logoGeneratorSettings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                
+                // Apply saved settings to form inputs
+                const colorText = document.getElementById('logoGeneratorColorText');
+                const colorPicker = document.getElementById('logoGeneratorColor');
+                const fontSize = document.getElementById('logoGeneratorFontSize');
+                const font = document.getElementById('logoGeneratorFont');
+                const bold = document.getElementById('logoGeneratorBold');
+                const italic = document.getElementById('logoGeneratorItalic');
+                const underline = document.getElementById('logoGeneratorUnderline');
+                const uppercase = document.getElementById('logoGeneratorUppercase');
+                
+                if (settings.color && colorText && colorPicker) {
+                    colorText.value = settings.color;
+                    if (/^#[0-9A-F]{6}$/i.test(settings.color)) {
+                        colorPicker.value = settings.color;
+                    }
+                }
+                
+                if (settings.fontSize && fontSize) {
+                    fontSize.value = settings.fontSize;
+                }
+                
+                if (settings.font && font) {
+                    // Wait a bit for fonts to load, then set the value
+                    setTimeout(() => {
+                        if (font.querySelector(`option[value="${settings.font}"]`)) {
+                            font.value = settings.font;
+                        }
+                    }, 100);
+                }
+                
+                if (bold !== null && bold !== undefined) {
+                    if (document.getElementById('logoGeneratorBold')) {
+                        document.getElementById('logoGeneratorBold').checked = settings.bold || false;
+                    }
+                }
+                
+                if (italic !== null && italic !== undefined) {
+                    if (document.getElementById('logoGeneratorItalic')) {
+                        document.getElementById('logoGeneratorItalic').checked = settings.italic || false;
+                    }
+                }
+                
+                if (underline !== null && underline !== undefined) {
+                    if (document.getElementById('logoGeneratorUnderline')) {
+                        document.getElementById('logoGeneratorUnderline').checked = settings.underline || false;
+                    }
+                }
+                
+                if (uppercase !== null && uppercase !== undefined) {
+                    if (document.getElementById('logoGeneratorUppercase')) {
+                        document.getElementById('logoGeneratorUppercase').checked = settings.uppercase || false;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading logo generator settings:', error);
+        }
     }
 
     async loadAvailableFonts() {
