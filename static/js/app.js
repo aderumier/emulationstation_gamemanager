@@ -1882,7 +1882,8 @@ class GameCollectionManager {
             this.findBestMatchForSelectedCustom(); // Use Custom-specific functionality
         });
         
-        document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', async () => {
+        document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
             await this.ensurePanelGameSavedIfOpen();
             this.generate2DBoxForSelected();
         });
@@ -10479,7 +10480,7 @@ class GameCollectionManager {
                 return;
             }
             
-            const button = document.getElementById('global2DBoxGeneratorBtn');
+            const button = document.getElementById('globalGeneratorBtn');
             if (button) {
                 button.disabled = true;
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating...';
@@ -10515,10 +10516,10 @@ class GameCollectionManager {
             this.showAlert('Error starting 2D box generation: ' + error.message, 'danger');
         } finally {
             // Reset button state
-            const button = document.getElementById('global2DBoxGeneratorBtn');
+            const button = document.getElementById('globalGeneratorBtn');
             if (button) {
                 button.disabled = false;
-                button.innerHTML = '<i class="bi bi-image"></i> 2D Box Generator';
+                button.innerHTML = '<i class="bi bi-magic"></i> Generator';
             }
         }
     }
@@ -23897,9 +23898,9 @@ class GameCollectionManager {
     }
     
     update2DBoxGeneratorButtonState() {
-        const boxGeneratorBtn = document.getElementById('global2DBoxGeneratorBtn');
-        if (boxGeneratorBtn) {
-            boxGeneratorBtn.disabled = this.selectedGames.length === 0;
+        const generatorBtn = document.getElementById('globalGeneratorBtn');
+        if (generatorBtn) {
+            generatorBtn.disabled = this.selectedGames.length === 0;
         }
     }
     

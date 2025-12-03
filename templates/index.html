@@ -592,9 +592,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </a></li>
                     </ul>
                 </div>
-                <button id="global2DBoxGeneratorBtn" class="btn btn-outline-success btn-sm ms-2" disabled>
-                    <i class="bi bi-image"></i> 2D Box Generator
-                </button>
+                <div class="btn-group ms-2" role="group">
+                    <button type="button" class="btn btn-outline-success btn-sm dropdown-toggle" id="globalGeneratorBtn" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-offset="0,2" aria-expanded="false" disabled>
+                        <i class="bi bi-magic"></i> Generator
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="globalGeneratorBtn">
+                        <li><a class="dropdown-item" href="#" id="global2DBoxGeneratorBtn">
+                            <i class="bi bi-image me-2"></i>2D Box Generator
+                        </a></li>
+                    </ul>
+                </div>
                 <button id="globalYoutubeDownloadBtn" class="btn btn-outline-danger btn-sm ms-2" disabled>
                     <i class="bi bi-youtube"></i> YouTube Download
                 </button>
