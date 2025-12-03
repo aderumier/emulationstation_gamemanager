@@ -24325,6 +24325,9 @@ def generate_logo():
         })
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error in generate_logo: {error_trace}")
         return jsonify({'error': f'Failed to start logo generation: {str(e)}'}), 500
 
 @app.route('/api/generate-logo-preview', methods=['POST'])
