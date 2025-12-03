@@ -651,6 +651,7 @@
         "mobygames": "3DO",
         "emumovies": "",
         "dat_file": "",
+        "custom": "",
         "extensions": [
             ".CUE",
             ".ISO",
@@ -769,6 +770,13 @@
         ]
     },
     "atarist": {
+        "launchbox": "Atari ST",
+        "screenscraper": 42,
+        "igdb": 63,
+        "mobygames": "",
+        "emumovies": "",
+        "dat_file": "",
+        "custom": "atarilegend",
         "extensions": [
             ".7z",
             ".MSA",
@@ -781,10 +789,7 @@
             ".st",
             ".stx",
             ".zip"
-        ],
-        "launchbox": "Atari ST",
-        "igdb": 63,
-        "screenscraper": 42
+        ]
     },
     "msx": {
         "extensions": [
