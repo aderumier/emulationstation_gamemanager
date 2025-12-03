@@ -22760,7 +22760,7 @@ def run_2d_box_generation_task(system_name, selected_games):
         # Process next queued task
         process_next_queued_task()
 
-def run_logo_generation_task(system_name, selected_games, color, font_size, font, bold=False, italic=False, underline=False):
+def run_logo_generation_task(system_name, selected_games, color, font_size, font, bold=False, italic=False, underline=False, uppercase=False):
     """Run logo generation task in background thread"""
     global current_task_id
     
@@ -22773,7 +22773,7 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
         
         print(f"🎨 Starting logo generation for system: {system_name}")
         print(f"🔧 DEBUG: Selected games: {selected_games}")
-        print(f"🔧 DEBUG: Color: {color}, Font size: {font_size}, Font: {font}, Bold: {bold}, Italic: {italic}, Underline: {underline}")
+        print(f"🔧 DEBUG: Color: {color}, Font size: {font_size}, Font: {font}, Bold: {bold}, Italic: {italic}, Underline: {underline}, Uppercase: {uppercase}")
         task.update_progress(f"Starting logo generation for {len(selected_games)} games")
         task.update_progress(f"System: {system_name}")
         
