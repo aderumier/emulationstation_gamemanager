@@ -70,7 +70,7 @@ class BoxGenerator:
             return False
     
     def generate_2d_box(self, titlescreen_path, gameplay_path, logo_path, output_path, 
-                       secondary_logo_path=None):
+                       secondary_logo_path=None, additional_screenshot_path=None):
         """
         Generate 2D box art from titlescreen, gameplay, and logo images
         Following the exact logic from the bash script
@@ -81,6 +81,7 @@ class BoxGenerator:
             logo_path: Path to logo image
             output_path: Path for output 2D box
             secondary_logo_path: Optional secondary logo path
+            additional_screenshot_path: Optional additional screenshot to place in middle, under logo and above gameplay
         """
         temp_files = []
         
@@ -95,8 +96,42 @@ class BoxGenerator:
             # Calculate 75% width for gameplay image (as in bash script)
             gameplay_width = int(self.width * 75 / 100)
             
+            # Process additional screenshot first if provided (needed for positioning calculations)
+            additional_screenshot_height = 0
+            if additional_screenshot_path and os.path.exists(additional_screenshot_path):
+                logging.info("0. Processing additional screenshot...")
+                # Resize additional screenshot to fit in middle third (1/3 of height)
+                additional_width = int(self.width * 50 / 100)  # 50% width
+                additional_height = int(self.height * 30 / 100)  # ~30% height to fit in middle third
+                cmd = [
+                    'convert', additional_screenshot_path,
+                    '-resize', f'{additional_width}x{additional_height}>',
+                    '-bordercolor', self.title_border_color,
+                    '-border', f'{self.title_border_size}x{self.title_border_size}',
+                    'temp_additional_screenshot.jpg'
+                ]
+                subprocess.run(cmd, check=True)
+                temp_files.append('temp_additional_screenshot.jpg')
+                # Get actual height for positioning calculations
+                identify_cmd = ['identify', '-format', '%h', 'temp_additional_screenshot.jpg']
+                dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                if dim_result.returncode == 0:
+                    additional_screenshot_height = int(dim_result.stdout.strip())
+            
             # Step 1: Prepare background (exactly like bash script)
             logging.info("1. Preparing background...")
+            
+            # Calculate positions: divide height into thirds
+            # Top third (0-33%): Logo
+            # Middle third (33-66%): Additional screenshot - positioned at ~38% from top
+            # Bottom third (66-100%): Gameplay - positioned slightly higher
+            if additional_screenshot_path and os.path.exists(additional_screenshot_path):
+                # Position gameplay slightly higher than original 66% (around 64% from top)
+                # With -gravity center, positive offset moves down from center
+                # 64% from top = center (50%) + 14% = +14% offset from center
+                gameplay_y_offset = int(self.height * 10 / 100)  # +14%: move down from center to 64%
+            else:
+                gameplay_y_offset = self.height // 6  # 1/6 down (as in bash script)
             
             if self.use_blurred_bg:
                 # Create blurred background from titlescreen
@@ -110,22 +145,82 @@ class BoxGenerator:
                 ]
                 subprocess.run(cmd, check=True)
                 temp_files.append('temp_blurred_bg.jpg')
-                
-                # Prepare gameplay image with border (75% width)
+                base_bg = 'temp_blurred_bg.jpg'
+            else:
+                # Original mode with solid background
+                base_bg = None  # Will create it below
+            
+            # Compose additional screenshot onto base background FIRST (if present)
+            if additional_screenshot_path and os.path.exists(additional_screenshot_path):
+                # Position additional screenshot in middle third, slightly below logo to avoid overlap
+                # Target: ~38% from top (just under logo with some spacing)
+                # With -gravity center, 38% from top = center (50%) - 12% = -12% offset from center
+                additional_y_offset = int(self.height * -12 / 100)  # -12%: move up from center to 38%
+                # Format geometry string correctly for negative offsets
+                if additional_y_offset >= 0:
+                    additional_geometry = f'+0+{additional_y_offset}'
+                else:
+                    additional_geometry = f'+0{additional_y_offset}'  # Negative: +0-136
+                logging.info(f"Composing additional screenshot at geometry: {additional_geometry}")
+                if self.use_blurred_bg:
+                    cmd = [
+                        'convert', base_bg,
+                        'temp_additional_screenshot.jpg',
+                        '-gravity', 'center',
+                        '-geometry', additional_geometry,
+                        '-composite', 'temp_bg_with_additional.jpg'
+                    ]
+                    subprocess.run(cmd, check=True)
+                    temp_files.append('temp_bg_with_additional.jpg')
+                    base_bg = 'temp_bg_with_additional.jpg'
+                else:
+                    # Create solid background and add additional screenshot
+                    cmd = [
+                        'convert',
+                        '-size', f'{self.width}x{self.height}',
+                        f'xc:{self.background_color}',
+                        'temp_additional_screenshot.jpg',
+                        '-gravity', 'center',
+                        '-geometry', additional_geometry,
+                        '-composite', 'temp_bg_with_additional.jpg'
+                    ]
+                    subprocess.run(cmd, check=True)
+                    temp_files.append('temp_bg_with_additional.jpg')
+                    base_bg = 'temp_bg_with_additional.jpg'
+            
+            # Prepare gameplay image with border
+            # If additional screenshot exists, resize to fit bottom third only
+            if additional_screenshot_path and os.path.exists(additional_screenshot_path):
+                # Resize to fit in bottom third (66-100% of height, ~33% of total height)
+                # But allow it to be a bit larger to fill the space better
+                gameplay_height = int(self.height * 40 / 100)  # Slightly larger than 33% to fill bottom third
+                logging.info(f"Resizing gameplay to fit bottom third: {gameplay_width}x{gameplay_height}")
                 cmd = [
                     'convert', gameplay_path,
-                    '-resize', f'{gameplay_width}x{self.height}>',
+                    '-resize', f'{gameplay_width}x{gameplay_height}>',
                     '-bordercolor', self.title_border_color,
                     '-border', f'{self.title_border_size}x{self.title_border_size}',
                     'temp_main.jpg'
                 ]
-                subprocess.run(cmd, check=True)
-                temp_files.append('temp_main.jpg')
-                
-                # Compose gameplay on blurred background (centered in lower 2/3)
-                gameplay_y_offset = self.height // 6  # 1/6 down (as in bash script)
+            else:
+                # Normal resize (75% width, full height) - resize to fit while maintaining aspect ratio
+                # Remove '>' so smaller images are upscaled to match the target size
                 cmd = [
-                    'convert', 'temp_blurred_bg.jpg', 'temp_main.jpg',
+                    'convert', gameplay_path,
+                    '-resize', f'{gameplay_width}x{self.height}',  # Resize to fit, maintain aspect ratio
+                    '-bordercolor', self.title_border_color,
+                    '-border', f'{self.title_border_size}x{self.title_border_size}',
+                    'temp_main.jpg'
+                ]
+            subprocess.run(cmd, check=True)
+            temp_files.append('temp_main.jpg')
+            
+            # Compose gameplay onto background (now includes additional screenshot if present)
+            logging.info(f"Composing gameplay at offset: +0+{gameplay_y_offset} (from center)")
+            if self.use_blurred_bg:
+                # Use base_bg which may already have additional screenshot
+                cmd = [
+                    'convert', base_bg, 'temp_main.jpg',
                     '-gravity', 'center',
                     '-geometry', f'+0+{gameplay_y_offset}',
                     '-composite', 'temp_bg.jpg'
@@ -133,30 +228,26 @@ class BoxGenerator:
                 subprocess.run(cmd, check=True)
                 temp_files.append('temp_bg.jpg')
             else:
-                # Original mode with solid background
-                gameplay_y_offset = self.height // 6
-                
-                # Prepare gameplay image with border
-                cmd = [
-                    'convert', gameplay_path,
-                    '-resize', f'{gameplay_width}x{self.height}>',
-                    '-bordercolor', self.title_border_color,
-                    '-border', f'{self.title_border_size}x{self.title_border_size}',
-                    'temp_main.jpg'
-                ]
-                subprocess.run(cmd, check=True)
-                temp_files.append('temp_main.jpg')
-                
                 # Create background with gameplay positioned in lower 2/3
-                cmd = [
-                    'convert', 
-                    '-size', f'{self.width}x{self.height}',
-                    f'xc:{self.background_color}',
-                    'temp_main.jpg',
-                    '-gravity', 'center',
-                    '-geometry', f'+0+{gameplay_y_offset}',
-                    '-composite', 'temp_bg.jpg'
-                ]
+                if base_bg:
+                    # base_bg already has additional screenshot, just add gameplay
+                    cmd = [
+                        'convert', base_bg, 'temp_main.jpg',
+                        '-gravity', 'center',
+                        '-geometry', f'+0+{gameplay_y_offset}',
+                        '-composite', 'temp_bg.jpg'
+                    ]
+                else:
+                    # No additional screenshot, create normal background
+                    cmd = [
+                        'convert', 
+                        '-size', f'{self.width}x{self.height}',
+                        f'xc:{self.background_color}',
+                        'temp_main.jpg',
+                        '-gravity', 'center',
+                        '-geometry', f'+0+{gameplay_y_offset}',
+                        '-composite', 'temp_bg.jpg'
+                    ]
                 subprocess.run(cmd, check=True)
                 temp_files.append('temp_bg.jpg')
             
@@ -255,7 +346,7 @@ class BoxGenerator:
             # Compose secondary logo if present
             if secondary_logo_path and os.path.exists(secondary_logo_path):
                 cmd = [
-                    'convert', 'temp_final.jpg',
+                    'convert', final_temp,
                     'temp_secondary_logo.png',
                     '-gravity', self.secondary_position,
                     '-geometry', self.secondary_offset,
