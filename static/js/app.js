@@ -1885,7 +1885,7 @@ class GameCollectionManager {
         document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', async (e) => {
             e.preventDefault();
             await this.ensurePanelGameSavedIfOpen();
-            this.generate2DBoxForSelected();
+            this.openBox2DGeneratorModal();
         });
         document.getElementById('globalLogoGeneratorBtn').addEventListener('click', async (e) => {
             e.preventDefault();
@@ -1893,6 +1893,7 @@ class GameCollectionManager {
             this.openLogoGeneratorModal();
         });
         document.getElementById('startLogoGeneratorBtn').addEventListener('click', () => this.startLogoGeneration());
+        document.getElementById('startBox2DGeneratorBtn').addEventListener('click', () => this.startBox2DGeneration());
         // Sync color picker with text input and update preview
         const logoColorPicker = document.getElementById('logoGeneratorColor');
         const logoColorText = document.getElementById('logoGeneratorColorText');
@@ -1917,6 +1918,14 @@ class GameCollectionManager {
         
         if (logoFontSize) {
             logoFontSize.addEventListener('input', () => {
+                this.saveLogoGeneratorSettings();
+                this.updateLogoPreview();
+            });
+        }
+        
+        const logoMaxCharsPerLine = document.getElementById('logoGeneratorMaxCharsPerLine');
+        if (logoMaxCharsPerLine) {
+            logoMaxCharsPerLine.addEventListener('input', () => {
                 this.saveLogoGeneratorSettings();
                 this.updateLogoPreview();
             });
@@ -4584,6 +4593,7 @@ class GameCollectionManager {
             genre: String(game.genre || '').trim(),
             developer: String(game.developer || '').trim(),
             publisher: String(game.publisher || '').trim(),
+            family: String(game.family || '').trim(),
             rating: String(game.rating || '').trim(),
             players: String(game.players || '').trim(),
             releasedate: originalReleasedate, // Store in date input format for comparison
@@ -7246,6 +7256,7 @@ class GameCollectionManager {
                             genre: String(savedGame.genre || '').trim(),
                             developer: String(savedGame.developer || '').trim(),
                             publisher: String(savedGame.publisher || '').trim(),
+                            family: String(savedGame.family || '').trim(),
                             rating: String(savedGame.rating || '').trim(),
                             players: String(savedGame.players || '').trim(),
                             releasedate: savedReleasedate, // Store in date input format
@@ -7255,6 +7266,7 @@ class GameCollectionManager {
                             steamid: String(savedGame.steamid || '').trim(),
                             steamgridid: String(savedGame.steamgridid || '').trim(),
                             mobygamesid: String(savedGame.mobygamesid || '').trim(),
+                            customid: String(savedGame.customid || '').trim(),
                             youtubeurl: String(savedGame.youtubeurl || '').trim(),
                             favorite: savedGame.favorite === true || savedGame.favorite === 'true',
                             kidgame: savedGame.kidgame === true || savedGame.kidgame === 'true'
@@ -7281,6 +7293,7 @@ class GameCollectionManager {
                             genre: String(savedGame.genre || '').trim(),
                             developer: String(savedGame.developer || '').trim(),
                             publisher: String(savedGame.publisher || '').trim(),
+                            family: String(savedGame.family || '').trim(),
                             rating: String(savedGame.rating || '').trim(),
                             players: String(savedGame.players || '').trim(),
                             releasedate: savedReleasedate, // Store in date input format
@@ -7290,6 +7303,7 @@ class GameCollectionManager {
                             steamid: String(savedGame.steamid || '').trim(),
                             steamgridid: String(savedGame.steamgridid || '').trim(),
                             mobygamesid: String(savedGame.mobygamesid || '').trim(),
+                            customid: String(savedGame.customid || '').trim(),
                             youtubeurl: String(savedGame.youtubeurl || '').trim(),
                             favorite: savedGame.favorite === true || savedGame.favorite === 'true',
                             kidgame: savedGame.kidgame === true || savedGame.kidgame === 'true'
@@ -10545,19 +10559,148 @@ class GameCollectionManager {
         return row;
     }
 
-    async generate2DBoxForSelected() {
+    async openBox2DGeneratorModal() {
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game first', 'warning');
+            return;
+        }
+        
+        // Load media fields
+        await this.loadBox2DGeneratorFields();
+        
+        // Load saved settings
+        this.loadBox2DGeneratorSettings();
+        
+        // Open modal
+        const modal = new bootstrap.Modal(document.getElementById('box2DGeneratorModal'));
+        modal.show();
+    }
+    
+    async loadBox2DGeneratorFields() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            if (response.ok) {
+                const mediaFields = config.media_fields || {};
+                const box2DConfig = config['2dboxgenerator'] || {};
+                
+                // Populate dropdowns
+                const backgroundField = document.getElementById('box2DGeneratorBackgroundField');
+                const screenField = document.getElementById('box2DGeneratorScreenField');
+                const additionalScreenshotField = document.getElementById('box2DGeneratorAdditionalScreenshotField');
+                const targetField = document.getElementById('box2DGeneratorTargetField');
+                
+                // Clear existing options
+                [backgroundField, screenField, additionalScreenshotField, targetField].forEach(select => {
+                    select.innerHTML = '';
+                });
+                
+                // Add "None" option to additional screenshot
+                additionalScreenshotField.innerHTML = '<option value="">None (disabled)</option>';
+                
+                // Populate with media fields
+                Object.keys(mediaFields).forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    
+                    backgroundField.appendChild(option.cloneNode(true));
+                    screenField.appendChild(option.cloneNode(true));
+                    additionalScreenshotField.appendChild(option.cloneNode(true));
+                    targetField.appendChild(option.cloneNode(true));
+                });
+                
+                // Set defaults from config
+                const sourceFields = box2DConfig.source_fields || {};
+                if (sourceFields.titlescreen) {
+                    backgroundField.value = sourceFields.titlescreen;
+                }
+                if (sourceFields.gameplay) {
+                    screenField.value = sourceFields.gameplay;
+                }
+                if (box2DConfig.media_field) {
+                    targetField.value = box2DConfig.media_field;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading media fields:', error);
+            this.showAlert('Error loading media fields', 'danger');
+        }
+    }
+    
+    loadBox2DGeneratorSettings() {
+        try {
+            const saved = localStorage.getItem('box2DGeneratorSettings');
+            if (saved) {
+                const settings = JSON.parse(saved);
+                if (settings.backgroundField) {
+                    document.getElementById('box2DGeneratorBackgroundField').value = settings.backgroundField;
+                }
+                if (settings.screenField) {
+                    document.getElementById('box2DGeneratorScreenField').value = settings.screenField;
+                }
+                if (settings.additionalScreenshotField) {
+                    document.getElementById('box2DGeneratorAdditionalScreenshotField').value = settings.additionalScreenshotField;
+                }
+                if (settings.targetField) {
+                    document.getElementById('box2DGeneratorTargetField').value = settings.targetField;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading saved settings:', error);
+        }
+    }
+    
+    saveBox2DGeneratorSettings() {
+        try {
+            const settings = {
+                backgroundField: document.getElementById('box2DGeneratorBackgroundField').value,
+                screenField: document.getElementById('box2DGeneratorScreenField').value,
+                additionalScreenshotField: document.getElementById('box2DGeneratorAdditionalScreenshotField').value,
+                targetField: document.getElementById('box2DGeneratorTargetField').value
+            };
+            localStorage.setItem('box2DGeneratorSettings', JSON.stringify(settings));
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+    
+    async startBox2DGeneration() {
         try {
             if (!this.selectedGames || this.selectedGames.length === 0) {
                 this.showAlert('Please select at least one game first', 'warning');
                 return;
             }
             
+            // Get configuration from modal
+            const backgroundField = document.getElementById('box2DGeneratorBackgroundField').value;
+            const screenField = document.getElementById('box2DGeneratorScreenField').value;
+            const additionalScreenshotField = document.getElementById('box2DGeneratorAdditionalScreenshotField').value || null;
+            const targetField = document.getElementById('box2DGeneratorTargetField').value;
+            
+            // Validate inputs
+            if (!backgroundField || !screenField || !targetField) {
+                this.showAlert('Please select all required fields', 'danger');
+                return;
+            }
+            
+            // Save settings before closing
+            this.saveBox2DGeneratorSettings();
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('box2DGeneratorModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Update button state
             const button = document.getElementById('globalGeneratorBtn');
             if (button) {
                 button.disabled = true;
                 button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating...';
             }
-
+            
             // Get the paths of selected games
             const selectedGamePaths = this.selectedGames.map(game => game.path);
             
@@ -10566,12 +10709,17 @@ class GameCollectionManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     system_name: this.currentSystem,
-                    selected_games: selectedGamePaths
+                    selected_games: selectedGamePaths,
+                    background_field: backgroundField,
+                    screen_field: screenField,
+                    additional_screenshot_field: additionalScreenshotField,
+                    target_field: targetField
                 })
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
             }
             
             const data = await response.json();
@@ -10594,6 +10742,11 @@ class GameCollectionManager {
                 button.innerHTML = '<i class="bi bi-magic"></i> Generator';
             }
         }
+    }
+    
+    async generate2DBoxForSelected() {
+        // Legacy function - now redirects to modal
+        this.openBox2DGeneratorModal();
     }
 
     openLogoGeneratorModal() {
@@ -10645,6 +10798,7 @@ class GameCollectionManager {
             const settings = {
                 color: document.getElementById('logoGeneratorColorText')?.value || '#ffffff',
                 fontSize: parseInt(document.getElementById('logoGeneratorFontSize')?.value) || 72,
+                maxCharsPerLine: parseInt(document.getElementById('logoGeneratorMaxCharsPerLine')?.value) || 15,
                 font: document.getElementById('logoGeneratorFont')?.value || 'Arial',
                 bold: document.getElementById('logoGeneratorBold')?.checked || false,
                 italic: document.getElementById('logoGeneratorItalic')?.checked || false,
@@ -10667,6 +10821,7 @@ class GameCollectionManager {
                 const colorText = document.getElementById('logoGeneratorColorText');
                 const colorPicker = document.getElementById('logoGeneratorColor');
                 const fontSize = document.getElementById('logoGeneratorFontSize');
+                const maxCharsPerLine = document.getElementById('logoGeneratorMaxCharsPerLine');
                 const font = document.getElementById('logoGeneratorFont');
                 const bold = document.getElementById('logoGeneratorBold');
                 const italic = document.getElementById('logoGeneratorItalic');
@@ -10682,6 +10837,10 @@ class GameCollectionManager {
                 
                 if (settings.fontSize && fontSize) {
                     fontSize.value = settings.fontSize;
+                }
+                
+                if (settings.maxCharsPerLine && maxCharsPerLine) {
+                    maxCharsPerLine.value = settings.maxCharsPerLine;
                 }
                 
                 if (settings.font && font) {
@@ -10796,6 +10955,7 @@ class GameCollectionManager {
             // Get current settings
             const color = document.getElementById('logoGeneratorColorText').value || '#ffffff';
             const fontSize = parseInt(document.getElementById('logoGeneratorFontSize').value) || 72;
+            const maxCharsPerLine = parseInt(document.getElementById('logoGeneratorMaxCharsPerLine')?.value) || 15;
             const font = document.getElementById('logoGeneratorFont').value || 'Arial';
             const bold = document.getElementById('logoGeneratorBold')?.checked || false;
             const italic = document.getElementById('logoGeneratorItalic')?.checked || false;
@@ -10830,6 +10990,7 @@ class GameCollectionManager {
                     text: previewGameName,
                     color: color,
                     font_size: fontSize,
+                    max_chars_per_line: maxCharsPerLine,
                     font: font,
                     bold: bold,
                     italic: italic,
@@ -10876,6 +11037,7 @@ class GameCollectionManager {
             // Get configuration from modal
             const color = document.getElementById('logoGeneratorColorText').value || '#ffffff';
             const fontSize = parseInt(document.getElementById('logoGeneratorFontSize').value) || 72;
+            const maxCharsPerLine = parseInt(document.getElementById('logoGeneratorMaxCharsPerLine').value) || 15;
             const font = document.getElementById('logoGeneratorFont').value || 'Arial';
             const bold = document.getElementById('logoGeneratorBold')?.checked || false;
             const italic = document.getElementById('logoGeneratorItalic')?.checked || false;
@@ -10920,6 +11082,7 @@ class GameCollectionManager {
                     selected_games: selectedGamePaths,
                     color: color,
                     font_size: fontSize,
+                    max_chars_per_line: maxCharsPerLine,
                     font: font,
                     bold: bold,
                     italic: italic,
@@ -22601,6 +22764,7 @@ class GameCollectionManager {
             genre: String(game.genre || '').trim(),
             developer: String(game.developer || '').trim(),
             publisher: String(game.publisher || '').trim(),
+            family: String(game.family || '').trim(),
             rating: String(game.rating || '').trim(),
             players: String(game.players || '').trim(),
             releasedate: originalReleasedate, // Store in date input format for comparison
@@ -27150,16 +27314,12 @@ class GameCollectionManager {
     }
 
     async loadAvailableSystems() {
-        console.log('loadAvailableSystems called');
         try {
-            console.log('Fetching from /api/rom-systems...');
             const response = await fetch('/api/rom-systems', {
                 credentials: 'same-origin'
             });
-            console.log('Response status:', response.status);
             if (response.ok) {
                 const systems = await response.json();
-                console.log('Systems received:', systems);
                 this.populateSystemDropdown(systems);
             } else {
                 console.error('Response not ok:', response.status, response.statusText);
@@ -27170,11 +27330,9 @@ class GameCollectionManager {
     }
 
     populateSystemDropdown(systems) {
-        console.log('populateSystemDropdown called with:', systems);
         // Store systems data
         this.allSystems = systems || [];
         this.selectedSystem = null;
-        console.log('Stored systems:', this.allSystems.length);
         
         // Update Select2 with new systems
         this.updateSelect2Options();

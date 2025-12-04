@@ -2826,6 +2826,10 @@ def process_next_queued_task():
         # Start 2D box generation task
         system_name = task_data.get('system_name')
         selected_games = task_data.get('selected_games', [])
+        background_field = task_data.get('background_field')
+        screen_field = task_data.get('screen_field')
+        additional_screenshot_field = task_data.get('additional_screenshot_field')
+        target_field = task_data.get('target_field')
         if system_name and selected_games:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2839,7 +2843,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start 2D box generation in background thread
-            thread = threading.Thread(target=run_2d_box_generation_task, args=(system_name, selected_games))
+            thread = threading.Thread(target=run_2d_box_generation_task, args=(system_name, selected_games, background_field, screen_field, additional_screenshot_field, target_field))
             thread.daemon = True
             thread.start()
     elif task_type == 'logo_generation':
@@ -2853,6 +2857,7 @@ def process_next_queued_task():
         italic = task_data.get('italic', False)
         underline = task_data.get('underline', False)
         uppercase = task_data.get('uppercase', False)
+        max_chars_per_line = task_data.get('max_chars_per_line', 15)
         if system_name and selected_games:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2866,7 +2871,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start logo generation in background thread
-            thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font, bold, italic, underline, uppercase))
+            thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font, bold, italic, underline, uppercase, max_chars_per_line))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -22494,7 +22499,7 @@ def run_image_crop_task(task_id, data):
                 'system_name': data.get('system_name')
             })
 
-def run_2d_box_generation_task(system_name, selected_games):
+def run_2d_box_generation_task(system_name, selected_games, background_field=None, screen_field=None, additional_screenshot_field=None, target_field=None):
     """Run 2D box generation task in background thread"""
     global current_task_id
     
@@ -22545,19 +22550,34 @@ def run_2d_box_generation_task(system_name, selected_games):
         media_config = load_media_config()
         print(f"🔧 DEBUG: Media config loaded: {media_config}")
         
-        # Get the target media field and source field mappings from 2D box generator config
-        box2d_config = media_config.get('2dboxgenerator', {})
-        target_media_field = box2d_config.get('media_field', 'thumbnail')
-        source_fields = box2d_config.get('source_fields', {
-            'titlescreen': 'titleshot',
-            'gameplay': 'image',
-            'logo': 'marquee'
-        })
+        # Use provided fields or fall back to config
+        if not background_field or not screen_field or not target_field:
+            box2d_config = media_config.get('2dboxgenerator', {})
+            target_media_field = target_field or box2d_config.get('media_field', 'thumbnail')
+            source_fields = box2d_config.get('source_fields', {
+                'titlescreen': 'titleshot',
+                'gameplay': 'image',
+                'logo': 'marquee'
+            })
+            background_field = background_field or source_fields.get('titlescreen', 'titleshot')
+            screen_field = screen_field or source_fields.get('gameplay', 'image')
+        else:
+            target_media_field = target_field
+            source_fields = {
+                'titlescreen': background_field,
+                'gameplay': screen_field,
+                'logo': 'marquee'  # Logo field can stay as default for now
+            }
+        
         print(f"🔧 DEBUG: Target media field: {target_media_field}")
+        print(f"🔧 DEBUG: Background field: {background_field}")
+        print(f"🔧 DEBUG: Screen field: {screen_field}")
+        print(f"🔧 DEBUG: Additional screenshot field: {additional_screenshot_field}")
         print(f"🔧 DEBUG: Source field mappings: {source_fields}")
-        print(f"🔧 DEBUG: Available media fields: {list(media_config.get('media_fields', {}).keys())}")
         task.update_progress(f"🎯 Target media field: {target_media_field}")
-        task.update_progress(f"📋 Source mappings: {source_fields}")
+        task.update_progress(f"📋 Background: {background_field}, Screen: {screen_field}")
+        if additional_screenshot_field:
+            task.update_progress(f"📋 Additional screenshot: {additional_screenshot_field}")
         
         # Find the media directory for the target field
         box2d_directory = get_media_directory(target_media_field)
@@ -22612,26 +22632,25 @@ def run_2d_box_generation_task(system_name, selected_games):
             titlescreen_path = None
             gameplay_path = None
             logo_path = None
+            additional_screenshot_path = None
             
             print(f"🔧 DEBUG: Looking for media files for {game_name}")
             
-            # Look for titlescreen using dynamic field mapping
-            titlescreen_field = source_fields.get('titlescreen', 'titleshot')
-            titleshot = game_data.get(titlescreen_field)
-            print(f"🔧 DEBUG: {titlescreen_field} field: {titleshot}")
-            if titleshot and titleshot.startswith('./'):
-                titlescreen_path = os.path.join(system_path, titleshot[2:])
-                print(f"🔧 DEBUG: Titlescreen path: {titlescreen_path}")
+            # Look for background using selected field
+            background_value = game_data.get(background_field)
+            print(f"🔧 DEBUG: {background_field} field: {background_value}")
+            if background_value and background_value.startswith('./'):
+                titlescreen_path = os.path.join(system_path, background_value[2:])
+                print(f"🔧 DEBUG: Background path: {titlescreen_path}")
             
-            # Look for gameplay using dynamic field mapping
-            gameplay_field = source_fields.get('gameplay', 'image')
-            screenshot = game_data.get(gameplay_field)
-            print(f"🔧 DEBUG: {gameplay_field} field: {screenshot}")
-            if screenshot and screenshot.startswith('./'):
-                gameplay_path = os.path.join(system_path, screenshot[2:])
-                print(f"🔧 DEBUG: Gameplay path: {gameplay_path}")
+            # Look for screen using selected field
+            screen_value = game_data.get(screen_field)
+            print(f"🔧 DEBUG: {screen_field} field: {screen_value}")
+            if screen_value and screen_value.startswith('./'):
+                gameplay_path = os.path.join(system_path, screen_value[2:])
+                print(f"🔧 DEBUG: Screen path: {gameplay_path}")
             
-            # Look for logo using dynamic field mapping
+            # Look for logo (default to marquee)
             logo_field = source_fields.get('logo', 'marquee')
             marquee = game_data.get(logo_field)
             print(f"🔧 DEBUG: {logo_field} field: {marquee}")
@@ -22639,12 +22658,20 @@ def run_2d_box_generation_task(system_name, selected_games):
                 logo_path = os.path.join(system_path, marquee[2:])
                 print(f"🔧 DEBUG: Logo path: {logo_path}")
             
+            # Look for additional screenshot if field is specified
+            if additional_screenshot_field:
+                additional_value = game_data.get(additional_screenshot_field)
+                print(f"🔧 DEBUG: {additional_screenshot_field} field: {additional_value}")
+                if additional_value and additional_value.startswith('./'):
+                    additional_screenshot_path = os.path.join(system_path, additional_value[2:])
+                    print(f"🔧 DEBUG: Additional screenshot path: {additional_screenshot_path}")
+            
             # Check if all required files exist
             missing_files = []
             if not titlescreen_path or not os.path.exists(titlescreen_path):
-                missing_files.append(titlescreen_field)
+                missing_files.append(background_field)
             if not gameplay_path or not os.path.exists(gameplay_path):
-                missing_files.append(gameplay_field)
+                missing_files.append(screen_field)
             if not logo_path or not os.path.exists(logo_path):
                 missing_files.append(logo_field)
             
@@ -22662,7 +22689,9 @@ def run_2d_box_generation_task(system_name, selected_games):
             output_path = os.path.join(box2d_dir, output_filename)
             print(f"🔧 DEBUG: Generating 2D box for {game_name}")
             print(f"🔧 DEBUG: Output path: {output_path}")
-            print(f"🔧 DEBUG: Using files - Titlescreen: {titlescreen_path}, Gameplay: {gameplay_path}, Logo: {logo_path}")
+            print(f"🔧 DEBUG: Using files - Background: {titlescreen_path}, Screen: {gameplay_path}, Logo: {logo_path}")
+            if additional_screenshot_path:
+                print(f"🔧 DEBUG: Additional screenshot: {additional_screenshot_path}")
             
             try:
                 print(f"🔧 DEBUG: Calling BoxGenerator.generate_2d_box()")
@@ -22670,7 +22699,8 @@ def run_2d_box_generation_task(system_name, selected_games):
                     titlescreen_path=titlescreen_path,
                     gameplay_path=gameplay_path,
                     logo_path=logo_path,
-                    output_path=output_path
+                    output_path=output_path,
+                    additional_screenshot_path=additional_screenshot_path
                 )
                 print(f"✅ DEBUG: Successfully generated 2D box for {game_name}")
                 
@@ -22760,7 +22790,161 @@ def run_2d_box_generation_task(system_name, selected_games):
         # Process next queued task
         process_next_queued_task()
 
-def run_logo_generation_task(system_name, selected_games, color, font_size, font, bold=False, italic=False, underline=False, uppercase=False):
+def clean_game_name(text):
+    """
+    Remove text between parentheses () and brackets [] at the end of the text,
+    including the brackets/parentheses themselves.
+    Handles multiple occurrences (e.g., "Game (USA) [Rev 1]" -> "Game")
+    """
+    if not text:
+        return text
+    
+    import re
+    # Remove trailing brackets and parentheses (can be nested or multiple)
+    # Pattern matches: (text) or [text] at the end, optionally with whitespace
+    # Keep removing until no more matches
+    cleaned = text
+    while True:
+        # Try to remove trailing () or []
+        new_cleaned = re.sub(r'\s*[\[\(][^\[\]\(\)]*[\]\)]\s*$', '', cleaned)
+        if new_cleaned == cleaned:
+            break
+        cleaned = new_cleaned
+    
+    # Trim any trailing whitespace
+    return cleaned.strip()
+
+def wrap_text_to_lines(text, max_chars_per_line=15):
+    """
+    Wrap text into multiple lines, keeping around max_chars_per_line characters per line.
+    Never splits words - only splits on spaces.
+    Tries to distribute text evenly across lines and avoid last lines with less than 5 characters.
+    Returns a list of lines.
+    """
+    if not text:
+        return ['']
+    
+    words = text.split()
+    if not words:
+        return ['']
+    
+    # If text fits on one line, return it
+    total_length = sum(len(word) for word in words) + len(words) - 1  # Total chars including spaces
+    if total_length <= max_chars_per_line:
+        return [' '.join(words)]
+    
+    # Calculate optimal number of lines
+    # Aim for roughly equal distribution
+    num_lines = max(1, (total_length + max_chars_per_line - 1) // max_chars_per_line)
+    target_chars_per_line = total_length / num_lines
+    
+    lines = []
+    current_line = []
+    current_length = 0
+    line_index = 0
+    
+    for i, word in enumerate(words):
+        word_length = len(word)
+        remaining_words = len(words) - i - 1
+        remaining_chars = sum(len(w) for w in words[i+1:]) + remaining_words  # +remaining_words for spaces
+        
+        # Calculate if we should start a new line
+        # Consider: current line length, remaining words, and target distribution
+        should_wrap = False
+        
+        if current_length > 0:
+            # If adding this word would exceed max, wrap
+            if current_length + 1 + word_length > max_chars_per_line:
+                should_wrap = True
+            # If current line is close to target and remaining text can form good lines, wrap
+            elif current_length >= target_chars_per_line * 0.8 and remaining_words > 0:
+                # Check if remaining text can form at least one good line (>= 5 chars)
+                if remaining_chars >= 5:
+                    should_wrap = True
+        
+        if should_wrap and current_line:
+            lines.append(' '.join(current_line))
+            current_line = [word]
+            current_length = word_length
+            line_index += 1
+        else:
+            # Add word to current line
+            if current_length > 0:
+                current_length += 1  # Space
+            current_line.append(word)
+            current_length += word_length
+    
+    # Add the last line
+    if current_line:
+        last_line = ' '.join(current_line)
+        # If last line is too short (< 5 chars) and we have multiple lines, try to redistribute
+        if len(last_line) < 5 and len(lines) > 0 and len(current_line) > 0:
+            # Try to move words from the last line to the previous line(s)
+            words_to_keep = []
+            words_to_move = []
+            
+            # Keep moving words from the end until we have at least 5 chars or run out
+            temp_line = current_line.copy()
+            while len(temp_line) > 0:
+                test_line = ' '.join(temp_line)
+                if len(test_line) >= 5:
+                    words_to_keep = temp_line.copy()
+                    break
+                # Move the first word to words_to_move
+                words_to_move.insert(0, temp_line.pop(0))
+            
+            # If we have words to move, try adding them to previous line
+            if words_to_move and len(lines) > 0:
+                prev_line = lines[-1]
+                # Try adding words one by one to previous line
+                added_words = []
+                for word in words_to_move:
+                    test_line = prev_line + ' ' + word if prev_line else word
+                    if len(test_line) <= max_chars_per_line:
+                        prev_line = test_line
+                        added_words.append(word)
+                    else:
+                        break
+                
+                # Update previous line with added words
+                if added_words:
+                    lines[-1] = prev_line
+                    # Remove added words from words_to_move
+                    for word in added_words:
+                        words_to_move.remove(word)
+                
+                # If we still have words to move and there's a second-to-last line, try that
+                if words_to_move and len(lines) > 1:
+                    second_last = lines[-2]
+                    added_words = []
+                    for word in words_to_move[:]:
+                        test_line = second_last + ' ' + word if second_last else word
+                        if len(test_line) <= max_chars_per_line:
+                            second_last = test_line
+                            added_words.append(word)
+                            words_to_move.remove(word)
+                        else:
+                            break
+                    if added_words:
+                        lines[-2] = second_last
+                
+                # Update last line with remaining words
+                remaining_words = words_to_keep + words_to_move
+                if remaining_words:
+                    last_line = ' '.join(remaining_words)
+                else:
+                    # Last line becomes empty, don't add it
+                    return lines
+            elif not words_to_keep:
+                # All words were moved, don't add empty last line
+                return lines
+        
+        if last_line and len(last_line) > 0:  # Only add if not empty
+            lines.append(last_line)
+    
+    return lines if lines else ['']
+
+def run_logo_generation_task(system_name, selected_games, color, font_size, font, bold=False, italic=False, underline=False, uppercase=False, max_chars_per_line=15):
     """Run logo generation task in background thread"""
     global current_task_id
     
@@ -22857,6 +23041,9 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 rom_filename = os.path.splitext(os.path.basename(game_path))[0]
                 game_name = rom_filename
             
+            # Clean game name: remove trailing parentheses and brackets
+            game_name = clean_game_name(game_name)
+            
             # Convert to uppercase if option is enabled
             if uppercase:
                 game_name = game_name.upper()
@@ -22874,11 +23061,16 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 print(f"🔧 DEBUG: Generating logo for {game_name}")
                 print(f"🔧 DEBUG: Output path: {output_path}")
                 
-                # Escape special characters in game name for ImageMagick
-                # Replace quotes and backslashes
-                escaped_name = game_name.replace('\\', '\\\\').replace('"', '\\"')
+                # Wrap text into multiple lines
+                text_lines = wrap_text_to_lines(game_name, max_chars_per_line=max_chars_per_line)
+                multiline_text = '\n'.join(text_lines)
+                print(f"🔧 DEBUG: Wrapped text into {len(text_lines)} lines: {text_lines}")
                 
-                # Create logo using ImageMagick label: with transparent background
+                # Escape special characters in game name for ImageMagick
+                # Replace quotes, backslashes, and preserve newlines
+                escaped_name = multiline_text.replace('\\', '\\\\').replace('"', '\\"')
+                
+                # Create logo using ImageMagick caption: with transparent background for multi-line support
                 # Check if font is a custom font from var/fonts/
                 font_path = font
                 custom_fonts_dir = 'var/fonts'
@@ -22915,11 +23107,20 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                 if italic:
                     cmd.extend(['-shear', '15x0'])  # 15 degree horizontal shear
                 
+                # Use caption: for multi-line text with center alignment
+                # Calculate approximate width needed based on max_chars_per_line
+                caption_width = int(font_size * max_chars_per_line * 0.6)  # Approximate width
+                
                 # For underline, we need to draw it separately
                 if underline:
                     # First create the text image, then add underline
                     temp_text = output_path.replace('.png', '_text.png')
-                    cmd_text = cmd + [f'label:{escaped_name}', temp_text]
+                    cmd_text = cmd + [
+                        '-size', f'{caption_width}x',
+                        '-gravity', 'center',  # Center align
+                        f'caption:{escaped_name}',
+                        temp_text
+                    ]
                     print(f"🔧 DEBUG: Running ImageMagick command (text): {' '.join(cmd_text)}")
                     result = subprocess.run(cmd_text, capture_output=True, text=True, timeout=30)
                     if result.returncode != 0:
@@ -22954,8 +23155,12 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
                         if os.path.exists(temp_text):
                             os.unlink(temp_text)
                 else:
-                    cmd.append(f'label:{escaped_name}')  # Text label
-                    cmd.append(output_path)
+                    cmd.extend([
+                        '-size', f'{caption_width}x',
+                        '-gravity', 'center',  # Center align
+                        f'caption:{escaped_name}',
+                        output_path
+                    ])
                 
                 # Run command (already run for underline case above)
                 if not underline:
@@ -24278,14 +24483,25 @@ def generate_2d_box():
         data = request.get_json()
         system_name = data.get('system_name')
         selected_games = data.get('selected_games', [])
+        background_field = data.get('background_field')
+        screen_field = data.get('screen_field')
+        additional_screenshot_field = data.get('additional_screenshot_field')
+        target_field = data.get('target_field')
         
         if not system_name or not selected_games:
             return jsonify({'error': 'Missing required parameters'}), 400
         
+        if not background_field or not screen_field or not target_field:
+            return jsonify({'error': 'Missing required field selections'}), 400
+        
         # Add task to queue
         task = add_task_to_queue('2d_box_generation', {
             'system_name': system_name,
-            'selected_games': selected_games
+            'selected_games': selected_games,
+            'background_field': background_field,
+            'screen_field': screen_field,
+            'additional_screenshot_field': additional_screenshot_field,
+            'target_field': target_field
         })
         
         return jsonify({
@@ -24306,6 +24522,7 @@ def generate_logo():
     selected_games = []
     color = '#ffffff'
     font_size = 72
+    max_chars_per_line = 15
     font = 'Arial'
     bold = False
     italic = False
@@ -24318,6 +24535,7 @@ def generate_logo():
         selected_games = data.get('selected_games', [])
         color = data.get('color', '#ffffff')
         font_size = data.get('font_size', 72)
+        max_chars_per_line = data.get('max_chars_per_line', 15)
         font = data.get('font', 'Arial')
         bold = data.get('bold', False)
         italic = data.get('italic', False)
@@ -24340,6 +24558,7 @@ def generate_logo():
             'selected_games': selected_games,
             'color': color,
             'font_size': font_size,
+            'max_chars_per_line': max_chars_per_line,
             'font': font,
             'bold': bool(bold),
             'italic': bool(italic),
@@ -24374,11 +24593,15 @@ def generate_logo_preview():
         text = data.get('text', 'Sample Game')
         color = data.get('color', '#ffffff')
         font_size = data.get('font_size', 72)
+        max_chars_per_line = data.get('max_chars_per_line', 15)
         font = data.get('font', 'Arial')
         bold = data.get('bold', False)
         italic = data.get('italic', False)
         underline = data.get('underline', False)
         uppercase = data.get('uppercase', False)
+        
+        # Clean text: remove trailing parentheses and brackets
+        text = clean_game_name(text)
         
         # Convert text to uppercase if option is enabled
         if uppercase:
@@ -24391,6 +24614,9 @@ def generate_logo_preview():
         if not isinstance(font_size, int) or font_size < 12 or font_size > 300:
             return jsonify({'error': 'Invalid font size'}), 400
         
+        if not isinstance(max_chars_per_line, int) or max_chars_per_line < 5 or max_chars_per_line > 50:
+            return jsonify({'error': 'Invalid max chars per line'}), 400
+        
         # Create temporary file for output
         import tempfile
         import os
@@ -24399,14 +24625,19 @@ def generate_logo_preview():
             output_path = tmp_file.name
         
         try:
+            # Wrap text into multiple lines
+            text_lines = wrap_text_to_lines(text, max_chars_per_line=max_chars_per_line)
+            multiline_text = '\n'.join(text_lines)
+            
             # Escape special characters in text for ImageMagick
-            escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
+            # Replace quotes, backslashes, and preserve newlines
+            escaped_text = multiline_text.replace('\\', '\\\\').replace('"', '\\"')
             
             # Generate preview using ImageMagick
-            # Use label: first, then apply effects
+            # Use caption: for multi-line text with center alignment
             temp_base = output_path.replace('.png', '_base.png')
             
-            # Step 1: Generate base text with label:
+            # Step 1: Generate base text with caption: for multi-line support
             # Check if font is a custom font from var/fonts/
             font_path = font
             custom_fonts_dir = 'var/fonts'
@@ -24424,13 +24655,18 @@ def generate_logo_preview():
                             font_path = os.path.join(custom_fonts_dir, filename)
                             break
             
+            # Calculate approximate width needed based on max_chars_per_line
+            caption_width = int(font_size * max_chars_per_line * 0.6)  # Approximate width
+            
             cmd_base = [
                 'convert',
                 '-background', 'none',
                 '-fill', color,
                 '-font', font_path,
                 '-pointsize', str(font_size),
-                f'label:{escaped_text}',
+                '-size', f'{caption_width}x',
+                '-gravity', 'center',  # Center align
+                f'caption:{escaped_text}',
                 temp_base
             ]
             

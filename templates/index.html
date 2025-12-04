@@ -4192,6 +4192,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     </div>
                     
                     <div class="mb-3">
+                        <label for="logoGeneratorMaxCharsPerLine" class="form-label">Max Characters Per Line</label>
+                        <input type="number" class="form-control" id="logoGeneratorMaxCharsPerLine" value="15" min="5" max="50" step="1">
+                        <div class="form-text">Maximum number of characters per line (5-50). Text will be wrapped to distribute evenly.</div>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label for="logoGeneratorFont" class="form-label">Font Family</label>
                         <select class="form-select" id="logoGeneratorFont">
                             <option value="">Loading fonts...</option>
@@ -4255,6 +4261,66 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="startLogoGeneratorBtn">
                         <i class="bi bi-play-fill me-1"></i>Generate Logos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2D Box Generator Modal -->
+    <div class="modal fade" id="box2DGeneratorModal" tabindex="-1" aria-labelledby="box2DGeneratorModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="box2DGeneratorModalLabel">
+                        <i class="bi bi-image me-2"></i>2D Box Generator Configuration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Generate 2D box art by combining background, screen, and additional screenshot images. Select which media fields to use for each component.</p>
+                    
+                    <div class="mb-3">
+                        <label for="box2DGeneratorBackgroundField" class="form-label">Background Image Field</label>
+                        <select class="form-select" id="box2DGeneratorBackgroundField">
+                            <option value="">Loading media fields...</option>
+                        </select>
+                        <div class="form-text">Field used for the background image (typically titleshot)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="box2DGeneratorScreenField" class="form-label">Screen Image Field</label>
+                        <select class="form-select" id="box2DGeneratorScreenField">
+                            <option value="">Loading media fields...</option>
+                        </select>
+                        <div class="form-text">Field used for the main screen/gameplay image (typically image)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="box2DGeneratorAdditionalScreenshotField" class="form-label">Additional Screenshot Field (Optional)</label>
+                        <select class="form-select" id="box2DGeneratorAdditionalScreenshotField">
+                            <option value="">None (disabled)</option>
+                        </select>
+                        <div class="form-text">Optional: Additional screenshot to place in the middle, under the logo and above the main screen image</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="box2DGeneratorTargetField" class="form-label">Target Media Field</label>
+                        <select class="form-select" id="box2DGeneratorTargetField">
+                            <option value="">Loading media fields...</option>
+                        </select>
+                        <div class="form-text">Field where the generated 2D box will be saved</div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> The 2D box generator will combine the selected images into a single box art image. The additional screenshot (if selected) will be positioned in the middle, centered, under the logo and above the main screen image.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="startBox2DGeneratorBtn">
+                        <i class="bi bi-play-fill me-1"></i>Generate 2D Boxes
                     </button>
                 </div>
             </div>
