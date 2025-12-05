@@ -389,6 +389,118 @@ class BoxGenerator:
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {temp_file}: {e}")
 
+    def generate_template_box(self, background_path, screenshot_path, output_path, 
+                              corner1_x, corner1_y, corner2_x, corner2_y,
+                              corner3_x, corner3_y, corner4_x, corner4_y):
+        """
+        Generate box using a template with background image and screenshot positioned at specific corners
+        
+        Args:
+            background_path: Path to background image (defines output dimensions)
+            screenshot_path: Path to screenshot image
+            output_path: Path for output box
+            corner1_x, corner1_y: Top-left corner position
+            corner2_x, corner2_y: Top-right corner position
+            corner3_x, corner3_y: Bottom-right corner position
+            corner4_x, corner4_y: Bottom-left corner position
+        """
+        temp_files = []
+        
+        try:
+            # Validate inputs
+            if not os.path.exists(background_path):
+                raise FileNotFoundError(f"Background image not found: {background_path}")
+            if not os.path.exists(screenshot_path):
+                raise FileNotFoundError(f"Screenshot image not found: {screenshot_path}")
+            
+            logging.info(f"Generating template box: {output_path}")
+            
+            # Get background image dimensions
+            identify_cmd = ['identify', '-format', '%wx%h', background_path]
+            dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+            if dim_result.returncode != 0:
+                raise Exception("Failed to get background image dimensions")
+            
+            # Use background image as base (copy it first)
+            cmd = ['convert', background_path, 'temp_background.jpg']
+            subprocess.run(cmd, check=True)
+            temp_files.append('temp_background.jpg')
+            
+            # Calculate bounding box of the 4 corners to determine target size
+            min_x = min(corner1_x, corner2_x, corner3_x, corner4_x)
+            max_x = max(corner1_x, corner2_x, corner3_x, corner4_x)
+            min_y = min(corner1_y, corner2_y, corner3_y, corner4_y)
+            max_y = max(corner1_y, corner2_y, corner3_y, corner4_y)
+            
+            target_width = max_x - min_x
+            target_height = max_y - min_y
+            
+            # Get screenshot dimensions
+            screenshot_dim_cmd = ['identify', '-format', '%wx%h', screenshot_path]
+            screenshot_dim_result = subprocess.run(screenshot_dim_cmd, capture_output=True, text=True, timeout=5)
+            if screenshot_dim_result.returncode != 0:
+                raise Exception("Failed to get screenshot dimensions")
+            
+            screenshot_dims = screenshot_dim_result.stdout.strip().split('x')
+            screenshot_width = int(screenshot_dims[0])
+            screenshot_height = int(screenshot_dims[1])
+            
+            # Step 1: Resize screenshot to fit the bounding box dimensions
+            # This ensures the screenshot has the correct dimensions before placing
+            logging.info(f"Resizing screenshot from {screenshot_width}x{screenshot_height} to {target_width}x{target_height}")
+            temp_resized = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+            temp_files.append(temp_resized)
+            
+            cmd = [
+                'convert', screenshot_path,
+                '-resize', f'{target_width}x{target_height}!',  # ! forces exact size, ignoring aspect ratio
+                '-quality', '100',  # High quality resize
+                temp_resized
+            ]
+            subprocess.run(cmd, check=True)
+            logging.info(f"✅ Screenshot resized to {target_width}x{target_height}")
+            
+            # Verify the resized image dimensions
+            verify_cmd = ['identify', '-format', '%wx%h', temp_resized]
+            verify_result = subprocess.run(verify_cmd, capture_output=True, text=True, timeout=5)
+            if verify_result.returncode == 0:
+                resized_dims = verify_result.stdout.strip().split('x')
+                resized_width = int(resized_dims[0])
+                resized_height = int(resized_dims[1])
+                logging.info(f"Verified resized dimensions: {resized_width}x{resized_height}")
+            
+            # Step 2: Composite the resized screenshot onto background at the correct position
+            # Use composite command with geometry for exact positioning
+            # Position at min_x, min_y to align with the corner positions
+            logging.info(f"Placing resized screenshot onto background at position ({min_x}, {min_y})")
+            cmd = [
+                'composite',
+                '-geometry', f'+{min_x}+{min_y}',
+                temp_resized,  # Use the resized image directly
+                'temp_background.jpg',
+                output_path
+            ]
+            subprocess.run(cmd, check=True)
+            logging.info(f"✅ Screenshot placed successfully")
+            
+            logging.info(f"✅ Template box generated successfully: {output_path}")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            logging.error(f"ImageMagick command failed: {e}")
+            raise Exception(f"Image generation failed: {e}")
+        except Exception as e:
+            logging.error(f"Error generating template box: {e}")
+            raise
+        finally:
+            # Cleanup temp files
+            for temp_file in temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except Exception as e:
+                    logging.warning(f"Could not remove temp file {temp_file}: {e}")
+
 def generate_2d_box_simple(titlescreen_path, gameplay_path, logo_path, output_path, 
                           width=600, height=800, logo_position="north"):
     """

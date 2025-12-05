@@ -1887,6 +1887,11 @@ class GameCollectionManager {
             await this.ensurePanelGameSavedIfOpen();
             this.openBox2DGeneratorModal();
         });
+        document.getElementById('globalBoxTemplateGeneratorBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
+            this.openBoxTemplateGeneratorModal();
+        });
         document.getElementById('globalLogoGeneratorBtn').addEventListener('click', async (e) => {
             e.preventDefault();
             await this.ensurePanelGameSavedIfOpen();
@@ -10747,6 +10752,531 @@ class GameCollectionManager {
     async generate2DBoxForSelected() {
         // Legacy function - now redirects to modal
         this.openBox2DGeneratorModal();
+    }
+
+    openBoxTemplateGeneratorModal() {
+        if (!this.currentSystem) {
+            this.showAlert('No system selected', 'warning');
+            return;
+        }
+        
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game first', 'warning');
+            return;
+        }
+        
+        // Load media fields
+        this.loadTemplateGeneratorFields();
+        
+        // Load saved templates
+        this.loadTemplateList();
+        
+        // Reset form
+        this.resetTemplateGeneratorForm();
+        
+        // Open modal
+        const modal = new bootstrap.Modal(document.getElementById('boxTemplateGeneratorModal'));
+        modal.show();
+    }
+    
+    async loadTemplateGeneratorFields() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            if (response.ok) {
+                const mediaFields = config.media_fields || {};
+                const targetField = document.getElementById('templateTargetField');
+                const screenshotField = document.getElementById('templateScreenshotField');
+                
+                // Clear existing options
+                if (targetField) targetField.innerHTML = '<option value="">Loading media fields...</option>';
+                if (screenshotField) screenshotField.innerHTML = '<option value="">Loading media fields...</option>';
+                
+                // Populate with media fields
+                Object.keys(mediaFields).forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    if (targetField) targetField.appendChild(option.cloneNode(true));
+                    if (screenshotField) screenshotField.appendChild(option.cloneNode(true));
+                });
+                
+                // Restore saved values from localStorage
+                const savedScreenshotField = localStorage.getItem('templateGenerator_screenshotField');
+                const savedTargetField = localStorage.getItem('templateGenerator_targetField');
+                
+                if (savedScreenshotField && screenshotField) {
+                    screenshotField.value = savedScreenshotField;
+                }
+                if (savedTargetField && targetField) {
+                    targetField.value = savedTargetField;
+                }
+                
+                // Add event listeners to save values when they change
+                if (screenshotField) {
+                    screenshotField.addEventListener('change', () => {
+                        localStorage.setItem('templateGenerator_screenshotField', screenshotField.value);
+                    });
+                }
+                if (targetField) {
+                    targetField.addEventListener('change', () => {
+                        localStorage.setItem('templateGenerator_targetField', targetField.value);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error loading media fields:', error);
+        }
+    }
+    
+    resetTemplateGeneratorForm() {
+        const backgroundInput = document.getElementById('templateBackgroundImage');
+        const screenshotField = document.getElementById('templateScreenshotField');
+        const targetField = document.getElementById('templateTargetField');
+        const previewContainer = document.getElementById('templatePreviewContainer');
+        const previewImage = document.getElementById('templatePreviewImage');
+        const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+        
+        // Clean up cropper if exists
+        if (this.templateCropper) {
+            this.templateCropper.destroy();
+            this.templateCropper = null;
+        }
+        
+        if (backgroundInput) backgroundInput.value = '';
+        // Don't reset screenshotField and targetField - they are persisted via localStorage
+        // They will be restored in loadTemplateGeneratorFields()
+        if (previewImage) {
+            previewImage.style.display = 'none';
+            previewImage.src = '';
+        }
+        if (previewPlaceholder) previewPlaceholder.style.display = 'block';
+        if (previewContainer) {
+            previewContainer.innerHTML = '<div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div><img id="templatePreviewImage" style="max-width: 100%; display: none;">';
+        }
+        
+        ['templateCorner1X', 'templateCorner1Y', 'templateCorner2X', 'templateCorner2Y',
+         'templateCorner3X', 'templateCorner3Y', 'templateCorner4X', 'templateCorner4Y'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.value = '';
+        });
+    }
+    
+    handleTemplateBackgroundChange(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                this.setupTemplateCropper(event.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+    
+    setupTemplateCropper(imageSrc, skipDefaultCrop = false) {
+        const previewImage = document.getElementById('templatePreviewImage');
+        const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+        
+        if (!previewImage) return;
+        
+        // Clean up existing cropper
+        if (this.templateCropper) {
+            this.templateCropper.destroy();
+            this.templateCropper = null;
+        }
+        
+        // Hide placeholder and show image
+        if (previewPlaceholder) previewPlaceholder.style.display = 'none';
+        previewImage.src = imageSrc;
+        previewImage.style.display = 'block';
+        
+        // Wait for image to load
+        previewImage.onload = () => {
+            // Initialize cropper with perspective mode (4-point selection)
+            this.templateCropper = new Cropper(previewImage, {
+                viewMode: 1,
+                dragMode: 'none',
+                aspectRatio: NaN, // Free aspect ratio
+                autoCropArea: 0.5,
+                restore: false,
+                guides: true,
+                center: false,
+                highlight: true,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                checkCrossOrigin: false,
+                background: false,
+                modal: false,
+                responsive: true,
+                zoomable: false, // Disable zoom
+                ready: () => {
+                    if (!skipDefaultCrop) {
+                        // Set initial crop box to center only if not loading a template
+                        const imageData = this.templateCropper.getImageData();
+                        const cropSize = Math.min(imageData.width, imageData.height) * 0.5;
+                        this.templateCropper.setCropBoxData({
+                            left: (imageData.width - cropSize) / 2,
+                            top: (imageData.height - cropSize) / 2,
+                            width: cropSize,
+                            height: cropSize
+                        });
+                        this.updateTemplateCornersFromCropper();
+                    } else {
+                        // If loading template, update cropper from corner values
+                        setTimeout(() => {
+                            this.updateTemplateCropperFromCorners();
+                        }, 100);
+                    }
+                },
+                crop: () => {
+                    // Only update corners if not currently loading a template
+                    if (!this.isLoadingTemplate) {
+                        this.updateTemplateCornersFromCropper();
+                    }
+                }
+            });
+        };
+    }
+    
+    updateTemplateCornersFromCropper() {
+        if (!this.templateCropper) return;
+        
+        const cropBoxData = this.templateCropper.getCropBoxData();
+        const imageData = this.templateCropper.getImageData();
+        
+        // Calculate corner positions relative to the image
+        // Crop box gives us a rectangle, but we need 4 corners for perspective
+        // For now, we'll use the crop box corners as the 4 corners
+        const left = cropBoxData.left;
+        const top = cropBoxData.top;
+        const right = left + cropBoxData.width;
+        const bottom = top + cropBoxData.height;
+        
+        // Get the actual image element dimensions
+        const img = document.getElementById('templatePreviewImage');
+        if (!img) return;
+        
+        // Calculate scale factor between displayed size and natural size
+        const scaleX = imageData.naturalWidth / imageData.width;
+        const scaleY = imageData.naturalHeight / imageData.height;
+        
+        // Convert displayed coordinates to natural image coordinates
+        const corner1X = Math.round(left * scaleX);
+        const corner1Y = Math.round(top * scaleY);
+        const corner2X = Math.round(right * scaleX);
+        const corner2Y = Math.round(top * scaleY);
+        const corner3X = Math.round(right * scaleX);
+        const corner3Y = Math.round(bottom * scaleY);
+        const corner4X = Math.round(left * scaleX);
+        const corner4Y = Math.round(bottom * scaleY);
+        
+        // Update input fields
+        const corner1XInput = document.getElementById('templateCorner1X');
+        const corner1YInput = document.getElementById('templateCorner1Y');
+        const corner2XInput = document.getElementById('templateCorner2X');
+        const corner2YInput = document.getElementById('templateCorner2Y');
+        const corner3XInput = document.getElementById('templateCorner3X');
+        const corner3YInput = document.getElementById('templateCorner3Y');
+        const corner4XInput = document.getElementById('templateCorner4X');
+        const corner4YInput = document.getElementById('templateCorner4Y');
+        
+        if (corner1XInput) corner1XInput.value = corner1X;
+        if (corner1YInput) corner1YInput.value = corner1Y;
+        if (corner2XInput) corner2XInput.value = corner2X;
+        if (corner2YInput) corner2YInput.value = corner2Y;
+        if (corner3XInput) corner3XInput.value = corner3X;
+        if (corner3YInput) corner3YInput.value = corner3Y;
+        if (corner4XInput) corner4XInput.value = corner4X;
+        if (corner4YInput) corner4YInput.value = corner4Y;
+    }
+    
+    updateTemplateCropperFromCorners() {
+        if (!this.templateCropper) return;
+        
+        // Get corner positions from inputs
+        const corners = {
+            x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
+            y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
+            x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
+            y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
+            x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
+            y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
+            x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
+            y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
+        };
+        
+        // Get image data to calculate scale
+        const imageData = this.templateCropper.getImageData();
+        const scaleX = imageData.width / imageData.naturalWidth;
+        const scaleY = imageData.height / imageData.naturalHeight;
+        
+        // Convert natural coordinates to displayed coordinates
+        const left = Math.min(corners.x1, corners.x4) * scaleX;
+        const top = Math.min(corners.y1, corners.y2) * scaleY;
+        const right = Math.max(corners.x2, corners.x3) * scaleX;
+        const bottom = Math.max(corners.y3, corners.y4) * scaleY;
+        
+        // Update crop box (cropper uses rectangular selection, so we use bounding box)
+        this.templateCropper.setCropBoxData({
+            left: left,
+            top: top,
+            width: right - left,
+            height: bottom - top
+        });
+    }
+    
+    saveTemplate() {
+        // Prompt for template name
+        const templateName = prompt('Enter template name:');
+        if (!templateName || !templateName.trim()) {
+            if (templateName !== null) { // User clicked OK but entered empty string
+                this.showAlert('Template name cannot be empty', 'warning');
+            }
+            return;
+        }
+        
+        const trimmedName = templateName.trim();
+        
+        const backgroundInput = document.getElementById('templateBackgroundImage');
+        if (!backgroundInput || !backgroundInput.files[0]) {
+            this.showAlert('Please select a background image', 'warning');
+            return;
+        }
+        
+        // Get corner positions
+        const corners = {
+            x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
+            y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
+            x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
+            y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
+            x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
+            y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
+            x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
+            y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
+        };
+        
+        // Save background image and template metadata (screenshot comes from game field)
+        const formData = new FormData();
+        formData.append('template_name', trimmedName);
+        formData.append('background_image', backgroundInput.files[0]);
+        formData.append('corners', JSON.stringify(corners));
+        
+        fetch('/api/save-box-template', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                this.showAlert('Template saved successfully', 'success');
+                this.loadTemplateList();
+            } else {
+                this.showAlert('Error saving template: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving template:', error);
+            this.showAlert('Error saving template: ' + error.message, 'danger');
+        });
+    }
+    
+    loadTemplateList() {
+        fetch('/api/list-box-templates')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('templateSelect');
+            if (!select) return;
+            
+            select.innerHTML = '<option value="">Select template...</option>';
+            
+            if (data.templates && data.templates.length > 0) {
+                data.templates.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.name;
+                    option.textContent = template.name;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading templates:', error);
+        });
+    }
+    
+    loadTemplateFromSelect() {
+        const select = document.getElementById('templateSelect');
+        if (!select) return;
+        
+        const templateName = select.value;
+        if (templateName) {
+            this.loadTemplate(templateName);
+        }
+    }
+    
+    loadTemplate(templateName) {
+        // Set flag to prevent cropper from overwriting loaded values
+        this.isLoadingTemplate = true;
+        
+        fetch(`/api/load-box-template?name=${encodeURIComponent(templateName)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Store template data for later use
+                this.currentTemplateData = data;
+                
+                // Load corner positions FIRST, before initializing cropper
+                if (data.corners) {
+                    const corner1X = document.getElementById('templateCorner1X');
+                    const corner1Y = document.getElementById('templateCorner1Y');
+                    const corner2X = document.getElementById('templateCorner2X');
+                    const corner2Y = document.getElementById('templateCorner2Y');
+                    const corner3X = document.getElementById('templateCorner3X');
+                    const corner3Y = document.getElementById('templateCorner3Y');
+                    const corner4X = document.getElementById('templateCorner4X');
+                    const corner4Y = document.getElementById('templateCorner4Y');
+                    
+                    if (corner1X) corner1X.value = data.corners.x1 || '';
+                    if (corner1Y) corner1Y.value = data.corners.y1 || '';
+                    if (corner2X) corner2X.value = data.corners.x2 || '';
+                    if (corner2Y) corner2Y.value = data.corners.y2 || '';
+                    if (corner3X) corner3X.value = data.corners.x3 || '';
+                    if (corner3Y) corner3Y.value = data.corners.y3 || '';
+                    if (corner4X) corner4X.value = data.corners.x4 || '';
+                    if (corner4Y) corner4Y.value = data.corners.y4 || '';
+                }
+                
+                // Load background image and setup cropper with skipDefaultCrop flag
+                if (data.background_image_path) {
+                    // Fetch the background image and set it in the file input
+                    fetch(data.background_image_path)
+                        .then(response => response.blob())
+                        .then(blob => {
+                            // Create a File object from the blob
+                            const file = new File([blob], 'background.jpg', { type: blob.type });
+                            
+                            // Create a DataTransfer object to set the file
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(file);
+                            
+                            // Set the file in the input
+                            const backgroundInput = document.getElementById('templateBackgroundImage');
+                            if (backgroundInput) {
+                                backgroundInput.files = dataTransfer.files;
+                                
+                                // Read file as data URL and setup cropper with skipDefaultCrop flag
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                    // Setup cropper with skipDefaultCrop flag to preserve loaded corners
+                                    this.setupTemplateCropper(event.target.result, true);
+                                };
+                                reader.readAsDataURL(file);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error loading background image:', error);
+                            // Fallback: just setup cropper with the URL
+                            this.setupTemplateCropper(data.background_image_path, true);
+                        });
+                }
+                
+                // Clear loading flag after a delay to allow cropper to initialize
+                setTimeout(() => {
+                    this.isLoadingTemplate = false;
+                    this.showAlert('Template loaded successfully', 'success');
+                }, 600);
+            } else {
+                this.isLoadingTemplate = false;
+                this.showAlert('Error loading template: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading template:', error);
+            this.isLoadingTemplate = false;
+            this.showAlert('Error loading template: ' + error.message, 'danger');
+        });
+    }
+    
+    async startTemplateBoxGeneration() {
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            const backgroundInput = document.getElementById('templateBackgroundImage');
+            const screenshotFieldSelect = document.getElementById('templateScreenshotField');
+            const targetFieldSelect = document.getElementById('templateTargetField');
+            
+            if (!backgroundInput || !screenshotFieldSelect || !targetFieldSelect) {
+                this.showAlert('Template generator form elements not found', 'danger');
+                return;
+            }
+            
+            if (!backgroundInput.files[0]) {
+                this.showAlert('Please select a background image', 'warning');
+                return;
+            }
+            
+            const screenshotField = screenshotFieldSelect.value;
+            if (!screenshotField) {
+                this.showAlert('Please select a screenshot image field', 'warning');
+                return;
+            }
+            
+            const targetField = targetFieldSelect.value;
+            if (!targetField) {
+                this.showAlert('Please select a target media field', 'warning');
+                return;
+            }
+            
+            // Get corner positions
+            const corners = {
+                x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
+            };
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('boxTemplateGeneratorModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Upload background image and start generation
+            const formData = new FormData();
+            formData.append('background_image', backgroundInput.files[0]);
+            formData.append('screenshot_field', screenshotField);
+            formData.append('corners', JSON.stringify(corners));
+            formData.append('target_field', targetField);
+            formData.append('system_name', this.currentSystem);
+            formData.append('game_paths', JSON.stringify(this.selectedGames.map(g => g.path)));
+            
+            const response = await fetch('/api/generate-template-box', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                this.showAlert(`Template box generation started for ${this.selectedGames.length} game(s)`, 'success');
+                // Refresh game list after a delay
+                setTimeout(() => {
+                    this.loadGames();
+                }, 2000);
+            } else {
+                this.showAlert('Error starting template box generation: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (error) {
+            this.showAlert('Error starting template box generation: ' + error.message, 'danger');
+        }
     }
 
     openLogoGeneratorModal() {
@@ -21688,6 +22218,54 @@ class GameCollectionManager {
                 this.open2DBoxGeneratorConfigModal();
             });
         }
+        
+        const openBoxTemplateGeneratorBtn = document.getElementById('openBoxTemplateGeneratorModal');
+        if (openBoxTemplateGeneratorBtn) {
+            openBoxTemplateGeneratorBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openBoxTemplateGeneratorModal();
+            });
+        }
+        
+        // Template generator event listeners
+        const templateBackgroundInput = document.getElementById('templateBackgroundImage');
+        if (templateBackgroundInput) {
+            templateBackgroundInput.addEventListener('change', (e) => this.handleTemplateBackgroundChange(e));
+        }
+        
+        const templateScreenshotInput = document.getElementById('templateScreenshotImage');
+        if (templateScreenshotInput) {
+            templateScreenshotInput.addEventListener('change', (e) => this.handleTemplateScreenshotChange(e));
+        }
+        
+        // Corner position inputs - update cropper when manually changed
+        ['templateCorner1X', 'templateCorner1Y', 'templateCorner2X', 'templateCorner2Y',
+         'templateCorner3X', 'templateCorner3Y', 'templateCorner4X', 'templateCorner4Y'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.addEventListener('input', () => this.updateTemplateCropperFromCorners());
+            }
+        });
+        
+        const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+        if (saveTemplateBtn) {
+            saveTemplateBtn.addEventListener('click', () => this.saveTemplate());
+        }
+        
+        const loadTemplateBtn = document.getElementById('loadTemplateBtn');
+        if (loadTemplateBtn) {
+            loadTemplateBtn.addEventListener('click', () => this.loadTemplate());
+        }
+        
+        const templateSelect = document.getElementById('templateSelect');
+        if (templateSelect) {
+            templateSelect.addEventListener('change', () => this.loadTemplateFromSelect());
+        }
+        
+        const generateTemplateBoxBtn = document.getElementById('generateTemplateBoxBtn');
+        if (generateTemplateBoxBtn) {
+            generateTemplateBoxBtn.addEventListener('click', () => this.startTemplateBoxGeneration());
+        }
 
         const saveBoxGeneratorConfigBtn = document.getElementById('saveBoxGeneratorConfigBtn');
         if (saveBoxGeneratorConfigBtn) {
@@ -28631,6 +29209,10 @@ class GameCollectionManager {
             const autoCropCheckbox = document.getElementById('autoCropCheckbox');
             const autoCrop = autoCropCheckbox ? autoCropCheckbox.checked : false;
             
+            // Get disable audio setting from checkbox
+            const disableAudioCheckbox = document.getElementById('disableAudioCheckbox');
+            const disableAudio = disableAudioCheckbox ? disableAudioCheckbox.checked : false;
+            
             // Create the request body
             const requestBody = {
                 video_url: this.currentYouTubeVideo.url,
@@ -28638,7 +29220,8 @@ class GameCollectionManager {
                 output_filename: outputFilename,
                 system_name: this.currentSystem,
                 rom_file: currentGame.path,  // Pass the ROM file path directly
-                auto_crop: autoCrop  // Include auto crop setting
+                auto_crop: autoCrop,  // Include auto crop setting
+                disable_audio: disableAudio  // Include disable audio setting
             };
             
             try {

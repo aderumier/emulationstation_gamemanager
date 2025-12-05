@@ -39,6 +39,7 @@ import difflib
 import jellyfish
 import shutil
 import subprocess
+import tempfile
 import requests
 import httpx
 import multiprocessing
@@ -46,7 +47,7 @@ from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import pickle
-from typing import Dict, List
+from typing import Dict, List, Optional
 import secrets
 from datetime import datetime
 import uuid
@@ -2383,7 +2384,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation', 'logo_generation', 'import_medias']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation', 'template_box_generation', 'logo_generation', 'import_medias']:
             self.grid_refresh_needed = True
         
         # Clear current task and start next queued task
@@ -2844,6 +2845,31 @@ def process_next_queued_task():
                 task.start()
             # Start 2D box generation in background thread
             thread = threading.Thread(target=run_2d_box_generation_task, args=(system_name, selected_games, background_field, screen_field, additional_screenshot_field, target_field))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'template_box_generation':
+        # Start template box generation task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        target_field = task_data.get('target_field')
+        screenshot_field = task_data.get('screenshot_field')
+        background_path = task_data.get('background_path')
+        corners = task_data.get('corners', {})
+        temp_dir = task_data.get('temp_dir')
+        if system_name and selected_games:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('template_box_generation', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start template box generation in background thread
+            thread = threading.Thread(target=run_template_box_generation_task, args=(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir))
             thread.daemon = True
             thread.start()
     elif task_type == 'logo_generation':
@@ -16969,6 +16995,72 @@ async def scrape_igdb_manual(game, system_name, system_config, target_media_type
         print(f"Error in IGDB manual scraping: {e}")
         return None
 
+async def extract_steam_video_url(steam_id: int) -> Optional[str]:
+    """Extract video URL from Steam store page"""
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        import json
+        
+        store_page_url = f"https://store.steampowered.com/app/{steam_id}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+            response = await client.get(store_page_url, follow_redirects=True)
+            if response.status_code == 200:
+                html_content = response.text
+                soup = BeautifulSoup(html_content, 'html.parser')
+                
+                # Look for video elements with data-props attribute containing movie information
+                video_elements = soup.find_all(attrs={'data-props': True})
+                
+                video_url = None
+                for element in video_elements:
+                    data_props = element.get('data-props', '')
+                    if data_props and ('hlsManifest' in data_props or 'dashManifests' in data_props):
+                        try:
+                            props_data = json.loads(data_props)
+                            hls_manifest = props_data.get('hlsManifest')
+                            dash_manifests = props_data.get('dashManifests', [])
+                            
+                            if hls_manifest:
+                                video_url = hls_manifest
+                                break
+                            elif dash_manifests and len(dash_manifests) > 0:
+                                video_url = dash_manifests[0]
+                                break
+                        except (json.JSONDecodeError, KeyError):
+                            continue
+                
+                # If no video found in data-props, try to find video elements with source tags
+                if not video_url:
+                    video_tags = soup.find_all('video')
+                    for video_tag in video_tags:
+                        source_tags = video_tag.find_all('source')
+                        for source in source_tags:
+                            src = source.get('src', '')
+                            if src and ('steamstatic.com' in src or 'video' in src.lower()):
+                                video_url = src
+                                break
+                        if video_url:
+                            break
+                
+                if video_url:
+                    # Ensure URL is absolute
+                    if video_url.startswith('//'):
+                        video_url = 'https:' + video_url
+                    elif video_url.startswith('/'):
+                        video_url = 'https://store.steampowered.com' + video_url
+                    return video_url
+        
+        return None
+    except Exception as e:
+        print(f"❌ Error extracting Steam video URL: {e}")
+        return None
+
 async def scrape_steam_manual(game, system_name, target_media_type=None):
     """Scrape Steam data for manual scrap (returns data without writing files)"""
     try:
@@ -20010,6 +20102,7 @@ def youtube_download():
         video_url = data.get('video_url')
         start_time = data.get('start_time', 0)
         auto_crop = data.get('auto_crop', False)
+        disable_audio = data.get('disable_audio', False)
         output_filename = data.get('output_filename')
         system_name = data.get('system_name')
         
@@ -20040,7 +20133,8 @@ def youtube_download():
             'output_filename': output_filename,
             'system_name': system_name,
             'rom_file': data.get('rom_file'),  # Include the ROM file path
-            'auto_crop': auto_crop  # Include auto crop setting
+            'auto_crop': auto_crop,  # Include auto crop setting
+            'disable_audio': disable_audio  # Include disable audio setting
         }
         
         # Add task to queue instead of starting directly
@@ -20953,6 +21047,7 @@ def run_youtube_download_task(task_id, data):
         system_name = data.get('system_name')
         rom_file = data.get('rom_file')  # ROM file path (e.g., "./Pac-Man (USA).nes")
         auto_crop = data.get('auto_crop', False)
+        disable_audio = data.get('disable_audio', False)
         
         # Store video URL in task for later use in gamelist update
         task.video_url = video_url
@@ -20965,6 +21060,7 @@ def run_youtube_download_task(task_id, data):
         task.update_progress(f"  System: {system_name}")
         task.update_progress(f"  ROM file: {rom_file}")
         task.update_progress(f"  Auto crop: {auto_crop}")
+        task.update_progress(f"  Disable audio: {disable_audio}")
         
         if not all([video_url, output_filename, system_name, rom_file]):
             missing_params = []
@@ -21014,7 +21110,7 @@ def run_youtube_download_task(task_id, data):
         
         # Use the common download helper function
         success = download_youtube_video_for_game(
-            task, video_url, start_time, auto_crop, 
+            task, video_url, start_time, auto_crop, disable_audio,
             output_path, videos_dir, output_filename, 1, temp_videos_dir, rom_file  # playlist_index=1 for single downloads
         )
         
@@ -21253,7 +21349,7 @@ def get_video_duration(video_path):
         print(f"Error getting video duration: {e}")
         return None
 
-def download_youtube_video_for_game(task, video_url, start_time, auto_crop, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None, rom_file=None):
+def download_youtube_video_for_game(task, video_url, start_time, auto_crop, disable_audio, output_path, videos_dir, game_name, playlist_index=1, temp_videos_dir=None, rom_file=None):
     """Download a single YouTube video for a game (helper function)"""
     try:
         # Check if yt-dlp is available
@@ -21893,17 +21989,17 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
         # Don't cut video if it was downloaded with sections (already the correct length)
         if actually_used_sections:
             task.update_progress(f"  ✂️ Video downloaded with sections, skipping additional cutting")
-            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, disable_audio)
         elif used_full_download_without_sections:
             # Cut full video to 30-second section starting from start_time
             cut_start_time = start_time
             cut_end_time = start_time + 30
             task.update_progress(f"  ✂️ Cutting full video to 30-second section ({cut_start_time}s-{cut_end_time}s)")
-            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, cut_start_time, cut_end_time)
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, disable_audio, cut_start_time, cut_end_time)
         else:
             # This should not happen - all downloads should be either sections or full
             task.update_progress(f"  ⚠️ Unexpected download type - no cutting applied")
-            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop)
+            processing_success = apply_video_processing(task, temp_path, game_name, auto_crop, disable_audio)
         
         if not processing_success:
             task.update_progress(f"  ⚠️ Video processing failed for {game_name}, using original video")
@@ -21943,7 +22039,7 @@ def download_youtube_video_for_game(task, video_url, start_time, auto_crop, outp
     except Exception as e:
         task.update_progress(f"  ❌ Error downloading {game_name}: {str(e)}")
         return False
-def apply_video_processing(task, video_path, game_name, auto_crop=False, start_time=None, end_time=None):
+def apply_video_processing(task, video_path, game_name, auto_crop=False, disable_audio=False, start_time=None, end_time=None):
     """Apply video processing (crop and/or resize) in a single ffmpeg call (helper function)"""
     try:
         import subprocess
@@ -22034,9 +22130,9 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
         # Combine video filters with comma
         vf_filter = ','.join(video_filters) if video_filters else None
         
-        # Build audio filters for fade effects
+        # Build audio filters for fade effects (only if audio is enabled)
         af_filters = []
-        if enable_fade:
+        if enable_fade and not disable_audio:
             af_filters.append(f'afade=t=in:st=0:d=2,afade=t=out:st={fade_out_start}:d=2')
         
         af_filter = ','.join(af_filters) if af_filters else None
@@ -22048,8 +22144,8 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
         if vf_filter:
             process_cmd.extend(['-vf', vf_filter])
         
-        # Add audio filters if any
-        if af_filter:
+        # Add audio filters if any (only if audio is enabled)
+        if af_filter and not disable_audio:
             process_cmd.extend(['-af', af_filter])
         
         # Add codec settings
@@ -22057,17 +22153,29 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
             # Use NVIDIA hardware encoder
             process_cmd.extend([
                 '-c:v', 'h264_nvenc',
-                '-preset', 'slow',
-                '-c:a', 'aac',
+                '-preset', 'slow'
+            ])
+            # Add audio codec or disable audio
+            if disable_audio:
+                process_cmd.append('-an')  # Disable audio
+            else:
+                process_cmd.extend(['-c:a', 'aac'])
+            process_cmd.extend([
                 '-y',  # Overwrite output file
                 processed_path
             ])
         else:
             # Use software encoder
             process_cmd.extend([
-            '-c:v', 'libx264',
-            '-c:a', 'aac',
-            '-y',  # Overwrite output file
+                '-c:v', 'libx264'
+            ])
+            # Add audio codec or disable audio
+            if disable_audio:
+                process_cmd.append('-an')  # Disable audio
+            else:
+                process_cmd.extend(['-c:a', 'aac'])
+            process_cmd.extend([
+                '-y',  # Overwrite output file
                 processed_path
             ])
         
@@ -22081,6 +22189,8 @@ def apply_video_processing(task, video_path, game_name, auto_crop=False, start_t
             operations.append(f'resize to {force_resolution}p (height-based, maintain aspect ratio)')
         if enable_fade:
             operations.append('fade in/out (2s each) - video & audio')
+        if disable_audio:
+            operations.append('disable audio')
         if enable_cuda:
             operations.append('CUDA hardware acceleration (h264_nvenc)')
         
@@ -22943,6 +23053,191 @@ def wrap_text_to_lines(text, max_chars_per_line=15):
             lines.append(last_line)
     
     return lines if lines else ['']
+
+def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir):
+    """Run template box generation task in background thread"""
+    global current_task_id
+    
+    try:
+        if not current_task_id or current_task_id not in tasks:
+            print(f"Error: No active task found for template box generation")
+            return
+        
+        task = tasks[current_task_id]
+        
+        # Import the box generator
+        from box_generator import BoxGenerator
+        
+        print(f"🎨 Starting template box generation for system: {system_name}")
+        task.update_progress(f"Starting template box generation for {len(selected_games)} games")
+        task.update_progress(f"System: {system_name}")
+        
+        # Validate system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            error_msg = f'System not found: {system_path}'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
+            return
+        
+        # Load gamelist to get game data
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f'Gamelist not found: {gamelist_path}')
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            task.complete(False, 'No games found in gamelist')
+            return
+        
+        # Create box generator
+        generator = BoxGenerator()
+        
+        # Validate ImageMagick is available
+        if not generator.validate_dependencies():
+            task.complete(False, 'ImageMagick not available. Please install ImageMagick.')
+            return
+        
+        # Load media config to get media mappings
+        media_config = load_media_config()
+        
+        # Find the media directory for the target field and screenshot field
+        box2d_directory = get_media_directory(target_field)
+        screenshot_directory = get_media_directory(screenshot_field)
+        
+        if not box2d_directory:
+            error_msg = f'No media mapping found for {target_field} field.'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
+            return
+        
+        if not screenshot_directory:
+            error_msg = f'No media mapping found for {screenshot_field} field.'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
+            return
+        
+        # Create media directories
+        media_dir = os.path.join(system_path, 'media')
+        box2d_dir = os.path.join(media_dir, box2d_directory)
+        os.makedirs(box2d_dir, exist_ok=True)
+        
+        # Get corner positions
+        corner1_x = corners.get('x1', 0)
+        corner1_y = corners.get('y1', 0)
+        corner2_x = corners.get('x2', 0)
+        corner2_y = corners.get('y2', 0)
+        corner3_x = corners.get('x3', 0)
+        corner3_y = corners.get('y3', 0)
+        corner4_x = corners.get('x4', 0)
+        corner4_y = corners.get('y4', 0)
+        
+        # Process each selected game
+        processed = 0
+        failed = 0
+        
+        for game_path in selected_games:
+            try:
+                # Find game in gamelist
+                game = None
+                for g in games:
+                    if g.get('path') == game_path:
+                        game = g
+                        break
+                
+                if not game:
+                    print(f"⚠️  Game not found in gamelist: {game_path}")
+                    failed += 1
+                    continue
+                
+                game_name = game.get('name', 'Unknown')
+                task.update_progress(f"Processing: {game_name}")
+                
+                # Get screenshot path from game field
+                screenshot_path = None
+                screenshot_element = game.get(screenshot_field)
+                if screenshot_element:
+                    # Handle relative paths
+                    if screenshot_element.startswith('./'):
+                        screenshot_path = os.path.join(system_path, screenshot_element[2:])
+                    elif screenshot_element.startswith('/'):
+                        screenshot_path = screenshot_element
+                    else:
+                        screenshot_path = os.path.join(system_path, screenshot_element)
+                
+                if not screenshot_path or not os.path.exists(screenshot_path):
+                    print(f"⚠️  Screenshot not found for {game_name}: {screenshot_path}")
+                    failed += 1
+                    task.update_progress(f"⚠️  Skipped: {game_name} (no screenshot)")
+                    continue
+                
+                # Generate output filename
+                game_basename = os.path.splitext(os.path.basename(game_path))[0]
+                output_filename = f"{game_basename}.jpg"
+                output_path = os.path.join(box2d_dir, output_filename)
+                
+                # Generate template box
+                generator.generate_template_box(
+                    background_path=background_path,
+                    screenshot_path=screenshot_path,
+                    output_path=output_path,
+                    corner1_x=corner1_x,
+                    corner1_y=corner1_y,
+                    corner2_x=corner2_x,
+                    corner2_y=corner2_y,
+                    corner3_x=corner3_x,
+                    corner3_y=corner3_y,
+                    corner4_x=corner4_x,
+                    corner4_y=corner4_y
+                )
+                
+                # Update gamelist.xml
+                game_element = None
+                tree = ET.parse(gamelist_path)
+                root = tree.getroot()
+                
+                for game_elem in root.findall('game'):
+                    if game_elem.find('path') is not None:
+                        xml_game_path = game_elem.find('path').text
+                        if xml_game_path and xml_game_path == game_path:
+                            game_element = game_elem
+                            break
+                
+                if game_element is not None:
+                    target_element = game_element.find(target_field)
+                    media_path = f"./media/{box2d_directory}/{output_filename}"
+                    if target_element is not None:
+                        target_element.text = media_path
+                    else:
+                        target_element = ET.SubElement(game_element, target_field)
+                        target_element.text = media_path
+                    
+                    save_formatted_gamelist_xml(tree, gamelist_path)
+                
+                processed += 1
+                task.update_progress(f"✅ Generated: {game_name}")
+                
+            except Exception as e:
+                print(f"❌ Error processing {game_path}: {e}")
+                failed += 1
+                task.update_progress(f"❌ Failed: {game.get('name', game_path)} - {str(e)}")
+        
+        # Cleanup temp directory
+        try:
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+        except Exception as e:
+            print(f"Warning: Could not cleanup temp directory: {e}")
+        
+        task.complete(True, f"Template box generation completed: {processed} succeeded, {failed} failed")
+        
+    except Exception as e:
+        print(f"❌ Error in template box generation: {e}")
+        import traceback
+        traceback.print_exc()
+        if current_task_id and current_task_id in tasks:
+            tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
 def run_logo_generation_task(system_name, selected_games, color, font_size, font, bold=False, italic=False, underline=False, uppercase=False, max_chars_per_line=15):
     """Run logo generation task in background thread"""
@@ -24512,6 +24807,191 @@ def generate_2d_box():
         
     except Exception as e:
         return jsonify({'error': f'Failed to start 2D box generation: {str(e)}'}), 500
+
+@app.route('/api/save-box-template', methods=['POST'])
+@login_required
+def save_box_template():
+    """Save a box template configuration"""
+    try:
+        template_name = request.form.get('template_name')
+        if not template_name:
+            return jsonify({'success': False, 'error': 'Template name is required'}), 400
+        
+        # Create templates directory if it doesn't exist
+        templates_dir = 'var/2dbox/templates'
+        os.makedirs(templates_dir, exist_ok=True)
+        
+        # Save background image
+        background_file = request.files.get('background_image')
+        
+        if not background_file:
+            return jsonify({'success': False, 'error': 'Background image is required'}), 400
+        
+        # Sanitize template name for filesystem
+        safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
+        
+        # Save background image
+        background_filename = f'{safe_name}_background.jpg'
+        background_path = os.path.join(templates_dir, background_filename)
+        background_file.save(background_path)
+        
+        # Get corner positions
+        corners_json = request.form.get('corners')
+        corners = json.loads(corners_json) if corners_json else {}
+        
+        # Save template metadata as JSON
+        template_data = {
+            'name': template_name,
+            'background_image': background_filename,  # Store relative path
+            'corners': corners
+        }
+        
+        template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
+        with open(template_json_path, 'w') as f:
+            json.dump(template_data, f, indent=2)
+        
+        return jsonify({'success': True, 'message': 'Template saved successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to save template: {str(e)}'}), 500
+
+@app.route('/api/list-box-templates', methods=['GET'])
+@login_required
+def list_box_templates():
+    """List all saved box templates"""
+    try:
+        templates_dir = 'var/2dbox/templates'
+        templates = []
+        
+        if os.path.exists(templates_dir):
+            for filename in os.listdir(templates_dir):
+                if filename.endswith('.json'):
+                    template_path = os.path.join(templates_dir, filename)
+                    try:
+                        with open(template_path, 'r') as f:
+                            template_data = json.load(f)
+                            templates.append({
+                                'name': template_data.get('name', filename.replace('.json', '')),
+                                'background_image': template_data.get('background_image', ''),
+                                'corners': template_data.get('corners', {})
+                            })
+                    except Exception as e:
+                        print(f"Error loading template {filename}: {e}")
+                        continue
+        
+        return jsonify({'success': True, 'templates': templates})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to list templates: {str(e)}'}), 500
+
+@app.route('/api/load-box-template', methods=['GET'])
+@login_required
+def load_box_template():
+    """Load a box template by name"""
+    try:
+        template_name = request.args.get('name')
+        if not template_name:
+            return jsonify({'success': False, 'error': 'Template name is required'}), 400
+        
+        templates_dir = 'var/2dbox/templates'
+        safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
+        template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
+        
+        if not os.path.exists(template_json_path):
+            return jsonify({'success': False, 'error': 'Template not found'}), 404
+        
+        with open(template_json_path, 'r') as f:
+            template_data = json.load(f)
+        
+        # Get background image filename
+        background_image = template_data.get('background_image', '')
+        
+        # Return paths that can be accessed via URL
+        return jsonify({
+            'success': True,
+            'background_image_path': f'/api/template-image?path={background_image}&type=background',
+            'corners': template_data.get('corners', {})
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to load template: {str(e)}'}), 500
+
+@app.route('/api/template-image', methods=['GET'])
+@login_required
+def get_template_image():
+    """Serve template images"""
+    try:
+        path = request.args.get('path')
+        image_type = request.args.get('type', 'background')
+        
+        if not path:
+            return jsonify({'error': 'Path is required'}), 400
+        
+        templates_dir = 'var/2dbox/templates'
+        image_path = os.path.join(templates_dir, path)
+        
+        # Security: ensure path is within templates directory
+        abs_templates_dir = os.path.abspath(templates_dir)
+        abs_image_path = os.path.abspath(image_path)
+        if not abs_image_path.startswith(abs_templates_dir):
+            return jsonify({'error': 'Invalid path'}), 403
+        
+        if not os.path.exists(image_path):
+            return jsonify({'error': 'Image not found'}), 404
+        
+        return send_file(image_path)
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to serve image: {str(e)}'}), 500
+
+@app.route('/api/generate-template-box', methods=['POST'])
+@login_required
+def generate_template_box():
+    """Start template box generation task for selected games"""
+    try:
+        system_name = request.form.get('system_name')
+        game_paths_json = request.form.get('game_paths')
+        target_field = request.form.get('target_field')
+        screenshot_field = request.form.get('screenshot_field')
+        corners_json = request.form.get('corners')
+        
+        if not system_name or not game_paths_json or not target_field or not screenshot_field:
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        selected_games = json.loads(game_paths_json)
+        corners = json.loads(corners_json) if corners_json else {}
+        
+        # Save uploaded background image temporarily
+        background_file = request.files.get('background_image')
+        
+        if not background_file:
+            return jsonify({'success': False, 'error': 'Background image is required'}), 400
+        
+        # Create temp directory for this task
+        temp_dir = tempfile.mkdtemp(prefix='template_box_')
+        background_path = os.path.join(temp_dir, 'background.jpg')
+        
+        background_file.save(background_path)
+        
+        # Add task to queue (screenshot will be loaded from game field during processing)
+        task = add_task_to_queue('template_box_generation', {
+            'system_name': system_name,
+            'selected_games': selected_games,
+            'target_field': target_field,
+            'screenshot_field': screenshot_field,
+            'background_path': background_path,
+            'corners': corners,
+            'temp_dir': temp_dir
+        })
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'games_count': len(selected_games)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to start template box generation: {str(e)}'}), 500
 
 @app.route('/api/generate-logo', methods=['POST'])
 @login_required
@@ -30223,12 +30703,22 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                 
                                 # Only set YouTube URL if it doesn't exist or if overwrite is enabled
                                 if not existing_youtube_url or overwrite_text_fields:
-                                    youtube_url = f"https://store.steampowered.com/app/{steam_id}"
-                                    game['youtubeurl'] = youtube_url
-                                    print(f"✅ Set YouTube URL for '{game_name}': {youtube_url}")
-                                    t = get_task(task_id)
-                                    if t:
-                                        t.log_message(f"Set YouTube URL for '{game_name}': {youtube_url}")
+                                    # Extract actual video URL from Steam store page
+                                    video_url = await extract_steam_video_url(steam_id)
+                                    if video_url:
+                                        game['youtubeurl'] = video_url
+                                        print(f"✅ Set YouTube URL for '{game_name}': {video_url}")
+                                        t = get_task(task_id)
+                                        if t:
+                                            t.log_message(f"Set YouTube URL for '{game_name}': {video_url}")
+                                    else:
+                                        # Fallback to store page URL if no video found
+                                        store_url = f"https://store.steampowered.com/app/{steam_id}"
+                                        game['youtubeurl'] = store_url
+                                        print(f"⚠️ No video found for '{game_name}', using store page URL: {store_url}")
+                                        t = get_task(task_id)
+                                        if t:
+                                            t.log_message(f"No video found for '{game_name}', using store page URL")
                                 else:
                                     print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
                     
@@ -30354,16 +30844,30 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                     
                                     # Only set YouTube URL if it doesn't exist or if overwrite is enabled
                                     if not existing_youtube_url or overwrite_text_fields:
-                                        youtube_url = f"https://store.steampowered.com/app/{steam_id}"
-                                        game['youtubeurl'] = youtube_url
-                                        # Also update the corresponding game in all_games
-                                        for all_game in all_games:
-                                            if all_game['path'] == game['path']:
-                                                all_game['youtubeurl'] = youtube_url
-                                        print(f"✅ Set YouTube URL for '{game_name}': {youtube_url}")
-                                        t = get_task(task_id)
-                                        if t:
-                                            t.log_message(f"Set YouTube URL for '{game_name}': {youtube_url}")
+                                        # Extract actual video URL from Steam store page
+                                        video_url = await extract_steam_video_url(steam_id)
+                                        if video_url:
+                                            game['youtubeurl'] = video_url
+                                            # Also update the corresponding game in all_games
+                                            for all_game in all_games:
+                                                if all_game['path'] == game['path']:
+                                                    all_game['youtubeurl'] = video_url
+                                            print(f"✅ Set YouTube URL for '{game_name}': {video_url}")
+                                            t = get_task(task_id)
+                                            if t:
+                                                t.log_message(f"Set YouTube URL for '{game_name}': {video_url}")
+                                        else:
+                                            # Fallback to store page URL if no video found
+                                            store_url = f"https://store.steampowered.com/app/{steam_id}"
+                                            game['youtubeurl'] = store_url
+                                            # Also update the corresponding game in all_games
+                                            for all_game in all_games:
+                                                if all_game['path'] == game['path']:
+                                                    all_game['youtubeurl'] = store_url
+                                            print(f"⚠️ No video found for '{game_name}', using store page URL: {store_url}")
+                                            t = get_task(task_id)
+                                            if t:
+                                                t.log_message(f"No video found for '{game_name}', using store page URL")
                                     else:
                                         print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
                                 else:
@@ -30375,14 +30879,13 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                     'steam_id': steam_id,
                                     'name': game_name
                                 })
-                    
-                    updated_count += 1
-                else:
-                    print(f"❌ No Steam ID found for '{game_name}' - skipping media download")
-                    t = get_task(task_id)
-                    if t:
-                        t.log_message(f"No Steam ID found for '{game_name}' - skipping media download")
-                    skipped_count += 1
+                                updated_count += 1
+                            else:
+                                print(f"❌ No Steam ID found for '{game_name}' - skipping media download")
+                                t = get_task(task_id)
+                                if t:
+                                    t.log_message(f"No Steam ID found for '{game_name}' - skipping media download")
+                                skipped_count += 1
                 
                 # Update progress for Steam ID lookup completion
                 steam_lookup_completed += 1

@@ -366,6 +366,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="open2DBoxGeneratorConfigModal">
                             <i class="bi bi-box-seam me-2"></i>2D Box Generator Configuration
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openBoxTemplateGeneratorModal">
+                            <i class="bi bi-layout-text-window me-2"></i>Box Template Generator
+                        </a></li>
                         <li><a class="dropdown-item" href="#" id="openVideoConfigModal">
                             <i class="bi bi-camera-video me-2"></i>Video Configuration
                         </a></li>
@@ -599,6 +602,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="globalGeneratorBtn">
                         <li><a class="dropdown-item" href="#" id="global2DBoxGeneratorBtn">
                             <i class="bi bi-image me-2"></i>2D Box Generator
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="globalBoxTemplateGeneratorBtn">
+                            <i class="bi bi-layout-text-window me-2"></i>Box Template Generator
                         </a></li>
                         <li><a class="dropdown-item" href="#" id="globalLogoGeneratorBtn">
                             <i class="bi bi-type me-2"></i>Logo Generator
@@ -3361,6 +3367,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         <div class="form-text">Automatically detect and remove black borders using ffmpeg</div>
                                     </div>
                                     
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="disableAudioCheckbox">
+                                            <label class="form-check-label" for="disableAudioCheckbox">
+                                                <i class="bi bi-volume-mute me-1"></i>Disable Audio
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Record video without audio track</div>
+                                    </div>
+                                    
                                     <button id="downloadVideoBtn" class="btn btn-success w-100">
                                         <i class="bi bi-download me-2"></i>Download 30s Clip
                                     </button>
@@ -4321,6 +4337,122 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="startBox2DGeneratorBtn">
                         <i class="bi bi-play-fill me-1"></i>Generate 2D Boxes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Box Template Generator Modal -->
+    <div class="modal fade" id="boxTemplateGeneratorModal" tabindex="-1" aria-labelledby="boxTemplateGeneratorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="boxTemplateGeneratorModalLabel">
+                        <i class="bi bi-layout-text-window me-2"></i>Box Template Generator
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">Template Configuration</h6>
+                            
+                            <div class="mb-3">
+                                <label for="templateBackgroundImage" class="form-label">Background Image</label>
+                                <input type="file" class="form-control" id="templateBackgroundImage" accept="image/*">
+                                <div class="form-text">Select background image file (will be used as base dimensions)</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="templateScreenshotField" class="form-label">Screenshot Image Field</label>
+                                <select class="form-select" id="templateScreenshotField">
+                                    <option value="">Loading media fields...</option>
+                                </select>
+                                <div class="form-text">Field used for the screenshot image (typically image or screenshot)</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="templateTargetField" class="form-label">Target Media Field</label>
+                                <select class="form-select" id="templateTargetField">
+                                    <option value="">Loading media fields...</option>
+                                </select>
+                                <div class="form-text">Field where the generated box will be saved</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Screenshot Corner Positions</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small">Top Left (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateCorner1X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateCorner1Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Top Right (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateCorner2X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateCorner2Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Bottom Right (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateCorner3X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateCorner3Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Bottom Left (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateCorner4X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateCorner4Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text">Corner positions are updated automatically when using the interactive preview</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="saveTemplateBtn">
+                                    <i class="bi bi-save me-1"></i>Save Template
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="loadTemplateBtn">
+                                    <i class="bi bi-folder-open me-1"></i>Load Template
+                                </button>
+                                <select class="form-select form-select-sm d-inline-block w-auto ms-2" id="templateSelect" style="width: 200px;">
+                                    <option value="">Select template...</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">Interactive Preview</h6>
+                            <div class="alert alert-info">
+                                <i class="bi bi-mouse me-2"></i>
+                                Click and drag the corners in the preview below to position the screenshot placement area.
+                            </div>
+                            <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: hidden;">
+                                <div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div>
+                                <img id="templatePreviewImage" style="max-width: 100%; display: none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="generateTemplateBoxBtn">
+                        <i class="bi bi-play-fill me-1"></i>Generate Box
                     </button>
                 </div>
             </div>
