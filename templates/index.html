@@ -154,53 +154,75 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             height: auto;
             object-fit: contain;
         }
+        /* Video Cropping Modal Layout */
         #videoCroppingModal .modal-dialog {
             max-width: 95vw;
             width: 1200px;
         }
-        #videoCroppingModal .card-body {
-            min-height: 520px;
-        }
-        #videoCroppingModal .text-center {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 500px;
-            overflow: hidden;
-        }
-        #videoCroppingModal .modal-body {
-            padding: 1rem;
-        }
         #videoCroppingModal .card {
             height: 100%;
-        }
-        #videoCroppingModal .card-body {
             display: flex;
             flex-direction: column;
         }
+        #videoCroppingModal .card-body {
+            flex: 1;
+            min-height: 520px;
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem;
+        }
+        #videoCroppingModal .text-center {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #f8f9fa;
+            min-height: 500px;
+        }
+        #videoCroppingModal cropper-canvas {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+        }
+
+        /* Image Cropping Modal Layout */
         #imageCroppingModal .modal-dialog {
             max-width: 95vw;
             width: 1200px;
         }
+        #imageCroppingModal .card {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
         #imageCroppingModal .card-body {
-            min-height: 400px;
-            max-height: 900px;
-            overflow: auto;
+            flex: 1;
+            min-height: 500px;
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem;
         }
         #imageCroppingModal .text-center {
+            flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 400px;
-            max-height: 900px;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
+            background: #f8f9fa;
+            min-height: 500px;
             position: relative;
         }
-        #imageCroppingModal .modal-body {
-            padding: 1rem;
-        }
-        #imageCroppingModal .card {
+        #imageCroppingModal cropper-canvas {
+            width: 100%;
             height: 100%;
+            max-width: none;
+            max-height: none;
         }
         #imageCroppingModal #cropImageElement {
             max-width: 100%;
@@ -4423,6 +4445,89 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <div class="form-text">Corner positions are updated automatically when using the interactive preview</div>
                             </div>
                             
+                            <hr class="my-3">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Logo Configuration</label>
+                                <div class="mb-2">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="templateLogoSource" id="templateLogoSourceNone" value="none" checked>
+                                        <label class="form-check-label" for="templateLogoSourceNone">No Logo</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="templateLogoSource" id="templateLogoSourceMarquee" value="marquee">
+                                        <label class="form-check-label" for="templateLogoSourceMarquee">From Marquee Field</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="templateLogoSource" id="templateLogoSourceText" value="text">
+                                        <label class="form-check-label" for="templateLogoSourceText">Text Logo</label>
+                                    </div>
+                                </div>
+                                <div id="templateLogoTextConfig" style="display: none;">
+                                    <div class="mb-3">
+                                        <label for="templateLogoFont" class="form-label">Font Family</label>
+                                        <select class="form-select form-select-sm" id="templateLogoFont">
+                                            <option value="">Loading fonts...</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="templateLogoColor" class="form-label">Font Color</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="color" class="form-control form-control-color" id="templateLogoColor" value="#ffffff" title="Choose text color">
+                                            <input type="text" class="form-control" id="templateLogoColorText" value="#ffffff" placeholder="#ffffff">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="templateLogoFontSize" class="form-label">Font Size</label>
+                                        <input type="number" class="form-control form-control-sm" id="templateLogoFontSize" value="72" min="12" max="300" step="1">
+                                        <div class="form-text small">Font size in points (12-300). Will be auto-calculated from logo zone if not set.</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3" id="templateLogoZoneConfig" style="display: none;">
+                                <label class="form-label">Logo Zone Position</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small">Top Left (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner1X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner1Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Top Right (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner2X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner2Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Bottom Right (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner3X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner3Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Bottom Left (X, Y)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner4X" placeholder="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="templateLogoCorner4Y" placeholder="0">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text">Define the logo placement zone in the interactive preview</div>
+                            </div>
+                            
                             <div class="mb-3">
                                 <button type="button" class="btn btn-outline-primary btn-sm me-2" id="saveTemplateBtn">
                                     <i class="bi bi-save me-1"></i>Save Template
@@ -4440,7 +4545,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <h6 class="mb-3">Interactive Preview</h6>
                             <div class="alert alert-info">
                                 <i class="bi bi-mouse me-2"></i>
-                                Click and drag the corners in the preview below to position the screenshot placement area.
+                                Click and drag the corners in the preview below to position the screenshot and logo placement areas.
+                            </div>
+                            <div class="mb-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-2 active" id="templateEditScreenshotZoneBtn">
+                                    <i class="bi bi-image me-1"></i>Edit Screenshot Zone
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="templateEditLogoZoneBtn" style="display: none;">
+                                    <i class="bi bi-type me-1"></i>Edit Logo Zone
+                                </button>
                             </div>
                             <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: hidden;">
                                 <div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div>

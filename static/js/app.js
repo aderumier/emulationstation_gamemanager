@@ -10771,6 +10771,36 @@ class GameCollectionManager {
         // Load saved templates
         this.loadTemplateList();
         
+        // Load fonts for template logo font selector
+        const templateLogoFont = document.getElementById('templateLogoFont');
+        if (templateLogoFont) {
+            this.loadAvailableFonts().then(() => {
+                const fontSelect = document.getElementById('logoGeneratorFont');
+                if (fontSelect) {
+                    // Copy font options from logo generator to template generator
+                    const options = fontSelect.querySelectorAll('option');
+                    templateLogoFont.innerHTML = '';
+                    options.forEach(option => {
+                        const newOption = option.cloneNode(true);
+                        templateLogoFont.appendChild(newOption);
+                    });
+                }
+            }).catch(() => {
+                // Fallback to default fonts
+                const defaultFonts = ['Arial', 'Helvetica', 'Times-Roman', 'Courier', 'DejaVu-Sans', 
+                                     'DejaVu-Serif', 'DejaVu-Sans-Mono', 'Impact', 'Verdana', 'Georgia'];
+                if (templateLogoFont) {
+                    templateLogoFont.innerHTML = '';
+                    defaultFonts.forEach(font => {
+                        const option = document.createElement('option');
+                        option.value = font;
+                        option.textContent = font;
+                        templateLogoFont.appendChild(option);
+                    });
+                }
+            });
+        }
+        
         // Reset form
         this.resetTemplateGeneratorForm();
         
@@ -10835,32 +10865,63 @@ class GameCollectionManager {
         const screenshotField = document.getElementById('templateScreenshotField');
         const targetField = document.getElementById('templateTargetField');
         const previewContainer = document.getElementById('templatePreviewContainer');
-        const previewImage = document.getElementById('templatePreviewImage');
         const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+        const cropperCanvas = document.getElementById('templateCropperCanvas');
+        const cropperImage = document.getElementById('templateCropperImage');
+        const screenshotSelection = document.getElementById('templateScreenshotSelection');
+        const logoSelection = document.getElementById('templateLogoSelection');
         
-        // Clean up cropper if exists
-        if (this.templateCropper) {
-            this.templateCropper.destroy();
-            this.templateCropper = null;
-        }
+        // Reset zone editing state
+        this.templateEditingZone = 'screenshot'; // 'screenshot' or 'logo'
         
         if (backgroundInput) backgroundInput.value = '';
         // Don't reset screenshotField and targetField - they are persisted via localStorage
         // They will be restored in loadTemplateGeneratorFields()
-        if (previewImage) {
-            previewImage.style.display = 'none';
-            previewImage.src = '';
+        
+        if (cropperCanvas) {
+            cropperCanvas.style.display = 'none';
+        }
+        if (cropperImage) {
+            cropperImage.removeAttribute('src');
         }
         if (previewPlaceholder) previewPlaceholder.style.display = 'block';
-        if (previewContainer) {
-            previewContainer.innerHTML = '<div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div><img id="templatePreviewImage" style="max-width: 100%; display: none;">';
+        
+        // Reset selections
+        if (screenshotSelection) {
+            screenshotSelection.$clear();
+            screenshotSelection.active = true;
+        }
+        if (logoSelection) {
+            logoSelection.$clear();
+            logoSelection.hidden = true;
+            logoSelection.active = false;
         }
         
+        // Reset screenshot corners
         ['templateCorner1X', 'templateCorner1Y', 'templateCorner2X', 'templateCorner2Y',
          'templateCorner3X', 'templateCorner3Y', 'templateCorner4X', 'templateCorner4Y'].forEach(id => {
             const element = document.getElementById(id);
             if (element) element.value = '';
         });
+        
+        // Reset logo corners
+        ['templateLogoCorner1X', 'templateLogoCorner1Y', 'templateLogoCorner2X', 'templateLogoCorner2Y',
+         'templateLogoCorner3X', 'templateLogoCorner3Y', 'templateLogoCorner4X', 'templateLogoCorner4Y'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.value = '';
+        });
+        
+        // Reset logo source to 'none'
+        const logoSourceNone = document.getElementById('templateLogoSourceNone');
+        if (logoSourceNone) logoSourceNone.checked = true;
+        
+        // Hide logo config sections
+        const logoTextConfig = document.getElementById('templateLogoTextConfig');
+        const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
+        const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
+        if (logoTextConfig) logoTextConfig.style.display = 'none';
+        if (logoZoneConfig) logoZoneConfig.style.display = 'none';
+        if (editLogoZoneBtn) editLogoZoneBtn.style.display = 'none';
     }
     
     handleTemplateBackgroundChange(e) {
@@ -10992,39 +11053,100 @@ class GameCollectionManager {
         if (corner4YInput) corner4YInput.value = corner4Y;
     }
     
-    updateTemplateCropperFromCorners() {
-        if (!this.templateCropper) return;
+    // Logo corner functions - placeholder for v1 (logo zone not supported in v1)
+    updateTemplateLogoCornersFromCropper() {
+        // Not implemented in v1 - logo zone requires v2
+    }
+    
+    updateTemplateCropperFromLogoCorners() {
+        // Not implemented in v1 - logo zone requires v2
+    }
+    
+    handleTemplateLogoSourceChange(source) {
+        const logoTextConfig = document.getElementById('templateLogoTextConfig');
+        const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
+        const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
+        const logoSelection = document.getElementById('templateLogoSelection');
+        const screenshotSelection = document.getElementById('templateScreenshotSelection');
         
-        // Get corner positions from inputs
-        const corners = {
-            x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
-            y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
-            x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
-            y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
-            x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
-            y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
-            x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
-            y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
-        };
+        if (source === 'none') {
+            if (logoTextConfig) logoTextConfig.style.display = 'none';
+            if (logoZoneConfig) logoZoneConfig.style.display = 'none';
+            if (editLogoZoneBtn) editLogoZoneBtn.style.display = 'none';
+            if (logoSelection) {
+                logoSelection.hidden = true;
+                logoSelection.active = false;
+            }
+            // Ensure screenshot selection is active when logo is disabled
+            if (screenshotSelection) {
+                screenshotSelection.active = true;
+            }
+        } else {
+            if (logoZoneConfig) logoZoneConfig.style.display = 'block';
+            if (editLogoZoneBtn) editLogoZoneBtn.style.display = 'inline-block';
+            if (logoSelection) {
+                logoSelection.hidden = false;
+                // Initialize logo selection if it's empty
+                if (logoSelection.width === 0 && logoSelection.height === 0) {
+                    logoSelection.initialCoverage = 0.3;
+                    logoSelection.$initSelection(true, true);
+                }
+            }
+            if (source === 'text') {
+                if (logoTextConfig) logoTextConfig.style.display = 'block';
+                // Auto-calculate font size if not set
+                const fontSizeInput = document.getElementById('templateLogoFontSize');
+                if (fontSizeInput && !fontSizeInput.value) {
+                    this.calculateTemplateLogoFontSize();
+                }
+            } else {
+                if (logoTextConfig) logoTextConfig.style.display = 'none';
+            }
+        }
+    }
+    
+    calculateTemplateLogoFontSize() {
+        const logoSelection = document.getElementById('templateLogoSelection');
+        const cropperImage = document.getElementById('templateCropperImage');
+        const fontSizeInput = document.getElementById('templateLogoFontSize');
         
-        // Get image data to calculate scale
-        const imageData = this.templateCropper.getImageData();
-        const scaleX = imageData.width / imageData.naturalWidth;
-        const scaleY = imageData.height / imageData.naturalHeight;
+        if (!logoSelection || !cropperImage || !fontSizeInput || logoSelection.hidden) {
+            return;
+        }
         
-        // Convert natural coordinates to displayed coordinates
-        const left = Math.min(corners.x1, corners.x4) * scaleX;
-        const top = Math.min(corners.y1, corners.y2) * scaleY;
-        const right = Math.max(corners.x2, corners.x3) * scaleX;
-        const bottom = Math.max(corners.y3, corners.y4) * scaleY;
+        // Get logo zone dimensions in pixels (on canvas)
+        const zoneWidth = logoSelection.width;
+        const zoneHeight = logoSelection.height;
         
-        // Update crop box (cropper uses rectangular selection, so we use bounding box)
-        this.templateCropper.setCropBoxData({
-            left: left,
-            top: top,
-            width: right - left,
-            height: bottom - top
-        });
+        if (zoneWidth > 0 && zoneHeight > 0) {
+            // Get natural image dimensions
+            cropperImage.$ready().then((img) => {
+                const naturalWidth = img.naturalWidth;
+                const naturalHeight = img.naturalHeight;
+                const canvas = logoSelection.$canvas;
+                
+                if (canvas) {
+                    const canvasWidth = canvas.offsetWidth;
+                    const canvasHeight = canvas.offsetHeight;
+                    
+                    // Convert canvas coordinates to natural image coordinates
+                    const scaleX = naturalWidth / canvasWidth;
+                    const scaleY = naturalHeight / canvasHeight;
+                    
+                    const naturalZoneHeight = zoneHeight * scaleY;
+                    
+                    // Calculate font size: use 70% of zone height for font size
+                    // This leaves room for line spacing
+                    const calculatedFontSize = Math.round(naturalZoneHeight * 0.7);
+                    
+                    // Clamp to valid range (12-300)
+                    const clampedFontSize = Math.max(12, Math.min(300, calculatedFontSize));
+                    fontSizeInput.value = clampedFontSize;
+                }
+            }).catch(() => {
+                // Silently fail if image not ready
+            });
+        }
     }
     
     saveTemplate() {
@@ -11045,7 +11167,7 @@ class GameCollectionManager {
             return;
         }
         
-        // Get corner positions
+        // Get screenshot corner positions
         const corners = {
             x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
             y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
@@ -11057,11 +11179,45 @@ class GameCollectionManager {
             y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
         };
         
-        // Save background image and template metadata (screenshot comes from game field)
+        // Get logo configuration
+        const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
+        const logoCorners = {
+            x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
+            y1: parseInt(document.getElementById('templateLogoCorner1Y')?.value) || 0,
+            x2: parseInt(document.getElementById('templateLogoCorner2X')?.value) || 0,
+            y2: parseInt(document.getElementById('templateLogoCorner2Y')?.value) || 0,
+            x3: parseInt(document.getElementById('templateLogoCorner3X')?.value) || 0,
+            y3: parseInt(document.getElementById('templateLogoCorner3Y')?.value) || 0,
+            x4: parseInt(document.getElementById('templateLogoCorner4X')?.value) || 0,
+            y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
+        };
+        
+        // Get text logo settings if using text logo
+        let textLogoSettings = null;
+        if (logoSource === 'text') {
+            const font = document.getElementById('templateLogoFont')?.value || 'Arial';
+            const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
+            const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
+            
+            textLogoSettings = {
+                font: font,
+                color: color,
+                fontSize: fontSize
+            };
+        }
+        
+        // Save background image and template metadata
         const formData = new FormData();
         formData.append('template_name', trimmedName);
         formData.append('background_image', backgroundInput.files[0]);
         formData.append('corners', JSON.stringify(corners));
+        formData.append('logo_source', logoSource);
+        if (logoSource !== 'none') {
+            formData.append('logo_corners', JSON.stringify(logoCorners));
+        }
+        if (textLogoSettings) {
+            formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
+        }
         
         fetch('/api/save-box-template', {
             method: 'POST',
@@ -11147,6 +11303,59 @@ class GameCollectionManager {
                     if (corner4Y) corner4Y.value = data.corners.y4 || '';
                 }
                 
+                // Load logo configuration
+                const logoSource = data.logo_source || 'none';
+                const logoSourceRadio = document.getElementById(`templateLogoSource${logoSource.charAt(0).toUpperCase() + logoSource.slice(1)}`);
+                if (logoSourceRadio) {
+                    logoSourceRadio.checked = true;
+                    this.handleTemplateLogoSourceChange(logoSource);
+                }
+                
+                if (data.logo_corners && logoSource !== 'none') {
+                    const logoCorner1X = document.getElementById('templateLogoCorner1X');
+                    const logoCorner1Y = document.getElementById('templateLogoCorner1Y');
+                    const logoCorner2X = document.getElementById('templateLogoCorner2X');
+                    const logoCorner2Y = document.getElementById('templateLogoCorner2Y');
+                    const logoCorner3X = document.getElementById('templateLogoCorner3X');
+                    const logoCorner3Y = document.getElementById('templateLogoCorner3Y');
+                    const logoCorner4X = document.getElementById('templateLogoCorner4X');
+                    const logoCorner4Y = document.getElementById('templateLogoCorner4Y');
+                    
+                    if (logoCorner1X) logoCorner1X.value = data.logo_corners.x1 || '';
+                    if (logoCorner1Y) logoCorner1Y.value = data.logo_corners.y1 || '';
+                    if (logoCorner2X) logoCorner2X.value = data.logo_corners.x2 || '';
+                    if (logoCorner2Y) logoCorner2Y.value = data.logo_corners.y2 || '';
+                    if (logoCorner3X) logoCorner3X.value = data.logo_corners.x3 || '';
+                    if (logoCorner3Y) logoCorner3Y.value = data.logo_corners.y3 || '';
+                    if (logoCorner4X) logoCorner4X.value = data.logo_corners.x4 || '';
+                    if (logoCorner4Y) logoCorner4Y.value = data.logo_corners.y4 || '';
+                }
+                
+                // Restore text logo settings if present
+                if (data.text_logo_settings && logoSource === 'text') {
+                    const fontSelect = document.getElementById('templateLogoFont');
+                    const colorPicker = document.getElementById('templateLogoColor');
+                    const colorText = document.getElementById('templateLogoColorText');
+                    const fontSizeInput = document.getElementById('templateLogoFontSize');
+                    
+                    if (data.text_logo_settings.font && fontSelect) {
+                        if (fontSelect.querySelector(`option[value="${data.text_logo_settings.font}"]`)) {
+                            fontSelect.value = data.text_logo_settings.font;
+                        }
+                    }
+                    
+                    if (data.text_logo_settings.color) {
+                        if (colorText) colorText.value = data.text_logo_settings.color;
+                        if (colorPicker && /^#[0-9A-F]{6}$/i.test(data.text_logo_settings.color)) {
+                            colorPicker.value = data.text_logo_settings.color;
+                        }
+                    }
+                    
+                    if (data.text_logo_settings.fontSize && fontSizeInput) {
+                        fontSizeInput.value = data.text_logo_settings.fontSize;
+                    }
+                }
+                
                 // Load background image and setup cropper with skipDefaultCrop flag
                 if (data.background_image_path) {
                     // Fetch the background image and set it in the file input
@@ -11170,6 +11379,14 @@ class GameCollectionManager {
                                 reader.onload = (event) => {
                                     // Setup cropper with skipDefaultCrop flag to preserve loaded corners
                                     this.setupTemplateCropper(event.target.result, true);
+                                    
+                                    // After cropper is set up, update selections from loaded corners
+                                    setTimeout(() => {
+                                        this.updateTemplateCropperFromCorners();
+                                        if (logoSource !== 'none' && data.logo_corners) {
+                                            this.updateTemplateCropperFromLogoCorners();
+                                        }
+                                    }, 200);
                                 };
                                 reader.readAsDataURL(file);
                             }
@@ -11178,6 +11395,12 @@ class GameCollectionManager {
                             console.error('Error loading background image:', error);
                             // Fallback: just setup cropper with the URL
                             this.setupTemplateCropper(data.background_image_path, true);
+                            setTimeout(() => {
+                                this.updateTemplateCropperFromCorners();
+                                if (logoSource !== 'none' && data.logo_corners) {
+                                    this.updateTemplateCropperFromLogoCorners();
+                                }
+                            }, 200);
                         });
                 }
                 
@@ -11185,7 +11408,7 @@ class GameCollectionManager {
                 setTimeout(() => {
                     this.isLoadingTemplate = false;
                     this.showAlert('Template loaded successfully', 'success');
-                }, 600);
+                }, 800);
             } else {
                 this.isLoadingTemplate = false;
                 this.showAlert('Error loading template: ' + (data.error || 'Unknown error'), 'danger');
@@ -11243,6 +11466,33 @@ class GameCollectionManager {
                 y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
             };
             
+            // Get logo configuration
+            const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
+            const logoCorners = {
+                x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateLogoCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateLogoCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateLogoCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateLogoCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateLogoCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateLogoCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
+            };
+            
+            // Get text logo settings if using text logo
+            let textLogoSettings = null;
+            if (logoSource === 'text') {
+                const font = document.getElementById('templateLogoFont')?.value || 'Arial';
+                const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
+                const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
+                
+                textLogoSettings = {
+                    font: font,
+                    color: color,
+                    fontSize: fontSize
+                };
+            }
+            
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('boxTemplateGeneratorModal'));
             if (modal) {
@@ -11257,6 +11507,13 @@ class GameCollectionManager {
             formData.append('target_field', targetField);
             formData.append('system_name', this.currentSystem);
             formData.append('game_paths', JSON.stringify(this.selectedGames.map(g => g.path)));
+            formData.append('logo_source', logoSource);
+            if (logoSource !== 'none') {
+                formData.append('logo_corners', JSON.stringify(logoCorners));
+            }
+            if (textLogoSettings) {
+                formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
+            }
             
             const response = await fetch('/api/generate-template-box', {
                 method: 'POST',
@@ -14679,12 +14936,6 @@ class GameCollectionManager {
             }
         }
         
-        // Clean up cropper instance
-        if (this.cropper) {
-            this.cropper.destroy();
-            this.cropper = null;
-        }
-        
         // Clean up resize listener
         if (this.imageResizeHandler) {
             window.removeEventListener('resize', this.imageResizeHandler);
@@ -14881,36 +15132,6 @@ class GameCollectionManager {
         window.addEventListener('resize', this.imageResizeHandler);
     }
     
-    setDefaultCropArea() {
-        if (!this.cropper) return;
-        
-        // Get the current image dimensions from the cropper
-        const imageData = this.cropper.getImageData();
-        const containerData = this.cropper.getContainerData();
-        
-        // Calculate the crop area with height = image height and 4:3 aspect ratio
-        const imageHeight = imageData.height;
-        const imageWidth = imageData.width;
-        
-        // Calculate crop height (full image height)
-        const cropHeight = imageHeight;
-        
-        // Calculate crop width based on 4:3 aspect ratio
-        const cropWidth = cropHeight * (4 / 3);
-        
-        // Calculate crop position (center horizontally)
-        const cropX = Math.max(0, (imageWidth - cropWidth) / 2);
-        const cropY = 0; // Start from top
-        
-        // Set the crop box dimensions
-        this.cropper.setCropBoxData({
-            left: cropX,
-            top: cropY,
-            width: cropWidth,
-            height: cropHeight
-        });
-    }
-    
     setupCropperEventListeners() {
         // Keep aspect ratio checkbox (for video cropper)
         const keepAspectCheckbox = document.getElementById('keepAspectRatio');
@@ -14932,6 +15153,338 @@ class GameCollectionManager {
                             cropBoxMovable: true
                         });
                     }
+                }
+            };
+            keepAspectCheckbox.addEventListener('change', keepAspectCheckbox._aspectRatioHandler);
+        }
+        
+        // Keep aspect ratio checkbox (for image cropper)
+        const imageKeepAspectCheckbox = document.getElementById('imageKeepAspectRatio');
+        if (imageKeepAspectCheckbox) {
+            if (imageKeepAspectCheckbox._aspectRatioHandler) {
+                imageKeepAspectCheckbox.removeEventListener('change', imageKeepAspectCheckbox._aspectRatioHandler);
+            }
+            imageKeepAspectCheckbox._aspectRatioHandler = (e) => {
+                if (this.cropper) {
+                    if (e.target.checked) {
+                        // Set aspect ratio to match original image
+                        if (this.originalImageWidth && this.originalImageHeight) {
+                            const ratio = this.originalImageWidth / this.originalImageHeight;
+                            this.cropper.setAspectRatio(ratio);
+                        } else {
+                            this.cropper.setAspectRatio(4 / 3);
+                        }
+                    } else {
+                        // Free aspect ratio - allow free resizing
+                        this.cropper.setAspectRatio(NaN);
+                        this.cropper.setOptions({
+                            cropBoxResizable: true,
+                            cropBoxMovable: true
+                        });
+                    }
+                }
+            };
+            imageKeepAspectCheckbox.addEventListener('change', imageKeepAspectCheckbox._aspectRatioHandler);
+        }
+        
+        // Reset button (for video cropper)
+        const resetBtn = document.getElementById('resetCropBtn');
+        if (resetBtn) {
+            if (resetBtn._resetCropHandler) {
+                resetBtn.removeEventListener('click', resetBtn._resetCropHandler);
+            }
+            resetBtn._resetCropHandler = () => {
+                if (this.cropper) {
+                    this.cropper.reset();
+                    this.updateCropInfo();
+                }
+            };
+            resetBtn.addEventListener('click', resetBtn._resetCropHandler);
+        }
+        
+        // Reset button (for image cropper)
+        const imageResetBtn = document.getElementById('imageResetCropBtn');
+        if (imageResetBtn) {
+            if (imageResetBtn._resetCropHandler) {
+                imageResetBtn.removeEventListener('click', imageResetBtn._resetCropHandler);
+            }
+            imageResetBtn._resetCropHandler = () => {
+                if (this.cropper) {
+                    this.cropper.reset();
+                    this.updateCropInfo();
+                }
+            };
+            imageResetBtn.addEventListener('click', imageResetBtn._resetCropHandler);
+        }
+        
+        // Apply crop button (for video cropper)
+        const applyBtn = document.getElementById('applyCropBtn');
+        if (applyBtn) {
+            if (applyBtn._applyCropHandler) {
+                applyBtn.removeEventListener('click', applyBtn._applyCropHandler);
+            }
+            applyBtn._applyCropHandler = () => {
+                this.applyCropperCrop();
+            };
+            applyBtn.addEventListener('click', applyBtn._applyCropHandler);
+        }
+        
+        // Apply crop button (for image cropper)
+        const imageApplyBtn = document.getElementById('imageApplyCropBtn');
+        if (imageApplyBtn) {
+            if (imageApplyBtn._applyCropHandler) {
+                imageApplyBtn.removeEventListener('click', imageApplyBtn._applyCropHandler);
+            }
+            imageApplyBtn._applyCropHandler = () => {
+                this.applyImageCropperCrop();
+            };
+            imageApplyBtn.addEventListener('click', imageApplyBtn._applyCropHandler);
+        }
+    }
+    
+    setupVideoCropper() {
+        const cropperImage = document.getElementById('videoCropperImage');
+        const selection = document.getElementById('videoCropperSelection');
+        const canvas = document.getElementById('videoCropperCanvas');
+        
+        if (!cropperImage || !selection || !canvas) return;
+        
+        // Store original image dimensions
+        cropperImage.$ready().then((img) => {
+            this.originalImageWidth = img.naturalWidth;
+            this.originalImageHeight = img.naturalHeight;
+            
+            // Force canvas to match container size explicitly
+            const container = canvas.parentElement;
+            if (container) {
+                canvas.style.width = container.clientWidth + 'px';
+                canvas.style.height = container.clientHeight + 'px';
+            }
+            
+            // Center and fit image using contain mode
+            cropperImage.$center('contain');
+            
+            // Try to load last crop data from localStorage
+            let savedCropData = null;
+            try {
+                const saved = localStorage.getItem('lastVideoCropData');
+                if (saved) {
+                    savedCropData = JSON.parse(saved);
+                    // Check if image dimensions match
+                    if (savedCropData.imageWidth !== this.originalImageWidth || 
+                        savedCropData.imageHeight !== this.originalImageHeight) {
+                        savedCropData = null; // Dimensions don't match, don't use saved data
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load saved crop data:', e);
+                savedCropData = null;
+            }
+            
+            // Restore saved crop data or set default
+            if (savedCropData && savedCropData.cropBoxData) {
+                // Get canvas to calculate scale
+                const canvasElement = selection.$canvas;
+                if (canvasElement) {
+                    const scaleX = img.naturalWidth / canvasElement.offsetWidth;
+                    const scaleY = img.naturalHeight / canvasElement.offsetHeight;
+                    
+                    const left = savedCropData.cropBoxData.left / scaleX;
+                    const top = savedCropData.cropBoxData.top / scaleY;
+                    const width = savedCropData.cropBoxData.width / scaleX;
+                    const height = savedCropData.cropBoxData.height / scaleY;
+                    
+                    selection.$change(left, top, width, height);
+                }
+            } else {
+                // Set default crop area with 4:3 aspect ratio
+                this.setDefaultVideoCropArea();
+            }
+            
+            // Setup event listeners
+            this.setupVideoCropperEventListeners();
+            
+            // Update crop info display
+            this.updateVideoCropInfo();
+        });
+    }
+    
+    setupImageCropper() {
+        const cropperImage = document.getElementById('imageCropperImage');
+        const selection = document.getElementById('imageCropperSelection');
+        const canvas = document.getElementById('imageCropperCanvas');
+        
+        if (!cropperImage || !selection || !canvas) return;
+        
+        // Store original image dimensions
+        cropperImage.$ready().then((img) => {
+            this.originalImageWidth = img.naturalWidth;
+            this.originalImageHeight = img.naturalHeight;
+            
+            // Force canvas to match container size explicitly
+            const container = canvas.parentElement;
+            if (container) {
+                canvas.style.width = container.clientWidth + 'px';
+                canvas.style.height = container.clientHeight + 'px';
+            }
+            
+            // Center and fit image using contain mode
+            cropperImage.$center('contain');
+            
+            // Try to load last crop data from localStorage
+            let savedCropData = null;
+            try {
+                const saved = localStorage.getItem('lastImageCropData');
+                if (saved) {
+                    savedCropData = JSON.parse(saved);
+                    // Check if image dimensions match
+                    if (savedCropData.imageWidth !== this.originalImageWidth || 
+                        savedCropData.imageHeight !== this.originalImageHeight) {
+                        savedCropData = null; // Dimensions don't match, don't use saved data
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load saved crop data:', e);
+                savedCropData = null;
+            }
+            
+            // Restore saved crop data or use full image
+            if (savedCropData && savedCropData.cropBoxData) {
+                const canvasElement = selection.$canvas;
+                if (canvasElement) {
+                    const scaleX = img.naturalWidth / canvasElement.offsetWidth;
+                    const scaleY = img.naturalHeight / canvasElement.offsetHeight;
+                    
+                    const left = savedCropData.cropBoxData.left / scaleX;
+                    const top = savedCropData.cropBoxData.top / scaleY;
+                    const width = savedCropData.cropBoxData.width / scaleX;
+                    const height = savedCropData.cropBoxData.height / scaleY;
+                    
+                    selection.$change(left, top, width, height);
+                }
+            } else {
+                // Use full image area
+                selection.initialCoverage = 1.0;
+                selection.$initSelection(true, true);
+            }
+            
+            // Setup event listeners
+            this.setupImageCropperEventListeners();
+            
+            // Update crop info display
+            this.updateImageCropInfo();
+        });
+    }
+    
+    setDefaultCropArea() {
+        if (!this.cropper) return;
+        
+        const imageData = this.cropper.getImageData();
+        const containerData = this.cropper.getContainerData();
+        
+        // Calculate 4:3 aspect ratio crop area centered on image
+        const targetAspectRatio = 4 / 3;
+        let cropWidth, cropHeight;
+        
+        if (imageData.width / imageData.height > targetAspectRatio) {
+            // Image is wider than 4:3, fit height
+            cropHeight = imageData.height * 0.8; // Use 80% of image height
+            cropWidth = cropHeight * targetAspectRatio;
+        } else {
+            // Image is taller than 4:3, fit width
+            cropWidth = imageData.width * 0.8; // Use 80% of image width
+            cropHeight = cropWidth / targetAspectRatio;
+        }
+        
+        // Center the crop box
+        const left = (imageData.width - cropWidth) / 2;
+        const top = (imageData.height - cropHeight) / 2;
+        
+        this.cropper.setCropBoxData({
+            left: left,
+            top: top,
+            width: cropWidth,
+            height: cropHeight
+        });
+    }
+    
+    setDefaultVideoCropArea() {
+        const cropperImage = document.getElementById('videoCropperImage');
+        const selection = document.getElementById('videoCropperSelection');
+        
+        if (!cropperImage || !selection) return;
+        
+        cropperImage.$ready().then((img) => {
+            const canvas = selection.$canvas;
+            if (!canvas) return;
+            
+            const canvasWidth = canvas.offsetWidth;
+            const canvasHeight = canvas.offsetHeight;
+            
+            // Calculate 4:3 aspect ratio crop area centered on canvas
+            const targetAspectRatio = 4 / 3;
+            let cropWidth, cropHeight;
+            
+            if (canvasWidth / canvasHeight > targetAspectRatio) {
+                // Canvas is wider than 4:3, fit height
+                cropHeight = canvasHeight * 0.8; // Use 80% of canvas height
+                cropWidth = cropHeight * targetAspectRatio;
+            } else {
+                // Canvas is taller than 4:3, fit width
+                cropWidth = canvasWidth * 0.8; // Use 80% of canvas width
+                cropHeight = cropWidth / targetAspectRatio;
+            }
+            
+            const left = (canvasWidth - cropWidth) / 2;
+            const top = (canvasHeight - cropHeight) / 2;
+            
+            selection.$change(left, top, cropWidth, cropHeight);
+        });
+    }
+    
+    setupVideoCropperEventListeners() {
+        // Keep aspect ratio checkbox
+        const keepAspectCheckbox = document.getElementById('keepAspectRatio');
+        if (keepAspectCheckbox) {
+            if (keepAspectCheckbox._aspectRatioHandler) {
+                keepAspectCheckbox.removeEventListener('change', keepAspectCheckbox._aspectRatioHandler);
+            }
+            keepAspectCheckbox._aspectRatioHandler = (e) => {
+                const selection = document.getElementById('videoCropperSelection');
+                if (selection) {
+                    if (e.target.checked) {
+                        // Maintain 4:3 aspect ratio
+                        const currentWidth = selection.width;
+                        const currentHeight = selection.height;
+                        const targetAspectRatio = 4 / 3;
+                        
+                        // Adjust to maintain aspect ratio
+                        const cropperImage = document.getElementById('videoCropperImage');
+                        cropperImage.$ready().then((img) => {
+                            const canvas = selection.$canvas;
+                            const scaleX = img.naturalWidth / canvas.offsetWidth;
+                            const scaleY = img.naturalHeight / canvas.offsetHeight;
+                            
+                            const naturalWidth = currentWidth * scaleX;
+                            const naturalHeight = currentHeight * scaleY;
+                            
+                            let newWidth = naturalWidth;
+                            let newHeight = naturalHeight;
+                            
+                            if (naturalWidth / naturalHeight > targetAspectRatio) {
+                                newHeight = naturalWidth / targetAspectRatio;
+                            } else {
+                                newWidth = naturalHeight * targetAspectRatio;
+                            }
+                            
+                            const left = selection.x * scaleX;
+                            const top = selection.y * scaleY;
+                            
+                            selection.$change(left / scaleX, top / scaleY, newWidth / scaleX, newHeight / scaleY);
+                            this.updateVideoCropInfo();
+                        });
+                    }
+                    // When unchecked, allow free resizing (default behavior)
                 }
             };
             keepAspectCheckbox.addEventListener('change', keepAspectCheckbox._aspectRatioHandler);
@@ -15055,8 +15608,376 @@ class GameCollectionManager {
         }
     }
     
+    setupVideoCropperEventListeners() {
+        // Keep aspect ratio checkbox
+        const keepAspectCheckbox = document.getElementById('keepAspectRatio');
+        if (keepAspectCheckbox) {
+            if (keepAspectCheckbox._aspectRatioHandler) {
+                keepAspectCheckbox.removeEventListener('change', keepAspectCheckbox._aspectRatioHandler);
+            }
+            keepAspectCheckbox._aspectRatioHandler = (e) => {
+                const selection = document.getElementById('videoCropperSelection');
+                if (selection && e.target.checked) {
+                    // Maintain 4:3 aspect ratio
+                    const cropperImage = document.getElementById('videoCropperImage');
+                    cropperImage.$ready().then((img) => {
+                        const canvas = selection.$canvas;
+                        const scaleX = img.naturalWidth / canvas.offsetWidth;
+                        const scaleY = img.naturalHeight / canvas.offsetHeight;
+                        
+                        const naturalWidth = selection.width * scaleX;
+                        const naturalHeight = selection.height * scaleY;
+                        const targetAspectRatio = 4 / 3;
+                        
+                        let newWidth = naturalWidth;
+                        let newHeight = naturalHeight;
+                        
+                        if (naturalWidth / naturalHeight > targetAspectRatio) {
+                            newHeight = naturalWidth / targetAspectRatio;
+                        } else {
+                            newWidth = naturalHeight * targetAspectRatio;
+                        }
+                        
+                        const left = selection.x * scaleX;
+                        const top = selection.y * scaleY;
+                        
+                        selection.$change(left / scaleX, top / scaleY, newWidth / scaleX, newHeight / scaleY);
+                        this.updateVideoCropInfo();
+                    });
+                }
+            };
+            keepAspectCheckbox.addEventListener('change', keepAspectCheckbox._aspectRatioHandler);
+        }
+        
+        // Reset button
+        const resetBtn = document.getElementById('resetCropBtn');
+        if (resetBtn) {
+            if (resetBtn._resetCropHandler) {
+                resetBtn.removeEventListener('click', resetBtn._resetCropHandler);
+            }
+            resetBtn._resetCropHandler = () => {
+                this.setDefaultVideoCropArea();
+                this.updateVideoCropInfo();
+            };
+            resetBtn.addEventListener('click', resetBtn._resetCropHandler);
+        }
+        
+        // Apply crop button
+        const applyBtn = document.getElementById('applyCropBtn');
+        if (applyBtn) {
+            if (applyBtn._applyCropHandler) {
+                applyBtn.removeEventListener('click', applyBtn._applyCropHandler);
+            }
+            applyBtn._applyCropHandler = () => {
+                this.applyVideoCropperCrop();
+            };
+            applyBtn.addEventListener('click', applyBtn._applyCropHandler);
+        }
+        
+        // Listen to selection changes
+        const selection = document.getElementById('videoCropperSelection');
+        if (selection) {
+            selection.addEventListener('change', () => {
+                this.updateVideoCropInfo();
+            });
+        }
+    }
+    
+    setupImageCropperEventListeners() {
+        // Keep aspect ratio checkbox
+        const imageKeepAspectCheckbox = document.getElementById('imageKeepAspectRatio');
+        if (imageKeepAspectCheckbox) {
+            if (imageKeepAspectCheckbox._aspectRatioHandler) {
+                imageKeepAspectCheckbox.removeEventListener('change', imageKeepAspectCheckbox._aspectRatioHandler);
+            }
+            imageKeepAspectCheckbox._aspectRatioHandler = (e) => {
+                // Aspect ratio locking is handled by Cropper.js v2 selection component
+                // This is just for UI feedback
+            };
+            imageKeepAspectCheckbox.addEventListener('change', imageKeepAspectCheckbox._aspectRatioHandler);
+        }
+        
+        // Reset button
+        const imageResetBtn = document.getElementById('imageResetCropBtn');
+        if (imageResetBtn) {
+            if (imageResetBtn._resetCropHandler) {
+                imageResetBtn.removeEventListener('click', imageResetBtn._resetCropHandler);
+            }
+            imageResetBtn._resetCropHandler = () => {
+                const selection = document.getElementById('imageCropperSelection');
+                if (selection) {
+                    selection.initialCoverage = 1.0;
+                    selection.$initSelection(true, true);
+                    this.updateImageCropInfo();
+                }
+            };
+            imageResetBtn.addEventListener('click', imageResetBtn._resetCropHandler);
+        }
+        
+        // Apply crop button
+        const imageApplyBtn = document.getElementById('imageApplyCropBtn');
+        if (imageApplyBtn) {
+            if (imageApplyBtn._applyCropHandler) {
+                imageApplyBtn.removeEventListener('click', imageApplyBtn._applyCropHandler);
+            }
+            imageApplyBtn._applyCropHandler = () => {
+                this.applyImageCropperCrop();
+            };
+            imageApplyBtn.addEventListener('click', imageApplyBtn._applyCropHandler);
+        }
+        
+        // Listen to selection changes
+        const selection = document.getElementById('imageCropperSelection');
+        if (selection) {
+            selection.addEventListener('change', () => {
+                this.updateImageCropInfo();
+            });
+        }
+    }
+    
+    updateVideoCropInfo() {
+        const selection = document.getElementById('videoCropperSelection');
+        const cropperImage = document.getElementById('videoCropperImage');
+        
+        if (!selection || !cropperImage) return;
+        
+        cropperImage.$ready().then((img) => {
+            const canvas = selection.$canvas;
+            if (!canvas) return;
+            
+            const scaleX = img.naturalWidth / canvas.offsetWidth;
+            const scaleY = img.naturalHeight / canvas.offsetHeight;
+            
+            const width = Math.round(selection.width * scaleX);
+            const height = Math.round(selection.height * scaleY);
+            const x = Math.round(selection.x * scaleX);
+            const y = Math.round(selection.y * scaleY);
+            
+            const dimensions = document.getElementById('cropDimensions');
+            const position = document.getElementById('cropPosition');
+            
+            if (dimensions) {
+                dimensions.textContent = `${width} x ${height}`;
+            }
+            
+            if (position) {
+                position.textContent = `(${x}, ${y})`;
+            }
+        });
+    }
+    
+    updateImageCropInfo() {
+        const selection = document.getElementById('imageCropperSelection');
+        const cropperImage = document.getElementById('imageCropperImage');
+        
+        if (!selection || !cropperImage) return;
+        
+        cropperImage.$ready().then((img) => {
+            const canvas = selection.$canvas;
+            if (!canvas) return;
+            
+            const scaleX = img.naturalWidth / canvas.offsetWidth;
+            const scaleY = img.naturalHeight / canvas.offsetHeight;
+            
+            const width = Math.round(selection.width * scaleX);
+            const height = Math.round(selection.height * scaleY);
+            const x = Math.round(selection.x * scaleX);
+            const y = Math.round(selection.y * scaleY);
+            
+            const imageDimensions = document.getElementById('imageCropDimensions');
+            const imagePosition = document.getElementById('imageCropPosition');
+            
+            if (imageDimensions) {
+                imageDimensions.textContent = `${width} x ${height}`;
+            }
+            
+            if (imagePosition) {
+                imagePosition.textContent = `(${x}, ${y})`;
+            }
+        });
+    }
+    
+    applyVideoCropperCrop() {
+        const selection = document.getElementById('videoCropperSelection');
+        const cropperImage = document.getElementById('videoCropperImage');
+        
+        if (!selection || !cropperImage || !this.currentCropGame) {
+            this.showAlert('No crop area selected', 'error');
+            return;
+        }
+        
+        cropperImage.$ready().then((img) => {
+            const canvas = selection.$canvas;
+            if (!canvas) return;
+            
+            const scaleX = img.naturalWidth / canvas.offsetWidth;
+            const scaleY = img.naturalHeight / canvas.offsetHeight;
+            
+            const width = Math.round(selection.width * scaleX);
+            const height = Math.round(selection.height * scaleY);
+            const x = Math.round(selection.x * scaleX);
+            const y = Math.round(selection.y * scaleY);
+            
+            // Save crop data to localStorage
+            try {
+                const saveData = {
+                    imageWidth: this.originalImageWidth,
+                    imageHeight: this.originalImageHeight,
+                    cropBoxData: {
+                        left: x,
+                        top: y,
+                        width: width,
+                        height: height
+                    }
+                };
+                localStorage.setItem('lastVideoCropData', JSON.stringify(saveData));
+            } catch (e) {
+                console.warn('Failed to save crop data to localStorage:', e);
+            }
+            
+            const cropDimensions = `${width}:${height}:${x}:${y}`;
+            
+            // Show waiting state
+            this.showCropWaitingState();
+            
+            // Prepare request data
+            const requestData = {
+                video_path: this.currentCropVideoPath,
+                crop_dimensions: cropDimensions,
+                game_id: this.currentCropGame.id,
+                system_name: this.currentSystem,
+                rom_file: this.currentCropGame.path
+            };
+            
+            // Call the manual crop API
+            fetch('/api/apply-manual-crop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideCropWaitingState();
+                if (data.success) {
+                    this.showAlert('Video cropped successfully', 'success');
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('videoCroppingModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    // Refresh game list
+                    this.loadGames();
+                } else {
+                    this.showAlert('Error cropping video: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                this.hideCropWaitingState();
+                console.error('Error applying crop:', error);
+                this.showAlert('Error applying crop: ' + error.message, 'error');
+            });
+        });
+    }
+    
     applyCropperCrop() {
-        if (!this.cropper || !this.currentCropGame) {
+        // Legacy function - redirect to new function
+        this.applyVideoCropperCrop();
+    }
+    
+    applyImageCropperCrop() {
+        const selection = document.getElementById('imageCropperSelection');
+        const cropperImage = document.getElementById('imageCropperImage');
+        
+        if (!selection || !cropperImage || !this.currentCropImageGame) {
+            this.showAlert('No crop area selected', 'error');
+            return;
+        }
+        
+        cropperImage.$ready().then((img) => {
+            const canvas = selection.$canvas;
+            if (!canvas) return;
+            
+            const scaleX = img.naturalWidth / canvas.offsetWidth;
+            const scaleY = img.naturalHeight / canvas.offsetHeight;
+            
+            const width = Math.round(selection.width * scaleX);
+            const height = Math.round(selection.height * scaleY);
+            const x = Math.round(selection.x * scaleX);
+            const y = Math.round(selection.y * scaleY);
+            
+            // Save crop data to localStorage
+            try {
+                const saveData = {
+                    imageWidth: this.originalImageWidth,
+                    imageHeight: this.originalImageHeight,
+                    cropBoxData: {
+                        left: x,
+                        top: y,
+                        width: width,
+                        height: height
+                    }
+                };
+                localStorage.setItem('lastImageCropData', JSON.stringify(saveData));
+            } catch (e) {
+                console.warn('Failed to save crop data to localStorage:', e);
+            }
+            
+            const cropDimensions = `${width}:${height}:${x}:${y}`;
+            
+            console.log('Applying image crop with dimensions:', cropDimensions);
+            
+            // Show waiting state
+            this.showCropWaitingState();
+            
+            // Prepare request data
+            const requestData = {
+                image_path: this.currentCropImagePath,
+                crop_dimensions: cropDimensions,
+                game_id: this.currentCropImageGame.id,
+                system_name: this.currentSystem,
+                rom_file: this.currentCropImageGame.path,
+                media_field: this.currentCropImageField
+            };
+            
+            console.log('Sending request data:', requestData);
+            
+            // Call the image crop API
+            fetch('/api/apply-image-crop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.hideCropWaitingState();
+                if (data.success) {
+                    this.showAlert('Image cropped successfully', 'success');
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('imageCroppingModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    // Refresh game list
+                    this.loadGames();
+                } else {
+                    this.showAlert('Error cropping image: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                this.hideCropWaitingState();
+                console.error('Error applying image crop:', error);
+                this.showAlert('Error applying crop: ' + error.message, 'error');
+            });
+        });
+    }
+    
+    // Legacy function - kept for compatibility
+    applyImageCropperCropOld() {
+        if (!this.cropper || !this.currentCropImageGame) {
             this.showAlert('No crop area selected', 'error');
             return;
         }
@@ -22266,6 +23187,104 @@ class GameCollectionManager {
         if (generateTemplateBoxBtn) {
             generateTemplateBoxBtn.addEventListener('click', () => this.startTemplateBoxGeneration());
         }
+        
+        // Logo configuration event listeners
+        const logoSourceRadios = document.querySelectorAll('input[name="templateLogoSource"]');
+        logoSourceRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => this.handleTemplateLogoSourceChange(e.target.value));
+        });
+        
+        // Color picker sync for template logo
+        const templateLogoColor = document.getElementById('templateLogoColor');
+        const templateLogoColorText = document.getElementById('templateLogoColorText');
+        if (templateLogoColor && templateLogoColorText) {
+            templateLogoColor.addEventListener('input', (e) => {
+                templateLogoColorText.value = e.target.value;
+            });
+            templateLogoColorText.addEventListener('input', (e) => {
+                const value = e.target.value;
+                if (/^#[0-9A-F]{6}$/i.test(value)) {
+                    templateLogoColor.value = value;
+                }
+            });
+        }
+        
+        // Auto-calculate font size from logo zone when zone changes
+        const templateLogoSelection = document.getElementById('templateLogoSelection');
+        if (templateLogoSelection) {
+            templateLogoSelection.addEventListener('change', () => {
+                const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
+                if (logoSource === 'text') {
+                    const fontSizeInput = document.getElementById('templateLogoFontSize');
+                    if (fontSizeInput && !fontSizeInput.value) {
+                        // Only auto-calculate if font size is not manually set
+                        this.calculateTemplateLogoFontSize();
+                    }
+                }
+            });
+        }
+        
+        const editScreenshotZoneBtn = document.getElementById('templateEditScreenshotZoneBtn');
+        if (editScreenshotZoneBtn) {
+            editScreenshotZoneBtn.addEventListener('click', () => {
+                this.templateEditingZone = 'screenshot';
+                const screenshotSelection = document.getElementById('templateScreenshotSelection');
+                const logoSelection = document.getElementById('templateLogoSelection');
+                if (screenshotSelection) {
+                    screenshotSelection.active = true;
+                    screenshotSelection.hidden = false;
+                }
+                if (logoSelection) {
+                    logoSelection.active = false;
+                    // Keep logo visible if logo source is not 'none'
+                    const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
+                    if (logoSource === 'none') {
+                        logoSelection.hidden = true;
+                    }
+                }
+                // Update cropper to show screenshot selection
+                this.updateTemplateCropperFromCorners();
+                editScreenshotZoneBtn.classList.add('active');
+                const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
+                if (editLogoZoneBtn) editLogoZoneBtn.classList.remove('active');
+            });
+        }
+        
+        const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
+        if (editLogoZoneBtn) {
+            editLogoZoneBtn.addEventListener('click', () => {
+                this.templateEditingZone = 'logo';
+                const screenshotSelection = document.getElementById('templateScreenshotSelection');
+                const logoSelection = document.getElementById('templateLogoSelection');
+                if (screenshotSelection) {
+                    screenshotSelection.active = false;
+                    screenshotSelection.hidden = false; // Keep visible
+                }
+                if (logoSelection) {
+                    logoSelection.active = true;
+                    logoSelection.hidden = false;
+                    // Initialize if empty
+                    if (logoSelection.width === 0 && logoSelection.height === 0) {
+                        logoSelection.initialCoverage = 0.3;
+                        logoSelection.$initSelection(true, true);
+                    }
+                }
+                // Update cropper to show logo selection
+                this.updateTemplateCropperFromLogoCorners();
+                editLogoZoneBtn.classList.add('active');
+                const editScreenshotZoneBtn = document.getElementById('templateEditScreenshotZoneBtn');
+                if (editScreenshotZoneBtn) editScreenshotZoneBtn.classList.remove('active');
+            });
+        }
+        
+        // Add event listeners for logo corner inputs
+        ['templateLogoCorner1X', 'templateLogoCorner1Y', 'templateLogoCorner2X', 'templateLogoCorner2Y',
+         'templateLogoCorner3X', 'templateLogoCorner3Y', 'templateLogoCorner4X', 'templateLogoCorner4Y'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.addEventListener('input', () => this.updateTemplateCropperFromLogoCorners());
+            }
+        });
 
         const saveBoxGeneratorConfigBtn = document.getElementById('saveBoxGeneratorConfigBtn');
         if (saveBoxGeneratorConfigBtn) {
@@ -31151,51 +32170,29 @@ class GameCollectionManager {
     
     loadImageAndSetupCropper(imagePath) {
         try {
-            // Show loading state
-            const imageContainer = document.querySelector('#imageCroppingModal .card-body .text-center');
-            if (imageContainer) {
-                imageContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split"></i> Loading image...</div>';
+            const img = document.getElementById('cropImageElement');
+            
+            if (!img) {
+                throw new Error('Image element not found');
             }
             
-            // Create new image element
-            const img = document.createElement('img');
-            img.id = 'cropImageElement';
-            img.alt = 'Image to Crop';
-            img.style.maxWidth = '100%';
-            img.style.maxHeight = '900px';
-            img.style.display = 'block';
+            // Add cache buster
+            const cacheBuster = new Date().getTime();
             
-            // Load image and setup Cropper.js using the same method as video
+            // Load image and setup Cropper.js
             img.onload = () => {
-                // Replace loading message with image
-                if (imageContainer) {
-                    imageContainer.innerHTML = '';
-                    imageContainer.appendChild(img);
-                }
-                
                 // Wait for modal to be fully rendered before sizing
                 setTimeout(() => {
                     this.forceImageSize(img);
                     this.setupCropper(img);
-                }, 200);
+                }, 100);
             };
-            
             img.onerror = () => {
-                if (imageContainer) {
-                    imageContainer.innerHTML = '<div class="text-center p-4 text-muted">Failed to load image</div>';
-                }
-                throw new Error('Failed to load image');
+                this.showAlert('Failed to load image', 'error');
             };
-            
-            // Add cache buster and load image
-            const cacheBuster = new Date().getTime();
             img.src = `${imagePath}?v=${cacheBuster}`;
         } catch (error) {
             this.showAlert(`Error loading image: ${error.message}`, 'error');
-            const imageContainer = document.querySelector('#imageCroppingModal .card-body .text-center');
-            if (imageContainer) {
-                imageContainer.innerHTML = '<div class="text-center p-4 text-muted">Failed to load image</div>';
-            }
         }
     }
     
@@ -31274,12 +32271,6 @@ class GameCollectionManager {
     }
     
     cleanupImageCropper() {
-        // Clean up cropper instance (use same cleanup as video)
-        if (this.cropper) {
-            this.cropper.destroy();
-            this.cropper = null;
-        }
-        
         // Clean up resize listener
         if (this.imageResizeHandler) {
             window.removeEventListener('resize', this.imageResizeHandler);
