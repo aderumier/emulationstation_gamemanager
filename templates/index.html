@@ -355,9 +355,64 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
     
-    <!-- Cropper.js Library -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='js/cropper.min.css') }}">
-    <script src="{{ url_for('static', filename='js/cropper.min.js') }}"></script>
+    <!-- Cropper.js v2.0 Library (for template generator) -->
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-canvas@2.1.0/dist/element-canvas.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-image@2.1.0/dist/element-image.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-selection@2.1.0/dist/element-selection.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-shade@2.1.0/dist/element-shade.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-grid@2.1.0/dist/element-grid.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-crosshair@2.1.0/dist/element-crosshair.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-handle@2.1.0/dist/element-handle.js"></script>
+    
+    <script>
+        // Explicitly register Cropper.js v2 custom elements
+        try {
+            if (typeof CropperCanvas !== 'undefined' && !customElements.get('cropper-canvas')) {
+                customElements.define('cropper-canvas', CropperCanvas);
+                customElements.define('cropper-image', CropperImage);
+                customElements.define('cropper-shade', CropperShade);
+                customElements.define('cropper-handle', CropperHandle);
+                customElements.define('cropper-selection', CropperSelection);
+                customElements.define('cropper-grid', CropperGrid);
+                customElements.define('cropper-crosshair', CropperCrosshair);
+                console.log('Cropper.js v2 elements registered successfully');
+            }
+        } catch (err) {
+            console.error('Error registering Cropper.js elements:', err);
+        }
+    </script>
+    
+    <style>
+        /* Cropper.js v2 Canvas Styles */
+        cropper-canvas {
+            width: 600px;
+            height: 900px; /* Default size, but will be overridden inline for Video/Image croppers if needed, or kept for Template */
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #dee2e6;
+        }
+        
+        /* Specific overrides for Video/Image croppers to fill their containers */
+        #videoCropperCanvas,
+        #imageCropperCanvas {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        /* Ensure cropper-image behaves as block */
+        cropper-image {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Ensure Video/Image cropper containers have height */
+        #videoCropperCanvasContainer,
+        #imageCropperCanvasContainer {
+            background: #000;
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -3429,8 +3484,24 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <h6 class="mb-0">Video Frame Preview</h6>
                                 </div>
                                 <div class="card-body p-2">
-                                    <div class="text-center">
-                                        <img id="cropImage" alt="Video Frame">
+                                    <div class="text-center" id="videoCropperCanvasContainer" style="height: 600px; position: relative;">
+                                        <cropper-canvas id="videoCropperCanvas" style="width: 100%; height: 100%;" background>
+                                            <cropper-image id="videoCropperImage" imageFit="contain" rotatable="false" scalable="false" skewable="false" translatable="false"></cropper-image>
+                                            <cropper-shade hidden></cropper-shade>
+                                            <cropper-selection id="videoCropperSelection" initial-coverage="0.8" movable resizable outlined>
+                                                <cropper-grid role="grid" bordered covered></cropper-grid>
+                                                <cropper-crosshair centered></cropper-crosshair>
+                                                <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
+                                                <cropper-handle action="n-resize"></cropper-handle>
+                                                <cropper-handle action="e-resize"></cropper-handle>
+                                                <cropper-handle action="s-resize"></cropper-handle>
+                                                <cropper-handle action="w-resize"></cropper-handle>
+                                                <cropper-handle action="ne-resize"></cropper-handle>
+                                                <cropper-handle action="nw-resize"></cropper-handle>
+                                                <cropper-handle action="se-resize"></cropper-handle>
+                                                <cropper-handle action="sw-resize"></cropper-handle>
+                                            </cropper-selection>
+                                        </cropper-canvas>
                                     </div>
                                 </div>
                             </div>
@@ -4555,9 +4626,38 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <i class="bi bi-type me-1"></i>Edit Logo Zone
                                 </button>
                             </div>
-                            <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: hidden;">
+                            <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: auto; text-align: center;">
                                 <div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div>
-                                <img id="templatePreviewImage" style="max-width: 100%; display: none;">
+                                <cropper-canvas id="templateCropperCanvas" style="display: none; width: 600px; height: 900px;" background>
+                                    <cropper-image id="templateCropperImage" rotatable="false" scalable="false" skewable="false" translatable="false" imageFit="contain"></cropper-image>
+                                    <cropper-shade hidden></cropper-shade>
+                                    <cropper-selection id="templateScreenshotSelection" initial-coverage="0.5" movable resizable outlined multiple active theme-color="rgba(51, 153, 255, 0.5)">
+                                        <cropper-grid role="grid" bordered covered></cropper-grid>
+                                        <cropper-crosshair centered></cropper-crosshair>
+                                        <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
+                                        <cropper-handle action="n-resize"></cropper-handle>
+                                        <cropper-handle action="e-resize"></cropper-handle>
+                                        <cropper-handle action="s-resize"></cropper-handle>
+                                        <cropper-handle action="w-resize"></cropper-handle>
+                                        <cropper-handle action="ne-resize"></cropper-handle>
+                                        <cropper-handle action="nw-resize"></cropper-handle>
+                                        <cropper-handle action="se-resize"></cropper-handle>
+                                        <cropper-handle action="sw-resize"></cropper-handle>
+                                    </cropper-selection>
+                                    <cropper-selection id="templateLogoSelection" initial-coverage="0.3" movable resizable outlined multiple theme-color="rgba(255, 153, 51, 0.5)">
+                                        <cropper-grid role="grid" bordered covered></cropper-grid>
+                                        <cropper-crosshair centered></cropper-crosshair>
+                                        <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
+                                        <cropper-handle action="n-resize"></cropper-handle>
+                                        <cropper-handle action="e-resize"></cropper-handle>
+                                        <cropper-handle action="s-resize"></cropper-handle>
+                                        <cropper-handle action="w-resize"></cropper-handle>
+                                        <cropper-handle action="ne-resize"></cropper-handle>
+                                        <cropper-handle action="nw-resize"></cropper-handle>
+                                        <cropper-handle action="se-resize"></cropper-handle>
+                                        <cropper-handle action="sw-resize"></cropper-handle>
+                                    </cropper-selection>
+                                </cropper-canvas>
                             </div>
                         </div>
                     </div>
@@ -5850,9 +5950,25 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <div class="card-header">
                                     <h6 class="mb-0">Image Preview</h6>
                                 </div>
-                                <div class="card-body p-2" style="max-height: 900px; overflow: auto;">
-                                    <div class="text-center" style="position: relative;">
-                                        <img id="cropImageElement" alt="Image to Crop" style="max-width: 100%; max-height: 900px; display: block;">
+                                <div class="card-body p-2" style="max-height: 900px;">
+                                    <div class="text-center" id="imageCropperCanvasContainer" style="height: 600px; position: relative;">
+                                        <cropper-canvas id="imageCropperCanvas" style="width: 100%; height: 100%;" background>
+                                            <cropper-image id="imageCropperImage" imageFit="contain" rotatable="false" scalable="false" skewable="false" translatable="false"></cropper-image>
+                                            <cropper-shade hidden></cropper-shade>
+                                            <cropper-selection id="imageCropperSelection" initial-coverage="0.8" movable resizable outlined>
+                                                <cropper-grid role="grid" bordered covered></cropper-grid>
+                                                <cropper-crosshair centered></cropper-crosshair>
+                                                <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
+                                                <cropper-handle action="n-resize"></cropper-handle>
+                                                <cropper-handle action="e-resize"></cropper-handle>
+                                                <cropper-handle action="s-resize"></cropper-handle>
+                                                <cropper-handle action="w-resize"></cropper-handle>
+                                                <cropper-handle action="ne-resize"></cropper-handle>
+                                                <cropper-handle action="nw-resize"></cropper-handle>
+                                                <cropper-handle action="se-resize"></cropper-handle>
+                                                <cropper-handle action="sw-resize"></cropper-handle>
+                                            </cropper-selection>
+                                        </cropper-canvas>
                                     </div>
                                 </div>
                             </div>

@@ -2856,6 +2856,9 @@ def process_next_queued_task():
         background_path = task_data.get('background_path')
         corners = task_data.get('corners', {})
         temp_dir = task_data.get('temp_dir')
+        logo_source = task_data.get('logo_source', 'none')
+        logo_corners = task_data.get('logo_corners', {})
+        text_logo_settings = task_data.get('text_logo_settings')
         if system_name and selected_games:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2869,7 +2872,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start template box generation in background thread
-            thread = threading.Thread(target=run_template_box_generation_task, args=(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir))
+            thread = threading.Thread(target=run_template_box_generation_task, args=(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source, logo_corners, text_logo_settings))
             thread.daemon = True
             thread.start()
     elif task_type == 'logo_generation':
@@ -5944,6 +5947,11 @@ def serve_temp_file(filename):
     """Serve temporary files (e.g., screenshots)"""
     temp_dir = os.path.join('var', 'temp')
     return send_from_directory(temp_dir, filename)
+
+# Test Cropper Route
+@app.route('/test_cropper_simple.html')
+def test_cropper():
+    return send_from_directory('.', 'test_cropper_simple.html')
 
 @app.route('/api/rom-systems')
 @login_required
@@ -23054,7 +23062,7 @@ def wrap_text_to_lines(text, max_chars_per_line=15):
     
     return lines if lines else ['']
 
-def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir):
+def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source='none', logo_corners=None, text_logo_settings=None):
     """Run template box generation task in background thread"""
     global current_task_id
     
@@ -23177,6 +23185,23 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                 output_filename = f"{game_basename}.jpg"
                 output_path = os.path.join(box2d_dir, output_filename)
                 
+                # Handle logo if configured
+                logo_path = None
+                if logo_source == 'marquee':
+                    # Get logo from marquee field
+                    marquee_element = game.get('marquee')
+                    if marquee_element:
+                        if marquee_element.startswith('./'):
+                            logo_path = os.path.join(system_path, marquee_element[2:])
+                        elif marquee_element.startswith('/'):
+                            logo_path = marquee_element
+                        else:
+                            logo_path = os.path.join(system_path, marquee_element)
+                        
+                        if not os.path.exists(logo_path):
+                            logo_path = None
+                            task.update_progress(f"⚠️  Logo not found for {game_name}, skipping logo")
+                
                 # Generate template box
                 generator.generate_template_box(
                     background_path=background_path,
@@ -23189,7 +23214,12 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                     corner3_x=corner3_x,
                     corner3_y=corner3_y,
                     corner4_x=corner4_x,
-                    corner4_y=corner4_y
+                    corner4_y=corner4_y,
+                    logo_source=logo_source,
+                    logo_path=logo_path,
+                    logo_corners=logo_corners,
+                    text_logo_settings=text_logo_settings,
+                    game_name=game_name
                 )
                 
                 # Update gamelist.xml
@@ -24954,12 +24984,17 @@ def generate_template_box():
         target_field = request.form.get('target_field')
         screenshot_field = request.form.get('screenshot_field')
         corners_json = request.form.get('corners')
+        logo_source = request.form.get('logo_source', 'none')
+        logo_corners_json = request.form.get('logo_corners')
+        text_logo_settings_json = request.form.get('text_logo_settings')
         
         if not system_name or not game_paths_json or not target_field or not screenshot_field:
             return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
         
         selected_games = json.loads(game_paths_json)
         corners = json.loads(corners_json) if corners_json else {}
+        logo_corners = json.loads(logo_corners_json) if logo_corners_json else {}
+        text_logo_settings = json.loads(text_logo_settings_json) if text_logo_settings_json else None
         
         # Save uploaded background image temporarily
         background_file = request.files.get('background_image')
@@ -24974,15 +25009,20 @@ def generate_template_box():
         background_file.save(background_path)
         
         # Add task to queue (screenshot will be loaded from game field during processing)
-        task = add_task_to_queue('template_box_generation', {
+        task_data = {
             'system_name': system_name,
             'selected_games': selected_games,
             'target_field': target_field,
             'screenshot_field': screenshot_field,
             'background_path': background_path,
             'corners': corners,
-            'temp_dir': temp_dir
-        })
+            'temp_dir': temp_dir,
+            'logo_source': logo_source,
+            'logo_corners': logo_corners,
+            'text_logo_settings': text_logo_settings
+        }
+        
+        task = add_task_to_queue('template_box_generation', task_data)
         
         return jsonify({
             'success': True,

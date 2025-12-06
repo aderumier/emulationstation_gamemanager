@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cropper.js v2 Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f9f9f9;
+        }
+        cropper-canvas {
+            width: 600px;
+            height: 900px;
+            border: 2px solid #333;
+            display: block;
+            background: #f0f0f0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .info {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e8f4f8;
+            border-left: 4px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cropper.js v2 Test</h1>
+    
+    <div class="container">
+        <h2>Template Cropper (600x900)</h2>
+        <div class="info">
+            <p>Canvas size: 600x900px (fixed)</p>
+            <p>Image: Should fit with contain mode</p>
+        </div>
+        
+        <cropper-canvas id="templateCropperCanvas" background>
+            <cropper-image id="templateCropperImage" 
+                rotatable="false" 
+                scalable="false" 
+                skewable="false" 
+                translatable="false" 
+                imageFit="contain">
+            </cropper-image>
+            <cropper-shade hidden></cropper-shade>
+            <cropper-selection id="templateScreenshotSelection" 
+                initial-coverage="0.5" 
+                movable 
+                resizable 
+                outlined 
+                multiple 
+                active 
+                theme-color="rgba(51, 153, 255, 0.5)">
+                <cropper-grid role="grid" bordered covered></cropper-grid>
+                <cropper-crosshair centered></cropper-crosshair>
+                <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
+                <cropper-handle action="n-resize"></cropper-handle>
+                <cropper-handle action="e-resize"></cropper-handle>
+                <cropper-handle action="s-resize"></cropper-handle>
+                <cropper-handle action="w-resize"></cropper-handle>
+                <cropper-handle action="ne-resize"></cropper-handle>
+                <cropper-handle action="nw-resize"></cropper-handle>
+                <cropper-handle action="se-resize"></cropper-handle>
+                <cropper-handle action="sw-resize"></cropper-handle>
+            </cropper-selection>
+        </cropper-canvas>
+        
+        <div class="controls">
+            <button onclick="loadImage1()">Load Test Image 1 (Local)</button>
+            <button onclick="loadImage2()">Load Test Image 2 (API URL)</button>
+            <button onclick="loadImage3()">Load Test Image 3 (Data URL)</button>
+            <button onclick="centerImage()">Center Image</button>
+            <button onclick="getSelectionInfo()">Get Selection Info</button>
+        </div>
+        
+        <div id="info" class="info" style="display: none;">
+            <h3>Selection Info:</h3>
+            <pre id="infoContent"></pre>
+        </div>
+    </div>
+
+    <!-- Load Cropper.js v2 CSS -->
+    <link rel="stylesheet" href="static/js/cropper.min.css">
+    
+    <!-- Load Cropper.js v2 -->
+    <script src="static/js/cropper.min.js"></script>
+    <script>
+        console.log('Cropper.js v2 loaded from local file');
+        
+        // Wait for elements to be defined
+        window.addEventListener('DOMContentLoaded', async () => {
+            console.log('DOM loaded');
+            
+            // Wait for custom elements
+            await customElements.whenDefined('cropper-canvas');
+            await customElements.whenDefined('cropper-image');
+            await customElements.whenDefined('cropper-selection');
+            
+            console.log('All custom elements defined');
+            
+            const canvas = document.getElementById('templateCropperCanvas');
+            const image = document.getElementById('templateCropperImage');
+            const selection = document.getElementById('templateScreenshotSelection');
+            
+            console.log('Canvas:', canvas);
+            console.log('Image:', image);
+            console.log('Selection:', selection);
+            
+            // Test if $ready is available
+            if (image && typeof image.$ready === 'function') {
+                console.log('$ready() method is available');
+            } else {
+                console.warn('$ready() method is NOT available');
+            }
+        });
+    </script>
+    
+    <script>
+        async function loadImage1() {
+            // Test with a local test image (you can use any image URL)
+            const imageUrl = 'https://picsum.photos/800/1200';
+            await loadImage(imageUrl);
+        }
+        
+        async function loadImage2() {
+            // Test with API URL (adjust to your actual API)
+            const imageUrl = '/api/template-image?path=testtemplate_background.jpg&type=background';
+            await loadImage(imageUrl);
+        }
+        
+        async function loadImage3() {
+            // Test with data URL
+            const canvas = document.createElement('canvas');
+            canvas.width = 800;
+            canvas.height = 1200;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(0, 0, 800, 1200);
+            ctx.fillStyle = '#fff';
+            ctx.font = '48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Test Image', 400, 600);
+            const dataUrl = canvas.toDataURL('image/png');
+            await loadImage(dataUrl);
+        }
+        
+        async function loadImage(imageSrc) {
+            console.log('Loading image:', imageSrc);
+            
+            const cropperImage = document.getElementById('templateCropperImage');
+            const cropperCanvas = document.getElementById('templateCropperCanvas');
+            
+            if (!cropperImage || !cropperCanvas) {
+                console.error('Elements not found');
+                return;
+            }
+            
+            try {
+                // Wait for custom elements to be ready
+                await customElements.whenDefined('cropper-image');
+                await customElements.whenDefined('cropper-canvas');
+                
+                console.log('Setting image src to:', imageSrc);
+                
+                // Set image source directly (like in docs)
+                cropperImage.src = imageSrc;
+                
+                // Wait for image to load
+                if (typeof cropperImage.$ready === 'function') {
+                    console.log('Using $ready() method');
+                    const img = await cropperImage.$ready();
+                    console.log('Image loaded via $ready():', img);
+                    console.log('Image dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+                    
+                    // Image should automatically fit with imageFit="contain" attribute
+                    // No need to call $center() if imageFit is set
+                    console.log('Image should fit automatically with imageFit="contain"');
+                    
+                    // Initialize selection
+                    const selection = document.getElementById('templateScreenshotSelection');
+                    if (selection && typeof selection.$initSelection === 'function') {
+                        selection.initialCoverage = 0.5;
+                        selection.$initSelection(true, true);
+                        console.log('Selection initialized');
+                    }
+                } else {
+                    console.warn('$ready() not available, using fallback');
+                    // Fallback: wait for image to load
+                    const img = cropperImage.querySelector('img');
+                    if (img) {
+                        if (img.complete) {
+                            console.log('Image already loaded:', img);
+                        } else {
+                            await new Promise((resolve, reject) => {
+                                img.onload = resolve;
+                                img.onerror = reject;
+                            });
+                            console.log('Image loaded via onload:', img);
+                        }
+                        
+                        // Center the image
+                        if (typeof cropperImage.$center === 'function') {
+                            cropperImage.$center('contain');
+                        }
+                    }
+                }
+                
+                console.log('Image loading complete');
+            } catch (error) {
+                console.error('Error loading image:', error);
+                alert('Error loading image: ' + error.message);
+            }
+        }
+        
+        function centerImage() {
+            const cropperImage = document.getElementById('templateCropperImage');
+            if (cropperImage && typeof cropperImage.$center === 'function') {
+                cropperImage.$center('contain');
+                console.log('Image centered');
+            } else {
+                // Try setting imageFit attribute
+                cropperImage.setAttribute('imageFit', 'contain');
+                console.log('Set imageFit="contain" attribute');
+            }
+        }
+        
+        function getSelectionInfo() {
+            const selection = document.getElementById('templateScreenshotSelection');
+            if (selection) {
+                const info = {
+                    x: selection.x,
+                    y: selection.y,
+                    width: selection.width,
+                    height: selection.height,
+                    hidden: selection.hidden,
+                    active: selection.active
+                };
+                
+                document.getElementById('infoContent').textContent = JSON.stringify(info, null, 2);
+                document.getElementById('info').style.display = 'block';
+                console.log('Selection info:', info);
+            } else {
+                console.warn('Selection element not found');
+            }
+        }
+    </script>
+</body>
+</html>
+

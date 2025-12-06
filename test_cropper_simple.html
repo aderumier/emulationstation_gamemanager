@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cropper.js v2 Simple Test (Fixed)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #333;
+            color: #fff;
+        }
+        /* Hide file input */
+        #imageLoader {
+            display: none;
+        }
+        
+        cropper-canvas {
+            width: 600px;
+            height: 900px;
+            border: 2px solid #fff;
+            display: block;
+            margin: 0 auto;
+            background: #000;
+        }
+    </style>
+    
+    <!-- Load Cropper.js v2.0 Element Packages (UMD) -->
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-canvas@2.1.0/dist/element-canvas.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-image@2.1.0/dist/element-image.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-shade@2.1.0/dist/element-shade.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-handle@2.1.0/dist/element-handle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-selection@2.1.0/dist/element-selection.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-grid@2.1.0/dist/element-grid.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@cropper/element-crosshair@2.1.0/dist/element-crosshair.js"></script>
+    
+    <script>
+        // Explicitly register the custom elements using the global classes
+        try {
+            customElements.define('cropper-canvas', CropperCanvas);
+            customElements.define('cropper-image', CropperImage);
+            customElements.define('cropper-shade', CropperShade);
+            customElements.define('cropper-handle', CropperHandle);
+            customElements.define('cropper-selection', CropperSelection);
+            customElements.define('cropper-grid', CropperGrid);
+            customElements.define('cropper-crosshair', CropperCrosshair);
+            console.log('Cropper.js elements registered successfully');
+        } catch (err) {
+            console.error('Error registering elements:', err);
+        }
+    </script>
+</head>
+<body>
+    <h1 style="text-align: center;">Cropper.js v2 Test</h1>
+    
+    <div style="text-align: center; margin-bottom: 20px;">
+        <input type="file" id="imageLoader" accept="image/*">
+        <label for="imageLoader" style="cursor: pointer; background: #007bff; padding: 10px 20px; color: white; border-radius: 5px;">Choose Image</label>
+    </div>
+    
+    <cropper-canvas background>
+        <!-- Using your API URL -->
+        <cropper-image src="/api/template-image?path=testtemplate_background.jpg&type=background" imageFit="contain" rotatable scalable skewable translatable></cropper-image>
+        <cropper-shade hidden></cropper-shade>
+        <cropper-handle action="select" plain></cropper-handle>
+        <cropper-selection initial-coverage="0.5" movable resizable outlined>
+            <cropper-grid role="grid" bordered covered></cropper-grid>
+            <cropper-crosshair centered></cropper-crosshair>
+            <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
+            <cropper-handle action="n-resize"></cropper-handle>
+            <cropper-handle action="e-resize"></cropper-handle>
+            <cropper-handle action="s-resize"></cropper-handle>
+            <cropper-handle action="w-resize"></cropper-handle>
+            <cropper-handle action="ne-resize"></cropper-handle>
+            <cropper-handle action="nw-resize"></cropper-handle>
+            <cropper-handle action="se-resize"></cropper-handle>
+            <cropper-handle action="sw-resize"></cropper-handle>
+        </cropper-selection>
+    </cropper-canvas>
+    
+    <script>
+        const image = document.querySelector('cropper-image');
+        const imageLoader = document.getElementById('imageLoader');
+
+        image.$ready().then(() => {
+            console.log('Image loaded via $ready');
+            image.$center('contain');
+        }).catch(err => {
+            console.error('Image load failed:', err);
+        });
+
+        imageLoader.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    image.src = event.target.result;
+                    // Re-center after loading new image
+                    setTimeout(() => {
+                        if (image.$center) {
+                            image.$center('contain');
+                        }
+                    }, 100);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
+</body>
+</html>

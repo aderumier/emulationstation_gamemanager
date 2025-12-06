@@ -391,7 +391,9 @@ class BoxGenerator:
 
     def generate_template_box(self, background_path, screenshot_path, output_path, 
                               corner1_x, corner1_y, corner2_x, corner2_y,
-                              corner3_x, corner3_y, corner4_x, corner4_y):
+                              corner3_x, corner3_y, corner4_x, corner4_y,
+                              logo_source='none', logo_path=None, logo_corners=None, 
+                              text_logo_settings=None, game_name=''):
         """
         Generate box using a template with background image and screenshot positioned at specific corners
         
@@ -403,6 +405,11 @@ class BoxGenerator:
             corner2_x, corner2_y: Top-right corner position
             corner3_x, corner3_y: Bottom-right corner position
             corner4_x, corner4_y: Bottom-left corner position
+            logo_source: 'none', 'marquee', or 'text'
+            logo_path: Path to logo image (for marquee source)
+            logo_corners: Dict with logo corner positions (x1, y1, x2, y2, x3, y3, x4, y4)
+            text_logo_settings: Dict with text logo settings (color, font_size, font, etc.)
+            game_name: Game name for text logo generation
         """
         temp_files = []
         
@@ -482,6 +489,154 @@ class BoxGenerator:
             ]
             subprocess.run(cmd, check=True)
             logging.info(f"✅ Screenshot placed successfully")
+            
+            # Step 3: Handle logo if configured
+            if logo_source != 'none' and logo_corners:
+                logo_min_x = min(logo_corners.get('x1', 0), logo_corners.get('x2', 0), 
+                               logo_corners.get('x3', 0), logo_corners.get('x4', 0))
+                logo_max_x = max(logo_corners.get('x1', 0), logo_corners.get('x2', 0), 
+                               logo_corners.get('x3', 0), logo_corners.get('x4', 0))
+                logo_min_y = min(logo_corners.get('y1', 0), logo_corners.get('y2', 0), 
+                               logo_corners.get('y3', 0), logo_corners.get('y4', 0))
+                logo_max_y = max(logo_corners.get('y1', 0), logo_corners.get('y2', 0), 
+                               logo_corners.get('y3', 0), logo_corners.get('y4', 0))
+                
+                logo_zone_width = logo_max_x - logo_min_x
+                logo_zone_height = logo_max_y - logo_min_y
+                
+                if logo_source == 'marquee' and logo_path and os.path.exists(logo_path):
+                    # Resize and place marquee logo
+                    logging.info(f"Placing marquee logo at position ({logo_min_x}, {logo_min_y})")
+                    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                    temp_files.append(temp_logo)
+                    
+                    # Resize logo to fit zone
+                    cmd = [
+                        'convert', logo_path,
+                        '-resize', f'{logo_zone_width}x{logo_zone_height}!',
+                        '-quality', '100',
+                        temp_logo
+                    ]
+                    subprocess.run(cmd, check=True)
+                    
+                    # Composite logo onto output
+                    cmd = [
+                        'composite',
+                        '-geometry', f'+{logo_min_x}+{logo_min_y}',
+                        temp_logo,
+                        output_path,
+                        output_path
+                    ]
+                    subprocess.run(cmd, check=True)
+                    logging.info(f"✅ Marquee logo placed successfully")
+                    
+                elif logo_source == 'text' and text_logo_settings and game_name:
+                    # Generate text logo using helper functions
+                    # Get settings
+                    font_size = text_logo_settings.get('fontSize', 72)
+                    color = text_logo_settings.get('color', '#ffffff')
+                    font = text_logo_settings.get('font', 'Arial')
+                    bold = text_logo_settings.get('bold', False)
+                    italic = text_logo_settings.get('italic', False)
+                    underline = text_logo_settings.get('underline', False)
+                    uppercase = text_logo_settings.get('uppercase', False)
+                    
+                    # Calculate max chars per line from font size and zone width
+                    # Average character width is approximately 0.6 * font_size
+                    avg_char_width = font_size * 0.6
+                    max_chars_per_line = max(5, int(logo_zone_width / avg_char_width))
+                    
+                    # Clean and prepare text
+                    text = self._clean_game_name(game_name)
+                    if uppercase:
+                        text = text.upper()
+                    
+                    # Wrap text
+                    text_lines = self._wrap_text_to_lines(text, max_chars_per_line=max_chars_per_line)
+                    multiline_text = '\n'.join(text_lines)
+                    
+                    # Escape text for ImageMagick
+                    escaped_text = multiline_text.replace('\\', '\\\\').replace('"', '\\"')
+                    
+                    # Generate text logo
+                    logging.info(f"Generating text logo with font size {font_size}, max chars {max_chars_per_line}")
+                    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                    temp_files.append(temp_logo)
+                    
+                    # Check for custom font
+                    font_path = font
+                    custom_fonts_dir = 'var/fonts'
+                    if os.path.exists(custom_fonts_dir):
+                        font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
+                        for ext in font_extensions:
+                            font_file = os.path.join(custom_fonts_dir, f"{font}{ext}")
+                            if os.path.exists(font_file):
+                                font_path = font_file
+                                break
+                            for filename in os.listdir(custom_fonts_dir):
+                                if os.path.splitext(filename)[0] == font:
+                                    font_path = os.path.join(custom_fonts_dir, filename)
+                                    break
+                    
+                    # Build font style
+                    font_style = []
+                    if bold:
+                        font_style.append('Bold')
+                    if italic:
+                        font_style.append('Italic')
+                    if font_style:
+                        font_path = f"{font_path}-{'-'.join(font_style)}"
+                    
+                    # Calculate caption width based on zone width
+                    caption_width = int(logo_zone_width * 0.95)  # Use 95% of zone width
+                    
+                    # Generate text logo
+                    cmd = [
+                        'convert',
+                        '-background', 'transparent',
+                        '-fill', color,
+                        '-font', font_path,
+                        '-pointsize', str(font_size),
+                        '-size', f'{caption_width}x',
+                        '-gravity', 'center',
+                        f'caption:{escaped_text}',
+                        temp_logo
+                    ]
+                    
+                    if underline:
+                        # Add underline using -annotate or -draw
+                        cmd.insert(-1, '-annotate')
+                        cmd.insert(-1, '+0+0')
+                        cmd.insert(-1, escaped_text)
+                    
+                    subprocess.run(cmd, check=True)
+                    
+                    # Resize logo to fit zone height if needed
+                    identify_cmd = ['identify', '-format', '%h', temp_logo]
+                    logo_height_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                    if logo_height_result.returncode == 0:
+                        logo_height = int(logo_height_result.stdout.strip())
+                        if logo_height > logo_zone_height:
+                            # Scale down to fit height
+                            scale_factor = logo_zone_height / logo_height
+                            new_width = int(caption_width * scale_factor)
+                            cmd_resize = [
+                                'convert', temp_logo,
+                                '-resize', f'{new_width}x{logo_zone_height}',
+                                temp_logo
+                            ]
+                            subprocess.run(cmd_resize, check=True)
+                    
+                    # Composite logo onto output
+                    cmd = [
+                        'composite',
+                        '-geometry', f'+{logo_min_x}+{logo_min_y}',
+                        temp_logo,
+                        output_path,
+                        output_path
+                    ]
+                    subprocess.run(cmd, check=True)
+                    logging.info(f"✅ Text logo generated and placed successfully")
             
             logging.info(f"✅ Template box generated successfully: {output_path}")
             return True
