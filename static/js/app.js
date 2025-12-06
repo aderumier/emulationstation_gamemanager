@@ -10977,8 +10977,8 @@ class GameCollectionManager {
         const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
         const cropperCanvas = document.getElementById('templateCropperCanvas');
         let cropperImage = document.getElementById('templateCropperImage');
-        const screenshotSelection = document.getElementById('templateScreenshotSelection');
-        const logoSelection = document.getElementById('templateLogoSelection');
+        let screenshotSelection = document.getElementById('templateScreenshotSelection');
+        let logoSelection = document.getElementById('templateLogoSelection');
         
         if (!cropperCanvas) return;
         
@@ -11047,6 +11047,96 @@ class GameCollectionManager {
             }
         };
         
+        // Full reset/reinit when loading template (skipDefaultCrop = true)
+        if (skipDefaultCrop) {
+            // Remove all existing child elements from canvas
+            while (cropperCanvas.firstChild) {
+                cropperCanvas.removeChild(cropperCanvas.firstChild);
+            }
+            
+            // Re-create cropper-shade
+            const cropperShade = document.createElement('cropper-shade');
+            cropperShade.setAttribute('hidden', '');
+            cropperCanvas.appendChild(cropperShade);
+            
+            // Re-create screenshot selection with all attributes and children
+            const newScreenshotSelection = document.createElement('cropper-selection');
+            newScreenshotSelection.id = 'templateScreenshotSelection';
+            newScreenshotSelection.setAttribute('movable', 'true');
+            newScreenshotSelection.setAttribute('resizable', '');
+            newScreenshotSelection.setAttribute('outlined', '');
+            newScreenshotSelection.setAttribute('multiple', 'true');
+            newScreenshotSelection.setAttribute('keyboard', '');
+            newScreenshotSelection.setAttribute('active', '');
+            newScreenshotSelection.setAttribute('theme-color', 'rgba(51, 153, 255, 0.5)');
+            
+            // Add grid
+            const screenshotGrid = document.createElement('cropper-grid');
+            screenshotGrid.setAttribute('role', 'grid');
+            screenshotGrid.setAttribute('bordered', '');
+            screenshotGrid.setAttribute('covered', '');
+            newScreenshotSelection.appendChild(screenshotGrid);
+            
+            // Add crosshair
+            const screenshotCrosshair = document.createElement('cropper-crosshair');
+            screenshotCrosshair.setAttribute('centered', '');
+            newScreenshotSelection.appendChild(screenshotCrosshair);
+            
+            // Add handles
+            const handleActions = ['move', 'n-resize', 'e-resize', 's-resize', 'w-resize', 'ne-resize', 'nw-resize', 'se-resize', 'sw-resize'];
+            handleActions.forEach(action => {
+                const handle = document.createElement('cropper-handle');
+                handle.setAttribute('action', action);
+                if (action === 'move') {
+                    handle.setAttribute('theme-color', 'rgba(255, 255, 255, 0.35)');
+                }
+                newScreenshotSelection.appendChild(handle);
+            });
+            
+            cropperCanvas.appendChild(newScreenshotSelection);
+            
+            // Re-create logo selection with all attributes and children
+            const newLogoSelection = document.createElement('cropper-selection');
+            newLogoSelection.id = 'templateLogoSelection';
+            newLogoSelection.setAttribute('movable', 'true');
+            newLogoSelection.setAttribute('resizable', '');
+            newLogoSelection.setAttribute('outlined', '');
+            newLogoSelection.setAttribute('multiple', 'true');
+            newLogoSelection.setAttribute('keyboard', '');
+            newLogoSelection.setAttribute('theme-color', 'rgba(255, 153, 51, 0.5)');
+            
+            // Add grid
+            const logoGrid = document.createElement('cropper-grid');
+            logoGrid.setAttribute('role', 'grid');
+            logoGrid.setAttribute('bordered', '');
+            logoGrid.setAttribute('covered', '');
+            newLogoSelection.appendChild(logoGrid);
+            
+            // Add crosshair
+            const logoCrosshair = document.createElement('cropper-crosshair');
+            logoCrosshair.setAttribute('centered', '');
+            newLogoSelection.appendChild(logoCrosshair);
+            
+            // Add handles
+            handleActions.forEach(action => {
+                const handle = document.createElement('cropper-handle');
+                handle.setAttribute('action', action);
+                if (action === 'move') {
+                    handle.setAttribute('theme-color', 'rgba(255, 255, 255, 0.35)');
+                }
+                newLogoSelection.appendChild(handle);
+            });
+            
+            cropperCanvas.appendChild(newLogoSelection);
+            
+            // Update references to new elements
+            const updatedScreenshotSelection = document.getElementById('templateScreenshotSelection');
+            const updatedLogoSelection = document.getElementById('templateLogoSelection');
+            
+            // Reset event listeners setup flag so they get re-setup
+            this.templateSelectionListenersSetup = false;
+        }
+        
         // Force reflow
         cropperCanvas.offsetWidth;
         
@@ -11071,6 +11161,12 @@ class GameCollectionManager {
         // Insert as first child (before selections)
         cropperCanvas.prepend(cropperImage);
         
+        // Update references if we recreated selections
+        if (skipDefaultCrop) {
+            screenshotSelection = document.getElementById('templateScreenshotSelection');
+            logoSelection = document.getElementById('templateLogoSelection');
+        }
+        
         // Set image source
         console.log('Setting image src to:', imageSrc);
         cropperImage.src = imageSrc;
@@ -11079,10 +11175,24 @@ class GameCollectionManager {
         const onImageReady = (img) => {
             console.log('Image ready:', img);
             
+            // Get fresh references to selections (in case they were recreated)
+            const currentScreenshotSelection = document.getElementById('templateScreenshotSelection');
+            const currentLogoSelection = document.getElementById('templateLogoSelection');
+            
+            // Ensure selections are movable (explicitly set to ensure it's not lost)
+            if (currentScreenshotSelection) {
+                currentScreenshotSelection.movable = true;
+                currentScreenshotSelection.setAttribute('movable', 'true');
+            }
+            if (currentLogoSelection) {
+                currentLogoSelection.movable = true;
+                currentLogoSelection.setAttribute('movable', 'true');
+            }
+            
             // Disable wheel zoom on cropper-image and selections
             disableWheelOnChildren();
             
-            // Setup event listeners if not already set up
+            // Setup event listeners if not already set up (or if reset)
             if (!this.templateSelectionListenersSetup) {
                 this.setupTemplateSelectionListeners();
                 this.templateSelectionListenersSetup = true;
@@ -11094,42 +11204,50 @@ class GameCollectionManager {
             if (!skipDefaultCrop) {
                 // Create 2 default selections with specified positions and sizes
                 setTimeout(() => {
-                    if (screenshotSelection && logoSelection && cropperImage && cropperCanvas && img) {
+                    if (currentScreenshotSelection && currentLogoSelection && cropperImage && cropperCanvas && img) {
                         // Show both selections
-                        screenshotSelection.hidden = false;
-                        screenshotSelection.active = true;
-                        logoSelection.hidden = false;
-                        logoSelection.active = false;
+                        currentScreenshotSelection.hidden = false;
+                        currentScreenshotSelection.active = true;
+                        currentLogoSelection.hidden = false;
+                        currentLogoSelection.active = false;
                         
                         // Set first selection (screenshot): x=170, y=150, width=80, height=80
-                        if (typeof screenshotSelection.$change === 'function') {
-                            screenshotSelection.$change(170, 150, 80, 80);
+                        if (typeof currentScreenshotSelection.$change === 'function') {
+                            currentScreenshotSelection.$change(170, 150, 80, 80);
                             this.updateTemplateCornersFromCropper();
                         }
                         
                         // Set second selection (logo): x=100, y=70, width=80, height=80
-                        if (typeof logoSelection.$change === 'function') {
-                            logoSelection.$change(100, 70, 80, 80);
+                        if (typeof currentLogoSelection.$change === 'function') {
+                            currentLogoSelection.$change(100, 70, 80, 80);
                             this.updateTemplateLogoCornersFromCropper();
                         }
                     }
                 }, 200);
             } else {
                 // If loading template, update selections from corner values
+                // Selections have been recreated, so use fresh references
+                
                 // First, reset the selection to ensure clean state
-                if (screenshotSelection) {
-                    screenshotSelection.hidden = false;
-                    screenshotSelection.active = true;
+                if (currentScreenshotSelection) {
+                    currentScreenshotSelection.hidden = false;
+                    currentScreenshotSelection.active = true;
+                    // Ensure selection is movable (explicitly set to ensure it's not lost)
+                    currentScreenshotSelection.movable = true;
+                    currentScreenshotSelection.setAttribute('movable', 'true');
                     // Clear any existing selection by setting it to a default state first
-                    if (typeof screenshotSelection.$change === 'function') {
-                        screenshotSelection.$change(0, 0, 0, 0);
+                    if (typeof currentScreenshotSelection.$change === 'function') {
+                        currentScreenshotSelection.$change(0, 0, 0, 0);
                     }
                 }
                 
                 // Always show logo selection
-                if (logoSelection) {
-                    logoSelection.hidden = false;
-                    logoSelection.active = false;
+                if (currentLogoSelection) {
+                    currentLogoSelection.hidden = false;
+                    currentLogoSelection.active = false;
+                    // Ensure selection is movable (explicitly set to ensure it's not lost)
+                    currentLogoSelection.movable = true;
+                    currentLogoSelection.setAttribute('movable', 'true');
                 }
                 
                 // Wait for image to be ready, then update selection immediately
@@ -11303,25 +11421,18 @@ class GameCollectionManager {
                 keepSelectionsVisible();
             }, { passive: true });
             
-            // Also monitor for click events to ensure both stay visible
-            screenshotSelection.addEventListener('click', () => {
-                keepSelectionsVisible();
-            }, { passive: true });
-            
-            logoSelection.addEventListener('click', () => {
-                keepSelectionsVisible();
-            }, { passive: true });
-            
-            // Use MutationObserver to watch for hidden attribute changes
+            // Use MutationObserver to watch for hidden attribute changes only
+            // Don't interfere with active state changes - allow them to happen naturally
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     if (mutation.type === 'attributes' && mutation.attributeName === 'hidden') {
                         keepSelectionsVisible();
                     }
+                    // Don't interfere with active attribute changes - let them happen naturally
                 });
             });
             
-            // Observe both selections for hidden attribute changes
+            // Observe both selections for hidden attribute changes only
             observer.observe(screenshotSelection, { attributes: true, attributeFilter: ['hidden'] });
             observer.observe(logoSelection, { attributes: true, attributeFilter: ['hidden'] });
         }
@@ -11542,6 +11653,10 @@ class GameCollectionManager {
         
         if (!logoSelection || !cropperImage) return;
         
+        // Ensure selection is movable before updating
+        logoSelection.movable = true;
+        logoSelection.setAttribute('movable', 'true');
+        
         // Get corner positions from inputs
         const corners = {
             x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
@@ -11589,6 +11704,10 @@ class GameCollectionManager {
             console.warn('Selection or image element not found');
             return;
         }
+        
+        // Ensure selection is movable before updating
+        screenshotSelection.movable = true;
+        screenshotSelection.setAttribute('movable', 'true');
         
         // Get corner positions from inputs
         const corner1X = document.getElementById('templateCorner1X')?.value;
@@ -11704,12 +11823,16 @@ class GameCollectionManager {
         const width = right - left;
         const height = bottom - top;
         
-        // Ensure selection is visible and active before updating
+        // Ensure selection is visible before updating (but don't force active state)
         if (selection.hidden) {
             selection.hidden = false;
         }
-        if (!selection.active) {
-            selection.active = true;
+        // Don't force active state - let user click to activate
+        
+        // Ensure selection is movable (explicitly set to ensure it's not lost)
+        if (selection.movable !== true) {
+            selection.movable = true;
+            selection.setAttribute('movable', 'true');
         }
         
         // Update selection using $change() method (v2 API)
@@ -11844,7 +11967,10 @@ class GameCollectionManager {
         const trimmedName = templateName.trim();
         
         const backgroundInput = document.getElementById('templateBackgroundImage');
-        if (!backgroundInput || !backgroundInput.files[0]) {
+        // Check if background image is selected OR loaded from template
+        const hasBackgroundFile = backgroundInput?.files[0];
+        const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
+        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath)) {
             this.showAlert('Please select a background image', 'warning');
             return;
         }
@@ -11880,11 +12006,11 @@ class GameCollectionManager {
                 y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
             };
             
-            this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners);
+            this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, hasBackgroundFile, hasLoadedPath);
         }, 100);
     }
     
-    saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners) {
+    saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, hasBackgroundFile, hasLoadedPath) {
         
         // Get text logo settings if using text logo
         let textLogoSettings = null;
@@ -11903,7 +12029,44 @@ class GameCollectionManager {
         // Save background image and template metadata
         const formData = new FormData();
         formData.append('template_name', trimmedName);
-        formData.append('background_image', backgroundInput.files[0]);
+        // If file is selected, use it; otherwise use the loaded path from template
+        if (hasBackgroundFile) {
+            formData.append('background_image', backgroundInput.files[0]);
+        } else if (hasLoadedPath) {
+            // Extract filename from path for saving
+            // The path might be a full API URL like /api/template-image?path=filename.jpg&type=background
+            let filename = hasLoadedPath;
+            
+            // If it's an API URL, extract the path parameter
+            if (filename.includes('?path=')) {
+                try {
+                    const urlParts = filename.split('?');
+                    if (urlParts.length > 1) {
+                        const urlParams = new URLSearchParams(urlParts[1]);
+                        filename = urlParams.get('path') || filename;
+                    }
+                } catch (e) {
+                    // Fallback to simple extraction
+                    const match = filename.match(/[?&]path=([^&]+)/);
+                    if (match) {
+                        filename = match[1];
+                    }
+                }
+            }
+            
+            // If still contains path separators, get just the filename
+            if (filename.includes('/')) {
+                filename = filename.split('/').pop();
+            }
+            
+            // Remove any remaining query parameters
+            if (filename.includes('?')) {
+                filename = filename.split('?')[0];
+            }
+            
+            // For saving, we need to reference the existing file, so send the filename
+            formData.append('background_image_path', filename);
+        }
         formData.append('corners', JSON.stringify(corners));
         formData.append('logo_source', logoSource);
         // Always include logo corners (logo is always present)
@@ -12056,13 +12219,33 @@ class GameCollectionManager {
                 // Load background image and setup cropper with skipDefaultCrop flag
                 if (data.background_image_path) {
                     // Extract filename from path for display
+                    // The path might be a full API URL like /api/template-image?path=filename.jpg&type=background
                     let filename = data.background_image_path;
-                    if (filename.includes('/')) {
-                        filename = filename.split('/').pop();
-                    }
-                    // Remove query parameters if any
-                    if (filename.includes('?')) {
-                        filename = filename.split('?')[0];
+                    let actualFilename = filename;
+                    
+                    // If it's an API URL, extract the path parameter
+                    if (filename.includes('?path=')) {
+                        try {
+                            const urlParts = filename.split('?');
+                            if (urlParts.length > 1) {
+                                const urlParams = new URLSearchParams(urlParts[1]);
+                                actualFilename = urlParams.get('path') || filename;
+                            }
+                        } catch (e) {
+                            // Fallback to regex extraction
+                            const match = filename.match(/[?&]path=([^&]+)/);
+                            if (match) {
+                                actualFilename = decodeURIComponent(match[1]);
+                            }
+                        }
+                    } else {
+                        // If it's a direct path, extract filename
+                        if (actualFilename.includes('/')) {
+                            actualFilename = actualFilename.split('/').pop();
+                        }
+                        if (actualFilename.includes('?')) {
+                            actualFilename = actualFilename.split('?')[0];
+                        }
                     }
                     
                     // Update the background image input field display
@@ -12073,13 +12256,13 @@ class GameCollectionManager {
                         // Create a label or helper text to show the loaded image
                         const helperText = backgroundInput.parentElement.querySelector('.form-text');
                         if (helperText) {
-                            helperText.textContent = `Current: ${filename} (loaded from template)`;
+                            helperText.textContent = `Current: ${actualFilename} (loaded from template)`;
                             helperText.style.color = '#28a745';
                             helperText.style.fontWeight = '500';
                         }
                         
-                        // Store the filename in a data attribute for reference
-                        backgroundInput.setAttribute('data-loaded-filename', filename);
+                        // Store the filename and full path in data attributes for reference
+                        backgroundInput.setAttribute('data-loaded-filename', actualFilename);
                         backgroundInput.setAttribute('data-loaded-path', data.background_image_path);
                     }
                     
@@ -12154,7 +12337,10 @@ class GameCollectionManager {
                 return;
             }
             
-            if (!backgroundInput.files[0]) {
+            // Check if background image is selected OR loaded from template
+            const hasBackgroundFile = backgroundInput.files[0];
+            const hasLoadedPath = backgroundInput.getAttribute('data-loaded-path');
+            if (!hasBackgroundFile && !hasLoadedPath) {
                 this.showAlert('Please select a background image', 'warning');
                 return;
             }
@@ -12218,7 +12404,33 @@ class GameCollectionManager {
             
             // Upload background image and start generation
             const formData = new FormData();
-            formData.append('background_image', backgroundInput.files[0]);
+            // If file is selected, use it; otherwise use the loaded path from template
+            if (hasBackgroundFile) {
+                formData.append('background_image', backgroundInput.files[0]);
+            } else if (hasLoadedPath) {
+                // Extract filename from path for sending to backend
+                // The path might be a full API URL like /api/template-image?path=filename.jpg&type=background
+                let filename = hasLoadedPath;
+                
+                // If it's an API URL, extract the path parameter
+                if (filename.includes('?path=')) {
+                    const urlParams = new URLSearchParams(filename.split('?')[1]);
+                    filename = urlParams.get('path') || filename;
+                }
+                
+                // If still contains path separators, get just the filename
+                if (filename.includes('/')) {
+                    filename = filename.split('/').pop();
+                }
+                
+                // Remove any remaining query parameters
+                if (filename.includes('?')) {
+                    filename = filename.split('?')[0];
+                }
+                
+                // Send the filename (not full path) to backend
+                formData.append('background_image_path', filename);
+            }
             formData.append('screenshot_field', screenshotField);
             formData.append('corners', JSON.stringify(corners));
             formData.append('target_field', targetField);

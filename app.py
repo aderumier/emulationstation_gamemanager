@@ -25027,17 +25027,37 @@ def generate_template_box():
         logo_corners = json.loads(logo_corners_json) if logo_corners_json else {}
         text_logo_settings = json.loads(text_logo_settings_json) if text_logo_settings_json else None
         
-        # Save uploaded background image temporarily
+        # Get background image - either from file upload or from template path
         background_file = request.files.get('background_image')
+        background_image_path = request.form.get('background_image_path')
         
-        if not background_file:
+        if not background_file and not background_image_path:
             return jsonify({'success': False, 'error': 'Background image is required'}), 400
         
         # Create temp directory for this task
         temp_dir = tempfile.mkdtemp(prefix='template_box_')
         background_path = os.path.join(temp_dir, 'background.jpg')
         
-        background_file.save(background_path)
+        if background_file:
+            # Save uploaded file
+            background_file.save(background_path)
+        elif background_image_path:
+            # Use existing template image
+            templates_dir = 'var/2dbox/templates'
+            source_path = os.path.join(templates_dir, background_image_path)
+            
+            # Security: ensure path is within templates directory
+            abs_templates_dir = os.path.abspath(templates_dir)
+            abs_source_path = os.path.abspath(source_path)
+            if not abs_source_path.startswith(abs_templates_dir):
+                return jsonify({'success': False, 'error': 'Invalid background image path'}), 403
+            
+            if not os.path.exists(source_path):
+                return jsonify({'success': False, 'error': 'Background image not found'}), 404
+            
+            # Copy template image to temp directory
+            import shutil
+            shutil.copy2(source_path, background_path)
         
         # Add task to queue (screenshot will be loaded from game field during processing)
         task_data = {
