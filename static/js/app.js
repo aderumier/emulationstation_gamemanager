@@ -10898,13 +10898,20 @@ class GameCollectionManager {
         // Don't reset screenshotField and targetField - they are persisted via localStorage
         // They will be restored in loadTemplateGeneratorFields()
         
+        // Show canvas container immediately (even without image)
+        // This ensures the cropper elements are initialized properly
         if (cropperCanvas) {
-            cropperCanvas.style.display = 'none';
+            cropperCanvas.style.display = 'block';
+            cropperCanvas.style.visibility = 'visible';
+            cropperCanvas.style.opacity = '1';
         }
         if (cropperImage) {
             cropperImage.removeAttribute('src');
         }
-        if (previewPlaceholder) previewPlaceholder.style.display = 'block';
+        // Show placeholder message over the canvas
+        if (previewPlaceholder) {
+            previewPlaceholder.style.display = 'block';
+        }
         
         // Reset selections - will be set to image size when image loads
         if (screenshotSelection) {
@@ -10973,7 +10980,7 @@ class GameCollectionManager {
         }
     }
     
-    setupTemplateCropper(imageSrc, skipDefaultCrop = false) {
+    async setupTemplateCropper(imageSrc, skipDefaultCrop = false) {
         const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
         const cropperCanvas = document.getElementById('templateCropperCanvas');
         let cropperImage = document.getElementById('templateCropperImage');
@@ -10981,6 +10988,48 @@ class GameCollectionManager {
         let logoSelection = document.getElementById('templateLogoSelection');
         
         if (!cropperCanvas) return;
+        
+        // Ensure Interactive tab is active before initializing cropper
+        // This is necessary for cropper selections to initialize properly
+        const interactiveTab = document.getElementById('templateInteractiveTab');
+        const interactivePane = document.getElementById('templateInteractivePane');
+        
+        if (interactiveTab && interactivePane) {
+            // Check if Interactive tab is already active
+            const isActive = interactiveTab.classList.contains('active') && 
+                           interactivePane.classList.contains('show') && 
+                           interactivePane.classList.contains('active');
+            
+            if (!isActive) {
+                // Activate Interactive tab to ensure proper initialization
+                const tabInstance = new bootstrap.Tab(interactiveTab);
+                tabInstance.show();
+                
+                // Wait for tab to be shown
+                await new Promise((resolve) => {
+                    const onShown = () => {
+                        interactiveTab.removeEventListener('shown.bs.tab', onShown);
+                        setTimeout(resolve, 100);
+                    };
+                    interactiveTab.addEventListener('shown.bs.tab', onShown);
+                    
+                    // Fallback timeout
+                    setTimeout(() => {
+                        interactiveTab.removeEventListener('shown.bs.tab', onShown);
+                        resolve();
+                    }, 500);
+                });
+            }
+        }
+        
+        // Show canvas immediately
+        if (previewPlaceholder) previewPlaceholder.style.display = 'none';
+        cropperCanvas.style.display = 'block';
+        cropperCanvas.style.visibility = 'visible';
+        cropperCanvas.style.opacity = '1';
+        
+        // Wait for custom elements to be ready
+        await this.waitForCropperElementsReady();
         
         // Reset cropper when loading new image (clear all selections)
         if (!skipDefaultCrop) {
@@ -11012,12 +11061,6 @@ class GameCollectionManager {
                 if (element) element.value = '';
             });
         }
-        
-        // Hide placeholder and show canvas
-        if (previewPlaceholder) previewPlaceholder.style.display = 'none';
-        cropperCanvas.style.display = 'block';
-        cropperCanvas.style.visibility = 'visible';
-        cropperCanvas.style.opacity = '1';
         
         // Disable mouse wheel zoom on canvas and all child elements
         const disableWheelZoom = (e) => {
@@ -11172,21 +11215,69 @@ class GameCollectionManager {
         cropperImage.src = imageSrc;
         
         // Function to execute after image is ready
-        const onImageReady = (img) => {
+        const onImageReady = async (img) => {
             console.log('Image ready:', img);
+            
+            // Ensure Interactive tab is visible for selections to initialize properly
+            const interactiveTab = document.getElementById('templateInteractiveTab');
+            const interactivePane = document.getElementById('templateInteractivePane');
+            
+            if (interactiveTab && interactivePane) {
+                const isActive = interactiveTab.classList.contains('active') && 
+                               interactivePane.classList.contains('show') && 
+                               interactivePane.classList.contains('active');
+                
+                if (!isActive) {
+                    // Activate Interactive tab
+                    const tabInstance = new bootstrap.Tab(interactiveTab);
+                    tabInstance.show();
+                    
+                    // Wait for tab to be shown
+                    await new Promise((resolve) => {
+                        const onShown = () => {
+                            interactiveTab.removeEventListener('shown.bs.tab', onShown);
+                            setTimeout(resolve, 100);
+                        };
+                        interactiveTab.addEventListener('shown.bs.tab', onShown);
+                        
+                        setTimeout(() => {
+                            interactiveTab.removeEventListener('shown.bs.tab', onShown);
+                            resolve();
+                        }, 500);
+                    });
+                } else {
+                    // Tab is already active, just wait a bit for rendering
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            } else {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
             
             // Get fresh references to selections (in case they were recreated)
             const currentScreenshotSelection = document.getElementById('templateScreenshotSelection');
             const currentLogoSelection = document.getElementById('templateLogoSelection');
+            const currentCropperImage = document.getElementById('templateCropperImage');
             
             // Ensure selections are movable (explicitly set to ensure it's not lost)
             if (currentScreenshotSelection) {
                 currentScreenshotSelection.movable = true;
+                currentScreenshotSelection.resizable = true;
                 currentScreenshotSelection.setAttribute('movable', 'true');
+                currentScreenshotSelection.setAttribute('resizable', '');
             }
             if (currentLogoSelection) {
                 currentLogoSelection.movable = true;
+                currentLogoSelection.resizable = true;
                 currentLogoSelection.setAttribute('movable', 'true');
+                currentLogoSelection.setAttribute('resizable', '');
+            }
+            
+            // Ensure cropper-image has proper attributes
+            if (currentCropperImage) {
+                currentCropperImage.rotatable = false;
+                currentCropperImage.scalable = false;
+                currentCropperImage.skewable = false;
+                currentCropperImage.translatable = false;
             }
             
             // Disable wheel zoom on cropper-image and selections
@@ -11198,75 +11289,56 @@ class GameCollectionManager {
                 this.templateSelectionListenersSetup = true;
             }
             
-            // Allow creating new selections (multiple selections are enabled)
-            // No need to prevent select action - users can add extra selections
-            
             if (!skipDefaultCrop) {
                 // Create 2 default selections with specified positions and sizes
                 setTimeout(() => {
-                    if (currentScreenshotSelection && currentLogoSelection && cropperImage && cropperCanvas && img) {
-                        // Show both selections
-                        currentScreenshotSelection.hidden = false;
-                        currentScreenshotSelection.active = true;
-                        currentLogoSelection.hidden = false;
-                        currentLogoSelection.active = false;
+                    const sel1 = document.getElementById('templateScreenshotSelection');
+                    const sel2 = document.getElementById('templateLogoSelection');
+                    
+                    if (sel1 && sel2 && currentCropperImage && cropperCanvas) {
+                        sel1.hidden = false;
+                        sel1.active = true;
+                        sel2.hidden = false;
+                        sel2.active = false;
                         
                         // Set first selection (screenshot): x=170, y=150, width=80, height=80
-                        if (typeof currentScreenshotSelection.$change === 'function') {
-                            currentScreenshotSelection.$change(170, 150, 80, 80);
+                        if (typeof sel1.$change === 'function') {
+                            sel1.$change(170, 150, 80, 80);
                             this.updateTemplateCornersFromCropper();
                         }
                         
                         // Set second selection (logo): x=100, y=70, width=80, height=80
-                        if (typeof currentLogoSelection.$change === 'function') {
-                            currentLogoSelection.$change(100, 70, 80, 80);
+                        if (typeof sel2.$change === 'function') {
+                            sel2.$change(100, 70, 80, 80);
                             this.updateTemplateLogoCornersFromCropper();
                         }
                     }
-                }, 200);
+                }, 100);
             } else {
-                // If loading template, update selections from corner values
-                // Selections have been recreated, so use fresh references
-                
-                // First, reset the selection to ensure clean state
+                // If loading template, ensure selections are visible and configured
                 if (currentScreenshotSelection) {
                     currentScreenshotSelection.hidden = false;
                     currentScreenshotSelection.active = true;
-                    // Ensure selection is movable (explicitly set to ensure it's not lost)
                     currentScreenshotSelection.movable = true;
+                    currentScreenshotSelection.resizable = true;
                     currentScreenshotSelection.setAttribute('movable', 'true');
-                    // Clear any existing selection by setting it to a default state first
-                    if (typeof currentScreenshotSelection.$change === 'function') {
-                        currentScreenshotSelection.$change(0, 0, 0, 0);
-                    }
+                    currentScreenshotSelection.setAttribute('resizable', '');
                 }
                 
-                // Always show logo selection
                 if (currentLogoSelection) {
                     currentLogoSelection.hidden = false;
                     currentLogoSelection.active = false;
-                    // Ensure selection is movable (explicitly set to ensure it's not lost)
                     currentLogoSelection.movable = true;
+                    currentLogoSelection.resizable = true;
                     currentLogoSelection.setAttribute('movable', 'true');
+                    currentLogoSelection.setAttribute('resizable', '');
                 }
                 
-                // Wait for image to be ready, then update selection immediately
-                if (typeof cropperImage.$ready === 'function') {
-                    cropperImage.$ready().then(() => {
-                        // Update immediately after image is ready
-                        this.updateTemplateCropperFromCorners();
-                    });
-                } else {
-                    // Fallback: try to get image directly
-                    const img = cropperImage.querySelector('img');
-                    if (img && img.complete) {
-                        this.updateTemplateCropperFromCorners();
-                    } else if (img) {
-                        img.onload = () => {
-                            this.updateTemplateCropperFromCorners();
-                        };
-                    }
-                }
+                // Wait a bit more for the cropper to be fully ready, then update from corners
+                setTimeout(() => {
+                    this.updateTemplateCropperFromCorners();
+                    this.updateTemplateCropperFromLogoCorners();
+                }, 150);
             }
         };
         
@@ -11294,6 +11366,130 @@ class GameCollectionManager {
                 });
             }
         }
+    }
+    
+    /**
+     * Wait for the Interactive tab pane to be fully visible and rendered.
+     * Checks for both Bootstrap classes and actual computed dimensions.
+     * @returns {Promise} Resolves when the tab is visible and has dimensions
+     */
+    waitForTabPaneVisible() {
+        return new Promise((resolve) => {
+            const interactivePane = document.getElementById('templateInteractivePane');
+            const cropperCanvas = document.getElementById('templateCropperCanvas');
+            
+            if (!interactivePane || !cropperCanvas) {
+                console.warn('waitForTabPaneVisible: Missing elements');
+                resolve();
+                return;
+            }
+            
+            // Check if already visible
+            const checkVisibility = () => {
+                const hasShowClass = interactivePane.classList.contains('show');
+                const hasActiveClass = interactivePane.classList.contains('active');
+                const computedStyle = window.getComputedStyle(interactivePane);
+                const isVisible = computedStyle.display !== 'none' && 
+                                 computedStyle.visibility !== 'hidden' &&
+                                 computedStyle.opacity !== '0';
+                const hasDimensions = cropperCanvas.offsetWidth > 0 && cropperCanvas.offsetHeight > 0;
+                
+                if (hasShowClass && hasActiveClass && isVisible && hasDimensions) {
+                    console.log('Tab pane is visible with dimensions');
+                    return true;
+                }
+                return false;
+            };
+            
+            // Check immediately
+            if (checkVisibility()) {
+                resolve();
+                return;
+            }
+            
+            // Use MutationObserver to watch for class changes
+            const observer = new MutationObserver(() => {
+                if (checkVisibility()) {
+                    observer.disconnect();
+                    clearInterval(intervalId);
+                    resolve();
+                }
+            });
+            
+            observer.observe(interactivePane, {
+                attributes: true,
+                attributeFilter: ['class'],
+                childList: false,
+                subtree: false
+            });
+            
+            // Also check periodically as fallback
+            const intervalId = setInterval(() => {
+                if (checkVisibility()) {
+                    clearInterval(intervalId);
+                    observer.disconnect();
+                    resolve();
+                }
+            }, 50);
+            
+            // Fallback timeout - resolve anyway after 500ms to not block forever
+            setTimeout(() => {
+                clearInterval(intervalId);
+                observer.disconnect();
+                console.log('waitForTabPaneVisible: Timeout, proceeding anyway');
+                resolve();
+            }, 500);
+        });
+    }
+    
+    /**
+     * Wait for CropperJS custom elements to be defined and upgraded.
+     * @returns {Promise} Resolves when all cropper elements are ready
+     */
+    waitForCropperElementsReady() {
+        // Check if elements are already defined
+        const canvasDefined = customElements.get('cropper-canvas');
+        const imageDefined = customElements.get('cropper-image');
+        const selectionDefined = customElements.get('cropper-selection');
+        
+        if (canvasDefined && imageDefined && selectionDefined) {
+            // Already defined, just wait a bit for upgrade
+            return new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        // Wait for them to be defined
+        return Promise.all([
+            customElements.whenDefined('cropper-canvas'),
+            customElements.whenDefined('cropper-image'),
+            customElements.whenDefined('cropper-selection')
+        ]).then(() => {
+            // Additional wait for elements to be upgraded
+            return new Promise(resolve => setTimeout(resolve, 50));
+        }).catch(() => {
+            // If waiting fails, proceed anyway after a short delay
+            console.warn('waitForCropperElementsReady: Some elements may not be ready');
+            return new Promise(resolve => setTimeout(resolve, 100));
+        });
+    }
+    
+    /**
+     * Refresh the template cropper canvas to fix rendering issues.
+     */
+    refreshTemplateCropperCanvas() {
+        const cropperCanvas = document.getElementById('templateCropperCanvas');
+        const cropperImage = document.getElementById('templateCropperImage');
+        
+        if (!cropperCanvas || cropperCanvas.style.display === 'none') {
+            return;
+        }
+        
+        // Force reflow
+        cropperCanvas.offsetWidth;
+        window.dispatchEvent(new Event('resize'));
+        
+        // Update corner values
+        this.updateTemplateCornersFromCropper();
+        this.updateTemplateLogoCornersFromCropper();
     }
     
     setupTemplateSelectionListeners() {
@@ -12018,11 +12214,15 @@ class GameCollectionManager {
             const font = document.getElementById('templateLogoFont')?.value || 'Arial';
             const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
             const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
+            const alignment = document.getElementById('templateLogoAlignment')?.value || 'center';
+            const maxCharsPerLine = parseInt(document.getElementById('templateLogoMaxChars')?.value) || null;
             
             textLogoSettings = {
                 font: font,
                 color: color,
-                fontSize: fontSize
+                fontSize: fontSize,
+                alignment: alignment,
+                maxCharsPerLine: maxCharsPerLine
             };
         }
         
@@ -12214,6 +12414,18 @@ class GameCollectionManager {
                     if (data.text_logo_settings.fontSize && fontSizeInput) {
                         fontSizeInput.value = data.text_logo_settings.fontSize;
                     }
+                    
+                    // Restore alignment
+                    const alignmentSelect = document.getElementById('templateLogoAlignment');
+                    if (data.text_logo_settings.alignment && alignmentSelect) {
+                        alignmentSelect.value = data.text_logo_settings.alignment;
+                    }
+                    
+                    // Restore max chars per line
+                    const maxCharsInput = document.getElementById('templateLogoMaxChars');
+                    if (maxCharsInput) {
+                        maxCharsInput.value = data.text_logo_settings.maxCharsPerLine || '';
+                    }
                 }
                 
                 // Load background image and setup cropper with skipDefaultCrop flag
@@ -12382,21 +12594,25 @@ class GameCollectionManager {
                 y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
             };
             
-            // Get text logo settings if using text logo
-            let textLogoSettings = null;
-            if (logoSource === 'text') {
-                const font = document.getElementById('templateLogoFont')?.value || 'Arial';
-                const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
-                const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
-                
-                textLogoSettings = {
-                    font: font,
-                    color: color,
-                    fontSize: fontSize
-                };
-            }
+        // Get text logo settings if using text logo
+        let textLogoSettings = null;
+        if (logoSource === 'text') {
+            const font = document.getElementById('templateLogoFont')?.value || 'Arial';
+            const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
+            const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
+            const alignment = document.getElementById('templateLogoAlignment')?.value || 'center';
+            const maxCharsPerLine = parseInt(document.getElementById('templateLogoMaxChars')?.value) || null;
             
-            // Close modal
+            textLogoSettings = {
+                font: font,
+                color: color,
+                fontSize: fontSize,
+                alignment: alignment,
+                maxCharsPerLine: maxCharsPerLine
+            };
+        }
+        
+        // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('boxTemplateGeneratorModal'));
             if (modal) {
                 modal.hide();
@@ -12529,11 +12745,15 @@ class GameCollectionManager {
                 const font = document.getElementById('templateLogoFont')?.value || 'Arial';
                 const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
                 const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
+                const alignment = document.getElementById('templateLogoAlignment')?.value || 'center';
+                const maxCharsPerLine = parseInt(document.getElementById('templateLogoMaxChars')?.value) || null;
                 
                 textLogoSettings = {
                     font: font,
                     color: color,
-                    fontSize: fontSize
+                    fontSize: fontSize,
+                    alignment: alignment,
+                    maxCharsPerLine: maxCharsPerLine
                 };
             }
             
@@ -24205,6 +24425,67 @@ class GameCollectionManager {
                         // Only auto-calculate if font size is not manually set
                         this.calculateTemplateLogoFontSize();
                     }
+                }
+            });
+        }
+        
+        // Activate Interactive tab when modal opens (to ensure cropper selections initialize properly)
+        const boxTemplateGeneratorModal = document.getElementById('boxTemplateGeneratorModal');
+        if (boxTemplateGeneratorModal) {
+            boxTemplateGeneratorModal.addEventListener('shown.bs.modal', () => {
+                // Programmatically activate the Interactive tab using Bootstrap's Tab API
+                // This ensures Bootstrap properly initializes and renders the tab content
+                // and cropper selections are properly initialized
+                const interactiveTab = document.getElementById('templateInteractiveTab');
+                if (interactiveTab) {
+                    const tabInstance = new bootstrap.Tab(interactiveTab);
+                    tabInstance.show();
+                }
+                
+                const cropperCanvas = document.getElementById('templateCropperCanvas');
+                const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+                
+                // Ensure canvas container is visible (even without image)
+                if (cropperCanvas) {
+                    cropperCanvas.style.display = 'block';
+                    cropperCanvas.style.visibility = 'visible';
+                    cropperCanvas.style.opacity = '1';
+                }
+                
+                // Show placeholder if no image is loaded yet
+                const cropperImage = document.getElementById('templateCropperImage');
+                if (previewPlaceholder && cropperImage && !cropperImage.src) {
+                    previewPlaceholder.style.display = 'block';
+                }
+                
+                // Refresh cropper if image is already loaded
+                if (cropperImage && cropperImage.src) {
+                    setTimeout(() => {
+                        this.refreshTemplateCropperCanvas();
+                    }, 100);
+                }
+            });
+        }
+        
+        // Also refresh cropper when switching to the Interactive tab
+        // This ensures the canvas is properly displayed if it was initialized while on Preview tab
+        const templateInteractiveTab = document.getElementById('templateInteractiveTab');
+        if (templateInteractiveTab) {
+            templateInteractiveTab.addEventListener('shown.bs.tab', () => {
+                const cropperCanvas = document.getElementById('templateCropperCanvas');
+                const cropperImage = document.getElementById('templateCropperImage');
+                
+                if (cropperCanvas) {
+                    cropperCanvas.style.display = 'block';
+                    cropperCanvas.style.visibility = 'visible';
+                    cropperCanvas.style.opacity = '1';
+                }
+                
+                // If image is already loaded, refresh the canvas to ensure proper rendering
+                if (cropperImage && cropperImage.src) {
+                    setTimeout(() => {
+                        this.refreshTemplateCropperCanvas();
+                    }, 100);
                 }
             });
         }

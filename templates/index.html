@@ -4537,6 +4537,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         <input type="number" class="form-control form-control-sm" id="templateLogoFontSize" value="72" min="12" max="300" step="1">
                                         <div class="form-text small">Font size in points (12-300). Will be auto-calculated from logo zone if not set.</div>
                                     </div>
+                                    <div class="mb-3">
+                                        <label for="templateLogoAlignment" class="form-label">Text Alignment</label>
+                                        <select class="form-select form-select-sm" id="templateLogoAlignment">
+                                            <option value="left">Left</option>
+                                            <option value="center" selected>Center</option>
+                                            <option value="right">Right</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="templateLogoMaxChars" class="form-label">Max Characters Per Line</label>
+                                        <input type="number" class="form-control form-control-sm" id="templateLogoMaxChars" placeholder="Auto" min="5" max="100" step="1">
+                                        <div class="form-text small">Leave empty for auto-calculation based on font size and zone width. Minimum: 5.</div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -4597,7 +4610,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <!-- Tab Navigation -->
                             <ul class="nav nav-tabs mb-3" id="templatePreviewTabs" role="tablist">
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" id="templateInteractiveTab" data-bs-toggle="tab" data-bs-target="#templateInteractivePane" type="button" role="tab" aria-controls="templateInteractivePane" aria-selected="true">
+                                    <button class="nav-link" id="templateInteractiveTab" data-bs-toggle="tab" data-bs-target="#templateInteractivePane" type="button" role="tab" aria-controls="templateInteractivePane" aria-selected="false">
                                         <i class="bi bi-arrows-move me-1"></i>Interactive
                                     </button>
                                 </li>
@@ -4611,13 +4624,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <!-- Tab Content -->
                             <div class="tab-content" id="templatePreviewTabContent">
                                 <!-- Interactive Preview Tab -->
-                                <div class="tab-pane fade show active" id="templateInteractivePane" role="tabpanel" aria-labelledby="templateInteractiveTab">
-                                    <div class="alert alert-info">
-                                        <i class="bi bi-mouse me-2"></i>
-                                        Click and drag the corners in the preview below to position the screenshot and logo placement areas.
-                                    </div>
+                                <div class="tab-pane fade" id="templateInteractivePane" role="tabpanel" aria-labelledby="templateInteractiveTab">
                             <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: auto; text-align: center;">
-                                <div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div>
+                                <div class="text-muted text-center py-5" id="templatePreviewPlaceholder"></div>
                                 <cropper-canvas id="templateCropperCanvas" style="display: none; width: 600px; height: 900px;" background>
                                     <cropper-image id="templateCropperImage" rotatable="false" scalable="false" skewable="false" translatable="false" imageFit="contain"></cropper-image>
                                     <cropper-shade hidden></cropper-shade>

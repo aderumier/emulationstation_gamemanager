@@ -586,6 +586,7 @@ class BoxGenerator:
                 
                 # Determine the logo file to use (either existing marquee or generated text logo)
                 logo_file_to_use = None
+                logo_placement_gravity = 'center'  # Default gravity for logo placement
                 
                 if logo_source == 'marquee' and logo_path and os.path.exists(logo_path):
                     # Use existing marquee logo
@@ -596,18 +597,30 @@ class BoxGenerator:
                     # Generate text logo to a temporary file first
                     logging.info(f"Generating text logo for: {game_name}")
                     
-                    # Get settings
-                    font_size = text_logo_settings.get('fontSize', 72)
-                    color = text_logo_settings.get('color', '#ffffff')
-                    font = text_logo_settings.get('font', 'Arial')
+                    # Get settings (use 'or' to handle None values explicitly)
+                    font_size = text_logo_settings.get('fontSize') or 72
+                    color = text_logo_settings.get('color') or '#ffffff'
+                    font = text_logo_settings.get('font') or 'Arial'
                     bold = text_logo_settings.get('bold', False)
                     italic = text_logo_settings.get('italic', False)
                     underline = text_logo_settings.get('underline', False)
                     uppercase = text_logo_settings.get('uppercase', False)
+                    alignment = text_logo_settings.get('alignment', 'center')
+                    user_max_chars = text_logo_settings.get('maxCharsPerLine', None)
                     
-                    # Calculate max chars per line from font size and zone width
-                    avg_char_width = font_size * 0.6
-                    max_chars_per_line = max(5, int(logo_zone_width / avg_char_width))
+                    # Convert alignment to ImageMagick gravity
+                    gravity_map = {'left': 'west', 'center': 'center', 'right': 'east'}
+                    gravity = gravity_map.get(alignment, 'center')
+                    
+                    # Use user-specified max chars per line, or calculate from font size and zone width
+                    # Minimum of 5 characters per line is enforced in all cases
+                    if user_max_chars and user_max_chars > 0:
+                        max_chars_per_line = max(5, user_max_chars)
+                    else:
+                        # Average character width for proportional fonts is ~0.4-0.5 times font size
+                        # Using 0.4 as it's more accurate for most fonts and allows better text fitting
+                        avg_char_width = font_size * 0.4
+                        max_chars_per_line = max(5, int(logo_zone_width / avg_char_width))
                     
                     # Clean and prepare text
                     text = self._clean_game_name(game_name)
@@ -621,7 +634,7 @@ class BoxGenerator:
                     # Escape text for ImageMagick
                     escaped_text = multiline_text.replace('\\', '\\\\').replace('"', '\\"')
                     
-                    logging.info(f"Text logo settings: font_size={font_size}, max_chars={max_chars_per_line}, text='{multiline_text}'")
+                    logging.info(f"Text logo settings: font_size={font_size}, max_chars={max_chars_per_line}, alignment={alignment}, text='{multiline_text}'")
                     
                     # Create temp file for generated text logo
                     temp_generated_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
@@ -671,7 +684,7 @@ class BoxGenerator:
                         
                         cmd_text = cmd + [
                             '-size', f'{caption_width}x',
-                            '-gravity', 'center',
+                            '-gravity', gravity,
                             f'caption:{escaped_text}',
                             temp_text
                         ]
@@ -703,7 +716,7 @@ class BoxGenerator:
                         # No underline - generate directly
                         cmd.extend([
                             '-size', f'{caption_width}x',
-                            '-gravity', 'center',
+                            '-gravity', gravity,
                             f'caption:{escaped_text}',
                             temp_generated_logo
                         ])
@@ -716,6 +729,8 @@ class BoxGenerator:
                     # Verify the generated logo exists
                     if os.path.exists(temp_generated_logo):
                         logo_file_to_use = temp_generated_logo
+                        # Store the gravity for text logo placement (to preserve alignment)
+                        logo_placement_gravity = gravity
                         logging.info(f"✅ Text logo generated successfully: {temp_generated_logo}")
                     else:
                         logging.error(f"Text logo file was not created: {temp_generated_logo}")
@@ -728,17 +743,18 @@ class BoxGenerator:
                     temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
                     temp_files.append(temp_logo)
                     
-                    # Resize logo to fit zone (same as marquee)
+                    # Resize logo to fit zone
+                    # Uses logo_placement_gravity (alignment-based for text logos, center for marquee)
                     cmd = [
                         'convert', logo_file_to_use,
                         '-resize', f'{logo_zone_width}x{logo_zone_height}',
                         '-background', 'none',
-                        '-gravity', 'center',
+                        '-gravity', logo_placement_gravity,
                         '-extent', f'{logo_zone_width}x{logo_zone_height}',
                         '-quality', '100',
                         temp_logo
                     ]
-                    logging.info(f"Resizing logo: {' '.join(cmd)}")
+                    logging.info(f"Resizing logo with gravity '{logo_placement_gravity}': {' '.join(cmd)}")
                     subprocess.run(cmd, check=True)
                     
                     # Composite logo onto output (same as marquee)
