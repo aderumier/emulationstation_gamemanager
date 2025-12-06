@@ -10768,6 +10768,15 @@ class GameCollectionManager {
         // Load media fields
         this.loadTemplateGeneratorFields();
         
+        // Show logo zone config and selection by default (logo is always present)
+        const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
+        const logoSelection = document.getElementById('templateLogoSelection');
+        if (logoZoneConfig) logoZoneConfig.style.display = 'block';
+        if (logoSelection) {
+            logoSelection.hidden = false;
+            logoSelection.active = false;
+        }
+        
         // Load saved templates
         this.loadTemplateList();
         
@@ -10874,7 +10883,18 @@ class GameCollectionManager {
         // Reset zone editing state
         this.templateEditingZone = 'screenshot'; // 'screenshot' or 'logo'
         
-        if (backgroundInput) backgroundInput.value = '';
+        if (backgroundInput) {
+            backgroundInput.value = '';
+            backgroundInput.removeAttribute('data-loaded-filename');
+            backgroundInput.removeAttribute('data-loaded-path');
+            // Reset helper text
+            const helperText = backgroundInput.parentElement.querySelector('.form-text');
+            if (helperText) {
+                helperText.textContent = 'Select background image file (will be used as base dimensions)';
+                helperText.style.color = '';
+                helperText.style.fontWeight = '';
+            }
+        }
         // Don't reset screenshotField and targetField - they are persisted via localStorage
         // They will be restored in loadTemplateGeneratorFields()
         
@@ -10886,25 +10906,15 @@ class GameCollectionManager {
         }
         if (previewPlaceholder) previewPlaceholder.style.display = 'block';
         
-        // Reset selections (v2 API: use $initSelection to reinitialize or set hidden property)
+        // Reset selections - will be set to image size when image loads
         if (screenshotSelection) {
-            // Reinitialize selection with default coverage
-            if (typeof screenshotSelection.$initSelection === 'function') {
-                screenshotSelection.initialCoverage = 0.5;
-                screenshotSelection.$initSelection(true, true);
-            }
             screenshotSelection.active = true;
             screenshotSelection.hidden = false;
         }
         if (logoSelection) {
-            // Hide logo selection
-            logoSelection.hidden = true;
+            // Logo selection is always visible now
+            logoSelection.hidden = false;
             logoSelection.active = false;
-            // Optionally reset if method exists
-            if (typeof logoSelection.$initSelection === 'function') {
-                logoSelection.initialCoverage = 0.3;
-                // Don't call $initSelection here since we're hiding it
-            }
         }
         
         // Reset screenshot corners
@@ -10921,22 +10931,40 @@ class GameCollectionManager {
             if (element) element.value = '';
         });
         
-        // Reset logo source to 'none'
-        const logoSourceNone = document.getElementById('templateLogoSourceNone');
-        if (logoSourceNone) logoSourceNone.checked = true;
+        // Reset logo source to 'marquee' (default)
+        const logoSourceMarquee = document.getElementById('templateLogoSourceMarquee');
+        if (logoSourceMarquee) logoSourceMarquee.checked = true;
+        // Always show logo selection (already set above)
+        if (logoSelection) {
+            logoSelection.hidden = false;
+            logoSelection.active = false;
+        }
+        // Initialize logo source change handler to show logo config
+        this.handleTemplateLogoSourceChange('marquee');
         
-        // Hide logo config sections
+        // Show logo zone config by default (logo is always present)
         const logoTextConfig = document.getElementById('templateLogoTextConfig');
         const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
-        const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
         if (logoTextConfig) logoTextConfig.style.display = 'none';
-        if (logoZoneConfig) logoZoneConfig.style.display = 'none';
-        if (editLogoZoneBtn) editLogoZoneBtn.style.display = 'none';
+        if (logoZoneConfig) logoZoneConfig.style.display = 'block';
     }
     
     handleTemplateBackgroundChange(e) {
         const file = e.target.files[0];
         if (file) {
+            // Clear loaded template data attributes
+            const backgroundInput = e.target;
+            backgroundInput.removeAttribute('data-loaded-filename');
+            backgroundInput.removeAttribute('data-loaded-path');
+            
+            // Update helper text to show selected file
+            const helperText = backgroundInput.parentElement.querySelector('.form-text');
+            if (helperText) {
+                helperText.textContent = `Selected: ${file.name}`;
+                helperText.style.color = '#28a745';
+                helperText.style.fontWeight = '500';
+            }
+            
             const reader = new FileReader();
             reader.onload = (event) => {
                 this.setupTemplateCropper(event.target.result);
@@ -10954,11 +10982,70 @@ class GameCollectionManager {
         
         if (!cropperCanvas) return;
         
+        // Reset cropper when loading new image (clear all selections)
+        if (!skipDefaultCrop) {
+            // Clear all existing selections
+            if (screenshotSelection) {
+                screenshotSelection.hidden = false;
+                screenshotSelection.active = true;
+                if (typeof screenshotSelection.$change === 'function') {
+                    screenshotSelection.$change(0, 0, 0, 0);
+                }
+            }
+            if (logoSelection) {
+                logoSelection.hidden = false;
+                logoSelection.active = false;
+                if (typeof logoSelection.$change === 'function') {
+                    logoSelection.$change(0, 0, 0, 0);
+                }
+            }
+            
+            // Clear corner input fields
+            ['templateCorner1X', 'templateCorner1Y', 'templateCorner2X', 'templateCorner2Y',
+             'templateCorner3X', 'templateCorner3Y', 'templateCorner4X', 'templateCorner4Y'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.value = '';
+            });
+            ['templateLogoCorner1X', 'templateLogoCorner1Y', 'templateLogoCorner2X', 'templateLogoCorner2Y',
+             'templateLogoCorner3X', 'templateLogoCorner3Y', 'templateLogoCorner4X', 'templateLogoCorner4Y'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.value = '';
+            });
+        }
+        
         // Hide placeholder and show canvas
         if (previewPlaceholder) previewPlaceholder.style.display = 'none';
         cropperCanvas.style.display = 'block';
         cropperCanvas.style.visibility = 'visible';
         cropperCanvas.style.opacity = '1';
+        
+        // Disable mouse wheel zoom on canvas and all child elements
+        const disableWheelZoom = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        };
+        
+        // Disable wheel on canvas
+        cropperCanvas.addEventListener('wheel', disableWheelZoom, { passive: false });
+        
+        // Also disable wheel on cropper-image and selections to prevent zoom
+        // This will be called after elements are created
+        const disableWheelOnChildren = () => {
+            const currentCropperImage = document.getElementById('templateCropperImage');
+            const currentScreenshotSelection = document.getElementById('templateScreenshotSelection');
+            const currentLogoSelection = document.getElementById('templateLogoSelection');
+            
+            if (currentCropperImage) {
+                currentCropperImage.addEventListener('wheel', disableWheelZoom, { passive: false });
+            }
+            if (currentScreenshotSelection) {
+                currentScreenshotSelection.addEventListener('wheel', disableWheelZoom, { passive: false });
+            }
+            if (currentLogoSelection) {
+                currentLogoSelection.addEventListener('wheel', disableWheelZoom, { passive: false });
+            }
+        };
         
         // Force reflow
         cropperCanvas.offsetWidth;
@@ -10992,67 +11079,76 @@ class GameCollectionManager {
         const onImageReady = (img) => {
             console.log('Image ready:', img);
             
+            // Disable wheel zoom on cropper-image and selections
+            disableWheelOnChildren();
+            
             // Setup event listeners if not already set up
             if (!this.templateSelectionListenersSetup) {
                 this.setupTemplateSelectionListeners();
                 this.templateSelectionListenersSetup = true;
             }
             
-            // Disable creating new selections - prevent select action on canvas
-            if (cropperCanvas && !this.templateSelectPrevented) {
-                const preventSelect = (event) => {
-                    const action = event.detail?.action;
-                    if (action === 'select') {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        return false;
-                    }
-                };
-                cropperCanvas.addEventListener('actionstart', preventSelect, true);
-                this.templateSelectPrevented = true;
-            }
-            
-            // Prevent creating new selections by overriding createSelection
-            if (screenshotSelection && !screenshotSelection._createSelectionOverridden) {
-                screenshotSelection._originalCreateSelection = screenshotSelection.$createSelection;
-                screenshotSelection.$createSelection = function() {
-                    // Prevent creating new selections - return null
-                    return null;
-                };
-                screenshotSelection._createSelectionOverridden = true;
-            }
-            if (logoSelection && !logoSelection._createSelectionOverridden) {
-                logoSelection._originalCreateSelection = logoSelection.$createSelection;
-                logoSelection.$createSelection = function() {
-                    // Prevent creating new selections - return null
-                    return null;
-                };
-                logoSelection._createSelectionOverridden = true;
-            }
+            // Allow creating new selections (multiple selections are enabled)
+            // No need to prevent select action - users can add extra selections
             
             if (!skipDefaultCrop) {
-                // Set initial selection to center
+                // Create 2 default selections with specified positions and sizes
                 setTimeout(() => {
-                    if (screenshotSelection) {
+                    if (screenshotSelection && logoSelection && cropperImage && cropperCanvas && img) {
+                        // Show both selections
                         screenshotSelection.hidden = false;
                         screenshotSelection.active = true;
+                        logoSelection.hidden = false;
+                        logoSelection.active = false;
                         
-                        if (typeof screenshotSelection.$initSelection === 'function') {
-                            screenshotSelection.initialCoverage = 0.5;
-                            screenshotSelection.$initSelection(true, true);
+                        // Set first selection (screenshot): x=170, y=150, width=80, height=80
+                        if (typeof screenshotSelection.$change === 'function') {
+                            screenshotSelection.$change(170, 150, 80, 80);
                             this.updateTemplateCornersFromCropper();
+                        }
+                        
+                        // Set second selection (logo): x=100, y=70, width=80, height=80
+                        if (typeof logoSelection.$change === 'function') {
+                            logoSelection.$change(100, 70, 80, 80);
+                            this.updateTemplateLogoCornersFromCropper();
                         }
                     }
                 }, 200);
             } else {
                 // If loading template, update selections from corner values
-                setTimeout(() => {
-                    if (screenshotSelection) {
-                        screenshotSelection.hidden = false;
-                        screenshotSelection.active = true;
+                // First, reset the selection to ensure clean state
+                if (screenshotSelection) {
+                    screenshotSelection.hidden = false;
+                    screenshotSelection.active = true;
+                    // Clear any existing selection by setting it to a default state first
+                    if (typeof screenshotSelection.$change === 'function') {
+                        screenshotSelection.$change(0, 0, 0, 0);
                     }
-                    this.updateTemplateCropperFromCorners();
-                }, 200);
+                }
+                
+                // Always show logo selection
+                if (logoSelection) {
+                    logoSelection.hidden = false;
+                    logoSelection.active = false;
+                }
+                
+                // Wait for image to be ready, then update selection immediately
+                if (typeof cropperImage.$ready === 'function') {
+                    cropperImage.$ready().then(() => {
+                        // Update immediately after image is ready
+                        this.updateTemplateCropperFromCorners();
+                    });
+                } else {
+                    // Fallback: try to get image directly
+                    const img = cropperImage.querySelector('img');
+                    if (img && img.complete) {
+                        this.updateTemplateCropperFromCorners();
+                    } else if (img) {
+                        img.onload = () => {
+                            this.updateTemplateCropperFromCorners();
+                        };
+                    }
+                }
             }
         };
         
@@ -11085,22 +11181,165 @@ class GameCollectionManager {
     setupTemplateSelectionListeners() {
         const screenshotSelection = document.getElementById('templateScreenshotSelection');
         const logoSelection = document.getElementById('templateLogoSelection');
+        const cropperImage = document.getElementById('templateCropperImage');
+        const cropperCanvas = document.getElementById('templateCropperCanvas');
         
+        if (!cropperImage || !cropperCanvas) return;
+        
+        // Helper function to check if selection is within bounds
+        const inSelection = (selection, maxSelection) => {
+            return (
+                selection.x >= maxSelection.x &&
+                selection.y >= maxSelection.y &&
+                (selection.x + selection.width) <= (maxSelection.x + maxSelection.width) &&
+                (selection.y + selection.height) <= (maxSelection.y + maxSelection.height)
+            );
+        };
+        
+        // Handle image transform event (for when image is rotated/scaled)
+        const onCropperImageTransform = (event) => {
+            if (!cropperCanvas) {
+                return;
+            }
+            
+            const cropperCanvasRect = cropperCanvas.getBoundingClientRect();
+            
+            // 1. Clone the cropper image
+            const cropperImageClone = cropperImage.cloneNode();
+            
+            // 2. Apply the new matrix to the cropper image clone
+            cropperImageClone.style.transform = `matrix(${event.detail.matrix.join(', ')})`;
+            
+            // 3. Make the cropper image clone invisible
+            cropperImageClone.style.opacity = '0';
+            
+            // 4. Append the cropper image clone to the cropper canvas
+            cropperCanvas.appendChild(cropperImageClone);
+            
+            // 5. Compute the boundaries of the cropper image clone - reuse image size as boundaries
+            const cropperImageRect = cropperImageClone.getBoundingClientRect();
+            
+            // 6. Remove the cropper image clone
+            cropperCanvas.removeChild(cropperImageClone);
+            
+            // Check both selections
+            [screenshotSelection, logoSelection].forEach(selection => {
+                if (!selection) return;
+                
+                // Reuse image size as boundaries
+                const maxSelection = {
+                    x: cropperImageRect.left - cropperCanvasRect.left,
+                    y: cropperImageRect.top - cropperCanvasRect.top,
+                    width: cropperImageRect.width,  // Use image width as boundary
+                    height: cropperImageRect.height, // Use image height as boundary
+                };
+                
+                if (!inSelection(selection, maxSelection)) {
+                    // Adjust selection to fit within image bounds
+                    const adjustedX = Math.max(maxSelection.x, Math.min(selection.x, maxSelection.x + maxSelection.width - selection.width));
+                    const adjustedY = Math.max(maxSelection.y, Math.min(selection.y, maxSelection.y + maxSelection.height - selection.height));
+                    selection.$change(adjustedX, adjustedY);
+                }
+            });
+        };
+        
+        // Handle selection change event - limit to image boundaries only
+        const onCropperSelectionChange = (event, selectionElement, updateCallback) => {
+            if (!cropperCanvas) {
+                return;
+            }
+            
+            // Skip boundary checks and callbacks when loading template
+            if (this.isLoadingTemplate) {
+                return;
+            }
+            
+            const cropperCanvasRect = cropperCanvas.getBoundingClientRect();
+            const selection = event.detail;
+            
+            // Reuse image size as boundaries - limit selection to image boundaries
+            const cropperImageRect = cropperImage.getBoundingClientRect();
+            const maxSelection = {
+                x: cropperImageRect.left - cropperCanvasRect.left,
+                y: cropperImageRect.top - cropperCanvasRect.top,
+                width: cropperImageRect.width,  // Use image width as boundary
+                height: cropperImageRect.height, // Use image height as boundary
+            };
+            
+            if (!inSelection(selection, maxSelection)) {
+                event.preventDefault();
+                return;
+            }
+            
+            // Call update callback if provided
+            if (updateCallback) {
+                updateCallback();
+            }
+        };
+        
+        // Add transform event listener to image
+        cropperImage.addEventListener('transform', onCropperImageTransform);
+        
+        // Prevent deactivation of other selections when clicking on a selection
+        // With multiple="true", both selections should remain visible
+        if (screenshotSelection && logoSelection) {
+            // Monitor and prevent hiding of selections
+            const keepSelectionsVisible = () => {
+                // Ensure both selections remain visible (not hidden)
+                if (screenshotSelection && screenshotSelection.hidden) {
+                    screenshotSelection.hidden = false;
+                }
+                if (logoSelection && logoSelection.hidden) {
+                    logoSelection.hidden = false;
+                }
+            };
+            
+            // Listen for actionstart on both selections to keep the other visible
+            screenshotSelection.addEventListener('actionstart', () => {
+                keepSelectionsVisible();
+            }, { passive: true });
+            
+            logoSelection.addEventListener('actionstart', () => {
+                keepSelectionsVisible();
+            }, { passive: true });
+            
+            // Also monitor for click events to ensure both stay visible
+            screenshotSelection.addEventListener('click', () => {
+                keepSelectionsVisible();
+            }, { passive: true });
+            
+            logoSelection.addEventListener('click', () => {
+                keepSelectionsVisible();
+            }, { passive: true });
+            
+            // Use MutationObserver to watch for hidden attribute changes
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'hidden') {
+                        keepSelectionsVisible();
+                    }
+                });
+            });
+            
+            // Observe both selections for hidden attribute changes
+            observer.observe(screenshotSelection, { attributes: true, attributeFilter: ['hidden'] });
+            observer.observe(logoSelection, { attributes: true, attributeFilter: ['hidden'] });
+        }
+        
+        // Add change event listeners to selections
         if (screenshotSelection) {
             screenshotSelection.addEventListener('change', (event) => {
-                // Always update screenshot corners when screenshot selection changes
-                if (!this.isLoadingTemplate) {
+                onCropperSelectionChange(event, screenshotSelection, () => {
                     this.updateTemplateCornersFromCropper();
-                }
+                });
             });
         }
         
         if (logoSelection) {
             logoSelection.addEventListener('change', (event) => {
-                // Always update logo corners when logo selection changes
-                if (!this.isLoadingTemplate) {
+                onCropperSelectionChange(event, logoSelection, () => {
                     this.updateTemplateLogoCornersFromCropper();
-                }
+                });
             });
         }
     }
@@ -11119,26 +11358,45 @@ class GameCollectionManager {
             const naturalWidth = img.naturalWidth;
             const naturalHeight = img.naturalHeight;
             
-            // Get canvas dimensions
+            if (!naturalWidth || !naturalHeight) {
+                console.warn('Image dimensions not available');
+                return;
+            }
+            
+            // Get canvas and image displayed dimensions
             const canvas = screenshotSelection.$canvas;
-            if (!canvas) return;
+            if (!canvas) {
+                console.warn('Canvas not found');
+                return;
+            }
             
-            const canvasWidth = canvas.offsetWidth;
-            const canvasHeight = canvas.offsetHeight;
+            // Get actual displayed image size (not canvas size) - same approach as updateSelectionFromCorners
+            const cropperCanvasRect = canvas.getBoundingClientRect();
+            const imgRect = img.getBoundingClientRect();
             
-            // Calculate scale factor
-            const scaleX = naturalWidth / canvasWidth;
-            const scaleY = naturalHeight / canvasHeight;
+            // Calculate scale factor based on actual displayed image size
+            const displayedImageWidth = imgRect.width;
+            const displayedImageHeight = imgRect.height;
+            const scaleX = naturalWidth / displayedImageWidth;
+            const scaleY = naturalHeight / displayedImageHeight;
+            
+            // Calculate image position relative to canvas
+            const imageX = imgRect.left - cropperCanvasRect.left;
+            const imageY = imgRect.top - cropperCanvasRect.top;
+            
+            // Convert selection coordinates (relative to canvas) to coordinates relative to image
+            const selectionXRelativeToImage = x - imageX;
+            const selectionYRelativeToImage = y - imageY;
             
             // Convert displayed coordinates to natural image coordinates
-            const corner1X = Math.round(x * scaleX);
-            const corner1Y = Math.round(y * scaleY);
-            const corner2X = Math.round((x + width) * scaleX);
-            const corner2Y = Math.round(y * scaleY);
-            const corner3X = Math.round((x + width) * scaleX);
-            const corner3Y = Math.round((y + height) * scaleY);
-            const corner4X = Math.round(x * scaleX);
-            const corner4Y = Math.round((y + height) * scaleY);
+            const corner1X = Math.round(selectionXRelativeToImage * scaleX);
+            const corner1Y = Math.round(selectionYRelativeToImage * scaleY);
+            const corner2X = Math.round((selectionXRelativeToImage + width) * scaleX);
+            const corner2Y = Math.round(selectionYRelativeToImage * scaleY);
+            const corner3X = Math.round((selectionXRelativeToImage + width) * scaleX);
+            const corner3Y = Math.round((selectionYRelativeToImage + height) * scaleY);
+            const corner4X = Math.round(selectionXRelativeToImage * scaleX);
+            const corner4Y = Math.round((selectionYRelativeToImage + height) * scaleY);
             
             // Update input fields
             const corner1XInput = document.getElementById('templateCorner1X');
@@ -11196,26 +11454,45 @@ class GameCollectionManager {
             const naturalWidth = img.naturalWidth;
             const naturalHeight = img.naturalHeight;
             
-            // Get canvas dimensions
+            if (!naturalWidth || !naturalHeight) {
+                console.warn('Image dimensions not available');
+                return;
+            }
+            
+            // Get canvas and image displayed dimensions
             const canvas = logoSelection.$canvas;
-            if (!canvas) return;
+            if (!canvas) {
+                console.warn('Canvas not found');
+                return;
+            }
             
-            const canvasWidth = canvas.offsetWidth;
-            const canvasHeight = canvas.offsetHeight;
+            // Get actual displayed image size (not canvas size) - same approach as updateSelectionFromCorners
+            const cropperCanvasRect = canvas.getBoundingClientRect();
+            const imgRect = img.getBoundingClientRect();
             
-            // Calculate scale factor
-            const scaleX = naturalWidth / canvasWidth;
-            const scaleY = naturalHeight / canvasHeight;
+            // Calculate scale factor based on actual displayed image size
+            const displayedImageWidth = imgRect.width;
+            const displayedImageHeight = imgRect.height;
+            const scaleX = naturalWidth / displayedImageWidth;
+            const scaleY = naturalHeight / displayedImageHeight;
+            
+            // Calculate image position relative to canvas
+            const imageX = imgRect.left - cropperCanvasRect.left;
+            const imageY = imgRect.top - cropperCanvasRect.top;
+            
+            // Convert selection coordinates (relative to canvas) to coordinates relative to image
+            const selectionXRelativeToImage = x - imageX;
+            const selectionYRelativeToImage = y - imageY;
             
             // Convert displayed coordinates to natural image coordinates
-            const corner1X = Math.round(x * scaleX);
-            const corner1Y = Math.round(y * scaleY);
-            const corner2X = Math.round((x + width) * scaleX);
-            const corner2Y = Math.round(y * scaleY);
-            const corner3X = Math.round((x + width) * scaleX);
-            const corner3Y = Math.round((y + height) * scaleY);
-            const corner4X = Math.round(x * scaleX);
-            const corner4Y = Math.round((y + height) * scaleY);
+            const corner1X = Math.round(selectionXRelativeToImage * scaleX);
+            const corner1Y = Math.round(selectionYRelativeToImage * scaleY);
+            const corner2X = Math.round((selectionXRelativeToImage + width) * scaleX);
+            const corner2Y = Math.round(selectionYRelativeToImage * scaleY);
+            const corner3X = Math.round((selectionXRelativeToImage + width) * scaleX);
+            const corner3Y = Math.round((selectionYRelativeToImage + height) * scaleY);
+            const corner4X = Math.round(selectionXRelativeToImage * scaleX);
+            const corner4Y = Math.round((selectionYRelativeToImage + height) * scaleY);
             
             // Update input fields
             const corner1XInput = document.getElementById('templateLogoCorner1X');
@@ -11308,24 +11585,50 @@ class GameCollectionManager {
         const screenshotSelection = document.getElementById('templateScreenshotSelection');
         const cropperImage = document.getElementById('templateCropperImage');
         
-        if (!screenshotSelection || !cropperImage) return;
+        if (!screenshotSelection || !cropperImage) {
+            console.warn('Selection or image element not found');
+            return;
+        }
         
         // Get corner positions from inputs
+        const corner1X = document.getElementById('templateCorner1X')?.value;
+        const corner1Y = document.getElementById('templateCorner1Y')?.value;
+        const corner2X = document.getElementById('templateCorner2X')?.value;
+        const corner2Y = document.getElementById('templateCorner2Y')?.value;
+        const corner3X = document.getElementById('templateCorner3X')?.value;
+        const corner3Y = document.getElementById('templateCorner3Y')?.value;
+        const corner4X = document.getElementById('templateCorner4X')?.value;
+        const corner4Y = document.getElementById('templateCorner4Y')?.value;
+        
         const corners = {
-            x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
-            y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
-            x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
-            y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
-            x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
-            y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
-            x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
-            y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
+            x1: corner1X ? parseInt(corner1X) : null,
+            y1: corner1Y ? parseInt(corner1Y) : null,
+            x2: corner2X ? parseInt(corner2X) : null,
+            y2: corner2Y ? parseInt(corner2Y) : null,
+            x3: corner3X ? parseInt(corner3X) : null,
+            y3: corner3Y ? parseInt(corner3Y) : null,
+            x4: corner4X ? parseInt(corner4X) : null,
+            y4: corner4Y ? parseInt(corner4Y) : null
         };
+        
+        // Check if we have valid corner data
+        const hasValidCorners = corners.x1 !== null && corners.y1 !== null && 
+                                 corners.x2 !== null && corners.y2 !== null &&
+                                 corners.x3 !== null && corners.y3 !== null &&
+                                 corners.x4 !== null && corners.y4 !== null;
+        
+        if (!hasValidCorners) {
+            console.warn('No valid corner data found in inputs:', corners);
+            return;
+        }
+        
+        console.log('Updating template cropper from corners:', corners);
         
         // Get image natural dimensions using $ready() (v2 API)
         // Check if $ready method exists, if not wait for image to load
         if (typeof cropperImage.$ready === 'function') {
             cropperImage.$ready().then((img) => {
+                // Update immediately after image is ready
                 this.updateSelectionFromCorners(screenshotSelection, cropperImage, corners, img);
             }).catch(error => {
                 console.warn('Error getting image from $ready():', error);
@@ -11351,19 +11654,39 @@ class GameCollectionManager {
     }
     
     updateSelectionFromCorners(selection, cropperImage, corners, img) {
+        // Validate that we have valid corner data
+        if (!corners || corners.x1 === null || corners.y1 === null || 
+            corners.x2 === null || corners.y2 === null ||
+            corners.x3 === null || corners.y3 === null ||
+            corners.x4 === null || corners.y4 === null) {
+            console.warn('No valid corner data to update selection:', corners);
+            return;
+        }
+        
         const naturalWidth = img.naturalWidth;
         const naturalHeight = img.naturalHeight;
         
-        // Get canvas dimensions
+        if (!naturalWidth || !naturalHeight) {
+            console.warn('Image dimensions not available');
+            return;
+        }
+        
+        // Get canvas and image displayed dimensions
         const canvas = selection.$canvas;
-        if (!canvas) return;
+        if (!canvas) {
+            console.warn('Canvas not found');
+            return;
+        }
         
-        const canvasWidth = canvas.offsetWidth;
-        const canvasHeight = canvas.offsetHeight;
+        // Get actual displayed image size (not canvas size)
+        const cropperCanvasRect = canvas.getBoundingClientRect();
+        const imgRect = img.getBoundingClientRect();
         
-        // Calculate scale factor
-        const scaleX = canvasWidth / naturalWidth;
-        const scaleY = canvasHeight / naturalHeight;
+        // Calculate scale factor based on actual displayed image size
+        const displayedImageWidth = imgRect.width;
+        const displayedImageHeight = imgRect.height;
+        const scaleX = displayedImageWidth / naturalWidth;
+        const scaleY = displayedImageHeight / naturalHeight;
         
         // Convert natural coordinates to displayed coordinates
         const left = Math.min(corners.x1, corners.x4) * scaleX;
@@ -11371,52 +11694,96 @@ class GameCollectionManager {
         const right = Math.max(corners.x2, corners.x3) * scaleX;
         const bottom = Math.max(corners.y3, corners.y4) * scaleY;
         
+        // Calculate position relative to canvas
+        const imageX = imgRect.left - cropperCanvasRect.left;
+        const imageY = imgRect.top - cropperCanvasRect.top;
+        
+        // Calculate final position and dimensions
+        const x = imageX + left;
+        const y = imageY + top;
+        const width = right - left;
+        const height = bottom - top;
+        
+        // Ensure selection is visible and active before updating
+        if (selection.hidden) {
+            selection.hidden = false;
+        }
+        if (!selection.active) {
+            selection.active = true;
+        }
+        
         // Update selection using $change() method (v2 API)
+        // Position is relative to canvas, so add image offset
         if (typeof selection.$change === 'function') {
-            selection.$change(left, top, right - left, bottom - top);
+            // Temporarily set flag to prevent event listeners from interfering
+            const wasLoading = this.isLoadingTemplate;
+            if (!wasLoading) {
+                this.isLoadingTemplate = true;
+            }
+            
+            try {
+                selection.$change(x, y, width, height);
+                console.log('Selection updated via $change with:', { x, y, width, height });
+            } finally {
+                // Restore loading flag immediately
+                if (!wasLoading) {
+                    this.isLoadingTemplate = false;
+                }
+            }
+        } else {
+            console.error('$change method not available on selection');
         }
     }
     
     handleTemplateLogoSourceChange(source) {
         const logoTextConfig = document.getElementById('templateLogoTextConfig');
         const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
-        const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
         const logoSelection = document.getElementById('templateLogoSelection');
         const screenshotSelection = document.getElementById('templateScreenshotSelection');
         
-        if (source === 'none') {
-            if (logoTextConfig) logoTextConfig.style.display = 'none';
-            if (logoZoneConfig) logoZoneConfig.style.display = 'none';
-            if (editLogoZoneBtn) editLogoZoneBtn.style.display = 'none';
-            if (logoSelection) {
-                logoSelection.hidden = true;
-                logoSelection.active = false;
+        // Always show logo zone config (logo is always present)
+        if (logoZoneConfig) logoZoneConfig.style.display = 'block';
+        
+        // Always show logo selection
+        if (logoSelection) {
+            logoSelection.hidden = false;
+            // Initialize logo selection to match image size if it's empty
+            if (logoSelection.width === 0 && logoSelection.height === 0) {
+                const cropperImage = document.getElementById('templateCropperImage');
+                const cropperCanvas = document.getElementById('templateCropperCanvas');
+                if (cropperImage && cropperCanvas) {
+                    // Get actual image element inside cropper-image
+                    const img = cropperImage.querySelector('img');
+                    if (img) {
+                        // Get image displayed size relative to canvas
+                        const cropperCanvasRect = cropperCanvas.getBoundingClientRect();
+                        const imgRect = img.getBoundingClientRect();
+                        
+                        // Calculate image position and size relative to canvas
+                        const imageX = imgRect.left - cropperCanvasRect.left;
+                        const imageY = imgRect.top - cropperCanvasRect.top;
+                        const imageWidth = imgRect.width;
+                        const imageHeight = imgRect.height;
+                        
+                        // Set selection to match image width and height
+                        if (typeof logoSelection.$change === 'function') {
+                            logoSelection.$change(imageX, imageY, imageWidth, imageHeight);
+                        }
+                    }
+                }
             }
-            // Ensure screenshot selection is active when logo is disabled
-            if (screenshotSelection) {
-                screenshotSelection.active = true;
+        }
+        
+        // Show/hide text logo config based on source
+        if (source === 'text') {
+            if (logoTextConfig) logoTextConfig.style.display = 'block';
+            // Auto-calculate font size if not set
+            const fontSizeInput = document.getElementById('templateLogoFontSize');
+            if (fontSizeInput && !fontSizeInput.value) {
+                this.calculateTemplateLogoFontSize();
             }
         } else {
-            if (logoZoneConfig) logoZoneConfig.style.display = 'block';
-            if (editLogoZoneBtn) editLogoZoneBtn.style.display = 'inline-block';
-            if (logoSelection) {
-                logoSelection.hidden = false;
-                // Initialize logo selection if it's empty
-                if (logoSelection.width === 0 && logoSelection.height === 0) {
-                    logoSelection.initialCoverage = 0.3;
-                    logoSelection.$initSelection(true, true);
-                }
-            }
-            if (source === 'text') {
-                if (logoTextConfig) logoTextConfig.style.display = 'block';
-                // Auto-calculate font size if not set
-                const fontSizeInput = document.getElementById('templateLogoFontSize');
-                if (fontSizeInput && !fontSizeInput.value) {
-                    this.calculateTemplateLogoFontSize();
-                }
-            } else {
-                if (logoTextConfig) logoTextConfig.style.display = 'none';
-            }
+            if (logoTextConfig) logoTextConfig.style.display = 'none';
         }
     }
     
@@ -11482,30 +11849,42 @@ class GameCollectionManager {
             return;
         }
         
-        // Get screenshot corner positions
-        const corners = {
-            x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
-            y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
-            x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
-            y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
-            x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
-            y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
-            x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
-            y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
-        };
+        // Update corners from cropper to ensure they're current
+        this.updateTemplateCornersFromCropper();
+        this.updateTemplateLogoCornersFromCropper();
         
-        // Get logo configuration
-        const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
-        const logoCorners = {
-            x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
-            y1: parseInt(document.getElementById('templateLogoCorner1Y')?.value) || 0,
-            x2: parseInt(document.getElementById('templateLogoCorner2X')?.value) || 0,
-            y2: parseInt(document.getElementById('templateLogoCorner2Y')?.value) || 0,
-            x3: parseInt(document.getElementById('templateLogoCorner3X')?.value) || 0,
-            y3: parseInt(document.getElementById('templateLogoCorner3Y')?.value) || 0,
-            x4: parseInt(document.getElementById('templateLogoCorner4X')?.value) || 0,
-            y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
-        };
+        // Wait a moment for the updates to complete, then get the values
+        setTimeout(() => {
+            // Get screenshot corner positions
+            const corners = {
+                x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
+            };
+            
+            // Get logo configuration
+            const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'marquee';
+            const logoCorners = {
+                x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateLogoCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateLogoCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateLogoCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateLogoCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateLogoCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateLogoCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
+            };
+            
+            this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners);
+        }, 100);
+    }
+    
+    saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners) {
         
         // Get text logo settings if using text logo
         let textLogoSettings = null;
@@ -11527,9 +11906,8 @@ class GameCollectionManager {
         formData.append('background_image', backgroundInput.files[0]);
         formData.append('corners', JSON.stringify(corners));
         formData.append('logo_source', logoSource);
-        if (logoSource !== 'none') {
-            formData.append('logo_corners', JSON.stringify(logoCorners));
-        }
+        // Always include logo corners (logo is always present)
+        formData.append('logo_corners', JSON.stringify(logoCorners));
         if (textLogoSettings) {
             formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
         }
@@ -11598,7 +11976,9 @@ class GameCollectionManager {
                 this.currentTemplateData = data;
                 
                 // Load corner positions FIRST, before initializing cropper
-                if (data.corners) {
+                // Support both old format (corners) and new format (corners_screenshot)
+                const screenshotCorners = data.corners_screenshot || data.corners || {};
+                if (screenshotCorners && Object.keys(screenshotCorners).length > 0) {
                     const corner1X = document.getElementById('templateCorner1X');
                     const corner1Y = document.getElementById('templateCorner1Y');
                     const corner2X = document.getElementById('templateCorner2X');
@@ -11608,25 +11988,27 @@ class GameCollectionManager {
                     const corner4X = document.getElementById('templateCorner4X');
                     const corner4Y = document.getElementById('templateCorner4Y');
                     
-                    if (corner1X) corner1X.value = data.corners.x1 || '';
-                    if (corner1Y) corner1Y.value = data.corners.y1 || '';
-                    if (corner2X) corner2X.value = data.corners.x2 || '';
-                    if (corner2Y) corner2Y.value = data.corners.y2 || '';
-                    if (corner3X) corner3X.value = data.corners.x3 || '';
-                    if (corner3Y) corner3Y.value = data.corners.y3 || '';
-                    if (corner4X) corner4X.value = data.corners.x4 || '';
-                    if (corner4Y) corner4Y.value = data.corners.y4 || '';
+                    if (corner1X) corner1X.value = screenshotCorners.x1 || '';
+                    if (corner1Y) corner1Y.value = screenshotCorners.y1 || '';
+                    if (corner2X) corner2X.value = screenshotCorners.x2 || '';
+                    if (corner2Y) corner2Y.value = screenshotCorners.y2 || '';
+                    if (corner3X) corner3X.value = screenshotCorners.x3 || '';
+                    if (corner3Y) corner3Y.value = screenshotCorners.y3 || '';
+                    if (corner4X) corner4X.value = screenshotCorners.x4 || '';
+                    if (corner4Y) corner4Y.value = screenshotCorners.y4 || '';
                 }
                 
                 // Load logo configuration
-                const logoSource = data.logo_source || 'none';
+                const logoSource = data.logo_source || 'marquee';
                 const logoSourceRadio = document.getElementById(`templateLogoSource${logoSource.charAt(0).toUpperCase() + logoSource.slice(1)}`);
                 if (logoSourceRadio) {
                     logoSourceRadio.checked = true;
                     this.handleTemplateLogoSourceChange(logoSource);
                 }
                 
-                if (data.logo_corners && logoSource !== 'none') {
+                // Load logo corners - support both old format (logo_corners) and new format (corners_logo)
+                const logoCorners = data.corners_logo || data.logo_corners || {};
+                if (logoCorners && Object.keys(logoCorners).length > 0) {
                     const logoCorner1X = document.getElementById('templateLogoCorner1X');
                     const logoCorner1Y = document.getElementById('templateLogoCorner1Y');
                     const logoCorner2X = document.getElementById('templateLogoCorner2X');
@@ -11636,14 +12018,14 @@ class GameCollectionManager {
                     const logoCorner4X = document.getElementById('templateLogoCorner4X');
                     const logoCorner4Y = document.getElementById('templateLogoCorner4Y');
                     
-                    if (logoCorner1X) logoCorner1X.value = data.logo_corners.x1 || '';
-                    if (logoCorner1Y) logoCorner1Y.value = data.logo_corners.y1 || '';
-                    if (logoCorner2X) logoCorner2X.value = data.logo_corners.x2 || '';
-                    if (logoCorner2Y) logoCorner2Y.value = data.logo_corners.y2 || '';
-                    if (logoCorner3X) logoCorner3X.value = data.logo_corners.x3 || '';
-                    if (logoCorner3Y) logoCorner3Y.value = data.logo_corners.y3 || '';
-                    if (logoCorner4X) logoCorner4X.value = data.logo_corners.x4 || '';
-                    if (logoCorner4Y) logoCorner4Y.value = data.logo_corners.y4 || '';
+                    if (logoCorner1X) logoCorner1X.value = logoCorners.x1 || '';
+                    if (logoCorner1Y) logoCorner1Y.value = logoCorners.y1 || '';
+                    if (logoCorner2X) logoCorner2X.value = logoCorners.x2 || '';
+                    if (logoCorner2Y) logoCorner2Y.value = logoCorners.y2 || '';
+                    if (logoCorner3X) logoCorner3X.value = logoCorners.x3 || '';
+                    if (logoCorner3Y) logoCorner3Y.value = logoCorners.y3 || '';
+                    if (logoCorner4X) logoCorner4X.value = logoCorners.x4 || '';
+                    if (logoCorner4Y) logoCorner4Y.value = logoCorners.y4 || '';
                 }
                 
                 // Restore text logo settings if present
@@ -11673,12 +12055,40 @@ class GameCollectionManager {
                 
                 // Load background image and setup cropper with skipDefaultCrop flag
                 if (data.background_image_path) {
+                    // Extract filename from path for display
+                    let filename = data.background_image_path;
+                    if (filename.includes('/')) {
+                        filename = filename.split('/').pop();
+                    }
+                    // Remove query parameters if any
+                    if (filename.includes('?')) {
+                        filename = filename.split('?')[0];
+                    }
+                    
+                    // Update the background image input field display
+                    const backgroundInput = document.getElementById('templateBackgroundImage');
+                    if (backgroundInput) {
+                        // Create a data transfer object to set the file input
+                        // Note: We can't directly set file input value, but we can show the filename
+                        // Create a label or helper text to show the loaded image
+                        const helperText = backgroundInput.parentElement.querySelector('.form-text');
+                        if (helperText) {
+                            helperText.textContent = `Current: ${filename} (loaded from template)`;
+                            helperText.style.color = '#28a745';
+                            helperText.style.fontWeight = '500';
+                        }
+                        
+                        // Store the filename in a data attribute for reference
+                        backgroundInput.setAttribute('data-loaded-filename', filename);
+                        backgroundInput.setAttribute('data-loaded-path', data.background_image_path);
+                    }
+                    
                     // Convert relative path to full API URL if needed
                     let imageUrl = data.background_image_path;
                     if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/api/template-image') && !imageUrl.startsWith('data:') && !imageUrl.startsWith('/')) {
                         // Extract filename from path
-                        const filename = imageUrl.split('/').pop() || imageUrl;
-                        imageUrl = `/api/template-image?path=${encodeURIComponent(filename)}&type=background`;
+                        const extractedFilename = imageUrl.split('/').pop() || imageUrl;
+                        imageUrl = `/api/template-image?path=${encodeURIComponent(extractedFilename)}&type=background`;
                     }
                     
                     console.log('Loading template image from:', imageUrl);
@@ -11686,13 +12096,29 @@ class GameCollectionManager {
                     // Use the image URL directly (like in Cropper.js docs: cropperImage.src = '/cropperjs/picture.jpg')
                     this.setupTemplateCropper(imageUrl, true);
                     
-                    // After cropper is set up, update selections from loaded corners
-                    setTimeout(() => {
-                        this.updateTemplateCropperFromCorners();
-                        if (logoSource !== 'none' && data.logo_corners) {
-                            this.updateTemplateCropperFromLogoCorners();
+                    // Note: updateTemplateCropperFromCorners is already called inside setupTemplateCropper
+                    // when skipDefaultCrop is true, so we don't need to call it again here
+                    // Update logo corners immediately when image is ready - support both old and new format
+                    const logoCornersToUpdate = data.corners_logo || data.logo_corners || {};
+                    if (logoCornersToUpdate && Object.keys(logoCornersToUpdate).length > 0) {
+                        // Update logo corners as soon as the image is ready (no delay)
+                        const cropperImage = document.getElementById('templateCropperImage');
+                        if (cropperImage && typeof cropperImage.$ready === 'function') {
+                            cropperImage.$ready().then(() => {
+                                this.updateTemplateCropperFromLogoCorners();
+                            });
+                        } else {
+                            // Fallback: try to get image directly
+                            const img = cropperImage?.querySelector('img');
+                            if (img && img.complete) {
+                                this.updateTemplateCropperFromLogoCorners();
+                            } else if (img) {
+                                img.onload = () => {
+                                    this.updateTemplateCropperFromLogoCorners();
+                                };
+                            }
                         }
-                    }, 200);
+                    }
                 }
                 
                 // Clear loading flag after a delay to allow cropper to initialize
@@ -11758,7 +12184,7 @@ class GameCollectionManager {
             };
             
             // Get logo configuration
-            const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
+            const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'marquee';
             const logoCorners = {
                 x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
                 y1: parseInt(document.getElementById('templateLogoCorner1Y')?.value) || 0,
@@ -15310,7 +15736,7 @@ class GameCollectionManager {
         }
         
         // Check if this is for image or video cropper
-        const isImageCropper = image.id === 'cropImageElement';
+        const isImageCropper = image.id === 'cropImageElement' || image.id === 'imageCropperImage';
         const storageKey = isImageCropper ? 'lastImageCropData' : 'lastVideoCropData';
         
         // Store original image dimensions for crop calculations
@@ -15522,215 +15948,52 @@ class GameCollectionManager {
     }
     
     setupVideoCropper() {
-        let cropperImage = document.getElementById('videoCropperImage');
-        const selection = document.getElementById('videoCropperSelection');
-        const canvas = document.getElementById('videoCropperCanvas');
+        const cropperImage = document.getElementById('videoCropperImage');
         
-        if (!selection || !canvas) return;
+        if (!cropperImage) return;
         
-        // Explicitly set canvas size to match container
-        const container = canvas.parentElement;
-        if (container && container.clientHeight > 0) {
-            canvas.style.width = container.clientWidth + 'px';
-            canvas.style.height = container.clientHeight + 'px';
+        // Set image source if we have a frame path
+        if (this.currentFramePath && !cropperImage.src) {
+            cropperImage.src = `/roms/${this.currentFramePath}`;
         }
         
-        // Force reflow
-        canvas.offsetWidth;
-        
-        // Re-create cropper-image if needed
-        let currentSrc = '';
-        if (cropperImage) {
-            currentSrc = cropperImage.src;
-            cropperImage.remove();
-        }
-        
-        cropperImage = document.createElement('cropper-image');
-        cropperImage.id = 'videoCropperImage';
-        cropperImage.setAttribute('imageFit', 'contain');
-        cropperImage.rotatable = true;
-        cropperImage.scalable = true;
-        cropperImage.skewable = true;
-        cropperImage.translatable = true;
-        cropperImage.style.display = 'block';
-        cropperImage.style.width = '100%';
-        cropperImage.style.height = '100%';
-        
-        canvas.prepend(cropperImage);
-        
-        if (currentSrc) {
-            cropperImage.src = currentSrc;
-        } else if (this.currentFramePath) {
-             cropperImage.src = `/roms/${this.currentFramePath}`;
+        // Wait for image to load, then setup Cropper.js v1
+        if (cropperImage.complete && cropperImage.naturalWidth > 0) {
+            // Image already loaded
+            this.forceImageSize(cropperImage, false);
+            this.setupCropper(cropperImage);
         } else {
-            return; // No image to show
+            // Wait for image to load
+            cropperImage.onload = () => {
+                this.forceImageSize(cropperImage, false);
+                this.setupCropper(cropperImage);
+            };
+            cropperImage.onerror = () => {
+                console.error('Failed to load video frame image');
+            };
         }
-        
-        // Store original image dimensions
-        cropperImage.$ready().then((img) => {
-            this.originalImageWidth = img.naturalWidth;
-            this.originalImageHeight = img.naturalHeight;
-            
-            // Explicitly set canvas size to match container
-            const container = canvas.parentElement;
-            if (container && container.clientHeight > 0) {
-                canvas.style.width = container.clientWidth + 'px';
-                canvas.style.height = container.clientHeight + 'px';
-            }
-            
-            // Ensure imageFit property is set (critical for fixing stretching)
-            cropperImage.imageFit = 'contain';
-            
-            // Center and fit image using contain mode
-            cropperImage.$center('contain');
-            
-            // Try to load last crop data from localStorage
-            let savedCropData = null;
-            try {
-                const saved = localStorage.getItem('lastVideoCropData');
-                if (saved) {
-                    savedCropData = JSON.parse(saved);
-                    // Check if image dimensions match
-                    if (savedCropData.imageWidth !== this.originalImageWidth || 
-                        savedCropData.imageHeight !== this.originalImageHeight) {
-                        savedCropData = null; // Dimensions don't match, don't use saved data
-                    }
-                }
-            } catch (e) {
-                console.warn('Failed to load saved crop data:', e);
-                savedCropData = null;
-            }
-            
-            // Restore saved crop data or set default
-            if (savedCropData && savedCropData.cropBoxData) {
-                // Get canvas to calculate scale
-                const canvasElement = selection.$canvas;
-                if (canvasElement) {
-                    const scaleX = img.naturalWidth / canvasElement.offsetWidth;
-                    const scaleY = img.naturalHeight / canvasElement.offsetHeight;
-                    
-                    const left = savedCropData.cropBoxData.left / scaleX;
-                    const top = savedCropData.cropBoxData.top / scaleY;
-                    const width = savedCropData.cropBoxData.width / scaleX;
-                    const height = savedCropData.cropBoxData.height / scaleY;
-                    
-                    selection.$change(left, top, width, height);
-                }
-            } else {
-                // Set default crop area with 4:3 aspect ratio
-                this.setDefaultVideoCropArea();
-            }
-            
-            // Setup event listeners
-            this.setupVideoCropperEventListeners();
-            
-            // Update crop info display
-            this.updateVideoCropInfo();
-        });
     }
     
     setupImageCropper() {
-        let cropperImage = document.getElementById('imageCropperImage');
-        const selection = document.getElementById('imageCropperSelection');
-        const canvas = document.getElementById('imageCropperCanvas');
+        const cropperImage = document.getElementById('imageCropperImage');
         
-        if (!selection || !canvas) return;
+        if (!cropperImage) return;
         
-        // Explicitly set canvas size to match container
-        const container = canvas.parentElement;
-        if (container && container.clientHeight > 0) {
-            canvas.style.width = container.clientWidth + 'px';
-            canvas.style.height = container.clientHeight + 'px';
+        // Wait for image to load, then setup Cropper.js v1
+        if (cropperImage.complete && cropperImage.naturalWidth > 0) {
+            // Image already loaded
+            this.forceImageSize(cropperImage, true);
+            this.setupCropper(cropperImage);
+        } else {
+            // Wait for image to load
+            cropperImage.onload = () => {
+                this.forceImageSize(cropperImage, true);
+                this.setupCropper(cropperImage);
+            };
+            cropperImage.onerror = () => {
+                console.error('Failed to load image');
+            };
         }
-        
-        // Force reflow
-        canvas.offsetWidth;
-        
-        // Re-create cropper-image
-        let currentSrc = '';
-        if (cropperImage) {
-            currentSrc = cropperImage.src;
-            cropperImage.remove();
-        }
-        
-        cropperImage = document.createElement('cropper-image');
-        cropperImage.id = 'imageCropperImage';
-        cropperImage.setAttribute('imageFit', 'contain');
-        cropperImage.rotatable = true;
-        cropperImage.scalable = true;
-        cropperImage.skewable = true;
-        cropperImage.translatable = true;
-        cropperImage.style.display = 'block';
-        cropperImage.style.width = '100%';
-        cropperImage.style.height = '100%';
-        
-        canvas.prepend(cropperImage);
-        
-        if (currentSrc) {
-            cropperImage.src = currentSrc;
-        }
-        
-        // Store original image dimensions
-        cropperImage.$ready().then((img) => {
-            this.originalImageWidth = img.naturalWidth;
-            this.originalImageHeight = img.naturalHeight;
-            
-            // Explicitly set canvas size to match container
-            const container = canvas.parentElement;
-            if (container && container.clientHeight > 0) {
-                canvas.style.width = container.clientWidth + 'px';
-                canvas.style.height = container.clientHeight + 'px';
-            }
-            
-            // Ensure imageFit property is set
-            cropperImage.imageFit = 'contain';
-            
-            // Center and fit image using contain mode
-            cropperImage.$center('contain');
-            
-            // Try to load last crop data from localStorage
-            let savedCropData = null;
-            try {
-                const saved = localStorage.getItem('lastImageCropData');
-                if (saved) {
-                    savedCropData = JSON.parse(saved);
-                    // Check if image dimensions match
-                    if (savedCropData.imageWidth !== this.originalImageWidth || 
-                        savedCropData.imageHeight !== this.originalImageHeight) {
-                        savedCropData = null; // Dimensions don't match, don't use saved data
-                    }
-                }
-            } catch (e) {
-                console.warn('Failed to load saved crop data:', e);
-                savedCropData = null;
-            }
-            
-            // Restore saved crop data or use full image
-            if (savedCropData && savedCropData.cropBoxData) {
-                const canvasElement = selection.$canvas;
-                if (canvasElement) {
-                    const scaleX = img.naturalWidth / canvasElement.offsetWidth;
-                    const scaleY = img.naturalHeight / canvasElement.offsetHeight;
-                    
-                    const left = savedCropData.cropBoxData.left / scaleX;
-                    const top = savedCropData.cropBoxData.top / scaleY;
-                    const width = savedCropData.cropBoxData.width / scaleX;
-                    const height = savedCropData.cropBoxData.height / scaleY;
-                    
-                    selection.$change(left, top, width, height);
-                }
-            } else {
-                // Use full image area
-                selection.initialCoverage = 1.0;
-                selection.$initSelection(true, true);
-            }
-            
-            // Setup event listeners
-            this.setupImageCropperEventListeners();
-            
-            // Update crop info display
-            this.updateImageCropInfo();
-        });
     }
     
     setDefaultCropArea() {
@@ -15766,37 +16029,8 @@ class GameCollectionManager {
     }
     
     setDefaultVideoCropArea() {
-        const cropperImage = document.getElementById('videoCropperImage');
-        const selection = document.getElementById('videoCropperSelection');
-        
-        if (!cropperImage || !selection) return;
-        
-        cropperImage.$ready().then((img) => {
-            const canvas = selection.$canvas;
-            if (!canvas) return;
-            
-            const canvasWidth = canvas.offsetWidth;
-            const canvasHeight = canvas.offsetHeight;
-            
-            // Calculate 4:3 aspect ratio crop area centered on canvas
-            const targetAspectRatio = 4 / 3;
-            let cropWidth, cropHeight;
-            
-            if (canvasWidth / canvasHeight > targetAspectRatio) {
-                // Canvas is wider than 4:3, fit height
-                cropHeight = canvasHeight * 0.8; // Use 80% of canvas height
-                cropWidth = cropHeight * targetAspectRatio;
-            } else {
-                // Canvas is taller than 4:3, fit width
-                cropWidth = canvasWidth * 0.8; // Use 80% of canvas width
-                cropHeight = cropWidth / targetAspectRatio;
-            }
-            
-            const left = (canvasWidth - cropWidth) / 2;
-            const top = (canvasHeight - cropHeight) / 2;
-            
-            selection.$change(left, top, cropWidth, cropHeight);
-        });
+        // Use v1 setDefaultCropArea instead
+        this.setDefaultCropArea();
     }
     
     setupVideoCropperEventListeners() {
@@ -16031,12 +16265,91 @@ class GameCollectionManager {
             applyBtn.addEventListener('click', applyBtn._applyCropHandler);
         }
         
-        // Listen to selection changes
+        // Listen to selection changes and limit to image boundaries
         const selection = document.getElementById('videoCropperSelection');
-        if (selection) {
-            selection.addEventListener('change', () => {
+        const cropperImage = document.getElementById('videoCropperImage');
+        const cropperCanvas = document.getElementById('videoCropperCanvas');
+        
+        if (selection && cropperImage && cropperCanvas) {
+            // Helper function to check if selection is within bounds
+            const inSelection = (selection, maxSelection) => {
+                return (
+                    selection.x >= maxSelection.x &&
+                    selection.y >= maxSelection.y &&
+                    (selection.x + selection.width) <= (maxSelection.x + maxSelection.width) &&
+                    (selection.y + selection.height) <= (maxSelection.y + maxSelection.height)
+                );
+            };
+            
+            // Handle image transform event (for when image is rotated/scaled)
+            const onCropperImageTransform = (event) => {
+                if (!cropperCanvas) {
+                    return;
+                }
+                
+                const cropperCanvasRect = cropperCanvas.getBoundingClientRect();
+                
+                // 1. Clone the cropper image
+                const cropperImageClone = cropperImage.cloneNode();
+                
+                // 2. Apply the new matrix to the cropper image clone
+                cropperImageClone.style.transform = `matrix(${event.detail.matrix.join(', ')})`;
+                
+                // 3. Make the cropper image clone invisible
+                cropperImageClone.style.opacity = '0';
+                
+                // 4. Append the cropper image clone to the cropper canvas
+                cropperCanvas.appendChild(cropperImageClone);
+                
+                // 5. Compute the boundaries of the cropper image clone
+                const cropperImageRect = cropperImageClone.getBoundingClientRect();
+                
+                // 6. Remove the cropper image clone
+                cropperCanvas.removeChild(cropperImageClone);
+                
+                const maxSelection = {
+                    x: cropperImageRect.left - cropperCanvasRect.left,
+                    y: cropperImageRect.top - cropperCanvasRect.top,
+                    width: cropperImageRect.width,
+                    height: cropperImageRect.height,
+                };
+                
+                if (!inSelection(selection, maxSelection)) {
+                    // Adjust selection to fit within image bounds
+                    const adjustedX = Math.max(maxSelection.x, Math.min(selection.x, maxSelection.x + maxSelection.width - selection.width));
+                    const adjustedY = Math.max(maxSelection.y, Math.min(selection.y, maxSelection.y + maxSelection.height - selection.height));
+                    selection.$change(adjustedX, adjustedY);
+                }
+            };
+            
+            // Handle selection change event - limit to canvas boundaries
+            const onCropperSelectionChange = (event) => {
+                if (!cropperCanvas) {
+                    return;
+                }
+                
+                const cropperCanvasRect = cropperCanvas.getBoundingClientRect();
+                const selectionData = event.detail;
+                
+                // Limit to canvas boundaries
+                const maxSelection = {
+                    x: 0,
+                    y: 0,
+                    width: cropperCanvasRect.width,
+                    height: cropperCanvasRect.height,
+                };
+                
+                if (!inSelection(selectionData, maxSelection)) {
+                    event.preventDefault();
+                    return;
+                }
+                
                 this.updateVideoCropInfo();
-            });
+            };
+            
+            // Add event listeners
+            cropperImage.addEventListener('transform', onCropperImageTransform);
+            selection.addEventListener('change', onCropperSelectionChange);
         }
     }
     
@@ -16083,158 +16396,136 @@ class GameCollectionManager {
             imageApplyBtn.addEventListener('click', imageApplyBtn._applyCropHandler);
         }
         
-        // Listen to selection changes
-        const selection = document.getElementById('imageCropperSelection');
-        if (selection) {
-            selection.addEventListener('change', () => {
+        // Listen to selection changes and limit to image boundaries
+        const imageSelection = document.getElementById('imageCropperSelection');
+        const imageCropperImage = document.getElementById('imageCropperImage');
+        const imageCropperCanvas = document.getElementById('imageCropperCanvas');
+        
+        if (imageSelection && imageCropperImage && imageCropperCanvas) {
+            // Remove old event listeners if they exist
+            if (imageSelection._changeHandler) {
+                imageSelection.removeEventListener('change', imageSelection._changeHandler);
+            }
+            
+            // Helper function to check if selection is within bounds
+            const inSelection = (selection, maxSelection) => {
+                return (
+                    selection.x >= maxSelection.x &&
+                    selection.y >= maxSelection.y &&
+                    (selection.x + selection.width) <= (maxSelection.x + maxSelection.width) &&
+                    (selection.y + selection.height) <= (maxSelection.y + maxSelection.height)
+                );
+            };
+            
+            // Handle selection change event - limit to canvas boundaries
+            imageSelection._changeHandler = (event) => {
+                if (!imageCropperCanvas) {
+                    return;
+                }
+                
+                const cropperCanvasRect = imageCropperCanvas.getBoundingClientRect();
+                const selection = event.detail;
+                
+                // Limit to canvas boundaries
+                const maxSelection = {
+                    x: 0,
+                    y: 0,
+                    width: cropperCanvasRect.width,
+                    height: cropperCanvasRect.height,
+                };
+                
+                if (!inSelection(selection, maxSelection)) {
+                    event.preventDefault();
+                    return;
+                }
+                
                 this.updateImageCropInfo();
-            });
+            };
+            
+            // Add event listener
+            imageSelection.addEventListener('change', imageSelection._changeHandler);
         }
     }
     
     updateVideoCropInfo() {
-        const selection = document.getElementById('videoCropperSelection');
-        const cropperImage = document.getElementById('videoCropperImage');
-        
-        if (!selection || !cropperImage) return;
-        
-        cropperImage.$ready().then((img) => {
-            const canvas = selection.$canvas;
-            if (!canvas) return;
-            
-            const scaleX = img.naturalWidth / canvas.offsetWidth;
-            const scaleY = img.naturalHeight / canvas.offsetHeight;
-            
-            const width = Math.round(selection.width * scaleX);
-            const height = Math.round(selection.height * scaleY);
-            const x = Math.round(selection.x * scaleX);
-            const y = Math.round(selection.y * scaleY);
-            
-            const dimensions = document.getElementById('cropDimensions');
-            const position = document.getElementById('cropPosition');
-            
-            if (dimensions) {
-                dimensions.textContent = `${width} x ${height}`;
-            }
-            
-            if (position) {
-                position.textContent = `(${x}, ${y})`;
-            }
-        });
+        // Use v1 updateCropInfo instead
+        this.updateCropInfo();
     }
     
     updateImageCropInfo() {
-        const selection = document.getElementById('imageCropperSelection');
-        const cropperImage = document.getElementById('imageCropperImage');
-        
-        if (!selection || !cropperImage) return;
-        
-        cropperImage.$ready().then((img) => {
-            const canvas = selection.$canvas;
-            if (!canvas) return;
-            
-            const scaleX = img.naturalWidth / canvas.offsetWidth;
-            const scaleY = img.naturalHeight / canvas.offsetHeight;
-            
-            const width = Math.round(selection.width * scaleX);
-            const height = Math.round(selection.height * scaleY);
-            const x = Math.round(selection.x * scaleX);
-            const y = Math.round(selection.y * scaleY);
-            
-            const imageDimensions = document.getElementById('imageCropDimensions');
-            const imagePosition = document.getElementById('imageCropPosition');
-            
-            if (imageDimensions) {
-                imageDimensions.textContent = `${width} x ${height}`;
-            }
-            
-            if (imagePosition) {
-                imagePosition.textContent = `(${x}, ${y})`;
-            }
-        });
+        // Use v1 updateCropInfo instead
+        this.updateCropInfo();
     }
     
     applyVideoCropperCrop() {
-        const selection = document.getElementById('videoCropperSelection');
-        const cropperImage = document.getElementById('videoCropperImage');
-        
-        if (!selection || !cropperImage || !this.currentCropGame) {
+        if (!this.cropper || !this.currentCropGame) {
             this.showAlert('No crop area selected', 'error');
             return;
         }
         
-        cropperImage.$ready().then((img) => {
-            const canvas = selection.$canvas;
-            if (!canvas) return;
-            
-            const scaleX = img.naturalWidth / canvas.offsetWidth;
-            const scaleY = img.naturalHeight / canvas.offsetHeight;
-            
-            const width = Math.round(selection.width * scaleX);
-            const height = Math.round(selection.height * scaleY);
-            const x = Math.round(selection.x * scaleX);
-            const y = Math.round(selection.y * scaleY);
-            
-            // Save crop data to localStorage
-            try {
-                const saveData = {
-                    imageWidth: this.originalImageWidth,
-                    imageHeight: this.originalImageHeight,
-                    cropBoxData: {
-                        left: x,
-                        top: y,
-                        width: width,
-                        height: height
-                    }
-                };
-                localStorage.setItem('lastVideoCropData', JSON.stringify(saveData));
-            } catch (e) {
-                console.warn('Failed to save crop data to localStorage:', e);
-            }
-            
-            const cropDimensions = `${width}:${height}:${x}:${y}`;
-            
-            // Show waiting state
-            this.showCropWaitingState();
-            
-            // Prepare request data
-            const requestData = {
-                video_path: this.currentCropVideoPath,
-                crop_dimensions: cropDimensions,
-                game_id: this.currentCropGame.id,
-                system_name: this.currentSystem,
-                rom_file: this.currentCropGame.path
+        const cropData = this.cropper.getData();
+        const cropBoxData = this.cropper.getCropBoxData();
+        
+        // Save crop data to localStorage
+        try {
+            const saveData = {
+                imageWidth: this.originalImageWidth,
+                imageHeight: this.originalImageHeight,
+                cropBoxData: cropBoxData
             };
-            
-            // Call the manual crop API
-            fetch('/api/apply-manual-crop', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideCropWaitingState();
-                if (data.success) {
-                    this.showAlert('Video cropped successfully', 'success');
-                    // Close modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('videoCroppingModal'));
-                    if (modal) {
-                        modal.hide();
-                    }
-                    // Refresh game list
-                    this.loadGames();
-                } else {
-                    this.showAlert('Error cropping video: ' + (data.error || 'Unknown error'), 'error');
+            localStorage.setItem('lastVideoCropData', JSON.stringify(saveData));
+        } catch (e) {
+            console.warn('Failed to save crop data to localStorage:', e);
+        }
+        
+        // Convert crop data to crop dimensions string (width:height:x:y)
+        const width = Math.round(cropData.width);
+        const height = Math.round(cropData.height);
+        const x = Math.round(cropData.x);
+        const y = Math.round(cropData.y);
+        
+        const cropDimensions = `${width}:${height}:${x}:${y}`;
+        
+        // Show waiting state
+        this.showCropWaitingState();
+        
+        // Prepare request data
+        const requestData = {
+            video_path: this.currentCropVideoPath,
+            crop_dimensions: cropDimensions,
+            game_id: this.currentCropGame.id,
+            system_name: this.currentSystem,
+            rom_file: this.currentCropGame.path
+        };
+        
+        // Call the manual crop API
+        fetch('/api/apply-manual-crop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideCropWaitingState();
+            if (data.success) {
+                this.showAlert('Video cropped successfully', 'success');
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('videoCroppingModal'));
+                if (modal) {
+                    modal.hide();
                 }
-            })
-            .catch(error => {
-                this.hideCropWaitingState();
-                console.error('Error applying crop:', error);
-                this.showAlert('Error applying crop: ' + error.message, 'error');
-            });
+                // Refresh game list
+                this.loadGames();
+            } else {
+                this.showAlert('Error cropping video: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            this.hideCropWaitingState();
+            console.error('Error applying crop:', error);
+            this.showAlert('Error applying crop: ' + error.message, 'error');
         });
     }
     
@@ -16244,91 +16535,79 @@ class GameCollectionManager {
     }
     
     applyImageCropperCrop() {
-        const selection = document.getElementById('imageCropperSelection');
-        const cropperImage = document.getElementById('imageCropperImage');
-        
-        if (!selection || !cropperImage || !this.currentCropImageGame) {
+        if (!this.cropper || !this.currentCropImageGame) {
             this.showAlert('No crop area selected', 'error');
             return;
         }
         
-        cropperImage.$ready().then((img) => {
-            const canvas = selection.$canvas;
-            if (!canvas) return;
-            
-            const scaleX = img.naturalWidth / canvas.offsetWidth;
-            const scaleY = img.naturalHeight / canvas.offsetHeight;
-            
-            const width = Math.round(selection.width * scaleX);
-            const height = Math.round(selection.height * scaleY);
-            const x = Math.round(selection.x * scaleX);
-            const y = Math.round(selection.y * scaleY);
-            
-            // Save crop data to localStorage
-            try {
-                const saveData = {
-                    imageWidth: this.originalImageWidth,
-                    imageHeight: this.originalImageHeight,
-                    cropBoxData: {
-                        left: x,
-                        top: y,
-                        width: width,
-                        height: height
-                    }
-                };
-                localStorage.setItem('lastImageCropData', JSON.stringify(saveData));
-            } catch (e) {
-                console.warn('Failed to save crop data to localStorage:', e);
-            }
-            
-            const cropDimensions = `${width}:${height}:${x}:${y}`;
-            
-            console.log('Applying image crop with dimensions:', cropDimensions);
-            
-            // Show waiting state
-            this.showCropWaitingState();
-            
-            // Prepare request data
-            const requestData = {
-                image_path: this.currentCropImagePath,
-                crop_dimensions: cropDimensions,
-                game_id: this.currentCropImageGame.id,
-                system_name: this.currentSystem,
-                rom_file: this.currentCropImageGame.path,
-                media_field: this.currentCropImageField
+        const cropData = this.cropper.getData();
+        const cropBoxData = this.cropper.getCropBoxData();
+        
+        // Save crop data to localStorage
+        try {
+            const saveData = {
+                imageWidth: this.originalImageWidth,
+                imageHeight: this.originalImageHeight,
+                cropBoxData: cropBoxData
             };
-            
-            console.log('Sending request data:', requestData);
-            
-            // Call the image crop API
-            fetch('/api/apply-image-crop', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                this.hideCropWaitingState();
-                if (data.success) {
-                    this.showAlert('Image cropped successfully', 'success');
-                    // Close modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('imageCroppingModal'));
-                    if (modal) {
-                        modal.hide();
-                    }
-                    // Refresh game list
-                    this.loadGames();
-                } else {
-                    this.showAlert('Error cropping image: ' + (data.error || 'Unknown error'), 'error');
+            localStorage.setItem('lastImageCropData', JSON.stringify(saveData));
+        } catch (e) {
+            console.warn('Failed to save crop data to localStorage:', e);
+        }
+        
+        // Convert crop data to crop dimensions string (width:height:x:y)
+        const width = Math.round(cropData.width);
+        const height = Math.round(cropData.height);
+        const x = Math.round(cropData.x);
+        const y = Math.round(cropData.y);
+        
+        const cropDimensions = `${width}:${height}:${x}:${y}`;
+        
+        console.log('Applying image crop with dimensions:', cropDimensions);
+        
+        // Show waiting state
+        this.showCropWaitingState();
+        
+        // Prepare request data
+        const requestData = {
+            image_path: this.currentCropImagePath,
+            crop_dimensions: cropDimensions,
+            game_id: this.currentCropImageGame.id,
+            system_name: this.currentSystem,
+            rom_file: this.currentCropImageGame.path,
+            media_field: this.currentCropImageField
+        };
+        
+        console.log('Sending request data:', requestData);
+        
+        // Call the image crop API
+        fetch('/api/apply-image-crop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.hideCropWaitingState();
+            if (data.success) {
+                this.showAlert('Image cropped successfully', 'success');
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('imageCroppingModal'));
+                if (modal) {
+                    modal.hide();
                 }
-            })
-            .catch(error => {
-                this.hideCropWaitingState();
-                console.error('Error applying image crop:', error);
-                this.showAlert('Error applying crop: ' + error.message, 'error');
-            });
+                // Refresh game list
+                this.loadGames();
+            } else {
+                this.showAlert('Error cropping image: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            this.hideCropWaitingState();
+            console.error('Error applying image crop:', error);
+            this.showAlert('Error applying crop: ' + error.message, 'error');
         });
     }
     
@@ -23530,29 +23809,6 @@ class GameCollectionManager {
             saveTemplateBtn.addEventListener('click', () => this.saveTemplate());
         }
         
-        const loadTemplateBtn = document.getElementById('loadTemplateBtn');
-        if (loadTemplateBtn) {
-            loadTemplateBtn.addEventListener('click', () => {
-                // First try to get template name from dropdown
-                const select = document.getElementById('templateSelect');
-                const templateName = select?.value;
-                
-                if (templateName && templateName.trim()) {
-                    // Use value from dropdown
-                    this.loadTemplate(templateName.trim());
-                } else {
-                    // If no value in dropdown, prompt for template name
-                    const promptName = prompt('Enter template name:');
-                    if (promptName && promptName.trim()) {
-                        this.loadTemplate(promptName.trim());
-                    } else if (promptName !== null) {
-                        // User clicked OK but entered empty string
-                        this.showAlert('Template name cannot be empty', 'warning');
-                    }
-                }
-            });
-        }
-        
         const templateSelect = document.getElementById('templateSelect');
         if (templateSelect) {
             templateSelect.addEventListener('change', () => this.loadTemplateFromSelect());
@@ -23588,7 +23844,7 @@ class GameCollectionManager {
         const templateLogoSelection = document.getElementById('templateLogoSelection');
         if (templateLogoSelection) {
             templateLogoSelection.addEventListener('change', () => {
-                const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
+                const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'marquee';
                 if (logoSource === 'text') {
                     const fontSizeInput = document.getElementById('templateLogoFontSize');
                     if (fontSizeInput && !fontSizeInput.value) {
@@ -23599,58 +23855,7 @@ class GameCollectionManager {
             });
         }
         
-        const editScreenshotZoneBtn = document.getElementById('templateEditScreenshotZoneBtn');
-        if (editScreenshotZoneBtn) {
-            editScreenshotZoneBtn.addEventListener('click', () => {
-                this.templateEditingZone = 'screenshot';
-                const screenshotSelection = document.getElementById('templateScreenshotSelection');
-                const logoSelection = document.getElementById('templateLogoSelection');
-                if (screenshotSelection) {
-                    screenshotSelection.active = true;
-                    screenshotSelection.hidden = false;
-                }
-                if (logoSelection) {
-                    logoSelection.active = false;
-                    // Keep logo visible if logo source is not 'none'
-                    const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'none';
-                    if (logoSource === 'none') {
-                        logoSelection.hidden = true;
-                    }
-                }
-                // Update cropper to show screenshot selection
-                this.updateTemplateCropperFromCorners();
-                editScreenshotZoneBtn.classList.add('active');
-                const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
-                if (editLogoZoneBtn) editLogoZoneBtn.classList.remove('active');
-            });
-        }
-        
-        const editLogoZoneBtn = document.getElementById('templateEditLogoZoneBtn');
-        if (editLogoZoneBtn) {
-            editLogoZoneBtn.addEventListener('click', () => {
-                this.templateEditingZone = 'logo';
-                const screenshotSelection = document.getElementById('templateScreenshotSelection');
-                const logoSelection = document.getElementById('templateLogoSelection');
-                if (screenshotSelection) {
-                    screenshotSelection.active = false;
-                    screenshotSelection.hidden = false; // Keep visible
-                }
-                if (logoSelection) {
-                    logoSelection.active = true;
-                    logoSelection.hidden = false;
-                    // Initialize if empty
-                    if (logoSelection.width === 0 && logoSelection.height === 0) {
-                        logoSelection.initialCoverage = 0.3;
-                        logoSelection.$initSelection(true, true);
-                    }
-                }
-                // Update cropper to show logo selection
-                this.updateTemplateCropperFromLogoCorners();
-                editLogoZoneBtn.classList.add('active');
-                const editScreenshotZoneBtn = document.getElementById('templateEditScreenshotZoneBtn');
-                if (editScreenshotZoneBtn) editScreenshotZoneBtn.classList.remove('active');
-            });
-        }
+        // Edit zone buttons removed - both selections are always visible
         
         // Add event listeners for logo corner inputs
         ['templateLogoCorner1X', 'templateLogoCorner1Y', 'templateLogoCorner2X', 'templateLogoCorner2Y',

@@ -355,6 +355,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.0/socket.io.min.js"></script>
     
+    <!-- Cropper.js v1.0 Library (for video and image croppers) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='js/cropper.min.css') }}">
+    <script src="{{ url_for('static', filename='js/cropper.min.js') }}"></script>
+    
     <!-- Cropper.js v2.0 Library (for template generator) -->
     <script src="https://cdn.jsdelivr.net/npm/@cropper/element-canvas@2.1.0/dist/element-canvas.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@cropper/element-image@2.1.0/dist/element-image.js"></script>
@@ -3485,23 +3489,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                                 <div class="card-body p-2">
                                     <div class="text-center" id="videoCropperCanvasContainer" style="height: 600px; position: relative;">
-                                        <cropper-canvas id="videoCropperCanvas" style="width: 100%; height: 100%;" background>
-                                            <cropper-image id="videoCropperImage" imageFit="contain" rotatable="false" scalable="false" skewable="false" translatable="false"></cropper-image>
-                                            <cropper-shade hidden></cropper-shade>
-                                            <cropper-selection id="videoCropperSelection" initial-coverage="0.8" movable resizable outlined>
-                                                <cropper-grid role="grid" bordered covered></cropper-grid>
-                                                <cropper-crosshair centered></cropper-crosshair>
-                                                <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
-                                                <cropper-handle action="n-resize"></cropper-handle>
-                                                <cropper-handle action="e-resize"></cropper-handle>
-                                                <cropper-handle action="s-resize"></cropper-handle>
-                                                <cropper-handle action="w-resize"></cropper-handle>
-                                                <cropper-handle action="ne-resize"></cropper-handle>
-                                                <cropper-handle action="nw-resize"></cropper-handle>
-                                                <cropper-handle action="se-resize"></cropper-handle>
-                                                <cropper-handle action="sw-resize"></cropper-handle>
-                                            </cropper-selection>
-                                        </cropper-canvas>
+                                        <img id="videoCropperImage" style="max-width: 100%; max-height: 100%;">
                                     </div>
                                 </div>
                             </div>
@@ -4438,7 +4426,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     <!-- Box Template Generator Modal -->
     <div class="modal fade" id="boxTemplateGeneratorModal" tabindex="-1" aria-labelledby="boxTemplateGeneratorModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
+        <div class="modal-dialog modal-xl" style="max-width: 95vw; width: 1400px;">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="boxTemplateGeneratorModalLabel">
@@ -4522,11 +4510,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <label class="form-label">Logo Configuration</label>
                                 <div class="mb-2">
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="templateLogoSource" id="templateLogoSourceNone" value="none" checked>
-                                        <label class="form-check-label" for="templateLogoSourceNone">No Logo</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="templateLogoSource" id="templateLogoSourceMarquee" value="marquee">
+                                        <input class="form-check-input" type="radio" name="templateLogoSource" id="templateLogoSourceMarquee" value="marquee" checked>
                                         <label class="form-check-label" for="templateLogoSourceMarquee">From Marquee Field</label>
                                     </div>
                                     <div class="form-check form-check-inline">
@@ -4556,7 +4540,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                             </div>
                             
-                            <div class="mb-3" id="templateLogoZoneConfig" style="display: none;">
+                            <div class="mb-3" id="templateLogoZoneConfig">
                                 <label class="form-label">Logo Zone Position</label>
                                 <div class="row g-2">
                                     <div class="col-6">
@@ -4603,9 +4587,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <button type="button" class="btn btn-outline-primary btn-sm me-2" id="saveTemplateBtn">
                                     <i class="bi bi-save me-1"></i>Save Template
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="loadTemplateBtn">
-                                    <i class="bi bi-folder-open me-1"></i>Load Template
-                                </button>
                                 <select class="form-select form-select-sm d-inline-block w-auto ms-2" id="templateSelect" style="width: 200px;">
                                     <option value="">Select template...</option>
                                 </select>
@@ -4619,19 +4600,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 Click and drag the corners in the preview below to position the screenshot and logo placement areas.
                             </div>
                             <div class="mb-2">
-                                <button type="button" class="btn btn-outline-secondary btn-sm me-2 active" id="templateEditScreenshotZoneBtn">
-                                    <i class="bi bi-image me-1"></i>Edit Screenshot Zone
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="templateEditLogoZoneBtn" style="display: none;">
-                                    <i class="bi bi-type me-1"></i>Edit Logo Zone
-                                </button>
                             </div>
                             <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: auto; text-align: center;">
                                 <div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div>
                                 <cropper-canvas id="templateCropperCanvas" style="display: none; width: 600px; height: 900px;" background>
                                     <cropper-image id="templateCropperImage" rotatable="false" scalable="false" skewable="false" translatable="false" imageFit="contain"></cropper-image>
                                     <cropper-shade hidden></cropper-shade>
-                                    <cropper-selection id="templateScreenshotSelection" initial-coverage="0.5" movable resizable outlined multiple active theme-color="rgba(51, 153, 255, 0.5)">
+                                    <cropper-selection id="templateScreenshotSelection" movable="true" resizable outlined multiple="true" keyboard active theme-color="rgba(51, 153, 255, 0.5)">
                                         <cropper-grid role="grid" bordered covered></cropper-grid>
                                         <cropper-crosshair centered></cropper-crosshair>
                                         <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
@@ -4644,7 +4619,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         <cropper-handle action="se-resize"></cropper-handle>
                                         <cropper-handle action="sw-resize"></cropper-handle>
                                     </cropper-selection>
-                                    <cropper-selection id="templateLogoSelection" initial-coverage="0.3" movable resizable outlined multiple theme-color="rgba(255, 153, 51, 0.5)">
+                                    <cropper-selection id="templateLogoSelection" movable="true" resizable outlined multiple="true" keyboard theme-color="rgba(255, 153, 51, 0.5)">
                                         <cropper-grid role="grid" bordered covered></cropper-grid>
                                         <cropper-crosshair centered></cropper-crosshair>
                                         <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
@@ -5952,23 +5927,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                                 <div class="card-body p-2" style="max-height: 900px;">
                                     <div class="text-center" id="imageCropperCanvasContainer" style="height: 600px; position: relative;">
-                                        <cropper-canvas id="imageCropperCanvas" style="width: 100%; height: 100%;" background>
-                                            <cropper-image id="imageCropperImage" imageFit="contain" rotatable="false" scalable="false" skewable="false" translatable="false"></cropper-image>
-                                            <cropper-shade hidden></cropper-shade>
-                                            <cropper-selection id="imageCropperSelection" initial-coverage="0.8" movable resizable outlined>
-                                                <cropper-grid role="grid" bordered covered></cropper-grid>
-                                                <cropper-crosshair centered></cropper-crosshair>
-                                                <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
-                                                <cropper-handle action="n-resize"></cropper-handle>
-                                                <cropper-handle action="e-resize"></cropper-handle>
-                                                <cropper-handle action="s-resize"></cropper-handle>
-                                                <cropper-handle action="w-resize"></cropper-handle>
-                                                <cropper-handle action="ne-resize"></cropper-handle>
-                                                <cropper-handle action="nw-resize"></cropper-handle>
-                                                <cropper-handle action="se-resize"></cropper-handle>
-                                                <cropper-handle action="sw-resize"></cropper-handle>
-                                            </cropper-selection>
-                                        </cropper-canvas>
+                                        <img id="imageCropperImage" style="max-width: 100%; max-height: 100%;">
                                     </div>
                                 </div>
                             </div>

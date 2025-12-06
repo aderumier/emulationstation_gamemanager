@@ -24869,12 +24869,28 @@ def save_box_template():
         corners_json = request.form.get('corners')
         corners = json.loads(corners_json) if corners_json else {}
         
+        # Get logo corner positions
+        logo_corners_json = request.form.get('logo_corners')
+        logo_corners = json.loads(logo_corners_json) if logo_corners_json else {}
+        
+        # Get logo source
+        logo_source = request.form.get('logo_source', 'marquee')
+        
+        # Get text logo settings if present
+        text_logo_settings_json = request.form.get('text_logo_settings')
+        text_logo_settings = json.loads(text_logo_settings_json) if text_logo_settings_json else None
+        
         # Save template metadata as JSON
         template_data = {
             'name': template_name,
             'background_image': background_filename,  # Store relative path
-            'corners': corners
+            'corners_screenshot': corners,
+            'corners_logo': logo_corners,
+            'logo_source': logo_source
         }
+        
+        if text_logo_settings:
+            template_data['text_logo_settings'] = text_logo_settings
         
         template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
         with open(template_json_path, 'w') as f:
@@ -24903,7 +24919,8 @@ def list_box_templates():
                             templates.append({
                                 'name': template_data.get('name', filename.replace('.json', '')),
                                 'background_image': template_data.get('background_image', ''),
-                                'corners': template_data.get('corners', {})
+                                'corners_screenshot': template_data.get('corners_screenshot', template_data.get('corners', {})),  # Support old format
+                                'corners_logo': template_data.get('corners_logo', {})
                             })
                     except Exception as e:
                         print(f"Error loading template {filename}: {e}")
@@ -24937,11 +24954,25 @@ def load_box_template():
         background_image = template_data.get('background_image', '')
         
         # Return paths that can be accessed via URL
-        return jsonify({
+        # Support both old format (corners) and new format (corners_screenshot, corners_logo)
+        corners_screenshot = template_data.get('corners_screenshot', template_data.get('corners', {}))
+        corners_logo = template_data.get('corners_logo', {})
+        logo_source = template_data.get('logo_source', 'marquee')
+        text_logo_settings = template_data.get('text_logo_settings')
+        
+        response_data = {
             'success': True,
             'background_image_path': f'/api/template-image?path={background_image}&type=background',
-            'corners': template_data.get('corners', {})
-        })
+            'corners': corners_screenshot,  # Keep for backward compatibility
+            'corners_screenshot': corners_screenshot,
+            'corners_logo': corners_logo,
+            'logo_source': logo_source
+        }
+        
+        if text_logo_settings:
+            response_data['text_logo_settings'] = text_logo_settings
+        
+        return jsonify(response_data)
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to load template: {str(e)}'}), 500
