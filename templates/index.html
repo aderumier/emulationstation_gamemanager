@@ -4594,13 +4594,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         </div>
                         
                         <div class="col-md-6">
-                            <h6 class="mb-3">Interactive Preview</h6>
-                            <div class="alert alert-info">
-                                <i class="bi bi-mouse me-2"></i>
-                                Click and drag the corners in the preview below to position the screenshot and logo placement areas.
-                            </div>
-                            <div class="mb-2">
-                            </div>
+                            <!-- Tab Navigation -->
+                            <ul class="nav nav-tabs mb-3" id="templatePreviewTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="templateInteractiveTab" data-bs-toggle="tab" data-bs-target="#templateInteractivePane" type="button" role="tab" aria-controls="templateInteractivePane" aria-selected="true">
+                                        <i class="bi bi-arrows-move me-1"></i>Interactive
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="templateResultPreviewTab" data-bs-toggle="tab" data-bs-target="#templateResultPreviewPane" type="button" role="tab" aria-controls="templateResultPreviewPane" aria-selected="false">
+                                        <i class="bi bi-image me-1"></i>Preview
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <!-- Tab Content -->
+                            <div class="tab-content" id="templatePreviewTabContent">
+                                <!-- Interactive Preview Tab -->
+                                <div class="tab-pane fade show active" id="templateInteractivePane" role="tabpanel" aria-labelledby="templateInteractiveTab">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-mouse me-2"></i>
+                                        Click and drag the corners in the preview below to position the screenshot and logo placement areas.
+                                    </div>
                             <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: auto; text-align: center;">
                                 <div class="text-muted text-center py-5" id="templatePreviewPlaceholder">Load background image to start</div>
                                 <cropper-canvas id="templateCropperCanvas" style="display: none; width: 600px; height: 900px;" background>
@@ -4633,6 +4648,34 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         <cropper-handle action="sw-resize"></cropper-handle>
                                     </cropper-selection>
                                 </cropper-canvas>
+                            </div>
+                                </div>
+                                
+                                <!-- Result Preview Tab -->
+                                <div class="tab-pane fade" id="templateResultPreviewPane" role="tabpanel" aria-labelledby="templateResultPreviewTab">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        Preview of the generated box using the first selected game.
+                                    </div>
+                                    <div class="text-center mb-3">
+                                        <button type="button" class="btn btn-outline-primary" id="refreshTemplatePreviewBtn">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh Preview
+                                        </button>
+                                    </div>
+                                    <div id="templateResultPreviewContainer" class="border p-3 bg-light text-center" style="min-height: 400px; position: relative;">
+                                        <div class="text-muted py-5" id="templateResultPreviewPlaceholder">
+                                            <i class="bi bi-image" style="font-size: 3rem;"></i>
+                                            <p class="mt-2">Click "Refresh Preview" to generate a preview</p>
+                                        </div>
+                                        <img id="templateResultPreviewImage" src="" alt="Box Preview" style="display: none; max-width: 100%; max-height: 800px;">
+                                        <div id="templateResultPreviewLoading" style="display: none;">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Generating preview...</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

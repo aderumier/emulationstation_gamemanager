@@ -69,6 +69,86 @@ class BoxGenerator:
             logging.error(f"ImageMagick not available: {e}")
             return False
     
+    def _clean_game_name(self, text):
+        """
+        Remove text between parentheses () and brackets [] at the end of the text,
+        including the brackets/parentheses themselves.
+        Handles multiple occurrences (e.g., "Game (USA) [Rev 1]" -> "Game")
+        """
+        import re
+        if not text:
+            return text
+        
+        cleaned = text
+        while True:
+            # Try to remove trailing () or []
+            new_cleaned = re.sub(r'\s*[\[\(][^\[\]\(\)]*[\]\)]\s*$', '', cleaned)
+            if new_cleaned == cleaned:
+                break
+            cleaned = new_cleaned
+        
+        return cleaned.strip()
+    
+    def _wrap_text_to_lines(self, text, max_chars_per_line=15):
+        """
+        Wrap text into multiple lines, keeping around max_chars_per_line characters per line.
+        Never splits words - only splits on spaces.
+        Tries to distribute text evenly across lines and avoid last lines with less than 5 characters.
+        Returns a list of lines.
+        """
+        if not text:
+            return ['']
+        
+        words = text.split()
+        if not words:
+            return ['']
+        
+        # If text fits on one line, return it
+        total_length = sum(len(word) for word in words) + len(words) - 1
+        if total_length <= max_chars_per_line:
+            return [' '.join(words)]
+        
+        # Calculate optimal number of lines
+        num_lines = max(1, (total_length + max_chars_per_line - 1) // max_chars_per_line)
+        target_chars_per_line = total_length / num_lines
+        
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for i, word in enumerate(words):
+            word_length = len(word)
+            
+            should_wrap = False
+            if current_length > 0:
+                # If adding this word would exceed max, wrap
+                if current_length + 1 + word_length > max_chars_per_line:
+                    should_wrap = True
+                # If we're past target and have more words, consider wrapping
+                elif current_length >= target_chars_per_line and i < len(words) - 1:
+                    should_wrap = True
+            
+            if should_wrap:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = word_length
+            else:
+                if current_length > 0:
+                    current_length += 1  # For space
+                current_line.append(word)
+                current_length += word_length
+        
+        # Add the last line
+        if current_line:
+            last_line = ' '.join(current_line)
+            # If last line is too short and we have previous lines, merge with previous
+            if len(last_line) < 5 and lines:
+                lines[-1] = lines[-1] + ' ' + last_line
+            else:
+                lines.append(last_line)
+        
+        return lines if lines else ['']
+    
     def generate_2d_box(self, titlescreen_path, gameplay_path, logo_path, output_path, 
                        secondary_logo_path=None, additional_screenshot_path=None):
         """
@@ -504,34 +584,18 @@ class BoxGenerator:
                 logo_zone_width = logo_max_x - logo_min_x
                 logo_zone_height = logo_max_y - logo_min_y
                 
+                # Determine the logo file to use (either existing marquee or generated text logo)
+                logo_file_to_use = None
+                
                 if logo_source == 'marquee' and logo_path and os.path.exists(logo_path):
-                    # Resize and place marquee logo
-                    logging.info(f"Placing marquee logo at position ({logo_min_x}, {logo_min_y})")
-                    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
-                    temp_files.append(temp_logo)
-                    
-                    # Resize logo to fit zone
-                    cmd = [
-                        'convert', logo_path,
-                        '-resize', f'{logo_zone_width}x{logo_zone_height}!',
-                        '-quality', '100',
-                        temp_logo
-                    ]
-                    subprocess.run(cmd, check=True)
-                    
-                    # Composite logo onto output
-                    cmd = [
-                        'composite',
-                        '-geometry', f'+{logo_min_x}+{logo_min_y}',
-                        temp_logo,
-                        output_path,
-                        output_path
-                    ]
-                    subprocess.run(cmd, check=True)
-                    logging.info(f"✅ Marquee logo placed successfully")
+                    # Use existing marquee logo
+                    logo_file_to_use = logo_path
+                    logging.info(f"Using existing marquee logo: {logo_path}")
                     
                 elif logo_source == 'text' and text_logo_settings and game_name:
-                    # Generate text logo using helper functions
+                    # Generate text logo to a temporary file first
+                    logging.info(f"Generating text logo for: {game_name}")
+                    
                     # Get settings
                     font_size = text_logo_settings.get('fontSize', 72)
                     color = text_logo_settings.get('color', '#ffffff')
@@ -542,7 +606,6 @@ class BoxGenerator:
                     uppercase = text_logo_settings.get('uppercase', False)
                     
                     # Calculate max chars per line from font size and zone width
-                    # Average character width is approximately 0.6 * font_size
                     avg_char_width = font_size * 0.6
                     max_chars_per_line = max(5, int(logo_zone_width / avg_char_width))
                     
@@ -558,10 +621,11 @@ class BoxGenerator:
                     # Escape text for ImageMagick
                     escaped_text = multiline_text.replace('\\', '\\\\').replace('"', '\\"')
                     
-                    # Generate text logo
-                    logging.info(f"Generating text logo with font size {font_size}, max chars {max_chars_per_line}")
-                    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
-                    temp_files.append(temp_logo)
+                    logging.info(f"Text logo settings: font_size={font_size}, max_chars={max_chars_per_line}, text='{multiline_text}'")
+                    
+                    # Create temp file for generated text logo
+                    temp_generated_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                    temp_files.append(temp_generated_logo)
                     
                     # Check for custom font
                     font_path = font
@@ -573,61 +637,111 @@ class BoxGenerator:
                             if os.path.exists(font_file):
                                 font_path = font_file
                                 break
+                        # Also check with exact filename match
+                        if font_path == font:
                             for filename in os.listdir(custom_fonts_dir):
                                 if os.path.splitext(filename)[0] == font:
                                     font_path = os.path.join(custom_fonts_dir, filename)
                                     break
                     
-                    # Build font style
-                    font_style = []
-                    if bold:
-                        font_style.append('Bold')
-                    if italic:
-                        font_style.append('Italic')
-                    if font_style:
-                        font_path = f"{font_path}-{'-'.join(font_style)}"
-                    
                     # Calculate caption width based on zone width
-                    caption_width = int(logo_zone_width * 0.95)  # Use 95% of zone width
+                    caption_width = int(logo_zone_width * 0.95)
                     
-                    # Generate text logo
+                    # Build base command for text generation
                     cmd = [
                         'convert',
-                        '-background', 'transparent',
+                        '-background', 'none',
                         '-fill', color,
                         '-font', font_path,
                         '-pointsize', str(font_size),
-                        '-size', f'{caption_width}x',
-                        '-gravity', 'center',
-                        f'caption:{escaped_text}',
-                        temp_logo
                     ]
                     
-                    if underline:
-                        # Add underline using -annotate or -draw
-                        cmd.insert(-1, '-annotate')
-                        cmd.insert(-1, '+0+0')
-                        cmd.insert(-1, escaped_text)
+                    # Simulate bold using stroke
+                    if bold:
+                        cmd.extend(['-stroke', color, '-strokewidth', '1'])
                     
+                    # Add shear for italic effect
+                    if italic:
+                        cmd.extend(['-shear', '15x0'])
+                    
+                    # For underline, we need to draw it separately
+                    if underline:
+                        temp_text = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                        temp_files.append(temp_text)
+                        
+                        cmd_text = cmd + [
+                            '-size', f'{caption_width}x',
+                            '-gravity', 'center',
+                            f'caption:{escaped_text}',
+                            temp_text
+                        ]
+                        logging.info(f"Generating text logo (text step): {' '.join(cmd_text)}")
+                        result = subprocess.run(cmd_text, capture_output=True, text=True, timeout=30)
+                        if result.returncode != 0:
+                            logging.error(f"ImageMagick text generation failed: {result.stderr}")
+                            raise Exception(f"ImageMagick text generation failed: {result.stderr}")
+                        
+                        # Get text dimensions and draw underline
+                        identify_cmd = ['identify', '-format', '%wx%h', temp_text]
+                        dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                        if dim_result.returncode == 0:
+                            width, height = dim_result.stdout.strip().split('x')
+                            underline_y = int(height) - 2
+                            cmd_underline = [
+                                'convert', temp_text,
+                                '-stroke', color,
+                                '-strokewidth', '2',
+                                '-draw', f'line 0,{underline_y} {width},{underline_y}',
+                                temp_generated_logo
+                            ]
+                            logging.info(f"Adding underline: {' '.join(cmd_underline)}")
+                            subprocess.run(cmd_underline, check=True)
+                        else:
+                            import shutil
+                            shutil.copy(temp_text, temp_generated_logo)
+                    else:
+                        # No underline - generate directly
+                        cmd.extend([
+                            '-size', f'{caption_width}x',
+                            '-gravity', 'center',
+                            f'caption:{escaped_text}',
+                            temp_generated_logo
+                        ])
+                        logging.info(f"Generating text logo: {' '.join(cmd)}")
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                        if result.returncode != 0:
+                            logging.error(f"ImageMagick text generation failed: {result.stderr}")
+                            raise Exception(f"ImageMagick text generation failed: {result.stderr}")
+                    
+                    # Verify the generated logo exists
+                    if os.path.exists(temp_generated_logo):
+                        logo_file_to_use = temp_generated_logo
+                        logging.info(f"✅ Text logo generated successfully: {temp_generated_logo}")
+                    else:
+                        logging.error(f"Text logo file was not created: {temp_generated_logo}")
+                
+                # Now place the logo (same code for both marquee and text logo)
+                if logo_file_to_use and os.path.exists(logo_file_to_use):
+                    logging.info(f"Placing logo at position ({logo_min_x}, {logo_min_y}), zone size: {logo_zone_width}x{logo_zone_height}")
+                    
+                    # Create temp file for resized logo
+                    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                    temp_files.append(temp_logo)
+                    
+                    # Resize logo to fit zone (same as marquee)
+                    cmd = [
+                        'convert', logo_file_to_use,
+                        '-resize', f'{logo_zone_width}x{logo_zone_height}',
+                        '-background', 'none',
+                        '-gravity', 'center',
+                        '-extent', f'{logo_zone_width}x{logo_zone_height}',
+                        '-quality', '100',
+                        temp_logo
+                    ]
+                    logging.info(f"Resizing logo: {' '.join(cmd)}")
                     subprocess.run(cmd, check=True)
                     
-                    # Resize logo to fit zone height if needed
-                    identify_cmd = ['identify', '-format', '%h', temp_logo]
-                    logo_height_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
-                    if logo_height_result.returncode == 0:
-                        logo_height = int(logo_height_result.stdout.strip())
-                        if logo_height > logo_zone_height:
-                            # Scale down to fit height
-                            scale_factor = logo_zone_height / logo_height
-                            new_width = int(caption_width * scale_factor)
-                            cmd_resize = [
-                                'convert', temp_logo,
-                                '-resize', f'{new_width}x{logo_zone_height}',
-                                temp_logo
-                            ]
-                            subprocess.run(cmd_resize, check=True)
-                    
-                    # Composite logo onto output
+                    # Composite logo onto output (same as marquee)
                     cmd = [
                         'composite',
                         '-geometry', f'+{logo_min_x}+{logo_min_y}',
@@ -635,8 +749,9 @@ class BoxGenerator:
                         output_path,
                         output_path
                     ]
+                    logging.info(f"Compositing logo: {' '.join(cmd)}")
                     subprocess.run(cmd, check=True)
-                    logging.info(f"✅ Text logo generated and placed successfully")
+                    logging.info(f"✅ Logo placed successfully")
             
             logging.info(f"✅ Template box generated successfully: {output_path}")
             return True

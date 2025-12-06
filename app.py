@@ -25084,6 +25084,154 @@ def generate_template_box():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to start template box generation: {str(e)}'}), 500
 
+@app.route('/api/preview-template-box', methods=['POST'])
+@login_required
+def preview_template_box():
+    """Generate a preview of the template box for the first selected game"""
+    temp_dir = None
+    try:
+        system_name = request.form.get('system_name')
+        game_path = request.form.get('game_path')
+        screenshot_field = request.form.get('screenshot_field')
+        corners_json = request.form.get('corners')
+        logo_source = request.form.get('logo_source', 'none')
+        logo_corners_json = request.form.get('logo_corners')
+        text_logo_settings_json = request.form.get('text_logo_settings')
+        
+        if not system_name or not game_path or not screenshot_field:
+            return jsonify({'error': 'Missing required parameters'}), 400
+        
+        corners = json.loads(corners_json) if corners_json else {}
+        logo_corners = json.loads(logo_corners_json) if logo_corners_json else {}
+        text_logo_settings = json.loads(text_logo_settings_json) if text_logo_settings_json else None
+        
+        # Get background image
+        background_file = request.files.get('background_image')
+        background_image_path = request.form.get('background_image_path')
+        
+        if not background_file and not background_image_path:
+            return jsonify({'error': 'Background image is required'}), 400
+        
+        # Create temp directory
+        temp_dir = tempfile.mkdtemp(prefix='template_preview_')
+        background_path = os.path.join(temp_dir, 'background.jpg')
+        
+        if background_file:
+            background_file.save(background_path)
+        elif background_image_path:
+            templates_dir = 'var/2dbox/templates'
+            source_path = os.path.join(templates_dir, background_image_path)
+            abs_templates_dir = os.path.abspath(templates_dir)
+            abs_source_path = os.path.abspath(source_path)
+            if not abs_source_path.startswith(abs_templates_dir):
+                return jsonify({'error': 'Invalid background image path'}), 403
+            if not os.path.exists(source_path):
+                return jsonify({'error': 'Background image not found'}), 404
+            import shutil
+            shutil.copy2(source_path, background_path)
+        
+        # Get system path
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': f'System not found: {system_name}'}), 404
+        
+        # Load gamelist to get game data
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 404
+        
+        # Find the game
+        game = None
+        for g in games:
+            if g.get('path') == game_path:
+                game = g
+                break
+        
+        if not game:
+            return jsonify({'error': f'Game not found: {game_path}'}), 404
+        
+        game_name = game.get('name', 'Unknown')
+        
+        # Get screenshot path
+        screenshot_element = game.get(screenshot_field)
+        if not screenshot_element:
+            return jsonify({'error': f'Screenshot field {screenshot_field} not found for game'}), 404
+        
+        if screenshot_element.startswith('./'):
+            screenshot_path = os.path.join(system_path, screenshot_element[2:])
+        elif screenshot_element.startswith('/'):
+            screenshot_path = screenshot_element
+        else:
+            screenshot_path = os.path.join(system_path, screenshot_element)
+        
+        if not os.path.exists(screenshot_path):
+            return jsonify({'error': f'Screenshot not found: {screenshot_path}'}), 404
+        
+        # Get logo path if using marquee
+        logo_path = None
+        if logo_source == 'marquee':
+            marquee_element = game.get('marquee')
+            if marquee_element:
+                if marquee_element.startswith('./'):
+                    logo_path = os.path.join(system_path, marquee_element[2:])
+                elif marquee_element.startswith('/'):
+                    logo_path = marquee_element
+                else:
+                    logo_path = os.path.join(system_path, marquee_element)
+                if not os.path.exists(logo_path):
+                    logo_path = None
+        
+        # Generate preview
+        from box_generator import BoxGenerator
+        generator = BoxGenerator()
+        
+        output_path = os.path.join(temp_dir, 'preview.jpg')
+        
+        generator.generate_template_box(
+            background_path=background_path,
+            screenshot_path=screenshot_path,
+            output_path=output_path,
+            corner1_x=corners.get('x1', 0),
+            corner1_y=corners.get('y1', 0),
+            corner2_x=corners.get('x2', 0),
+            corner2_y=corners.get('y2', 0),
+            corner3_x=corners.get('x3', 0),
+            corner3_y=corners.get('y3', 0),
+            corner4_x=corners.get('x4', 0),
+            corner4_y=corners.get('y4', 0),
+            logo_source=logo_source,
+            logo_path=logo_path,
+            logo_corners=logo_corners,
+            text_logo_settings=text_logo_settings,
+            game_name=game_name
+        )
+        
+        if not os.path.exists(output_path):
+            return jsonify({'error': 'Failed to generate preview'}), 500
+        
+        # Read the generated image and return it
+        with open(output_path, 'rb') as f:
+            image_data = f.read()
+        
+        # Cleanup temp directory
+        import shutil
+        shutil.rmtree(temp_dir)
+        temp_dir = None
+        
+        from flask import Response
+        return Response(image_data, mimetype='image/jpeg')
+        
+    except Exception as e:
+        # Cleanup on error
+        if temp_dir and os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
+        return jsonify({'error': f'Failed to generate preview: {str(e)}'}), 500
+
 @app.route('/api/generate-logo', methods=['POST'])
 @login_required
 def generate_logo():

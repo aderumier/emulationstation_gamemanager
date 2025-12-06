@@ -12465,6 +12465,142 @@ class GameCollectionManager {
         }
     }
 
+    async refreshTemplateBoxPreview() {
+        try {
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game first', 'warning');
+                return;
+            }
+            
+            const backgroundInput = document.getElementById('templateBackgroundImage');
+            const screenshotFieldSelect = document.getElementById('templateScreenshotField');
+            
+            // Check if background image is selected OR loaded from template
+            const hasBackgroundFile = backgroundInput?.files[0];
+            const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
+            if (!hasBackgroundFile && !hasLoadedPath) {
+                this.showAlert('Please select a background image', 'warning');
+                return;
+            }
+            
+            const screenshotField = screenshotFieldSelect?.value;
+            if (!screenshotField) {
+                this.showAlert('Please select a screenshot image field', 'warning');
+                return;
+            }
+            
+            // Show loading state
+            const placeholder = document.getElementById('templateResultPreviewPlaceholder');
+            const previewImage = document.getElementById('templateResultPreviewImage');
+            const loadingDiv = document.getElementById('templateResultPreviewLoading');
+            
+            if (placeholder) placeholder.style.display = 'none';
+            if (previewImage) previewImage.style.display = 'none';
+            if (loadingDiv) loadingDiv.style.display = 'block';
+            
+            // Get corner positions
+            const corners = {
+                x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
+            };
+            
+            // Get logo configuration
+            const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'marquee';
+            const logoCorners = {
+                x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateLogoCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateLogoCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateLogoCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateLogoCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateLogoCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateLogoCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
+            };
+            
+            // Get text logo settings if using text logo
+            let textLogoSettings = null;
+            if (logoSource === 'text') {
+                const font = document.getElementById('templateLogoFont')?.value || 'Arial';
+                const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
+                const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
+                
+                textLogoSettings = {
+                    font: font,
+                    color: color,
+                    fontSize: fontSize
+                };
+            }
+            
+            // Build form data for preview (only first game)
+            const formData = new FormData();
+            if (hasBackgroundFile) {
+                formData.append('background_image', backgroundInput.files[0]);
+            } else if (hasLoadedPath) {
+                let filename = hasLoadedPath;
+                if (filename.includes('?path=')) {
+                    const urlParams = new URLSearchParams(filename.split('?')[1]);
+                    filename = urlParams.get('path') || filename;
+                }
+                if (filename.includes('/')) {
+                    filename = filename.split('/').pop();
+                }
+                if (filename.includes('?')) {
+                    filename = filename.split('?')[0];
+                }
+                formData.append('background_image_path', filename);
+            }
+            formData.append('screenshot_field', screenshotField);
+            formData.append('corners', JSON.stringify(corners));
+            formData.append('system_name', this.currentSystem);
+            formData.append('game_path', this.selectedGames[0].path); // First game only
+            formData.append('logo_source', logoSource);
+            if (logoSource !== 'none') {
+                formData.append('logo_corners', JSON.stringify(logoCorners));
+            }
+            if (textLogoSettings) {
+                formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
+            }
+            
+            const response = await fetch('/api/preview-template-box', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                
+                // Revoke previous URL if exists
+                if (previewImage && previewImage.src && previewImage.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(previewImage.src);
+                }
+                
+                if (previewImage) {
+                    previewImage.src = imageUrl;
+                    previewImage.style.display = 'block';
+                }
+            } else {
+                const data = await response.json();
+                this.showAlert('Error generating preview: ' + (data.error || 'Unknown error'), 'danger');
+                if (placeholder) placeholder.style.display = 'block';
+            }
+        } catch (error) {
+            const loadingDiv = document.getElementById('templateResultPreviewLoading');
+            const placeholder = document.getElementById('templateResultPreviewPlaceholder');
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (placeholder) placeholder.style.display = 'block';
+            this.showAlert('Error generating preview: ' + error.message, 'danger');
+        }
+    }
+
     openLogoGeneratorModal() {
         if (!this.currentSystem) {
             this.showAlert('No system selected', 'warning');
@@ -24029,6 +24165,12 @@ class GameCollectionManager {
         const generateTemplateBoxBtn = document.getElementById('generateTemplateBoxBtn');
         if (generateTemplateBoxBtn) {
             generateTemplateBoxBtn.addEventListener('click', () => this.startTemplateBoxGeneration());
+        }
+        
+        // Preview refresh button
+        const refreshTemplatePreviewBtn = document.getElementById('refreshTemplatePreviewBtn');
+        if (refreshTemplatePreviewBtn) {
+            refreshTemplatePreviewBtn.addEventListener('click', () => this.refreshTemplateBoxPreview());
         }
         
         // Logo configuration event listeners
