@@ -24851,19 +24851,64 @@ def save_box_template():
         templates_dir = 'var/2dbox/templates'
         os.makedirs(templates_dir, exist_ok=True)
         
-        # Save background image
-        background_file = request.files.get('background_image')
-        
-        if not background_file:
-            return jsonify({'success': False, 'error': 'Background image is required'}), 400
-        
         # Sanitize template name for filesystem
         safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
         
-        # Save background image
-        background_filename = f'{safe_name}_background.jpg'
-        background_path = os.path.join(templates_dir, background_filename)
-        background_file.save(background_path)
+        # Handle background image - either new file upload or existing path
+        background_file = request.files.get('background_image')
+        background_image_path = request.form.get('background_image_path')
+        
+        background_filename = None
+        
+        if background_file:
+            # New file upload
+            background_filename = f'{safe_name}_background.jpg'
+            background_path = os.path.join(templates_dir, background_filename)
+            background_file.save(background_path)
+        elif background_image_path:
+            # Use existing background image from loaded template
+            # Extract just the filename if it's a full path or API URL
+            existing_filename = background_image_path
+            
+            # If it's an API URL, extract the path parameter
+            if '?path=' in existing_filename:
+                try:
+                    from urllib.parse import urlparse, parse_qs
+                    parsed = urlparse(existing_filename)
+                    query_params = parse_qs(parsed.query)
+                    if 'path' in query_params:
+                        existing_filename = query_params['path'][0]
+                except Exception:
+                    # Fallback: simple regex extraction
+                    # re is already imported at the top of the file
+                    match = re.search(r'[?&]path=([^&]+)', existing_filename)
+                    if match:
+                        existing_filename = match.group(1)
+            
+            # Remove path separators and query parameters
+            existing_filename = os.path.basename(existing_filename)
+            if '?' in existing_filename:
+                existing_filename = existing_filename.split('?')[0]
+            
+            # Check if the existing file exists in templates directory
+            existing_path = os.path.join(templates_dir, existing_filename)
+            if os.path.exists(existing_path):
+                # Use the existing filename
+                background_filename = existing_filename
+            else:
+                # If file doesn't exist, try to find it by template name pattern
+                # Look for files matching the template name pattern
+                potential_filename = f'{safe_name}_background.jpg'
+                potential_path = os.path.join(templates_dir, potential_filename)
+                if os.path.exists(potential_path):
+                    background_filename = potential_filename
+                else:
+                    return jsonify({'success': False, 'error': f'Background image file not found: {existing_filename}'}), 400
+        else:
+            return jsonify({'success': False, 'error': 'Background image is required'}), 400
+        
+        if not background_filename:
+            return jsonify({'success': False, 'error': 'Background image is required'}), 400
         
         # Get corner positions
         corners_json = request.form.get('corners')

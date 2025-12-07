@@ -605,11 +605,25 @@ class BoxGenerator:
                     italic = text_logo_settings.get('italic', False)
                     underline = text_logo_settings.get('underline', False)
                     uppercase = text_logo_settings.get('uppercase', False)
-                    alignment = text_logo_settings.get('alignment', 'center')
+                    alignment = text_logo_settings.get('alignment', 'middle')
                     user_max_chars = text_logo_settings.get('maxCharsPerLine', None)
                     
                     # Convert alignment to ImageMagick gravity
-                    gravity_map = {'left': 'west', 'center': 'center', 'right': 'east'}
+                    gravity_map = {
+                        'top-left': 'northwest',
+                        'top-middle': 'north',
+                        'top-right': 'northeast',
+                        'middle-left': 'west',
+                        'middle': 'center',
+                        'middle-right': 'east',
+                        'bottom-left': 'southwest',
+                        'bottom-middle': 'south',
+                        'bottom-right': 'southeast',
+                        # Legacy support for old values
+                        'left': 'west',
+                        'center': 'center',
+                        'right': 'east'
+                    }
                     gravity = gravity_map.get(alignment, 'center')
                     
                     # Use user-specified max chars per line, or calculate from font size and zone width

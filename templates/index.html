@@ -4440,6 +4440,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <h6 class="mb-3">Template Configuration</h6>
                             
                             <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="saveTemplateBtn">
+                                    <i class="bi bi-save me-1"></i>Save Template
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm me-2" id="createTemplateBtn">
+                                    <i class="bi bi-plus-circle me-1"></i>Create Template
+                                </button>
+                                <select class="form-select form-select-sm d-inline-block w-auto ms-2" id="templateSelect" style="width: 200px;">
+                                    <option value="">Select template...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
                                 <label for="templateBackgroundImage" class="form-label">Background Image</label>
                                 <input type="file" class="form-control" id="templateBackgroundImage" accept="image/*">
                                 <div class="form-text">Select background image file (will be used as base dimensions)</div>
@@ -4461,7 +4473,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <div class="form-text">Field where the generated box will be saved</div>
                             </div>
                             
-                            <div class="mb-3">
+                            <div class="mb-3" style="display: none;">
                                 <label class="form-label">Screenshot Corner Positions</label>
                                 <div class="row g-2">
                                     <div class="col-6">
@@ -4540,20 +4552,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <div class="mb-3">
                                         <label for="templateLogoAlignment" class="form-label">Text Alignment</label>
                                         <select class="form-select form-select-sm" id="templateLogoAlignment">
-                                            <option value="left">Left</option>
-                                            <option value="center" selected>Center</option>
-                                            <option value="right">Right</option>
+                                            <option value="top-left">Top Left</option>
+                                            <option value="top-middle">Top Middle</option>
+                                            <option value="top-right">Top Right</option>
+                                            <option value="middle-left">Middle Left</option>
+                                            <option value="middle" selected>Middle</option>
+                                            <option value="middle-right">Middle Right</option>
+                                            <option value="bottom-left">Bottom Left</option>
+                                            <option value="bottom-middle">Bottom Middle</option>
+                                            <option value="bottom-right">Bottom Right</option>
                                         </select>
                                     </div>
                                     <div class="mb-3">
                                         <label for="templateLogoMaxChars" class="form-label">Max Characters Per Line</label>
-                                        <input type="number" class="form-control form-control-sm" id="templateLogoMaxChars" placeholder="Auto" min="5" max="100" step="1">
-                                        <div class="form-text small">Leave empty for auto-calculation based on font size and zone width. Minimum: 5.</div>
+                                        <input type="number" class="form-control form-control-sm" id="templateLogoMaxChars" placeholder="Auto" max="100" step="1">
+                                        <div class="form-text small">Leave empty for auto-calculation based on font size and zone width.</div>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div class="mb-3" id="templateLogoZoneConfig">
+                            <div class="mb-3" id="templateLogoZoneConfig" style="display: none;">
                                 <label class="form-label">Logo Zone Position</label>
                                 <div class="row g-2">
                                     <div class="col-6">
@@ -4595,15 +4613,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 </div>
                                 <div class="form-text">Define the logo placement zone in the interactive preview</div>
                             </div>
-                            
-                            <div class="mb-3">
-                                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="saveTemplateBtn">
-                                    <i class="bi bi-save me-1"></i>Save Template
-                                </button>
-                                <select class="form-select form-select-sm d-inline-block w-auto ms-2" id="templateSelect" style="width: 200px;">
-                                    <option value="">Select template...</option>
-                                </select>
-                            </div>
                         </div>
                         
                         <div class="col-md-6">
@@ -4626,7 +4635,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 <!-- Interactive Preview Tab -->
                                 <div class="tab-pane fade" id="templateInteractivePane" role="tabpanel" aria-labelledby="templateInteractiveTab">
                             <div id="templatePreviewContainer" class="border p-3 bg-light" style="min-height: 400px; position: relative; overflow: auto; text-align: center;">
-                                <div class="text-muted text-center py-5" id="templatePreviewPlaceholder"></div>
                                 <cropper-canvas id="templateCropperCanvas" style="display: none; width: 600px; height: 900px;" background>
                                     <cropper-image id="templateCropperImage" rotatable="false" scalable="false" skewable="false" translatable="false" imageFit="contain"></cropper-image>
                                     <cropper-shade hidden></cropper-shade>
@@ -4662,19 +4670,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                 
                                 <!-- Result Preview Tab -->
                                 <div class="tab-pane fade" id="templateResultPreviewPane" role="tabpanel" aria-labelledby="templateResultPreviewTab">
-                                    <div class="alert alert-info">
-                                        <i class="bi bi-info-circle me-2"></i>
-                                        Preview of the generated box using the first selected game.
-                                    </div>
-                                    <div class="text-center mb-3">
-                                        <button type="button" class="btn btn-outline-primary" id="refreshTemplatePreviewBtn">
-                                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh Preview
-                                        </button>
-                                    </div>
                                     <div id="templateResultPreviewContainer" class="border p-3 bg-light text-center" style="min-height: 400px; position: relative;">
                                         <div class="text-muted py-5" id="templateResultPreviewPlaceholder">
                                             <i class="bi bi-image" style="font-size: 3rem;"></i>
-                                            <p class="mt-2">Click "Refresh Preview" to generate a preview</p>
                                         </div>
                                         <img id="templateResultPreviewImage" src="" alt="Box Preview" style="display: none; max-width: 100%; max-height: 800px;">
                                         <div id="templateResultPreviewLoading" style="display: none;">

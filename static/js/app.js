@@ -10768,10 +10768,9 @@ class GameCollectionManager {
         // Load media fields
         this.loadTemplateGeneratorFields();
         
-        // Show logo zone config and selection by default (logo is always present)
-        const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
+        // Show logo selection by default (logo is always present)
+        // Logo zone config is hidden - users position zones using the interactive preview
         const logoSelection = document.getElementById('templateLogoSelection');
-        if (logoZoneConfig) logoZoneConfig.style.display = 'block';
         if (logoSelection) {
             logoSelection.hidden = false;
             logoSelection.active = false;
@@ -10951,9 +10950,8 @@ class GameCollectionManager {
         
         // Show logo zone config by default (logo is always present)
         const logoTextConfig = document.getElementById('templateLogoTextConfig');
-        const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
+        // Logo zone config is hidden - users position zones using the interactive preview
         if (logoTextConfig) logoTextConfig.style.display = 'none';
-        if (logoZoneConfig) logoZoneConfig.style.display = 'block';
     }
     
     handleTemplateBackgroundChange(e) {
@@ -12056,12 +12054,10 @@ class GameCollectionManager {
     
     handleTemplateLogoSourceChange(source) {
         const logoTextConfig = document.getElementById('templateLogoTextConfig');
-        const logoZoneConfig = document.getElementById('templateLogoZoneConfig');
         const logoSelection = document.getElementById('templateLogoSelection');
         const screenshotSelection = document.getElementById('templateScreenshotSelection');
         
-        // Always show logo zone config (logo is always present)
-        if (logoZoneConfig) logoZoneConfig.style.display = 'block';
+        // Logo zone config is hidden - users position zones using the interactive preview
         
         // Always show logo selection
         if (logoSelection) {
@@ -12151,6 +12147,68 @@ class GameCollectionManager {
     }
     
     saveTemplate() {
+        // Get the currently selected template from the dropdown
+        const templateSelect = document.getElementById('templateSelect');
+        const selectedTemplate = templateSelect?.value;
+        
+        if (!selectedTemplate || !selectedTemplate.trim()) {
+            this.showAlert('Please select a template to overwrite', 'warning');
+            return;
+        }
+        
+        const trimmedName = selectedTemplate.trim();
+        
+        const backgroundInput = document.getElementById('templateBackgroundImage');
+        // Check if background image is selected OR loaded from template
+        const hasBackgroundFile = backgroundInput?.files[0];
+        const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
+        const hasLoadedFilename = backgroundInput?.getAttribute('data-loaded-filename');
+        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename)) {
+            this.showAlert('Please select a background image', 'warning');
+            return;
+        }
+        
+        // Update corners from cropper to ensure they're current
+        this.updateTemplateCornersFromCropper();
+        this.updateTemplateLogoCornersFromCropper();
+        
+        // Wait a moment for the updates to complete, then get the values
+        setTimeout(() => {
+            // Re-check the loaded path/filename in case it changed
+            const currentHasBackgroundFile = backgroundInput?.files[0];
+            const currentHasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
+            const currentHasLoadedFilename = backgroundInput?.getAttribute('data-loaded-filename');
+            
+            // Get screenshot corner positions
+            const corners = {
+                x1: parseInt(document.getElementById('templateCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateCorner4Y')?.value) || 0
+            };
+            
+            // Get logo configuration
+            const logoSource = document.querySelector('input[name="templateLogoSource"]:checked')?.value || 'marquee';
+            const logoCorners = {
+                x1: parseInt(document.getElementById('templateLogoCorner1X')?.value) || 0,
+                y1: parseInt(document.getElementById('templateLogoCorner1Y')?.value) || 0,
+                x2: parseInt(document.getElementById('templateLogoCorner2X')?.value) || 0,
+                y2: parseInt(document.getElementById('templateLogoCorner2Y')?.value) || 0,
+                x3: parseInt(document.getElementById('templateLogoCorner3X')?.value) || 0,
+                y3: parseInt(document.getElementById('templateLogoCorner3Y')?.value) || 0,
+                x4: parseInt(document.getElementById('templateLogoCorner4X')?.value) || 0,
+                y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
+            };
+            
+            this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, currentHasBackgroundFile, currentHasLoadedPath, false, currentHasLoadedFilename);
+        }, 100);
+    }
+    
+    createTemplate() {
         // Prompt for template name
         const templateName = prompt('Enter template name:');
         if (!templateName || !templateName.trim()) {
@@ -12166,7 +12224,8 @@ class GameCollectionManager {
         // Check if background image is selected OR loaded from template
         const hasBackgroundFile = backgroundInput?.files[0];
         const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
-        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath)) {
+        const hasLoadedFilename = backgroundInput?.getAttribute('data-loaded-filename');
+        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename)) {
             this.showAlert('Please select a background image', 'warning');
             return;
         }
@@ -12202,11 +12261,16 @@ class GameCollectionManager {
                 y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
             };
             
-            this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, hasBackgroundFile, hasLoadedPath);
+            // Re-check the loaded path/filename in case it changed
+            const currentHasBackgroundFile = backgroundInput?.files[0];
+            const currentHasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
+            const currentHasLoadedFilename = backgroundInput?.getAttribute('data-loaded-filename');
+            
+            this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, currentHasBackgroundFile, currentHasLoadedPath, true, currentHasLoadedFilename);
         }, 100);
     }
     
-    saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, hasBackgroundFile, hasLoadedPath) {
+    saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, hasBackgroundFile, hasLoadedPath, isNewTemplate = false, hasLoadedFilename = null) {
         
         // Get text logo settings if using text logo
         let textLogoSettings = null;
@@ -12214,7 +12278,7 @@ class GameCollectionManager {
             const font = document.getElementById('templateLogoFont')?.value || 'Arial';
             const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
             const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
-            const alignment = document.getElementById('templateLogoAlignment')?.value || 'center';
+            const alignment = document.getElementById('templateLogoAlignment')?.value || 'middle';
             const maxCharsPerLine = parseInt(document.getElementById('templateLogoMaxChars')?.value) || null;
             
             textLogoSettings = {
@@ -12232,6 +12296,11 @@ class GameCollectionManager {
         // If file is selected, use it; otherwise use the loaded path from template
         if (hasBackgroundFile) {
             formData.append('background_image', backgroundInput.files[0]);
+            console.log('Saving template with new background file:', backgroundInput.files[0].name);
+        } else if (hasLoadedFilename) {
+            // Use the pre-extracted filename from data-loaded-filename attribute
+            formData.append('background_image_path', hasLoadedFilename);
+            console.log('Saving template with existing background filename:', hasLoadedFilename);
         } else if (hasLoadedPath) {
             // Extract filename from path for saving
             // The path might be a full API URL like /api/template-image?path=filename.jpg&type=background
@@ -12244,12 +12313,16 @@ class GameCollectionManager {
                     if (urlParts.length > 1) {
                         const urlParams = new URLSearchParams(urlParts[1]);
                         filename = urlParams.get('path') || filename;
+                        // Decode the filename in case it's URL-encoded
+                        if (filename) {
+                            filename = decodeURIComponent(filename);
+                        }
                     }
                 } catch (e) {
                     // Fallback to simple extraction
                     const match = filename.match(/[?&]path=([^&]+)/);
                     if (match) {
-                        filename = match[1];
+                        filename = decodeURIComponent(match[1]);
                     }
                 }
             }
@@ -12266,6 +12339,12 @@ class GameCollectionManager {
             
             // For saving, we need to reference the existing file, so send the filename
             formData.append('background_image_path', filename);
+            console.log('Saving template with extracted background filename:', filename, 'from path:', hasLoadedPath);
+        } else {
+            // No background image found - this should not happen if validation worked
+            console.error('No background image found - hasBackgroundFile:', hasBackgroundFile, 'hasLoadedPath:', hasLoadedPath, 'hasLoadedFilename:', hasLoadedFilename);
+            this.showAlert('Error: Background image is required', 'danger');
+            return;
         }
         formData.append('corners', JSON.stringify(corners));
         formData.append('logo_source', logoSource);
@@ -12283,7 +12362,15 @@ class GameCollectionManager {
         .then(data => {
             if (data.success) {
                 this.showAlert('Template saved successfully', 'success');
-                this.loadTemplateList();
+                this.loadTemplateList(() => {
+                    // If this is a new template, select it in the dropdown
+                    if (isNewTemplate) {
+                        const templateSelect = document.getElementById('templateSelect');
+                        if (templateSelect) {
+                            templateSelect.value = trimmedName;
+                        }
+                    }
+                });
             } else {
                 this.showAlert('Error saving template: ' + (data.error || 'Unknown error'), 'danger');
             }
@@ -12294,12 +12381,15 @@ class GameCollectionManager {
         });
     }
     
-    loadTemplateList() {
+    loadTemplateList(callback) {
         fetch('/api/list-box-templates')
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('templateSelect');
-            if (!select) return;
+            if (!select) {
+                if (callback) callback();
+                return;
+            }
             
             select.innerHTML = '<option value="">Select template...</option>';
             
@@ -12311,9 +12401,12 @@ class GameCollectionManager {
                     select.appendChild(option);
                 });
             }
+            
+            if (callback) callback();
         })
         .catch(error => {
             console.error('Error loading templates:', error);
+            if (callback) callback();
         });
     }
     
@@ -12600,7 +12693,7 @@ class GameCollectionManager {
             const font = document.getElementById('templateLogoFont')?.value || 'Arial';
             const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
             const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
-            const alignment = document.getElementById('templateLogoAlignment')?.value || 'center';
+            const alignment = document.getElementById('templateLogoAlignment')?.value || 'middle';
             const maxCharsPerLine = parseInt(document.getElementById('templateLogoMaxChars')?.value) || null;
             
             textLogoSettings = {
@@ -12745,7 +12838,7 @@ class GameCollectionManager {
                 const font = document.getElementById('templateLogoFont')?.value || 'Arial';
                 const color = document.getElementById('templateLogoColorText')?.value || '#ffffff';
                 const fontSize = parseInt(document.getElementById('templateLogoFontSize')?.value) || null;
-                const alignment = document.getElementById('templateLogoAlignment')?.value || 'center';
+                const alignment = document.getElementById('templateLogoAlignment')?.value || 'middle';
                 const maxCharsPerLine = parseInt(document.getElementById('templateLogoMaxChars')?.value) || null;
                 
                 textLogoSettings = {
@@ -24377,6 +24470,11 @@ class GameCollectionManager {
             saveTemplateBtn.addEventListener('click', () => this.saveTemplate());
         }
         
+        const createTemplateBtn = document.getElementById('createTemplateBtn');
+        if (createTemplateBtn) {
+            createTemplateBtn.addEventListener('click', () => this.createTemplate());
+        }
+        
         const templateSelect = document.getElementById('templateSelect');
         if (templateSelect) {
             templateSelect.addEventListener('change', () => this.loadTemplateFromSelect());
@@ -24393,10 +24491,30 @@ class GameCollectionManager {
             refreshTemplatePreviewBtn.addEventListener('click', () => this.refreshTemplateBoxPreview());
         }
         
+        // Helper function to auto-refresh preview if Preview tab is active
+        const autoRefreshPreviewIfActive = () => {
+            const previewTab = document.getElementById('templateResultPreviewTab');
+            const previewPane = document.getElementById('templateResultPreviewPane');
+            
+            if (previewTab && previewPane && 
+                previewTab.classList.contains('active') && 
+                previewPane.classList.contains('show') && 
+                previewPane.classList.contains('active')) {
+                // Preview tab is active, refresh preview
+                setTimeout(() => {
+                    this.refreshTemplateBoxPreview();
+                }, 100);
+            }
+        };
+        
         // Logo configuration event listeners
         const logoSourceRadios = document.querySelectorAll('input[name="templateLogoSource"]');
         logoSourceRadios.forEach(radio => {
-            radio.addEventListener('change', (e) => this.handleTemplateLogoSourceChange(e.target.value));
+            radio.addEventListener('change', (e) => {
+                this.handleTemplateLogoSourceChange(e.target.value);
+                // Auto-refresh preview when logo source changes
+                autoRefreshPreviewIfActive();
+            });
         });
         
         // Color picker sync for template logo
@@ -24405,12 +24523,53 @@ class GameCollectionManager {
         if (templateLogoColor && templateLogoColorText) {
             templateLogoColor.addEventListener('input', (e) => {
                 templateLogoColorText.value = e.target.value;
+                // Auto-refresh preview when color changes
+                autoRefreshPreviewIfActive();
             });
             templateLogoColorText.addEventListener('input', (e) => {
                 const value = e.target.value;
                 if (/^#[0-9A-F]{6}$/i.test(value)) {
                     templateLogoColor.value = value;
                 }
+                // Auto-refresh preview when color text changes
+                autoRefreshPreviewIfActive();
+            });
+        }
+        
+        // Auto-refresh preview when text logo settings change
+        const templateLogoFont = document.getElementById('templateLogoFont');
+        if (templateLogoFont) {
+            templateLogoFont.addEventListener('change', () => {
+                autoRefreshPreviewIfActive();
+            });
+        }
+        
+        const templateLogoAlignment = document.getElementById('templateLogoAlignment');
+        if (templateLogoAlignment) {
+            templateLogoAlignment.addEventListener('change', () => {
+                autoRefreshPreviewIfActive();
+            });
+        }
+        
+        const templateLogoMaxChars = document.getElementById('templateLogoMaxChars');
+        if (templateLogoMaxChars) {
+            templateLogoMaxChars.addEventListener('input', () => {
+                autoRefreshPreviewIfActive();
+            });
+        }
+        
+        const templateLogoFontSize = document.getElementById('templateLogoFontSize');
+        if (templateLogoFontSize) {
+            templateLogoFontSize.addEventListener('input', () => {
+                autoRefreshPreviewIfActive();
+            });
+        }
+        
+        // Auto-refresh preview when screenshot field changes
+        const templateScreenshotField = document.getElementById('templateScreenshotField');
+        if (templateScreenshotField) {
+            templateScreenshotField.addEventListener('change', () => {
+                autoRefreshPreviewIfActive();
             });
         }
         
@@ -24485,6 +24644,27 @@ class GameCollectionManager {
                 if (cropperImage && cropperImage.src) {
                     setTimeout(() => {
                         this.refreshTemplateCropperCanvas();
+                    }, 100);
+                }
+            });
+        }
+        
+        // Auto-generate preview when switching to Preview tab
+        const templateResultPreviewTab = document.getElementById('templateResultPreviewTab');
+        if (templateResultPreviewTab) {
+            templateResultPreviewTab.addEventListener('shown.bs.tab', () => {
+                // Check if background image is loaded (either from file input or template)
+                const backgroundInput = document.getElementById('templateBackgroundImage');
+                const cropperImage = document.getElementById('templateCropperImage');
+                const hasBackgroundFile = backgroundInput?.files[0];
+                const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
+                const hasImageSrc = cropperImage?.src;
+                
+                // Only generate preview if we have a background image
+                if ((hasBackgroundFile || hasLoadedPath || hasImageSrc) && this.selectedGames && this.selectedGames.length > 0) {
+                    // Small delay to ensure tab is fully rendered
+                    setTimeout(() => {
+                        this.refreshTemplateBoxPreview();
                     }, 100);
                 }
             });
