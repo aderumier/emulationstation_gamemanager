@@ -1897,6 +1897,11 @@ class GameCollectionManager {
             await this.ensurePanelGameSavedIfOpen();
             this.openLogoGeneratorModal();
         });
+        document.getElementById('global3DBoxGeneratorBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            await this.ensurePanelGameSavedIfOpen();
+            this.open3DBoxGeneratorModal();
+        });
         document.getElementById('startLogoGeneratorBtn').addEventListener('click', () => this.startLogoGeneration());
         document.getElementById('startBox2DGeneratorBtn').addEventListener('click', () => this.startBox2DGeneration());
         // Sync color picker with text input and update preview
@@ -13317,6 +13322,825 @@ class GameCollectionManager {
         }
     }
 
+    // ==================== 3D Box Generator Methods ====================
+    
+    open3DBoxGeneratorModal() {
+        if (!this.currentSystem) {
+            this.showAlert('No system selected', 'warning');
+            return;
+        }
+        
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game first', 'warning');
+            return;
+        }
+        
+        // Initialize 3D box generator state
+        this.box3DCorners = {
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 0, y: 0 },
+            bottomLeft: { x: 0, y: 0 },
+            bottomRight: { x: 0, y: 0 }
+        };
+        this.box3DImage = null;
+        this.box3DImageNaturalWidth = 0;
+        this.box3DImageNaturalHeight = 0;
+        this.box3DDisplayScale = 1;
+        this.box3DDragging = null;
+        
+        // Load media fields
+        this.load3DBoxGeneratorFields();
+        
+        // Load saved templates
+        this.load3DTemplateList();
+        
+        // Reset canvas
+        this.reset3DBoxCanvas();
+        
+        // Setup canvas event listeners
+        this.setup3DBoxCanvas();
+        
+        // Show the modal
+        const modalElement = document.getElementById('box3DGeneratorModal');
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+    
+    async load3DBoxGeneratorFields() {
+        const sourceField = document.getElementById('template3DSourceField');
+        const targetField = document.getElementById('template3DTargetField');
+        
+        if (!sourceField || !targetField) return;
+        
+        try {
+            // Fetch config and populate dropdowns (same as 2D box template generator)
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            if (response.ok && config.media_fields) {
+                const mediaFields = config.media_fields;
+                
+                sourceField.innerHTML = '<option value="">Select source field...</option>';
+                targetField.innerHTML = '<option value="">Select target field...</option>';
+                
+                Object.keys(mediaFields).forEach(field => {
+                    const option1 = document.createElement('option');
+                    option1.value = field;
+                    option1.textContent = field;
+                    sourceField.appendChild(option1);
+                    
+                    const option2 = document.createElement('option');
+                    option2.value = field;
+                    option2.textContent = field;
+                    targetField.appendChild(option2);
+                });
+                
+                // Restore saved values from localStorage
+                const savedSourceField = localStorage.getItem('3dboxGenerator_sourceField');
+                const savedTargetField = localStorage.getItem('3dboxGenerator_targetField');
+                
+                if (savedSourceField && sourceField.querySelector(`option[value="${savedSourceField}"]`)) {
+                    sourceField.value = savedSourceField;
+                }
+                if (savedTargetField && targetField.querySelector(`option[value="${savedTargetField}"]`)) {
+                    targetField.value = savedTargetField;
+                }
+                
+                // Add event listeners to save values when they change
+                sourceField.addEventListener('change', () => {
+                    localStorage.setItem('3dboxGenerator_sourceField', sourceField.value);
+                });
+                targetField.addEventListener('change', () => {
+                    localStorage.setItem('3dboxGenerator_targetField', targetField.value);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading media fields:', error);
+        }
+    }
+    
+    reset3DBoxCanvas() {
+        const canvas = document.getElementById('template3DCanvas');
+        const placeholder = document.getElementById('template3DPlaceholder');
+        
+        if (canvas) {
+            canvas.style.display = 'none';
+        }
+        if (placeholder) {
+            placeholder.style.display = 'block';
+        }
+        
+        // Reset corner inputs
+        ['template3DTopLeftX', 'template3DTopLeftY', 'template3DTopRightX', 'template3DTopRightY',
+         'template3DBottomLeftX', 'template3DBottomLeftY', 'template3DBottomRightX', 'template3DBottomRightY'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) input.value = '0';
+        });
+        
+        // Reset corners state
+        this.box3DCorners = {
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 0, y: 0 },
+            bottomLeft: { x: 0, y: 0 },
+            bottomRight: { x: 0, y: 0 }
+        };
+    }
+    
+    setup3DBoxCanvas() {
+        // Initialize dragging state
+        this.box3DDragging = null;
+        
+        // Event listeners are set up in the main event listener setup
+        // This method is kept for any additional canvas initialization if needed
+    }
+    
+    update3DCornersFromInputs() {
+        // Read corner values from input fields and update internal state
+        this.box3DCorners = {
+            topLeft: {
+                x: parseInt(document.getElementById('template3DTopLeftX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DTopLeftY')?.value) || 0
+            },
+            topRight: {
+                x: parseInt(document.getElementById('template3DTopRightX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DTopRightY')?.value) || 0
+            },
+            bottomLeft: {
+                x: parseInt(document.getElementById('template3DBottomLeftX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DBottomLeftY')?.value) || 0
+            },
+            bottomRight: {
+                x: parseInt(document.getElementById('template3DBottomRightX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DBottomRightY')?.value) || 0
+            }
+        };
+        
+        // Redraw canvas with updated positions
+        this.draw3DBoxCanvas();
+    }
+    
+    handle3DBackgroundChange(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            this.load3DBoxImage(e.target.result);
+        };
+        reader.readAsDataURL(file);
+        
+        // Clear loaded template filename attributes
+        const fileInput = document.getElementById('template3DBackgroundImage');
+        if (fileInput) {
+            fileInput.removeAttribute('data-loaded-filename');
+            fileInput.removeAttribute('data-loaded-path');
+        }
+    }
+    
+    load3DBoxImage(imageSrc) {
+        const canvas = document.getElementById('template3DCanvas');
+        const placeholder = document.getElementById('template3DPlaceholder');
+        const container = document.getElementById('template3DPreviewContainer');
+        
+        if (!canvas || !container) return;
+        
+        const img = new Image();
+        img.onload = () => {
+            this.box3DImage = img;
+            this.box3DImageNaturalWidth = img.naturalWidth;
+            this.box3DImageNaturalHeight = img.naturalHeight;
+            
+            // Calculate display scale to fit in container
+            const containerWidth = container.clientWidth - 20;
+            const maxHeight = 600;
+            
+            const scaleX = containerWidth / img.naturalWidth;
+            const scaleY = maxHeight / img.naturalHeight;
+            this.box3DDisplayScale = Math.min(scaleX, scaleY, 1);
+            
+            const displayWidth = Math.round(img.naturalWidth * this.box3DDisplayScale);
+            const displayHeight = Math.round(img.naturalHeight * this.box3DDisplayScale);
+            
+            canvas.width = displayWidth;
+            canvas.height = displayHeight;
+            canvas.style.display = 'block';
+            canvas.style.margin = '0 auto';
+            
+            if (placeholder) {
+                placeholder.style.display = 'none';
+            }
+            
+            this.draw3DBoxCanvas();
+        };
+        img.src = imageSrc;
+    }
+    
+    draw3DBoxCanvas() {
+        const canvas = document.getElementById('template3DCanvas');
+        if (!canvas || !this.box3DImage) return;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw image
+        ctx.drawImage(this.box3DImage, 0, 0, canvas.width, canvas.height);
+        
+        // Get active corner from radio buttons
+        const activeCornerRadio = document.querySelector('input[name="active3DCorner"]:checked');
+        const activeCorner = activeCornerRadio?.value || 'topLeft';
+        
+        // Draw corner markers
+        const corners = [
+            { key: 'topLeft', color: '#ff0000', label: 'TL' },
+            { key: 'topRight', color: '#00ff00', label: 'TR' },
+            { key: 'bottomLeft', color: '#0000ff', label: 'BL' },
+            { key: 'bottomRight', color: '#ffff00', label: 'BR' }
+        ];
+        
+        corners.forEach(corner => {
+            const pos = this.box3DCorners[corner.key];
+            if (pos.x > 0 || pos.y > 0) {
+                // Convert natural coordinates to display coordinates
+                const displayX = pos.x * this.box3DDisplayScale;
+                const displayY = pos.y * this.box3DDisplayScale;
+                
+                // Check if this is the active or dragging corner
+                const isActive = corner.key === activeCorner || corner.key === this.box3DDragging;
+                
+                // Draw crosshair
+                ctx.strokeStyle = corner.color;
+                ctx.lineWidth = isActive ? 3 : 2;
+                
+                // Vertical line
+                ctx.beginPath();
+                ctx.moveTo(displayX, displayY - 15);
+                ctx.lineTo(displayX, displayY + 15);
+                ctx.stroke();
+                
+                // Horizontal line
+                ctx.beginPath();
+                ctx.moveTo(displayX - 15, displayY);
+                ctx.lineTo(displayX + 15, displayY);
+                ctx.stroke();
+                
+                // Draw circle (filled if active/dragging)
+                ctx.beginPath();
+                ctx.arc(displayX, displayY, isActive ? 10 : 8, 0, 2 * Math.PI);
+                if (isActive) {
+                    ctx.fillStyle = corner.color;
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                }
+                ctx.stroke();
+                
+                // Draw label with background for visibility
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(displayX + 10, displayY - 22, 20, 14);
+                ctx.fillStyle = corner.color;
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(corner.label, displayX + 12, displayY - 11);
+            }
+        });
+        
+        // Draw connecting lines between corners if all are set
+        const allSet = corners.every(c => this.box3DCorners[c.key].x > 0 || this.box3DCorners[c.key].y > 0);
+        if (allSet) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            
+            const tl = this.box3DCorners.topLeft;
+            const tr = this.box3DCorners.topRight;
+            const bl = this.box3DCorners.bottomLeft;
+            const br = this.box3DCorners.bottomRight;
+            
+            ctx.beginPath();
+            ctx.moveTo(tl.x * this.box3DDisplayScale, tl.y * this.box3DDisplayScale);
+            ctx.lineTo(tr.x * this.box3DDisplayScale, tr.y * this.box3DDisplayScale);
+            ctx.lineTo(br.x * this.box3DDisplayScale, br.y * this.box3DDisplayScale);
+            ctx.lineTo(bl.x * this.box3DDisplayScale, bl.y * this.box3DDisplayScale);
+            ctx.closePath();
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+        }
+    }
+    
+    handle3DCanvasMouseDown(event) {
+        const canvas = document.getElementById('template3DCanvas');
+        if (!canvas || !this.box3DImage) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const displayX = event.clientX - rect.left;
+        const displayY = event.clientY - rect.top;
+        
+        // Check if clicking near an existing crosshair (within 20 pixels)
+        const hitRadius = 20;
+        const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+        
+        for (const corner of corners) {
+            const pos = this.box3DCorners[corner];
+            if (pos.x > 0 || pos.y > 0) {
+                const cornerDisplayX = pos.x * this.box3DDisplayScale;
+                const cornerDisplayY = pos.y * this.box3DDisplayScale;
+                const distance = Math.sqrt(
+                    Math.pow(displayX - cornerDisplayX, 2) + 
+                    Math.pow(displayY - cornerDisplayY, 2)
+                );
+                
+                if (distance <= hitRadius) {
+                    // Start dragging this corner
+                    this.box3DDragging = corner;
+                    canvas.style.cursor = 'grabbing';
+                    
+                    // Select this corner in the radio buttons
+                    const radioId = `corner3D${corner.charAt(0).toUpperCase() + corner.slice(1)}`;
+                    const radio = document.getElementById(radioId);
+                    if (radio) radio.checked = true;
+                    
+                    return;
+                }
+            }
+        }
+        
+        // Not near any crosshair - place new crosshair at click position
+        const naturalX = Math.round(displayX / this.box3DDisplayScale);
+        const naturalY = Math.round(displayY / this.box3DDisplayScale);
+        
+        // Get active corner
+        const activeCorner = document.querySelector('input[name="active3DCorner"]:checked')?.value || 'topLeft';
+        
+        // Update corner position
+        this.box3DCorners[activeCorner] = { x: naturalX, y: naturalY };
+        
+        // Update input fields
+        this.update3DCornerInputs();
+        
+        // Redraw canvas
+        this.draw3DBoxCanvas();
+        
+        // Auto-advance to next corner
+        this.advance3DCorner(activeCorner);
+    }
+    
+    handle3DCanvasMouseMove(event) {
+        const canvas = document.getElementById('template3DCanvas');
+        if (!canvas || !this.box3DImage) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const displayX = event.clientX - rect.left;
+        const displayY = event.clientY - rect.top;
+        
+        // If dragging a corner, update its position
+        if (this.box3DDragging) {
+            const naturalX = Math.round(displayX / this.box3DDisplayScale);
+            const naturalY = Math.round(displayY / this.box3DDisplayScale);
+            
+            // Clamp to image bounds
+            const clampedX = Math.max(0, Math.min(naturalX, this.box3DImageNaturalWidth));
+            const clampedY = Math.max(0, Math.min(naturalY, this.box3DImageNaturalHeight));
+            
+            this.box3DCorners[this.box3DDragging] = { x: clampedX, y: clampedY };
+            this.update3DCornerInputs();
+            this.draw3DBoxCanvas();
+            return;
+        }
+        
+        // Not dragging - check if hovering over a crosshair to change cursor
+        const hitRadius = 20;
+        const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+        let hovering = false;
+        
+        for (const corner of corners) {
+            const pos = this.box3DCorners[corner];
+            if (pos.x > 0 || pos.y > 0) {
+                const cornerDisplayX = pos.x * this.box3DDisplayScale;
+                const cornerDisplayY = pos.y * this.box3DDisplayScale;
+                const distance = Math.sqrt(
+                    Math.pow(displayX - cornerDisplayX, 2) + 
+                    Math.pow(displayY - cornerDisplayY, 2)
+                );
+                
+                if (distance <= hitRadius) {
+                    hovering = true;
+                    break;
+                }
+            }
+        }
+        
+        canvas.style.cursor = hovering ? 'grab' : 'crosshair';
+    }
+    
+    handle3DCanvasMouseUp(event) {
+        const canvas = document.getElementById('template3DCanvas');
+        if (this.box3DDragging) {
+            this.box3DDragging = null;
+            if (canvas) {
+                canvas.style.cursor = 'crosshair';
+            }
+        }
+    }
+    
+    handle3DCanvasWheel(event) {
+        event.preventDefault();
+        
+        const canvas = document.getElementById('template3DCanvas');
+        if (!canvas || !this.box3DImage) return;
+        
+        // Zoom factor
+        const zoomSpeed = 0.1;
+        const minScale = 0.1;
+        const maxScale = 3.0;
+        
+        // Calculate new scale
+        let newScale = this.box3DDisplayScale;
+        if (event.deltaY < 0) {
+            // Zoom in
+            newScale = Math.min(maxScale, this.box3DDisplayScale * (1 + zoomSpeed));
+        } else {
+            // Zoom out
+            newScale = Math.max(minScale, this.box3DDisplayScale * (1 - zoomSpeed));
+        }
+        
+        // Update scale and redraw
+        this.box3DDisplayScale = newScale;
+        
+        // Resize canvas
+        const displayWidth = Math.round(this.box3DImageNaturalWidth * this.box3DDisplayScale);
+        const displayHeight = Math.round(this.box3DImageNaturalHeight * this.box3DDisplayScale);
+        
+        canvas.width = displayWidth;
+        canvas.height = displayHeight;
+        
+        // Redraw
+        this.draw3DBoxCanvas();
+    }
+    
+    update3DCornerInputs() {
+        const mapping = {
+            topLeft: ['template3DTopLeftX', 'template3DTopLeftY'],
+            topRight: ['template3DTopRightX', 'template3DTopRightY'],
+            bottomLeft: ['template3DBottomLeftX', 'template3DBottomLeftY'],
+            bottomRight: ['template3DBottomRightX', 'template3DBottomRightY']
+        };
+        
+        Object.keys(mapping).forEach(corner => {
+            const [xId, yId] = mapping[corner];
+            const xInput = document.getElementById(xId);
+            const yInput = document.getElementById(yId);
+            
+            if (xInput) xInput.value = this.box3DCorners[corner].x;
+            if (yInput) yInput.value = this.box3DCorners[corner].y;
+        });
+    }
+    
+    advance3DCorner(currentCorner) {
+        const order = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
+        const currentIndex = order.indexOf(currentCorner);
+        const nextIndex = (currentIndex + 1) % order.length;
+        const nextCorner = order[nextIndex];
+        
+        const radioId = `corner3D${nextCorner.charAt(0).toUpperCase() + nextCorner.slice(1)}`;
+        const radio = document.getElementById(radioId);
+        if (radio) {
+            radio.checked = true;
+        }
+    }
+    
+    areAll3DCornersZero() {
+        return this.box3DCorners.topLeft.x === 0 && this.box3DCorners.topLeft.y === 0 &&
+               this.box3DCorners.topRight.x === 0 && this.box3DCorners.topRight.y === 0 &&
+               this.box3DCorners.bottomLeft.x === 0 && this.box3DCorners.bottomLeft.y === 0 &&
+               this.box3DCorners.bottomRight.x === 0 && this.box3DCorners.bottomRight.y === 0;
+    }
+    
+    load3DTemplateList() {
+        fetch('/api/list-3dbox-templates')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('template3DSelect');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select template...</option>';
+                
+                if (data.templates && data.templates.length > 0) {
+                    data.templates.forEach(template => {
+                        const option = document.createElement('option');
+                        option.value = template.name;
+                        option.textContent = template.name;
+                        select.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading 3D templates:', error);
+            });
+    }
+    
+    load3DTemplate(templateName) {
+        if (!templateName) return;
+        
+        fetch(`/api/load-3dbox-template?name=${encodeURIComponent(templateName)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Load corner positions
+                    if (data.corners) {
+                        this.box3DCorners = {
+                            topLeft: { x: data.corners.topLeft?.x || 0, y: data.corners.topLeft?.y || 0 },
+                            topRight: { x: data.corners.topRight?.x || 0, y: data.corners.topRight?.y || 0 },
+                            bottomLeft: { x: data.corners.bottomLeft?.x || 0, y: data.corners.bottomLeft?.y || 0 },
+                            bottomRight: { x: data.corners.bottomRight?.x || 0, y: data.corners.bottomRight?.y || 0 }
+                        };
+                        this.update3DCornerInputs();
+                    }
+                    
+                    // Load background image
+                    if (data.background_image_path) {
+                        let imageUrl = data.background_image_path;
+                        if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/api/')) {
+                            const extractedFilename = imageUrl.split('/').pop() || imageUrl;
+                            imageUrl = `/api/3dbox-template-image?path=${encodeURIComponent(extractedFilename)}&type=background`;
+                        }
+                        
+                        // Store loaded path for saving
+                        const fileInput = document.getElementById('template3DBackgroundImage');
+                        if (fileInput) {
+                            const helperText = fileInput.parentElement.querySelector('.form-text');
+                            const filename = imageUrl.split('/').pop()?.split('?')[0] || 'template';
+                            if (helperText) {
+                                helperText.textContent = `Current: ${filename} (loaded from template)`;
+                                helperText.style.color = '#28a745';
+                            }
+                            fileInput.setAttribute('data-loaded-filename', filename);
+                            fileInput.setAttribute('data-loaded-path', data.background_image_path);
+                        }
+                        
+                        this.load3DBoxImage(imageUrl);
+                    }
+                    
+                    this.showAlert('Template loaded successfully', 'success');
+                } else {
+                    this.showAlert('Error loading template: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading template:', error);
+                this.showAlert('Error loading template: ' + error.message, 'danger');
+            });
+    }
+    
+    save3DTemplate(isNew = false) {
+        let templateName;
+        
+        if (isNew) {
+            templateName = prompt('Enter template name:');
+            if (!templateName || !templateName.trim()) {
+                if (templateName !== null) {
+                    this.showAlert('Template name cannot be empty', 'warning');
+                }
+                return;
+            }
+            templateName = templateName.trim();
+        } else {
+            const select = document.getElementById('template3DSelect');
+            templateName = select?.value;
+            if (!templateName || !templateName.trim()) {
+                this.showAlert('Please select a template to update', 'warning');
+                return;
+            }
+            templateName = templateName.trim();
+        }
+        
+        const fileInput = document.getElementById('template3DBackgroundImage');
+        const hasBackgroundFile = fileInput?.files[0];
+        const hasLoadedPath = fileInput?.getAttribute('data-loaded-path');
+        const hasLoadedFilename = fileInput?.getAttribute('data-loaded-filename');
+        
+        if (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename) {
+            this.showAlert('Please select a 3D box template image', 'warning');
+            return;
+        }
+        
+        if (this.areAll3DCornersZero()) {
+            this.showAlert('Please set all corner positions on the canvas', 'warning');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('template_name', templateName);
+        formData.append('corners', JSON.stringify(this.box3DCorners));
+        
+        if (hasBackgroundFile) {
+            formData.append('background_image', fileInput.files[0]);
+        } else if (hasLoadedFilename) {
+            formData.append('background_image_path', hasLoadedFilename);
+        } else if (hasLoadedPath) {
+            formData.append('background_image_path', hasLoadedPath);
+        }
+        
+        fetch('/api/save-3dbox-template', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.showAlert('Template saved successfully', 'success');
+                    this.load3DTemplateList();
+                    
+                    // Select the saved template
+                    setTimeout(() => {
+                        const select = document.getElementById('template3DSelect');
+                        if (select) {
+                            select.value = templateName;
+                        }
+                    }, 100);
+                } else {
+                    this.showAlert('Error saving template: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving template:', error);
+                this.showAlert('Error saving template: ' + error.message, 'danger');
+            });
+    }
+    
+    async generate3DBoxPreview() {
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game', 'warning');
+            return;
+        }
+        
+        const sourceField = document.getElementById('template3DSourceField')?.value;
+        if (!sourceField) {
+            this.showAlert('Please select a 2D box source field', 'warning');
+            return;
+        }
+        
+        const fileInput = document.getElementById('template3DBackgroundImage');
+        const hasBackgroundFile = fileInput?.files[0];
+        const hasLoadedPath = fileInput?.getAttribute('data-loaded-path');
+        
+        if (!hasBackgroundFile && !hasLoadedPath && !this.box3DImage) {
+            this.showAlert('Please select a 3D box template image', 'warning');
+            return;
+        }
+        
+        if (this.areAll3DCornersZero()) {
+            this.showAlert('Please set all corner positions', 'warning');
+            return;
+        }
+        
+        // Show loading
+        const placeholder = document.getElementById('template3DResultPreviewPlaceholder');
+        const loading = document.getElementById('template3DResultPreviewLoading');
+        const previewImage = document.getElementById('template3DResultPreviewImage');
+        
+        if (placeholder) placeholder.style.display = 'none';
+        if (loading) loading.style.display = 'block';
+        if (previewImage) previewImage.style.display = 'none';
+        
+        try {
+            const formData = new FormData();
+            formData.append('system_name', this.currentSystem);
+            formData.append('game_path', this.selectedGames[0].path);
+            formData.append('source_field', sourceField);
+            formData.append('corners', JSON.stringify(this.box3DCorners));
+            
+            if (hasBackgroundFile) {
+                formData.append('background_image', fileInput.files[0]);
+            } else if (hasLoadedPath) {
+                let filename = hasLoadedPath;
+                if (filename.includes('?path=')) {
+                    const urlParams = new URLSearchParams(filename.split('?')[1]);
+                    filename = urlParams.get('path') || filename;
+                }
+                if (filename.includes('/')) {
+                    filename = filename.split('/').pop();
+                }
+                formData.append('background_image_path', filename);
+            }
+            
+            const response = await fetch('/api/preview-3dbox', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                
+                if (previewImage) {
+                    previewImage.src = imageUrl;
+                    previewImage.style.display = 'block';
+                }
+            } else {
+                const data = await response.json();
+                this.showAlert('Error generating preview: ' + (data.error || 'Unknown error'), 'danger');
+                if (placeholder) placeholder.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error generating preview:', error);
+            this.showAlert('Error generating preview: ' + error.message, 'danger');
+            if (placeholder) placeholder.style.display = 'block';
+        } finally {
+            if (loading) loading.style.display = 'none';
+        }
+    }
+    
+    async start3DBoxGeneration() {
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game first', 'warning');
+            return;
+        }
+        
+        const sourceField = document.getElementById('template3DSourceField')?.value;
+        const targetField = document.getElementById('template3DTargetField')?.value;
+        const overwriteExisting = document.getElementById('template3DOverwriteExisting')?.checked ?? true;
+        
+        if (!sourceField) {
+            this.showAlert('Please select a 2D box source field', 'warning');
+            return;
+        }
+        
+        if (!targetField) {
+            this.showAlert('Please select a target media field', 'warning');
+            return;
+        }
+        
+        const fileInput = document.getElementById('template3DBackgroundImage');
+        const hasBackgroundFile = fileInput?.files[0];
+        const hasLoadedPath = fileInput?.getAttribute('data-loaded-path');
+        const hasLoadedFilename = fileInput?.getAttribute('data-loaded-filename');
+        
+        if (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename) {
+            this.showAlert('Please select a 3D box template image', 'warning');
+            return;
+        }
+        
+        if (this.areAll3DCornersZero()) {
+            this.showAlert('Please set all corner positions', 'warning');
+            return;
+        }
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('box3DGeneratorModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        try {
+            const formData = new FormData();
+            formData.append('system_name', this.currentSystem);
+            formData.append('game_paths', JSON.stringify(this.selectedGames.map(g => g.path)));
+            formData.append('source_field', sourceField);
+            formData.append('target_field', targetField);
+            formData.append('corners', JSON.stringify(this.box3DCorners));
+            formData.append('overwrite_existing', overwriteExisting ? 'true' : 'false');
+            
+            if (hasBackgroundFile) {
+                formData.append('background_image', fileInput.files[0]);
+            } else if (hasLoadedFilename) {
+                formData.append('background_image_path', hasLoadedFilename);
+            } else if (hasLoadedPath) {
+                let filename = hasLoadedPath;
+                if (filename.includes('?path=')) {
+                    const urlParams = new URLSearchParams(filename.split('?')[1]);
+                    filename = urlParams.get('path') || filename;
+                }
+                if (filename.includes('/')) {
+                    filename = filename.split('/').pop();
+                }
+                formData.append('background_image_path', filename);
+            }
+            
+            const response = await fetch('/api/generate-3dbox', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert(`3D Box generation started for ${this.selectedGames.length} game(s)`, 'success');
+                setTimeout(() => {
+                    this.loadGames();
+                }, 2000);
+            } else {
+                this.showAlert('Error starting 3D box generation: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (error) {
+            console.error('Error starting 3D box generation:', error);
+            this.showAlert('Error starting 3D box generation: ' + error.message, 'danger');
+        }
+    }
+    
+    // ==================== End 3D Box Generator Methods ====================
+
     openYoutubeDownloadModal() {
         if (!this.currentSystem) {
             this.showAlert('No system selected', 'error');
@@ -24517,6 +25341,64 @@ class GameCollectionManager {
         const generateTemplateBoxBtn = document.getElementById('generateTemplateBoxBtn');
         if (generateTemplateBoxBtn) {
             generateTemplateBoxBtn.addEventListener('click', () => this.startTemplateBoxGeneration());
+        }
+        
+        // 3D Box Generator event listeners
+        const save3DTemplateBtn = document.getElementById('save3DTemplateBtn');
+        if (save3DTemplateBtn) {
+            save3DTemplateBtn.addEventListener('click', () => this.save3DTemplate(false));
+        }
+        
+        const create3DTemplateBtn = document.getElementById('create3DTemplateBtn');
+        if (create3DTemplateBtn) {
+            create3DTemplateBtn.addEventListener('click', () => this.save3DTemplate(true));
+        }
+        
+        const template3DSelect = document.getElementById('template3DSelect');
+        if (template3DSelect) {
+            template3DSelect.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    this.load3DTemplate(e.target.value);
+                }
+            });
+        }
+        
+        const generate3DBoxBtn = document.getElementById('generate3DBoxBtn');
+        if (generate3DBoxBtn) {
+            generate3DBoxBtn.addEventListener('click', () => this.start3DBoxGeneration());
+        }
+        
+        // 3D Box preview tab click handler
+        const template3DResultPreviewTab = document.getElementById('template3DResultPreviewTab');
+        if (template3DResultPreviewTab) {
+            template3DResultPreviewTab.addEventListener('shown.bs.tab', () => {
+                this.generate3DBoxPreview();
+            });
+        }
+        
+        // 3D Box corner position inputs - update canvas when manually changed
+        ['template3DTopLeftX', 'template3DTopLeftY', 'template3DTopRightX', 'template3DTopRightY',
+         'template3DBottomLeftX', 'template3DBottomLeftY', 'template3DBottomRightX', 'template3DBottomRightY'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.addEventListener('input', () => this.update3DCornersFromInputs());
+            }
+        });
+        
+        // 3D Box background image change handler
+        const template3DBackgroundImage = document.getElementById('template3DBackgroundImage');
+        if (template3DBackgroundImage) {
+            template3DBackgroundImage.addEventListener('change', (e) => this.handle3DBackgroundChange(e));
+        }
+        
+        // 3D Box canvas event handlers
+        const template3DCanvas = document.getElementById('template3DCanvas');
+        if (template3DCanvas) {
+            template3DCanvas.addEventListener('mousedown', (e) => this.handle3DCanvasMouseDown(e));
+            template3DCanvas.addEventListener('mousemove', (e) => this.handle3DCanvasMouseMove(e));
+            template3DCanvas.addEventListener('mouseup', (e) => this.handle3DCanvasMouseUp(e));
+            template3DCanvas.addEventListener('mouseleave', (e) => this.handle3DCanvasMouseUp(e));
+            template3DCanvas.addEventListener('wheel', (e) => this.handle3DCanvasWheel(e), { passive: false });
         }
         
         // Preview refresh button

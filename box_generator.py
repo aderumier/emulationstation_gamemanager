@@ -801,6 +801,179 @@ class BoxGenerator:
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {temp_file}: {e}")
 
+    def generate_3dbox(self, background_path, box2d_path, output_path, corners, debug=False):
+        """
+        Generate a 3D box by applying perspective distortion to a 2D box image
+        and compositing it onto a 3D box template.
+        
+        Args:
+            background_path: Path to the 3D box template image
+            box2d_path: Path to the 2D box image to be placed
+            output_path: Path where the generated 3D box will be saved
+            corners: Dictionary with corner positions:
+                {
+                    'topLeft': {'x': int, 'y': int},
+                    'topRight': {'x': int, 'y': int},
+                    'bottomLeft': {'x': int, 'y': int},
+                    'bottomRight': {'x': int, 'y': int}
+                }
+            debug: If True, keep intermediate temp images for debugging
+        """
+        temp_files = []
+        temp_dir = None
+        
+        try:
+            # Extract corner coordinates
+            tl = corners.get('topLeft', {'x': 0, 'y': 0})
+            tr = corners.get('topRight', {'x': 0, 'y': 0})
+            bl = corners.get('bottomLeft', {'x': 0, 'y': 0})
+            br = corners.get('bottomRight', {'x': 0, 'y': 0})
+            
+            target_topleft_x = int(tl.get('x', 0))
+            target_topleft_y = int(tl.get('y', 0))
+            target_topright_x = int(tr.get('x', 0))
+            target_topright_y = int(tr.get('y', 0))
+            target_bottomleft_x = int(bl.get('x', 0))
+            target_bottomleft_y = int(bl.get('y', 0))
+            target_bottomright_x = int(br.get('x', 0))
+            target_bottomright_y = int(br.get('y', 0))
+            
+            # Calculate resize dimensions
+            # width = target_topright_x - target_topleft_x
+            # height = target_bottomleft_y - target_topleft_y
+            resize_width = target_topright_x - target_topleft_x
+            resize_height = target_bottomleft_y - target_topleft_y
+            
+            if resize_width <= 0 or resize_height <= 0:
+                raise Exception(f"Invalid corner positions: calculated resize {resize_width}x{resize_height}")
+            
+            logging.info(f"3D Box: Resize dimensions {resize_width}x{resize_height}")
+            logging.info(f"3D Box: Target corners - TL({target_topleft_x},{target_topleft_y}) TR({target_topright_x},{target_topright_y}) BL({target_bottomleft_x},{target_bottomleft_y}) BR({target_bottomright_x},{target_bottomright_y})")
+            
+            # Create temp directory - use fixed location for debug mode
+            if debug:
+                temp_dir = 'var/debug/3dbox'
+                os.makedirs(temp_dir, exist_ok=True)
+                # Use output filename as base for debug files
+                output_base = os.path.splitext(os.path.basename(output_path))[0]
+                temp_resized = os.path.join(temp_dir, f'{output_base}_1_resized.png')
+                temp_perspective = os.path.join(temp_dir, f'{output_base}_2_perspective.png')
+                temp_perspective_resized = os.path.join(temp_dir, f'{output_base}_3_perspective_resized.png')
+                logging.info(f"🔧 DEBUG MODE: Keeping intermediate files in {temp_dir}")
+            else:
+                temp_dir = tempfile.mkdtemp(prefix='3dbox_')
+                temp_resized = os.path.join(temp_dir, 'resized_2dbox.png')
+                temp_perspective = os.path.join(temp_dir, 'perspective_2dbox.png')
+                temp_perspective_resized = os.path.join(temp_dir, 'perspective_resized_2dbox.png')
+            
+            temp_files.append(temp_resized)
+            temp_files.append(temp_perspective)
+            temp_files.append(temp_perspective_resized)
+            
+            # Step 1: Resize the 2D box to fit the target area (no aspect ratio)
+            cmd_resize = [
+                'convert',
+                box2d_path,
+                '-resize', f'{resize_width}x{resize_height}!',
+                temp_resized
+            ]
+            logging.info(f"3D Box Step 1 - Resize: {' '.join(cmd_resize)}")
+            subprocess.run(cmd_resize, check=True)
+            if debug:
+                logging.info(f"🔧 DEBUG: Resized image saved to: {temp_resized}")
+            
+            # Step 2: Compute source coordinates (rectangle before distortion)
+            # The source coordinates form a rectangle at the target position
+            # This rectangle will be distorted to match the target quadrilateral
+            source_topleft_x = target_topleft_x
+            source_topleft_y = target_topleft_y
+            source_topright_x = target_topright_x
+            source_topright_y = target_topleft_y
+            source_bottomleft_x = target_topleft_x
+            source_bottomleft_y = target_bottomleft_y
+            source_bottomright_x = target_topright_x
+            source_bottomright_y = target_bottomleft_y
+            
+            logging.info(f"3D Box: Source rectangle - TL({source_topleft_x},{source_topleft_y}) TR({source_topright_x},{source_topright_y}) BL({source_bottomleft_x},{source_bottomleft_y}) BR({source_bottomright_x},{source_bottomright_y})")
+            
+            # Step 3: Apply perspective distortion
+            # The perspective distortion maps source rectangle corners to target quadrilateral corners
+            perspective_str = (
+                f'{source_topleft_x},{source_topleft_y} {target_topleft_x},{target_topleft_y}  '
+                f'{source_topright_x},{source_topright_y} {target_topright_x},{target_topright_y}  '
+                f'{source_bottomright_x},{source_bottomright_y} {target_bottomright_x},{target_bottomright_y}  '
+                f'{source_bottomleft_x},{source_bottomleft_y} {target_bottomleft_x},{target_bottomleft_y}'
+            )
+            
+            cmd_perspective = [
+                'convert',
+                temp_resized,
+                '-background', 'none',
+                '-virtual-pixel', 'transparent',
+                '-alpha', 'set',
+                '+distort', 'Perspective', perspective_str,
+                temp_perspective
+            ]
+            logging.info(f"3D Box Step 2 - Perspective: {' '.join(cmd_perspective)}")
+            subprocess.run(cmd_perspective, check=True)
+            if debug:
+                logging.info(f"🔧 DEBUG: Perspective image saved to: {temp_perspective}")
+            
+            # Step 4: Resize perspective image back to the same dimensions as the first resize
+            # Use -resize (not -extent) to scale without cropping
+            cmd_resize_perspective = [
+                'convert',
+                temp_perspective,
+                '-resize', f'{resize_width}x{resize_height}!',
+                temp_perspective_resized
+            ]
+            logging.info(f"3D Box Step 3 - Resize to {resize_width}x{resize_height}: {' '.join(cmd_resize_perspective)}")
+            subprocess.run(cmd_resize_perspective, check=True)
+            if debug:
+                logging.info(f"🔧 DEBUG: Resized perspective image saved to: {temp_perspective_resized}")
+            
+            # Step 5: Composite the distorted 2D box onto the 3D box template
+            # Use composite with exact geometry positioning at source top-left coordinates
+            cmd_composite = [
+                'composite',
+                '-geometry', f'+{source_topleft_x}+{source_topleft_y}',
+                temp_perspective_resized,
+                background_path,
+                output_path
+            ]
+            logging.info(f"3D Box Step 4 - Composite at ({source_topleft_x},{source_topleft_y}): {' '.join(cmd_composite)}")
+            subprocess.run(cmd_composite, check=True)
+            
+            logging.info(f"✅ 3D Box generated successfully: {output_path}")
+            if debug:
+                logging.info(f"🔧 DEBUG: Final output saved to: {output_path}")
+                logging.info(f"🔧 DEBUG: All intermediate files kept in: {temp_dir}")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            logging.error(f"ImageMagick command failed: {e}")
+            raise Exception(f"3D box generation failed: {e}")
+        except Exception as e:
+            logging.error(f"Error generating 3D box: {e}")
+            raise
+        finally:
+            # Cleanup temp files only if not in debug mode
+            if not debug:
+                for temp_file in temp_files:
+                    try:
+                        if os.path.exists(temp_file):
+                            os.remove(temp_file)
+                    except Exception as e:
+                        logging.warning(f"Could not remove temp file {temp_file}: {e}")
+                # Also cleanup temp directory
+                if temp_dir and os.path.exists(temp_dir) and temp_dir.startswith('/tmp'):
+                    try:
+                        import shutil
+                        shutil.rmtree(temp_dir)
+                    except Exception as e:
+                        logging.warning(f"Could not remove temp dir {temp_dir}: {e}")
+
+
 def generate_2d_box_simple(titlescreen_path, gameplay_path, logo_path, output_path, 
                           width=600, height=800, logo_position="north"):
     """

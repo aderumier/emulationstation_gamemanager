@@ -2384,7 +2384,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation', 'template_box_generation', 'logo_generation', 'import_medias']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', '2d_box_generation', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias']:
             self.grid_refresh_needed = True
         
         # Clear current task and start next queued task
@@ -2902,6 +2902,32 @@ def process_next_queued_task():
                 task.start()
             # Start logo generation in background thread
             thread = threading.Thread(target=run_logo_generation_task, args=(system_name, selected_games, color, font_size, font, bold, italic, underline, uppercase, max_chars_per_line))
+            thread.daemon = True
+            thread.start()
+    elif task_type == '3dbox_generation':
+        # Start 3D box generation task
+        system_name = task_data.get('system_name')
+        selected_games = task_data.get('selected_games', [])
+        source_field = task_data.get('source_field')
+        target_field = task_data.get('target_field')
+        background_path = task_data.get('background_path')
+        corners = task_data.get('corners', {})
+        temp_dir = task_data.get('temp_dir')
+        overwrite_existing = task_data.get('overwrite_existing', True)
+        if system_name and selected_games:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('3dbox_generation', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start 3D box generation in background thread
+            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, temp_dir, overwrite_existing))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -23278,6 +23304,171 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, temp_dir, overwrite_existing=True):
+    """Run 3D box generation task in background thread"""
+    global current_task_id
+    
+    try:
+        if not current_task_id or current_task_id not in tasks:
+            print(f"Error: No active task found for 3D box generation")
+            return
+        
+        task = tasks[current_task_id]
+        
+        print(f"📦 Starting 3D box generation for system: {system_name}")
+        task.update_progress(f"Starting 3D box generation for {len(selected_games)} games")
+        task.update_progress(f"System: {system_name}")
+        
+        # Validate ImageMagick is available
+        try:
+            result = subprocess.run(['convert', '-version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode != 0:
+                task.complete(False, 'ImageMagick not available. Please install ImageMagick.')
+                return
+        except Exception as e:
+            task.complete(False, f'Error checking ImageMagick: {str(e)}')
+            return
+        
+        # Load gamelist
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        gamelist_path = get_gamelist_path(system_name)
+        
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f'Gamelist not found: {gamelist_path}')
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        games_by_path = {g['path']: g for g in games}
+        
+        # Create output directory
+        box3d_directory = target_field
+        output_dir = os.path.join(system_path, 'media', box3d_directory)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Initialize generator
+        from box_generator import BoxGenerator
+        generator = BoxGenerator()
+        
+        processed = 0
+        failed = 0
+        
+        for game_path in selected_games:
+            try:
+                game = games_by_path.get(game_path)
+                if not game:
+                    print(f"⚠️  Game not found in gamelist: {game_path}")
+                    failed += 1
+                    task.update_progress(f"⚠️  Game not found: {game_path}")
+                    continue
+                
+                game_name = game.get('name', game_path)
+                
+                # Check if target media already exists and if overwrite is disabled
+                if not overwrite_existing:
+                    existing_media_path = game.get(target_field)
+                    if existing_media_path:
+                        if existing_media_path.startswith('./'):
+                            full_existing_path = os.path.join(system_path, existing_media_path[2:])
+                        elif existing_media_path.startswith('/'):
+                            full_existing_path = existing_media_path
+                        else:
+                            full_existing_path = os.path.join(system_path, existing_media_path)
+                        
+                        if os.path.exists(full_existing_path):
+                            print(f"⚠️  Skipped: {game_name} (target media already exists and overwrite is disabled)")
+                            failed += 1
+                            task.update_progress(f"⚠️  Skipped: {game_name} (target media already exists)")
+                            continue
+                
+                task.update_progress(f"Processing: {game_name}")
+                
+                # Get source 2D box path
+                source_2dbox = game.get(source_field)
+                if not source_2dbox:
+                    print(f"⚠️  No source 2D box for: {game_name}")
+                    failed += 1
+                    task.update_progress(f"⚠️  Skipped: {game_name} (no {source_field} image)")
+                    continue
+                
+                if source_2dbox.startswith('./'):
+                    source_2dbox_path = os.path.join(system_path, source_2dbox[2:])
+                elif source_2dbox.startswith('/'):
+                    source_2dbox_path = source_2dbox
+                else:
+                    source_2dbox_path = os.path.join(system_path, source_2dbox)
+                
+                if not os.path.exists(source_2dbox_path):
+                    print(f"⚠️  Source 2D box not found: {source_2dbox_path}")
+                    failed += 1
+                    task.update_progress(f"⚠️  Skipped: {game_name} (source image not found)")
+                    continue
+                
+                # Generate output filename
+                rom_filename = os.path.basename(game_path)
+                rom_base = os.path.splitext(rom_filename)[0]
+                output_filename = f"{rom_base}.png"
+                output_path = os.path.join(output_dir, output_filename)
+                
+                # Generate 3D box (debug mode for first game only to avoid filling disk)
+                is_first_game = (processed == 0 and failed == 0)
+                generator.generate_3dbox(
+                    background_path=background_path,
+                    box2d_path=source_2dbox_path,
+                    output_path=output_path,
+                    corners=corners,
+                    debug=is_first_game
+                )
+                
+                # Update gamelist.xml
+                game_element = None
+                tree = ET.parse(gamelist_path)
+                root = tree.getroot()
+                
+                for game_elem in root.findall('game'):
+                    if game_elem.find('path') is not None:
+                        xml_game_path = game_elem.find('path').text
+                        if xml_game_path and xml_game_path == game_path:
+                            game_element = game_elem
+                            break
+                
+                if game_element is not None:
+                    target_element = game_element.find(target_field)
+                    media_path = f"./media/{box3d_directory}/{output_filename}"
+                    if target_element is not None:
+                        target_element.text = media_path
+                    else:
+                        target_element = ET.SubElement(game_element, target_field)
+                        target_element.text = media_path
+                    
+                    save_formatted_gamelist_xml(tree, gamelist_path)
+                
+                processed += 1
+                task.update_progress(f"✅ Generated: {game_name}")
+                
+            except Exception as e:
+                print(f"❌ Error processing {game_path}: {e}")
+                import traceback
+                traceback.print_exc()
+                failed += 1
+                task.update_progress(f"❌ Failed: {game.get('name', game_path) if game else game_path} - {str(e)}")
+        
+        # Cleanup temp directory
+        try:
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+        except Exception as e:
+            print(f"Warning: Could not cleanup temp directory: {e}")
+        
+        task.complete(True, f"3D box generation completed: {processed} succeeded, {failed} failed")
+        
+    except Exception as e:
+        print(f"❌ Error in 3D box generation: {e}")
+        import traceback
+        traceback.print_exc()
+        if current_task_id and current_task_id in tasks:
+            tasks[current_task_id].complete(False, f"3D box generation failed: {str(e)}")
+
 def run_logo_generation_task(system_name, selected_games, color, font_size, font, bold=False, italic=False, underline=False, uppercase=False, max_chars_per_line=15):
     """Run logo generation task in background thread"""
     global current_task_id
@@ -25066,6 +25257,324 @@ def get_template_image():
         
     except Exception as e:
         return jsonify({'error': f'Failed to serve image: {str(e)}'}), 500
+
+@app.route('/api/save-3dbox-template', methods=['POST'])
+@login_required
+def save_3dbox_template():
+    """Save a 3D box template configuration"""
+    try:
+        template_name = request.form.get('template_name')
+        if not template_name:
+            return jsonify({'success': False, 'error': 'Template name is required'}), 400
+        
+        # Create templates directory if it doesn't exist
+        templates_dir = 'var/3dbox/templates'
+        os.makedirs(templates_dir, exist_ok=True)
+        
+        # Sanitize template name for filesystem
+        safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
+        
+        # Handle background image
+        background_file = request.files.get('background_image')
+        background_image_path = request.form.get('background_image_path')
+        
+        background_filename = None
+        
+        if background_file:
+            background_filename = f'{safe_name}_background.png'
+            background_path = os.path.join(templates_dir, background_filename)
+            background_file.save(background_path)
+        elif background_image_path:
+            existing_filename = os.path.basename(background_image_path)
+            if '?' in existing_filename:
+                existing_filename = existing_filename.split('?')[0]
+            
+            existing_path = os.path.join(templates_dir, existing_filename)
+            if os.path.exists(existing_path):
+                background_filename = existing_filename
+            else:
+                potential_filename = f'{safe_name}_background.png'
+                potential_path = os.path.join(templates_dir, potential_filename)
+                if os.path.exists(potential_path):
+                    background_filename = potential_filename
+                else:
+                    return jsonify({'success': False, 'error': f'Background image file not found: {existing_filename}'}), 400
+        else:
+            return jsonify({'success': False, 'error': 'Background image is required'}), 400
+        
+        # Get corner positions
+        corners_json = request.form.get('corners')
+        corners = json.loads(corners_json) if corners_json else {}
+        
+        # Save template metadata as JSON
+        template_data = {
+            'name': template_name,
+            'background_image': background_filename,
+            'corners': corners
+        }
+        
+        template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
+        with open(template_json_path, 'w') as f:
+            json.dump(template_data, f, indent=2)
+        
+        return jsonify({'success': True, 'message': 'Template saved successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to save template: {str(e)}'}), 500
+
+@app.route('/api/list-3dbox-templates', methods=['GET'])
+@login_required
+def list_3dbox_templates():
+    """List all saved 3D box templates"""
+    try:
+        templates_dir = 'var/3dbox/templates'
+        templates = []
+        
+        if os.path.exists(templates_dir):
+            for filename in os.listdir(templates_dir):
+                if filename.endswith('.json'):
+                    template_path = os.path.join(templates_dir, filename)
+                    try:
+                        with open(template_path, 'r') as f:
+                            template_data = json.load(f)
+                            templates.append({
+                                'name': template_data.get('name', filename.replace('.json', '')),
+                                'background_image': template_data.get('background_image', ''),
+                                'corners': template_data.get('corners', {})
+                            })
+                    except Exception as e:
+                        print(f"Error loading 3D template {filename}: {e}")
+                        continue
+        
+        return jsonify({'success': True, 'templates': templates})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to list templates: {str(e)}'}), 500
+
+@app.route('/api/load-3dbox-template', methods=['GET'])
+@login_required
+def load_3dbox_template():
+    """Load a 3D box template by name"""
+    try:
+        template_name = request.args.get('name')
+        if not template_name:
+            return jsonify({'success': False, 'error': 'Template name is required'}), 400
+        
+        templates_dir = 'var/3dbox/templates'
+        safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
+        template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
+        
+        if not os.path.exists(template_json_path):
+            return jsonify({'success': False, 'error': 'Template not found'}), 404
+        
+        with open(template_json_path, 'r') as f:
+            template_data = json.load(f)
+        
+        background_image = template_data.get('background_image', '')
+        corners = template_data.get('corners', {})
+        
+        return jsonify({
+            'success': True,
+            'background_image_path': f'/api/3dbox-template-image?path={background_image}&type=background',
+            'corners': corners
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to load template: {str(e)}'}), 500
+
+@app.route('/api/3dbox-template-image', methods=['GET'])
+@login_required
+def get_3dbox_template_image():
+    """Serve 3D box template images"""
+    try:
+        path = request.args.get('path')
+        
+        if not path:
+            return jsonify({'error': 'Path is required'}), 400
+        
+        templates_dir = 'var/3dbox/templates'
+        image_path = os.path.join(templates_dir, path)
+        
+        # Security: ensure path is within templates directory
+        abs_templates_dir = os.path.abspath(templates_dir)
+        abs_image_path = os.path.abspath(image_path)
+        if not abs_image_path.startswith(abs_templates_dir):
+            return jsonify({'error': 'Invalid path'}), 403
+        
+        if not os.path.exists(image_path):
+            return jsonify({'error': 'Image not found'}), 404
+        
+        return send_file(image_path)
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to serve image: {str(e)}'}), 500
+
+@app.route('/api/preview-3dbox', methods=['POST'])
+@login_required
+def preview_3dbox():
+    """Generate a preview of the 3D box for a game"""
+    temp_dir = None
+    try:
+        system_name = request.form.get('system_name')
+        game_path = request.form.get('game_path')
+        source_field = request.form.get('source_field')
+        corners_json = request.form.get('corners')
+        
+        if not system_name or not game_path or not source_field:
+            return jsonify({'error': 'Missing required parameters'}), 400
+        
+        corners = json.loads(corners_json) if corners_json else {}
+        
+        # Get background image
+        background_file = request.files.get('background_image')
+        background_image_path = request.form.get('background_image_path')
+        
+        if not background_file and not background_image_path:
+            return jsonify({'error': 'Background image is required'}), 400
+        
+        # Create temp directory
+        temp_dir = tempfile.mkdtemp(prefix='3dbox_preview_')
+        background_path = os.path.join(temp_dir, 'background.png')
+        
+        if background_file:
+            background_file.save(background_path)
+        else:
+            templates_dir = 'var/3dbox/templates'
+            source_path = os.path.join(templates_dir, background_image_path)
+            if os.path.exists(source_path):
+                shutil.copy2(source_path, background_path)
+            else:
+                return jsonify({'error': 'Background image not found'}), 404
+        
+        # Load gamelist to get game data
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        gamelist_path = get_gamelist_path(system_name)
+        
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        game = None
+        for g in games:
+            if g.get('path') == game_path:
+                game = g
+                break
+        
+        if not game:
+            return jsonify({'error': 'Game not found in gamelist'}), 404
+        
+        # Get 2D box path from game
+        source_2dbox = game.get(source_field)
+        if not source_2dbox:
+            return jsonify({'error': f'Game has no {source_field} image'}), 400
+        
+        if source_2dbox.startswith('./'):
+            source_2dbox_path = os.path.join(system_path, source_2dbox[2:])
+        elif source_2dbox.startswith('/'):
+            source_2dbox_path = source_2dbox
+        else:
+            source_2dbox_path = os.path.join(system_path, source_2dbox)
+        
+        if not os.path.exists(source_2dbox_path):
+            return jsonify({'error': f'Source 2D box image not found: {source_2dbox_path}'}), 404
+        
+        # Generate 3D box preview (enable debug mode for previews)
+        output_path = os.path.join(temp_dir, 'preview.png')
+        
+        from box_generator import BoxGenerator
+        generator = BoxGenerator()
+        generator.generate_3dbox(
+            background_path=background_path,
+            box2d_path=source_2dbox_path,
+            output_path=output_path,
+            corners=corners,
+            debug=True  # Keep intermediate files for debugging
+        )
+        
+        if not os.path.exists(output_path):
+            return jsonify({'error': 'Failed to generate preview'}), 500
+        
+        return send_file(output_path, mimetype='image/png')
+        
+    except Exception as e:
+        print(f"Error generating 3D box preview: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to generate preview: {str(e)}'}), 500
+    finally:
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
+
+@app.route('/api/generate-3dbox', methods=['POST'])
+@login_required
+def generate_3dbox():
+    """Start 3D box generation task for selected games"""
+    try:
+        system_name = request.form.get('system_name')
+        game_paths_json = request.form.get('game_paths')
+        source_field = request.form.get('source_field')
+        target_field = request.form.get('target_field')
+        corners_json = request.form.get('corners')
+        overwrite_existing = request.form.get('overwrite_existing', 'true').lower() == 'true'
+        
+        if not system_name or not game_paths_json or not source_field or not target_field:
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        selected_games = json.loads(game_paths_json)
+        corners = json.loads(corners_json) if corners_json else {}
+        
+        # Get background image
+        background_file = request.files.get('background_image')
+        background_image_path = request.form.get('background_image_path')
+        
+        if not background_file and not background_image_path:
+            return jsonify({'success': False, 'error': 'Background image is required'}), 400
+        
+        # Create temp directory for this task
+        temp_dir = tempfile.mkdtemp(prefix='3dbox_')
+        background_path = os.path.join(temp_dir, 'background.png')
+        
+        if background_file:
+            background_file.save(background_path)
+        else:
+            templates_dir = 'var/3dbox/templates'
+            source_path = os.path.join(templates_dir, background_image_path)
+            
+            abs_templates_dir = os.path.abspath(templates_dir)
+            abs_source_path = os.path.abspath(source_path)
+            if not abs_source_path.startswith(abs_templates_dir):
+                return jsonify({'success': False, 'error': 'Invalid background image path'}), 403
+            
+            if not os.path.exists(source_path):
+                return jsonify({'success': False, 'error': 'Background image not found'}), 404
+            
+            shutil.copy2(source_path, background_path)
+        
+        # Add task to queue
+        task_data = {
+            'system_name': system_name,
+            'selected_games': selected_games,
+            'source_field': source_field,
+            'target_field': target_field,
+            'background_path': background_path,
+            'corners': corners,
+            'temp_dir': temp_dir,
+            'overwrite_existing': overwrite_existing
+        }
+        
+        task = add_task_to_queue('3dbox_generation', task_data)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'games_count': len(selected_games)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to start 3D box generation: {str(e)}'}), 500
 
 @app.route('/api/generate-template-box', methods=['POST'])
 @login_required

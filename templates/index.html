@@ -690,6 +690,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="globalLogoGeneratorBtn">
                             <i class="bi bi-type me-2"></i>Logo Generator
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="global3DBoxGeneratorBtn">
+                            <i class="bi bi-box me-2"></i>3D Box Generator
+                        </a></li>
                     </ul>
                 </div>
                 <button id="globalYoutubeDownloadBtn" class="btn btn-outline-danger btn-sm ms-2" disabled>
@@ -4701,6 +4704,187 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="generateTemplateBoxBtn">
                         <i class="bi bi-play-fill me-1"></i>Generate Box
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D Box Generator Modal -->
+    <div class="modal fade" id="box3DGeneratorModal" tabindex="-1" aria-labelledby="box3DGeneratorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl" style="max-width: 95vw; width: 1400px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="box3DGeneratorModalLabel">
+                        <i class="bi bi-box me-2"></i>3D Box Generator
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <h6 class="mb-3">Template Configuration</h6>
+                            
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="save3DTemplateBtn">
+                                    <i class="bi bi-save me-1"></i>Update Template
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm me-2" id="create3DTemplateBtn">
+                                    <i class="bi bi-plus-circle me-1"></i>Create Template
+                                </button>
+                                <select class="form-select form-select-sm d-inline-block w-auto ms-2" id="template3DSelect" style="width: 200px;">
+                                    <option value="">Select template...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="template3DBackgroundImage" class="form-label">3D Box Template Image</label>
+                                <input type="file" class="form-control" id="template3DBackgroundImage" accept="image/*">
+                                <div class="form-text">Select 3D box template image (the box frame where 2D box will be placed)</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="template3DSourceField" class="form-label">2D Box Source Field</label>
+                                <select class="form-select" id="template3DSourceField">
+                                    <option value="">Loading media fields...</option>
+                                </select>
+                                <div class="form-text">Field containing the 2D box image to place on the 3D template</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="template3DTargetField" class="form-label">Target Media Field</label>
+                                <select class="form-select" id="template3DTargetField">
+                                    <option value="">Loading media fields...</option>
+                                </select>
+                                <div class="form-text">Field where the generated 3D box will be saved</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="template3DOverwriteExisting" checked>
+                                    <label class="form-check-label" for="template3DOverwriteExisting">
+                                        Overwrite existing media
+                                    </label>
+                                </div>
+                                <div class="form-text">If disabled, skip games that already have media in the target field</div>
+                            </div>
+                            
+                            <hr class="my-3">
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Corner Positions</label>
+                                <div class="form-text mb-2">Click on the canvas to position each corner, or enter values directly. The corners define where the 2D box will be placed with perspective distortion.</div>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small text-primary"><i class="bi bi-circle-fill me-1" style="color: #ff0000;"></i>Top Left</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DTopLeftX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DTopLeftY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small text-success"><i class="bi bi-circle-fill me-1" style="color: #00ff00;"></i>Top Right</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DTopRightX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DTopRightY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small text-warning"><i class="bi bi-circle-fill me-1" style="color: #0000ff;"></i>Bottom Left</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DBottomLeftX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DBottomLeftY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small text-info"><i class="bi bi-circle-fill me-1" style="color: #ffff00;"></i>Bottom Right</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DBottomRightX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DBottomRightY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Active Corner</label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="active3DCorner" id="corner3DTopLeft" value="topLeft" checked>
+                                    <label class="btn btn-outline-danger btn-sm" for="corner3DTopLeft">Top Left</label>
+                                    
+                                    <input type="radio" class="btn-check" name="active3DCorner" id="corner3DTopRight" value="topRight">
+                                    <label class="btn btn-outline-success btn-sm" for="corner3DTopRight">Top Right</label>
+                                    
+                                    <input type="radio" class="btn-check" name="active3DCorner" id="corner3DBottomLeft" value="bottomLeft">
+                                    <label class="btn btn-outline-primary btn-sm" for="corner3DBottomLeft">Bottom Left</label>
+                                    
+                                    <input type="radio" class="btn-check" name="active3DCorner" id="corner3DBottomRight" value="bottomRight">
+                                    <label class="btn btn-outline-warning btn-sm" for="corner3DBottomRight">Bottom Right</label>
+                                </div>
+                                <div class="form-text">Select which corner to position, then click on the canvas</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-7">
+                            <!-- Tab Navigation -->
+                            <ul class="nav nav-tabs mb-3" id="template3DPreviewTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="template3DInteractiveTab" data-bs-toggle="tab" data-bs-target="#template3DInteractivePane" type="button" role="tab" aria-controls="template3DInteractivePane" aria-selected="true">
+                                        <i class="bi bi-arrows-move me-1"></i>Interactive
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="template3DResultPreviewTab" data-bs-toggle="tab" data-bs-target="#template3DResultPreviewPane" type="button" role="tab" aria-controls="template3DResultPreviewPane" aria-selected="false">
+                                        <i class="bi bi-image me-1"></i>Preview
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <!-- Tab Content -->
+                            <div class="tab-content" id="template3DPreviewTabContent">
+                                <!-- Interactive Preview Tab -->
+                                <div class="tab-pane fade show active" id="template3DInteractivePane" role="tabpanel" aria-labelledby="template3DInteractiveTab">
+                                    <div id="template3DPreviewContainer" class="border bg-dark" style="min-height: 500px; position: relative; overflow: auto;">
+                                        <canvas id="template3DCanvas" style="display: none; cursor: crosshair;"></canvas>
+                                        <div class="text-muted text-center py-5" id="template3DPlaceholder">
+                                            <i class="bi bi-image" style="font-size: 3rem; color: #6c757d;"></i>
+                                            <p class="mt-2" style="color: #6c757d;">Upload a 3D box template image to start</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Result Preview Tab -->
+                                <div class="tab-pane fade" id="template3DResultPreviewPane" role="tabpanel" aria-labelledby="template3DResultPreviewTab">
+                                    <div id="template3DResultPreviewContainer" class="border p-3 bg-light text-center" style="min-height: 500px; position: relative;">
+                                        <div class="text-muted py-5" id="template3DResultPreviewPlaceholder">
+                                            <i class="bi bi-image" style="font-size: 3rem;"></i>
+                                            <p class="mt-2">Configure template and select games to preview</p>
+                                        </div>
+                                        <img id="template3DResultPreviewImage" src="" alt="3D Box Preview" style="display: none; max-width: 100%; max-height: 600px;">
+                                        <div id="template3DResultPreviewLoading" style="display: none;">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Generating preview...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="generate3DBoxBtn">
+                        <i class="bi bi-play-fill me-1"></i>Generate 3D Box
                     </button>
                 </div>
             </div>
