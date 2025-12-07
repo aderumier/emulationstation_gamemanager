@@ -4744,6 +4744,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                             
                             <div class="mb-3">
+                                <label for="template3DSpineImage" class="form-label">Spine Image (Optional)</label>
+                                <input type="file" class="form-control" id="template3DSpineImage" accept="image/*">
+                                <div class="form-text">Select spine image to use for spine surface (if not provided, 2D box image will be used)</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="template3DSpineSourceField" class="form-label">Spine Source Field (Optional)</label>
+                                <select class="form-select" id="template3DSpineSourceField">
+                                    <option value="">Use uploaded spine image</option>
+                                </select>
+                                <div class="form-text">Field containing spine images from gamelist (if available, will be used instead of uploaded spine)</div>
+                            </div>
+                            
+                            <div class="mb-3">
                                 <label for="template3DSourceField" class="form-label">2D Box Source Field</label>
                                 <select class="form-select" id="template3DSourceField">
                                     <option value="">Loading media fields...</option>
@@ -4772,11 +4786,23 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             <hr class="my-3">
                             
                             <div class="mb-3">
-                                <label class="form-label">Corner Positions</label>
-                                <div class="form-text mb-2">Click on the canvas to position each corner, or enter values directly. The corners define where the 2D box will be placed with perspective distortion.</div>
+                                <label class="form-label">Active Surface</label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="active3DSurface" id="surface3DFront" value="front" checked>
+                                    <label class="btn btn-outline-primary" for="surface3DFront"><i class="bi bi-square me-1"></i>Front</label>
+                                    
+                                    <input type="radio" class="btn-check" name="active3DSurface" id="surface3DSpine" value="spine">
+                                    <label class="btn btn-outline-secondary" for="surface3DSpine"><i class="bi bi-grip-vertical me-1"></i>Spine</label>
+                                </div>
+                                <div class="form-text">Toggle between front and spine surface positioning</div>
+                            </div>
+                            
+                            <!-- Front Corner Positions -->
+                            <div class="mb-3" id="template3DFrontCorners">
+                                <label class="form-label"><i class="bi bi-square me-1"></i>Front Corner Positions</label>
                                 <div class="row g-2">
                                     <div class="col-6">
-                                        <label class="form-label small text-primary"><i class="bi bi-circle-fill me-1" style="color: #ff0000;"></i>Top Left</label>
+                                        <label class="form-label small"><i class="bi bi-circle-fill me-1" style="color: #ff0000;"></i>Top Left</label>
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">X</span>
                                             <input type="number" class="form-control" id="template3DTopLeftX" placeholder="0" min="0">
@@ -4785,7 +4811,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         </div>
                                     </div>
                                     <div class="col-6">
-                                        <label class="form-label small text-success"><i class="bi bi-circle-fill me-1" style="color: #00ff00;"></i>Top Right</label>
+                                        <label class="form-label small"><i class="bi bi-circle-fill me-1" style="color: #00ff00;"></i>Top Right</label>
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">X</span>
                                             <input type="number" class="form-control" id="template3DTopRightX" placeholder="0" min="0">
@@ -4794,7 +4820,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         </div>
                                     </div>
                                     <div class="col-6">
-                                        <label class="form-label small text-warning"><i class="bi bi-circle-fill me-1" style="color: #0000ff;"></i>Bottom Left</label>
+                                        <label class="form-label small"><i class="bi bi-circle-fill me-1" style="color: #0000ff;"></i>Bottom Left</label>
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">X</span>
                                             <input type="number" class="form-control" id="template3DBottomLeftX" placeholder="0" min="0">
@@ -4803,12 +4829,55 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                         </div>
                                     </div>
                                     <div class="col-6">
-                                        <label class="form-label small text-info"><i class="bi bi-circle-fill me-1" style="color: #ffff00;"></i>Bottom Right</label>
+                                        <label class="form-label small"><i class="bi bi-circle-fill me-1" style="color: #ffff00;"></i>Bottom Right</label>
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">X</span>
                                             <input type="number" class="form-control" id="template3DBottomRightX" placeholder="0" min="0">
                                             <span class="input-group-text">Y</span>
                                             <input type="number" class="form-control" id="template3DBottomRightY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Spine Corner Positions -->
+                            <div class="mb-3" id="template3DSpineCorners" style="display: none;">
+                                <label class="form-label"><i class="bi bi-grip-vertical me-1"></i>Spine Corner Positions</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small"><i class="bi bi-diamond-fill me-1" style="color: #ff00ff;"></i>Top Left</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DSpineTopLeftX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DSpineTopLeftY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small"><i class="bi bi-diamond-fill me-1" style="color: #00ffff;"></i>Top Right</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DSpineTopRightX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DSpineTopRightY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small"><i class="bi bi-diamond-fill me-1" style="color: #ff8800;"></i>Bottom Left</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DSpineBottomLeftX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DSpineBottomLeftY" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small"><i class="bi bi-diamond-fill me-1" style="color: #88ff00;"></i>Bottom Right</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">X</span>
+                                            <input type="number" class="form-control" id="template3DSpineBottomRightX" placeholder="0" min="0">
+                                            <span class="input-group-text">Y</span>
+                                            <input type="number" class="form-control" id="template3DSpineBottomRightY" placeholder="0" min="0">
                                         </div>
                                     </div>
                                 </div>

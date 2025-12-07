@@ -13342,11 +13342,19 @@ class GameCollectionManager {
             bottomLeft: { x: 0, y: 0 },
             bottomRight: { x: 0, y: 0 }
         };
+        this.box3DSpineCorners = {
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 0, y: 0 },
+            bottomLeft: { x: 0, y: 0 },
+            bottomRight: { x: 0, y: 0 }
+        };
+        this.box3DActiveSurface = 'front'; // 'front' or 'spine'
         this.box3DImage = null;
         this.box3DImageNaturalWidth = 0;
         this.box3DImageNaturalHeight = 0;
         this.box3DDisplayScale = 1;
         this.box3DDragging = null;
+        this.box3DSpineImagePath = null; // Path to uploaded spine image
         
         // Load media fields
         this.load3DBoxGeneratorFields();
@@ -13369,6 +13377,7 @@ class GameCollectionManager {
     async load3DBoxGeneratorFields() {
         const sourceField = document.getElementById('template3DSourceField');
         const targetField = document.getElementById('template3DTargetField');
+        const spineSourceField = document.getElementById('template3DSpineSourceField');
         
         if (!sourceField || !targetField) return;
         
@@ -13382,6 +13391,9 @@ class GameCollectionManager {
                 
                 sourceField.innerHTML = '<option value="">Select source field...</option>';
                 targetField.innerHTML = '<option value="">Select target field...</option>';
+                if (spineSourceField) {
+                    spineSourceField.innerHTML = '<option value="">Use uploaded spine image</option>';
+                }
                 
                 Object.keys(mediaFields).forEach(field => {
                     const option1 = document.createElement('option');
@@ -13393,6 +13405,13 @@ class GameCollectionManager {
                     option2.value = field;
                     option2.textContent = field;
                     targetField.appendChild(option2);
+                    
+                    if (spineSourceField) {
+                        const option3 = document.createElement('option');
+                        option3.value = field;
+                        option3.textContent = field;
+                        spineSourceField.appendChild(option3);
+                    }
                 });
                 
                 // Restore saved values from localStorage
@@ -13430,9 +13449,16 @@ class GameCollectionManager {
             placeholder.style.display = 'block';
         }
         
-        // Reset corner inputs
+        // Reset front corner inputs
         ['template3DTopLeftX', 'template3DTopLeftY', 'template3DTopRightX', 'template3DTopRightY',
          'template3DBottomLeftX', 'template3DBottomLeftY', 'template3DBottomRightX', 'template3DBottomRightY'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) input.value = '0';
+        });
+        
+        // Reset spine corner inputs
+        ['template3DSpineTopLeftX', 'template3DSpineTopLeftY', 'template3DSpineTopRightX', 'template3DSpineTopRightY',
+         'template3DSpineBottomLeftX', 'template3DSpineBottomLeftY', 'template3DSpineBottomRightX', 'template3DSpineBottomRightY'].forEach(id => {
             const input = document.getElementById(id);
             if (input) input.value = '0';
         });
@@ -13444,6 +13470,36 @@ class GameCollectionManager {
             bottomLeft: { x: 0, y: 0 },
             bottomRight: { x: 0, y: 0 }
         };
+        this.box3DSpineCorners = {
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 0, y: 0 },
+            bottomLeft: { x: 0, y: 0 },
+            bottomRight: { x: 0, y: 0 }
+        };
+        
+        // Reset to front surface
+        this.box3DActiveSurface = 'front';
+        const frontRadio = document.getElementById('surface3DFront');
+        if (frontRadio) frontRadio.checked = true;
+        this.toggle3DSurface('front');
+    }
+    
+    toggle3DSurface(surface) {
+        this.box3DActiveSurface = surface;
+        
+        const frontCorners = document.getElementById('template3DFrontCorners');
+        const spineCorners = document.getElementById('template3DSpineCorners');
+        
+        if (surface === 'front') {
+            if (frontCorners) frontCorners.style.display = 'block';
+            if (spineCorners) spineCorners.style.display = 'none';
+        } else {
+            if (frontCorners) frontCorners.style.display = 'none';
+            if (spineCorners) spineCorners.style.display = 'block';
+        }
+        
+        // Redraw canvas to highlight active surface
+        this.draw3DBoxCanvas();
     }
     
     setup3DBoxCanvas() {
@@ -13455,7 +13511,7 @@ class GameCollectionManager {
     }
     
     update3DCornersFromInputs() {
-        // Read corner values from input fields and update internal state
+        // Read front corner values from input fields and update internal state
         this.box3DCorners = {
             topLeft: {
                 x: parseInt(document.getElementById('template3DTopLeftX')?.value) || 0,
@@ -13472,6 +13528,26 @@ class GameCollectionManager {
             bottomRight: {
                 x: parseInt(document.getElementById('template3DBottomRightX')?.value) || 0,
                 y: parseInt(document.getElementById('template3DBottomRightY')?.value) || 0
+            }
+        };
+        
+        // Read spine corner values from input fields
+        this.box3DSpineCorners = {
+            topLeft: {
+                x: parseInt(document.getElementById('template3DSpineTopLeftX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DSpineTopLeftY')?.value) || 0
+            },
+            topRight: {
+                x: parseInt(document.getElementById('template3DSpineTopRightX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DSpineTopRightY')?.value) || 0
+            },
+            bottomLeft: {
+                x: parseInt(document.getElementById('template3DSpineBottomLeftX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DSpineBottomLeftY')?.value) || 0
+            },
+            bottomRight: {
+                x: parseInt(document.getElementById('template3DSpineBottomRightX')?.value) || 0,
+                y: parseInt(document.getElementById('template3DSpineBottomRightY')?.value) || 0
             }
         };
         
@@ -13547,85 +13623,128 @@ class GameCollectionManager {
         // Draw image
         ctx.drawImage(this.box3DImage, 0, 0, canvas.width, canvas.height);
         
-        // Get active corner from radio buttons
+        // Get active corner and surface
         const activeCornerRadio = document.querySelector('input[name="active3DCorner"]:checked');
         const activeCorner = activeCornerRadio?.value || 'topLeft';
+        const activeSurface = this.box3DActiveSurface || 'front';
         
-        // Draw corner markers
-        const corners = [
-            { key: 'topLeft', color: '#ff0000', label: 'TL' },
-            { key: 'topRight', color: '#00ff00', label: 'TR' },
-            { key: 'bottomLeft', color: '#0000ff', label: 'BL' },
-            { key: 'bottomRight', color: '#ffff00', label: 'BR' }
+        // Define corners for front (squares) and spine (diamonds)
+        const frontCorners = [
+            { key: 'topLeft', color: '#ff0000', label: 'FTL' },
+            { key: 'topRight', color: '#00ff00', label: 'FTR' },
+            { key: 'bottomLeft', color: '#0000ff', label: 'FBL' },
+            { key: 'bottomRight', color: '#ffff00', label: 'FBR' }
         ];
         
-        corners.forEach(corner => {
-            const pos = this.box3DCorners[corner.key];
-            if (pos.x > 0 || pos.y > 0) {
-                // Convert natural coordinates to display coordinates
-                const displayX = pos.x * this.box3DDisplayScale;
-                const displayY = pos.y * this.box3DDisplayScale;
-                
-                // Check if this is the active or dragging corner
-                const isActive = corner.key === activeCorner || corner.key === this.box3DDragging;
-                
-                // Draw crosshair
-                ctx.strokeStyle = corner.color;
-                ctx.lineWidth = isActive ? 3 : 2;
-                
-                // Vertical line
-                ctx.beginPath();
-                ctx.moveTo(displayX, displayY - 15);
-                ctx.lineTo(displayX, displayY + 15);
-                ctx.stroke();
-                
-                // Horizontal line
-                ctx.beginPath();
-                ctx.moveTo(displayX - 15, displayY);
-                ctx.lineTo(displayX + 15, displayY);
-                ctx.stroke();
-                
-                // Draw circle (filled if active/dragging)
-                ctx.beginPath();
-                ctx.arc(displayX, displayY, isActive ? 10 : 8, 0, 2 * Math.PI);
-                if (isActive) {
-                    ctx.fillStyle = corner.color;
-                    ctx.fill();
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 2;
-                }
-                ctx.stroke();
-                
-                // Draw label with background for visibility
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(displayX + 10, displayY - 22, 20, 14);
-                ctx.fillStyle = corner.color;
-                ctx.font = 'bold 12px Arial';
-                ctx.fillText(corner.label, displayX + 12, displayY - 11);
-            }
-        });
+        const spineCorners = [
+            { key: 'topLeft', color: '#ff00ff', label: 'STL' },
+            { key: 'topRight', color: '#00ffff', label: 'STR' },
+            { key: 'bottomLeft', color: '#ff8800', label: 'SBL' },
+            { key: 'bottomRight', color: '#88ff00', label: 'SBR' }
+        ];
         
-        // Draw connecting lines between corners if all are set
-        const allSet = corners.every(c => this.box3DCorners[c.key].x > 0 || this.box3DCorners[c.key].y > 0);
-        if (allSet) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-            
-            const tl = this.box3DCorners.topLeft;
-            const tr = this.box3DCorners.topRight;
-            const bl = this.box3DCorners.bottomLeft;
-            const br = this.box3DCorners.bottomRight;
-            
-            ctx.beginPath();
-            ctx.moveTo(tl.x * this.box3DDisplayScale, tl.y * this.box3DDisplayScale);
-            ctx.lineTo(tr.x * this.box3DDisplayScale, tr.y * this.box3DDisplayScale);
-            ctx.lineTo(br.x * this.box3DDisplayScale, br.y * this.box3DDisplayScale);
-            ctx.lineTo(bl.x * this.box3DDisplayScale, bl.y * this.box3DDisplayScale);
-            ctx.closePath();
-            ctx.stroke();
-            
-            ctx.setLineDash([]);
+        // Draw function for corners
+        const drawCorners = (corners, cornersData, isActiveSurface, useSquare) => {
+            corners.forEach(corner => {
+                const pos = cornersData[corner.key];
+                if (pos.x > 0 || pos.y > 0) {
+                    const displayX = pos.x * this.box3DDisplayScale;
+                    const displayY = pos.y * this.box3DDisplayScale;
+                    
+                    const isActive = isActiveSurface && (corner.key === activeCorner || corner.key === this.box3DDragging);
+                    const opacity = isActiveSurface ? 1 : 0.5;
+                    
+                    // Draw crosshair
+                    ctx.strokeStyle = corner.color;
+                    ctx.globalAlpha = opacity;
+                    ctx.lineWidth = isActive ? 3 : 2;
+                    
+                    // Vertical line
+                    ctx.beginPath();
+                    ctx.moveTo(displayX, displayY - 15);
+                    ctx.lineTo(displayX, displayY + 15);
+                    ctx.stroke();
+                    
+                    // Horizontal line
+                    ctx.beginPath();
+                    ctx.moveTo(displayX - 15, displayY);
+                    ctx.lineTo(displayX + 15, displayY);
+                    ctx.stroke();
+                    
+                    // Draw shape (circle for front, diamond for spine)
+                    ctx.beginPath();
+                    if (useSquare) {
+                        ctx.arc(displayX, displayY, isActive ? 10 : 8, 0, 2 * Math.PI);
+                    } else {
+                        // Diamond shape
+                        const size = isActive ? 10 : 8;
+                        ctx.moveTo(displayX, displayY - size);
+                        ctx.lineTo(displayX + size, displayY);
+                        ctx.lineTo(displayX, displayY + size);
+                        ctx.lineTo(displayX - size, displayY);
+                        ctx.closePath();
+                    }
+                    if (isActive) {
+                        ctx.fillStyle = corner.color;
+                        ctx.fill();
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2;
+                    }
+                    ctx.stroke();
+                    
+                    // Draw label
+                    ctx.globalAlpha = opacity;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(displayX + 10, displayY - 22, 28, 14);
+                    ctx.fillStyle = corner.color;
+                    ctx.font = 'bold 11px Arial';
+                    ctx.fillText(corner.label, displayX + 12, displayY - 11);
+                    
+                    ctx.globalAlpha = 1;
+                }
+            });
+        };
+        
+        // Draw connecting lines function
+        const drawPolygon = (cornersData, color, isActiveSurface) => {
+            const allSet = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'].every(
+                c => cornersData[c].x > 0 || cornersData[c].y > 0
+            );
+            if (allSet) {
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = isActiveSurface ? 0.8 : 0.4;
+                ctx.lineWidth = isActiveSurface ? 2 : 1;
+                ctx.setLineDash([5, 5]);
+                
+                const tl = cornersData.topLeft;
+                const tr = cornersData.topRight;
+                const bl = cornersData.bottomLeft;
+                const br = cornersData.bottomRight;
+                
+                ctx.beginPath();
+                ctx.moveTo(tl.x * this.box3DDisplayScale, tl.y * this.box3DDisplayScale);
+                ctx.lineTo(tr.x * this.box3DDisplayScale, tr.y * this.box3DDisplayScale);
+                ctx.lineTo(br.x * this.box3DDisplayScale, br.y * this.box3DDisplayScale);
+                ctx.lineTo(bl.x * this.box3DDisplayScale, bl.y * this.box3DDisplayScale);
+                ctx.closePath();
+                ctx.stroke();
+                
+                ctx.setLineDash([]);
+                ctx.globalAlpha = 1;
+            }
+        };
+        
+        // Draw inactive surface first (in background)
+        if (activeSurface === 'front') {
+            drawPolygon(this.box3DSpineCorners, 'rgba(255, 0, 255, 0.5)', false);
+            drawCorners(spineCorners, this.box3DSpineCorners, false, false);
+            drawPolygon(this.box3DCorners, 'rgba(255, 255, 255, 0.8)', true);
+            drawCorners(frontCorners, this.box3DCorners, true, true);
+        } else {
+            drawPolygon(this.box3DCorners, 'rgba(255, 255, 255, 0.5)', false);
+            drawCorners(frontCorners, this.box3DCorners, false, true);
+            drawPolygon(this.box3DSpineCorners, 'rgba(255, 0, 255, 0.8)', true);
+            drawCorners(spineCorners, this.box3DSpineCorners, true, false);
         }
     }
     
@@ -13641,8 +13760,12 @@ class GameCollectionManager {
         const hitRadius = 20;
         const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
         
+        // Get active surface
+        const activeSurface = this.box3DActiveSurface || 'front';
+        const cornersData = activeSurface === 'front' ? this.box3DCorners : this.box3DSpineCorners;
+        
         for (const corner of corners) {
-            const pos = this.box3DCorners[corner];
+            const pos = cornersData[corner];
             if (pos.x > 0 || pos.y > 0) {
                 const cornerDisplayX = pos.x * this.box3DDisplayScale;
                 const cornerDisplayY = pos.y * this.box3DDisplayScale;
@@ -13654,6 +13777,7 @@ class GameCollectionManager {
                 if (distance <= hitRadius) {
                     // Start dragging this corner
                     this.box3DDragging = corner;
+                    this.box3DDraggingSurface = activeSurface;
                     canvas.style.cursor = 'grabbing';
                     
                     // Select this corner in the radio buttons
@@ -13673,8 +13797,12 @@ class GameCollectionManager {
         // Get active corner
         const activeCorner = document.querySelector('input[name="active3DCorner"]:checked')?.value || 'topLeft';
         
-        // Update corner position
-        this.box3DCorners[activeCorner] = { x: naturalX, y: naturalY };
+        // Update corner position based on active surface
+        if (activeSurface === 'front') {
+            this.box3DCorners[activeCorner] = { x: naturalX, y: naturalY };
+        } else {
+            this.box3DSpineCorners[activeCorner] = { x: naturalX, y: naturalY };
+        }
         
         // Update input fields
         this.update3DCornerInputs();
@@ -13703,7 +13831,12 @@ class GameCollectionManager {
             const clampedX = Math.max(0, Math.min(naturalX, this.box3DImageNaturalWidth));
             const clampedY = Math.max(0, Math.min(naturalY, this.box3DImageNaturalHeight));
             
-            this.box3DCorners[this.box3DDragging] = { x: clampedX, y: clampedY };
+            // Update the correct surface's corners
+            if (this.box3DDraggingSurface === 'spine') {
+                this.box3DSpineCorners[this.box3DDragging] = { x: clampedX, y: clampedY };
+            } else {
+                this.box3DCorners[this.box3DDragging] = { x: clampedX, y: clampedY };
+            }
             this.update3DCornerInputs();
             this.draw3DBoxCanvas();
             return;
@@ -13712,10 +13845,12 @@ class GameCollectionManager {
         // Not dragging - check if hovering over a crosshair to change cursor
         const hitRadius = 20;
         const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+        const activeSurface = this.box3DActiveSurface || 'front';
+        const cornersData = activeSurface === 'front' ? this.box3DCorners : this.box3DSpineCorners;
         let hovering = false;
         
         for (const corner of corners) {
-            const pos = this.box3DCorners[corner];
+            const pos = cornersData[corner];
             if (pos.x > 0 || pos.y > 0) {
                 const cornerDisplayX = pos.x * this.box3DDisplayScale;
                 const cornerDisplayY = pos.y * this.box3DDisplayScale;
@@ -13780,20 +13915,38 @@ class GameCollectionManager {
     }
     
     update3DCornerInputs() {
-        const mapping = {
+        // Update front corner inputs
+        const frontMapping = {
             topLeft: ['template3DTopLeftX', 'template3DTopLeftY'],
             topRight: ['template3DTopRightX', 'template3DTopRightY'],
             bottomLeft: ['template3DBottomLeftX', 'template3DBottomLeftY'],
             bottomRight: ['template3DBottomRightX', 'template3DBottomRightY']
         };
         
-        Object.keys(mapping).forEach(corner => {
-            const [xId, yId] = mapping[corner];
+        Object.keys(frontMapping).forEach(corner => {
+            const [xId, yId] = frontMapping[corner];
             const xInput = document.getElementById(xId);
             const yInput = document.getElementById(yId);
             
             if (xInput) xInput.value = this.box3DCorners[corner].x;
             if (yInput) yInput.value = this.box3DCorners[corner].y;
+        });
+        
+        // Update spine corner inputs
+        const spineMapping = {
+            topLeft: ['template3DSpineTopLeftX', 'template3DSpineTopLeftY'],
+            topRight: ['template3DSpineTopRightX', 'template3DSpineTopRightY'],
+            bottomLeft: ['template3DSpineBottomLeftX', 'template3DSpineBottomLeftY'],
+            bottomRight: ['template3DSpineBottomRightX', 'template3DSpineBottomRightY']
+        };
+        
+        Object.keys(spineMapping).forEach(corner => {
+            const [xId, yId] = spineMapping[corner];
+            const xInput = document.getElementById(xId);
+            const yInput = document.getElementById(yId);
+            
+            if (xInput) xInput.value = this.box3DSpineCorners[corner].x;
+            if (yInput) yInput.value = this.box3DSpineCorners[corner].y;
         });
     }
     
@@ -13811,10 +13964,18 @@ class GameCollectionManager {
     }
     
     areAll3DCornersZero() {
+        // Check if front corners are all zero
         return this.box3DCorners.topLeft.x === 0 && this.box3DCorners.topLeft.y === 0 &&
                this.box3DCorners.topRight.x === 0 && this.box3DCorners.topRight.y === 0 &&
                this.box3DCorners.bottomLeft.x === 0 && this.box3DCorners.bottomLeft.y === 0 &&
                this.box3DCorners.bottomRight.x === 0 && this.box3DCorners.bottomRight.y === 0;
+    }
+    
+    areAll3DSpineCornersZero() {
+        return this.box3DSpineCorners.topLeft.x === 0 && this.box3DSpineCorners.topLeft.y === 0 &&
+               this.box3DSpineCorners.topRight.x === 0 && this.box3DSpineCorners.topRight.y === 0 &&
+               this.box3DSpineCorners.bottomLeft.x === 0 && this.box3DSpineCorners.bottomLeft.y === 0 &&
+               this.box3DSpineCorners.bottomRight.x === 0 && this.box3DSpineCorners.bottomRight.y === 0;
     }
     
     load3DTemplateList() {
@@ -13847,7 +14008,7 @@ class GameCollectionManager {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Load corner positions
+                    // Load front corner positions
                     if (data.corners) {
                         this.box3DCorners = {
                             topLeft: { x: data.corners.topLeft?.x || 0, y: data.corners.topLeft?.y || 0 },
@@ -13855,8 +14016,19 @@ class GameCollectionManager {
                             bottomLeft: { x: data.corners.bottomLeft?.x || 0, y: data.corners.bottomLeft?.y || 0 },
                             bottomRight: { x: data.corners.bottomRight?.x || 0, y: data.corners.bottomRight?.y || 0 }
                         };
-                        this.update3DCornerInputs();
                     }
+                    
+                    // Load spine corner positions
+                    if (data.spine_corners) {
+                        this.box3DSpineCorners = {
+                            topLeft: { x: data.spine_corners.topLeft?.x || 0, y: data.spine_corners.topLeft?.y || 0 },
+                            topRight: { x: data.spine_corners.topRight?.x || 0, y: data.spine_corners.topRight?.y || 0 },
+                            bottomLeft: { x: data.spine_corners.bottomLeft?.x || 0, y: data.spine_corners.bottomLeft?.y || 0 },
+                            bottomRight: { x: data.spine_corners.bottomRight?.x || 0, y: data.spine_corners.bottomRight?.y || 0 }
+                        };
+                    }
+                    
+                    this.update3DCornerInputs();
                     
                     // Load background image
                     if (data.background_image_path) {
@@ -13880,6 +14052,36 @@ class GameCollectionManager {
                         }
                         
                         this.load3DBoxImage(imageUrl);
+                    }
+                    
+                    // Load spine image path
+                    if (data.spine_image_path) {
+                        const spineFileInput = document.getElementById('template3DSpineImage');
+                        if (spineFileInput) {
+                            const helperText = spineFileInput.parentElement.querySelector('.form-text');
+                            let spineFilename = data.spine_image_path;
+                            if (spineFilename.includes('?path=')) {
+                                const urlParams = new URLSearchParams(spineFilename.split('?')[1]);
+                                spineFilename = urlParams.get('path') || spineFilename;
+                            }
+                            if (spineFilename.includes('/')) {
+                                spineFilename = spineFilename.split('/').pop();
+                            }
+                            if (helperText) {
+                                helperText.textContent = `Current: ${spineFilename} (loaded from template)`;
+                                helperText.style.color = '#28a745';
+                            }
+                            spineFileInput.setAttribute('data-loaded-filename', spineFilename);
+                            spineFileInput.setAttribute('data-loaded-path', data.spine_image_path);
+                        }
+                    }
+                    
+                    // Load spine source field
+                    if (data.spine_source_field) {
+                        const spineSourceField = document.getElementById('template3DSpineSourceField');
+                        if (spineSourceField) {
+                            spineSourceField.value = data.spine_source_field;
+                        }
                     }
                     
                     this.showAlert('Template loaded successfully', 'success');
@@ -13930,9 +14132,15 @@ class GameCollectionManager {
             return;
         }
         
+        const spineFileInput = document.getElementById('template3DSpineImage');
+        const hasSpineFile = spineFileInput?.files[0];
+        const hasSpineLoadedPath = spineFileInput?.getAttribute('data-loaded-path');
+        const hasSpineLoadedFilename = spineFileInput?.getAttribute('data-loaded-filename');
+        
         const formData = new FormData();
         formData.append('template_name', templateName);
         formData.append('corners', JSON.stringify(this.box3DCorners));
+        formData.append('spine_corners', JSON.stringify(this.box3DSpineCorners));
         
         if (hasBackgroundFile) {
             formData.append('background_image', fileInput.files[0]);
@@ -13940,6 +14148,20 @@ class GameCollectionManager {
             formData.append('background_image_path', hasLoadedFilename);
         } else if (hasLoadedPath) {
             formData.append('background_image_path', hasLoadedPath);
+        }
+        
+        if (hasSpineFile) {
+            formData.append('spine_image', spineFileInput.files[0]);
+        } else if (hasSpineLoadedFilename) {
+            formData.append('spine_image_path', hasSpineLoadedFilename);
+        } else if (hasSpineLoadedPath) {
+            formData.append('spine_image_path', hasSpineLoadedPath);
+        }
+        
+        // Add spine source field if selected
+        const spineSourceField = document.getElementById('template3DSpineSourceField');
+        if (spineSourceField && spineSourceField.value) {
+            formData.append('spine_source_field', spineSourceField.value);
         }
         
         fetch('/api/save-3dbox-template', {
@@ -14005,11 +14227,17 @@ class GameCollectionManager {
         if (previewImage) previewImage.style.display = 'none';
         
         try {
+            const spineFileInput = document.getElementById('template3DSpineImage');
+            const hasSpineFile = spineFileInput?.files[0];
+            const hasSpineLoadedPath = spineFileInput?.getAttribute('data-loaded-path');
+            const hasSpineLoadedFilename = spineFileInput?.getAttribute('data-loaded-filename');
+            
             const formData = new FormData();
             formData.append('system_name', this.currentSystem);
             formData.append('game_path', this.selectedGames[0].path);
             formData.append('source_field', sourceField);
             formData.append('corners', JSON.stringify(this.box3DCorners));
+            formData.append('spine_corners', JSON.stringify(this.box3DSpineCorners));
             
             if (hasBackgroundFile) {
                 formData.append('background_image', fileInput.files[0]);
@@ -14023,6 +14251,28 @@ class GameCollectionManager {
                     filename = filename.split('/').pop();
                 }
                 formData.append('background_image_path', filename);
+            }
+            
+            if (hasSpineFile) {
+                formData.append('spine_image', spineFileInput.files[0]);
+            } else if (hasSpineLoadedFilename) {
+                formData.append('spine_image_path', hasSpineLoadedFilename);
+            } else if (hasSpineLoadedPath) {
+                let spineFilename = hasSpineLoadedPath;
+                if (spineFilename.includes('?path=')) {
+                    const urlParams = new URLSearchParams(spineFilename.split('?')[1]);
+                    spineFilename = urlParams.get('path') || spineFilename;
+                }
+                if (spineFilename.includes('/')) {
+                    spineFilename = spineFilename.split('/').pop();
+                }
+                formData.append('spine_image_path', spineFilename);
+            }
+            
+            // Add spine source field if selected
+            const spineSourceField = document.getElementById('template3DSpineSourceField');
+            if (spineSourceField && spineSourceField.value) {
+                formData.append('spine_source_field', spineSourceField.value);
             }
             
             const response = await fetch('/api/preview-3dbox', {
@@ -14087,6 +14337,11 @@ class GameCollectionManager {
             return;
         }
         
+        const spineFileInput = document.getElementById('template3DSpineImage');
+        const hasSpineFile = spineFileInput?.files[0];
+        const hasSpineLoadedPath = spineFileInput?.getAttribute('data-loaded-path');
+        const hasSpineLoadedFilename = spineFileInput?.getAttribute('data-loaded-filename');
+        
         // Close modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('box3DGeneratorModal'));
         if (modal) {
@@ -14100,6 +14355,7 @@ class GameCollectionManager {
             formData.append('source_field', sourceField);
             formData.append('target_field', targetField);
             formData.append('corners', JSON.stringify(this.box3DCorners));
+            formData.append('spine_corners', JSON.stringify(this.box3DSpineCorners));
             formData.append('overwrite_existing', overwriteExisting ? 'true' : 'false');
             
             if (hasBackgroundFile) {
@@ -14116,6 +14372,28 @@ class GameCollectionManager {
                     filename = filename.split('/').pop();
                 }
                 formData.append('background_image_path', filename);
+            }
+            
+            if (hasSpineFile) {
+                formData.append('spine_image', spineFileInput.files[0]);
+            } else if (hasSpineLoadedFilename) {
+                formData.append('spine_image_path', hasSpineLoadedFilename);
+            } else if (hasSpineLoadedPath) {
+                let spineFilename = hasSpineLoadedPath;
+                if (spineFilename.includes('?path=')) {
+                    const urlParams = new URLSearchParams(spineFilename.split('?')[1]);
+                    spineFilename = urlParams.get('path') || spineFilename;
+                }
+                if (spineFilename.includes('/')) {
+                    spineFilename = spineFilename.split('/').pop();
+                }
+                formData.append('spine_image_path', spineFilename);
+            }
+            
+            // Add spine source field if selected
+            const spineSourceField = document.getElementById('template3DSpineSourceField');
+            if (spineSourceField && spineSourceField.value) {
+                formData.append('spine_source_field', spineSourceField.value);
             }
             
             const response = await fetch('/api/generate-3dbox', {
@@ -25378,17 +25656,40 @@ class GameCollectionManager {
         
         // 3D Box corner position inputs - update canvas when manually changed
         ['template3DTopLeftX', 'template3DTopLeftY', 'template3DTopRightX', 'template3DTopRightY',
-         'template3DBottomLeftX', 'template3DBottomLeftY', 'template3DBottomRightX', 'template3DBottomRightY'].forEach(id => {
+         'template3DBottomLeftX', 'template3DBottomLeftY', 'template3DBottomRightX', 'template3DBottomRightY',
+         'template3DSpineTopLeftX', 'template3DSpineTopLeftY', 'template3DSpineTopRightX', 'template3DSpineTopRightY',
+         'template3DSpineBottomLeftX', 'template3DSpineBottomLeftY', 'template3DSpineBottomRightX', 'template3DSpineBottomRightY'].forEach(id => {
             const input = document.getElementById(id);
             if (input) {
                 input.addEventListener('input', () => this.update3DCornersFromInputs());
             }
         });
         
+        // 3D Box surface toggle
+        document.querySelectorAll('input[name="active3DSurface"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.toggle3DSurface(e.target.value);
+            });
+        });
+        
         // 3D Box background image change handler
         const template3DBackgroundImage = document.getElementById('template3DBackgroundImage');
         if (template3DBackgroundImage) {
             template3DBackgroundImage.addEventListener('change', (e) => this.handle3DBackgroundChange(e));
+        }
+        
+        // 3D Box spine image change handler
+        const template3DSpineImage = document.getElementById('template3DSpineImage');
+        if (template3DSpineImage) {
+            template3DSpineImage.addEventListener('change', (e) => {
+                // Just store the file, no preview needed
+                const file = e.target.files[0];
+                if (file) {
+                    // Clear any loaded spine image path
+                    e.target.removeAttribute('data-loaded-filename');
+                    e.target.removeAttribute('data-loaded-path');
+                }
+            });
         }
         
         // 3D Box canvas event handlers

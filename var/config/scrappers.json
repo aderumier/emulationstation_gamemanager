@@ -43,6 +43,9 @@
                 "Fanart - Cart - Front",
                 "Disc",
                 "Fanart - Disc"
+            ],
+            "spine": [
+                "Box - Spine"
             ]
         },
         "region": {
@@ -121,6 +124,9 @@
             ],
             "cartridge": [
                 "support-2D"
+            ],
+            "spine": [
+                "box-2D-side"
             ]
         }
     },

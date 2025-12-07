@@ -2912,6 +2912,9 @@ def process_next_queued_task():
         target_field = task_data.get('target_field')
         background_path = task_data.get('background_path')
         corners = task_data.get('corners', {})
+        spine_corners = task_data.get('spine_corners', {})
+        spine_image_path = task_data.get('spine_image_path')
+        spine_source_field = task_data.get('spine_source_field')
         temp_dir = task_data.get('temp_dir')
         overwrite_existing = task_data.get('overwrite_existing', True)
         if system_name and selected_games:
@@ -2927,7 +2930,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start 3D box generation in background thread
-            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, temp_dir, overwrite_existing))
+            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -23304,7 +23307,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
-def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, temp_dir, overwrite_existing=True):
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None):
     """Run 3D box generation task in background thread"""
     global current_task_id
     
@@ -23404,6 +23407,26 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     task.update_progress(f"⚠️  Skipped: {game_name} (source image not found)")
                     continue
                 
+                # Determine spine image for this game: prioritize game's spine field, then uploaded spine, then None (will use 2D box)
+                game_spine_path = None
+                if spine_source_field:
+                    # Try to get spine from game's media field
+                    game_spine = game.get(spine_source_field)
+                    if game_spine:
+                        if game_spine.startswith('./'):
+                            game_spine_path = os.path.join(system_path, game_spine[2:])
+                        elif game_spine.startswith('/'):
+                            game_spine_path = game_spine
+                        else:
+                            game_spine_path = os.path.join(system_path, game_spine)
+                        
+                        if not os.path.exists(game_spine_path):
+                            game_spine_path = None  # Game has field but file doesn't exist
+                
+                # Fallback to uploaded spine image if game doesn't have one
+                if not game_spine_path and spine_image_path and os.path.exists(spine_image_path):
+                    game_spine_path = spine_image_path
+                
                 # Generate output filename
                 rom_filename = os.path.basename(game_path)
                 rom_base = os.path.splitext(rom_filename)[0]
@@ -23417,6 +23440,8 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     box2d_path=source_2dbox_path,
                     output_path=output_path,
                     corners=corners,
+                    spine_corners=spine_corners,
+                    spine_image_path=game_spine_path,  # Use game's spine or fallback to uploaded spine
                     debug=is_first_game
                 )
                 
@@ -25302,16 +25327,53 @@ def save_3dbox_template():
         else:
             return jsonify({'success': False, 'error': 'Background image is required'}), 400
         
+        # Handle spine image (optional)
+        spine_file = request.files.get('spine_image')
+        spine_image_path = request.form.get('spine_image_path')
+        
+        spine_filename = None
+        
+        if spine_file:
+            spine_filename = f'{safe_name}_spine.png'
+            spine_path = os.path.join(templates_dir, spine_filename)
+            spine_file.save(spine_path)
+        elif spine_image_path:
+            existing_spine_filename = os.path.basename(spine_image_path)
+            if '?' in existing_spine_filename:
+                existing_spine_filename = existing_spine_filename.split('?')[0]
+            
+            existing_spine_path = os.path.join(templates_dir, existing_spine_filename)
+            if os.path.exists(existing_spine_path):
+                spine_filename = existing_spine_filename
+            else:
+                potential_spine_filename = f'{safe_name}_spine.png'
+                potential_spine_path = os.path.join(templates_dir, potential_spine_filename)
+                if os.path.exists(potential_spine_path):
+                    spine_filename = potential_spine_filename
+        
         # Get corner positions
         corners_json = request.form.get('corners')
         corners = json.loads(corners_json) if corners_json else {}
+        
+        spine_corners_json = request.form.get('spine_corners')
+        spine_corners = json.loads(spine_corners_json) if spine_corners_json else {}
+        
+        # Get spine source field if provided
+        spine_source_field = request.form.get('spine_source_field')
         
         # Save template metadata as JSON
         template_data = {
             'name': template_name,
             'background_image': background_filename,
-            'corners': corners
+            'corners': corners,
+            'spine_corners': spine_corners
         }
+        
+        if spine_filename:
+            template_data['spine_image'] = spine_filename
+        
+        if spine_source_field:
+            template_data['spine_source_field'] = spine_source_field
         
         template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
         with open(template_json_path, 'w') as f:
@@ -25340,7 +25402,8 @@ def list_3dbox_templates():
                             templates.append({
                                 'name': template_data.get('name', filename.replace('.json', '')),
                                 'background_image': template_data.get('background_image', ''),
-                                'corners': template_data.get('corners', {})
+                                'corners': template_data.get('corners', {}),
+                                'spine_corners': template_data.get('spine_corners', {})
                             })
                     except Exception as e:
                         print(f"Error loading 3D template {filename}: {e}")
@@ -25371,13 +25434,25 @@ def load_3dbox_template():
             template_data = json.load(f)
         
         background_image = template_data.get('background_image', '')
+        spine_image = template_data.get('spine_image', '')
         corners = template_data.get('corners', {})
+        spine_corners = template_data.get('spine_corners', {})
         
-        return jsonify({
+        response_data = {
             'success': True,
             'background_image_path': f'/api/3dbox-template-image?path={background_image}&type=background',
-            'corners': corners
-        })
+            'corners': corners,
+            'spine_corners': spine_corners
+        }
+        
+        if spine_image:
+            response_data['spine_image_path'] = f'/api/3dbox-template-image?path={spine_image}&type=spine'
+        
+        spine_source_field = template_data.get('spine_source_field')
+        if spine_source_field:
+            response_data['spine_source_field'] = spine_source_field
+        
+        return jsonify(response_data)
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to load template: {str(e)}'}), 500
@@ -25419,11 +25494,13 @@ def preview_3dbox():
         game_path = request.form.get('game_path')
         source_field = request.form.get('source_field')
         corners_json = request.form.get('corners')
+        spine_corners_json = request.form.get('spine_corners')
         
         if not system_name or not game_path or not source_field:
             return jsonify({'error': 'Missing required parameters'}), 400
         
         corners = json.loads(corners_json) if corners_json else {}
+        spine_corners = json.loads(spine_corners_json) if spine_corners_json else {}
         
         # Get background image
         background_file = request.files.get('background_image')
@@ -25432,9 +25509,15 @@ def preview_3dbox():
         if not background_file and not background_image_path:
             return jsonify({'error': 'Background image is required'}), 400
         
+        # Get spine image (optional)
+        spine_file = request.files.get('spine_image')
+        spine_image_path = request.form.get('spine_image_path')
+        spine_source_field = request.form.get('spine_source_field')
+        
         # Create temp directory
         temp_dir = tempfile.mkdtemp(prefix='3dbox_preview_')
         background_path = os.path.join(temp_dir, 'background.png')
+        spine_path = None
         
         if background_file:
             background_file.save(background_path)
@@ -25478,6 +25561,34 @@ def preview_3dbox():
         if not os.path.exists(source_2dbox_path):
             return jsonify({'error': f'Source 2D box image not found: {source_2dbox_path}'}), 404
         
+        # Determine spine image: prioritize game's spine field, then uploaded spine, then 2D box
+        if spine_source_field:
+            # Try to get spine from game's media field
+            game_spine = game.get(spine_source_field)
+            if game_spine:
+                if game_spine.startswith('./'):
+                    game_spine_path = os.path.join(system_path, game_spine[2:])
+                elif game_spine.startswith('/'):
+                    game_spine_path = game_spine
+                else:
+                    game_spine_path = os.path.join(system_path, game_spine)
+                
+                if os.path.exists(game_spine_path):
+                    spine_path = os.path.join(temp_dir, 'spine.png')
+                    shutil.copy2(game_spine_path, spine_path)
+        
+        # Fallback to uploaded spine image if game doesn't have one
+        if not spine_path:
+            if spine_file:
+                spine_path = os.path.join(temp_dir, 'spine.png')
+                spine_file.save(spine_path)
+            elif spine_image_path:
+                templates_dir = 'var/3dbox/templates'
+                source_spine_path = os.path.join(templates_dir, spine_image_path)
+                if os.path.exists(source_spine_path):
+                    spine_path = os.path.join(temp_dir, 'spine.png')
+                    shutil.copy2(source_spine_path, spine_path)
+        
         # Generate 3D box preview (enable debug mode for previews)
         output_path = os.path.join(temp_dir, 'preview.png')
         
@@ -25488,6 +25599,8 @@ def preview_3dbox():
             box2d_path=source_2dbox_path,
             output_path=output_path,
             corners=corners,
+            spine_corners=spine_corners,
+            spine_image_path=spine_path,  # Pass spine image if available
             debug=True  # Keep intermediate files for debugging
         )
         
@@ -25518,6 +25631,7 @@ def generate_3dbox():
         source_field = request.form.get('source_field')
         target_field = request.form.get('target_field')
         corners_json = request.form.get('corners')
+        spine_corners_json = request.form.get('spine_corners')
         overwrite_existing = request.form.get('overwrite_existing', 'true').lower() == 'true'
         
         if not system_name or not game_paths_json or not source_field or not target_field:
@@ -25525,6 +25639,7 @@ def generate_3dbox():
         
         selected_games = json.loads(game_paths_json)
         corners = json.loads(corners_json) if corners_json else {}
+        spine_corners = json.loads(spine_corners_json) if spine_corners_json else {}
         
         # Get background image
         background_file = request.files.get('background_image')
@@ -25533,9 +25648,15 @@ def generate_3dbox():
         if not background_file and not background_image_path:
             return jsonify({'success': False, 'error': 'Background image is required'}), 400
         
+        # Get spine image (optional)
+        spine_file = request.files.get('spine_image')
+        spine_image_path = request.form.get('spine_image_path')
+        spine_source_field = request.form.get('spine_source_field')
+        
         # Create temp directory for this task
         temp_dir = tempfile.mkdtemp(prefix='3dbox_')
         background_path = os.path.join(temp_dir, 'background.png')
+        spine_path = None
         
         if background_file:
             background_file.save(background_path)
@@ -25553,6 +25674,22 @@ def generate_3dbox():
             
             shutil.copy2(source_path, background_path)
         
+        if spine_file:
+            spine_path = os.path.join(temp_dir, 'spine.png')
+            spine_file.save(spine_path)
+        elif spine_image_path:
+            templates_dir = 'var/3dbox/templates'
+            source_spine_path = os.path.join(templates_dir, spine_image_path)
+            
+            abs_templates_dir = os.path.abspath(templates_dir)
+            abs_source_spine_path = os.path.abspath(source_spine_path)
+            if not abs_source_spine_path.startswith(abs_templates_dir):
+                return jsonify({'success': False, 'error': 'Invalid spine image path'}), 403
+            
+            if os.path.exists(source_spine_path):
+                spine_path = os.path.join(temp_dir, 'spine.png')
+                shutil.copy2(source_spine_path, spine_path)
+        
         # Add task to queue
         task_data = {
             'system_name': system_name,
@@ -25561,6 +25698,9 @@ def generate_3dbox():
             'target_field': target_field,
             'background_path': background_path,
             'corners': corners,
+            'spine_corners': spine_corners,
+            'spine_image_path': spine_path,  # Pass uploaded spine image path if available (fallback)
+            'spine_source_field': spine_source_field,  # Pass spine source field if selected
             'temp_dir': temp_dir,
             'overwrite_existing': overwrite_existing
         }

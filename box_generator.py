@@ -801,7 +801,7 @@ class BoxGenerator:
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {temp_file}: {e}")
 
-    def generate_3dbox(self, background_path, box2d_path, output_path, corners, debug=False):
+    def generate_3dbox(self, background_path, box2d_path, output_path, corners, spine_corners=None, spine_image_path=None, debug=False):
         """
         Generate a 3D box by applying perspective distortion to a 2D box image
         and compositing it onto a 3D box template.
@@ -810,13 +810,14 @@ class BoxGenerator:
             background_path: Path to the 3D box template image
             box2d_path: Path to the 2D box image to be placed
             output_path: Path where the generated 3D box will be saved
-            corners: Dictionary with corner positions:
+            corners: Dictionary with front corner positions:
                 {
                     'topLeft': {'x': int, 'y': int},
                     'topRight': {'x': int, 'y': int},
                     'bottomLeft': {'x': int, 'y': int},
                     'bottomRight': {'x': int, 'y': int}
                 }
+            spine_corners: Optional dictionary with spine corner positions (same format as corners)
             debug: If True, keep intermediate temp images for debugging
         """
         temp_files = []
@@ -941,8 +942,125 @@ class BoxGenerator:
                 background_path,
                 output_path
             ]
-            logging.info(f"3D Box Step 4 - Composite at ({source_topleft_x},{source_topleft_y}): {' '.join(cmd_composite)}")
+            logging.info(f"3D Box Step 4 - Composite front at ({source_topleft_x},{source_topleft_y}): {' '.join(cmd_composite)}")
             subprocess.run(cmd_composite, check=True)
+            
+            # Process spine if spine_corners are provided and not all zero
+            if spine_corners:
+                spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
+                spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
+                spine_bl = spine_corners.get('bottomLeft', {'x': 0, 'y': 0})
+                spine_br = spine_corners.get('bottomRight', {'x': 0, 'y': 0})
+                
+                spine_has_corners = (
+                    (spine_tl.get('x', 0) > 0 or spine_tl.get('y', 0) > 0) or
+                    (spine_tr.get('x', 0) > 0 or spine_tr.get('y', 0) > 0) or
+                    (spine_bl.get('x', 0) > 0 or spine_bl.get('y', 0) > 0) or
+                    (spine_br.get('x', 0) > 0 or spine_br.get('y', 0) > 0)
+                )
+                
+                if spine_has_corners:
+                    logging.info(f"3D Box: Processing spine surface")
+                    
+                    spine_target_topleft_x = int(spine_tl.get('x', 0))
+                    spine_target_topleft_y = int(spine_tl.get('y', 0))
+                    spine_target_topright_x = int(spine_tr.get('x', 0))
+                    spine_target_topright_y = int(spine_tr.get('y', 0))
+                    spine_target_bottomleft_x = int(spine_bl.get('x', 0))
+                    spine_target_bottomleft_y = int(spine_bl.get('y', 0))
+                    spine_target_bottomright_x = int(spine_br.get('x', 0))
+                    spine_target_bottomright_y = int(spine_br.get('y', 0))
+                    
+                    # Use new resize dimensions for spine: width = target_topright_x - target_topleft_x, height = target_bottomright_y - target_topright_y
+                    spine_resize_width = spine_target_topright_x - spine_target_topleft_x
+                    spine_resize_height = spine_target_bottomright_y - spine_target_topright_y
+                    
+                    if spine_resize_width > 0 and spine_resize_height > 0:
+                        # Determine which image to use for spine
+                        spine_source_image = spine_image_path if spine_image_path and os.path.exists(spine_image_path) else box2d_path
+                        if not os.path.exists(spine_source_image):
+                            logging.warning(f"Spine source image not found: {spine_source_image}, skipping spine")
+                        else:
+                            # Create temp files for spine
+                            if debug:
+                                output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                temp_spine_resized = os.path.join(temp_dir, f'{output_base}_spine_1_resized.png')
+                                temp_spine_perspective = os.path.join(temp_dir, f'{output_base}_spine_2_perspective.png')
+                                temp_spine_perspective_resized = os.path.join(temp_dir, f'{output_base}_spine_3_perspective_resized.png')
+                            else:
+                                temp_spine_resized = os.path.join(temp_dir, 'spine_resized.png')
+                                temp_spine_perspective = os.path.join(temp_dir, 'spine_perspective.png')
+                                temp_spine_perspective_resized = os.path.join(temp_dir, 'spine_perspective_resized.png')
+                            
+                            temp_files.extend([temp_spine_resized, temp_spine_perspective, temp_spine_perspective_resized])
+                            
+                            # Step S1: Resize the spine image (or 2D box if no spine image) to fit the target area
+                            cmd_spine_resize = [
+                                'convert',
+                                spine_source_image,
+                                '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                temp_spine_resized
+                            ]
+                            logging.info(f"3D Box Spine Step 1 - Resize {spine_source_image} to {spine_resize_width}x{spine_resize_height}: {' '.join(cmd_spine_resize)}")
+                            subprocess.run(cmd_spine_resize, check=True)
+                            
+                            # Step S2: Compute spine source coordinates (new formula)
+                            # source_topright_x = target_topright_x, source_topright_y = target_topright_y
+                            # source_bottomright_x = target_topright_x, source_bottomright_y = target_bottomright_y
+                            # source_topleft_x = target_topleft_x, source_topleft_y = target_topright_y
+                            # source_bottomleft_x = target_topleft_x, source_bottomleft_y = target_bottomright_y
+                            spine_source_topleft_x = spine_target_topleft_x
+                            spine_source_topleft_y = spine_target_topright_y
+                            spine_source_topright_x = spine_target_topright_x
+                            spine_source_topright_y = spine_target_topright_y
+                            spine_source_bottomleft_x = spine_target_topleft_x
+                            spine_source_bottomleft_y = spine_target_bottomright_y
+                            spine_source_bottomright_x = spine_target_topright_x
+                            spine_source_bottomright_y = spine_target_bottomright_y
+                            
+                            # Step S3: Apply perspective distortion to spine
+                            spine_perspective_str = (
+                                f'{spine_source_topleft_x},{spine_source_topleft_y} {spine_target_topleft_x},{spine_target_topleft_y}  '
+                                f'{spine_source_topright_x},{spine_source_topright_y} {spine_target_topright_x},{spine_target_topright_y}  '
+                                f'{spine_source_bottomright_x},{spine_source_bottomright_y} {spine_target_bottomright_x},{spine_target_bottomright_y}  '
+                                f'{spine_source_bottomleft_x},{spine_source_bottomleft_y} {spine_target_bottomleft_x},{spine_target_bottomleft_y}'
+                            )
+                            
+                            cmd_spine_perspective = [
+                                'convert',
+                                temp_spine_resized,
+                                '-background', 'none',
+                                '-virtual-pixel', 'transparent',
+                                '-alpha', 'set',
+                                '+distort', 'Perspective', spine_perspective_str,
+                                temp_spine_perspective
+                            ]
+                            logging.info(f"3D Box Spine Step 2 - Perspective: {' '.join(cmd_spine_perspective)}")
+                            subprocess.run(cmd_spine_perspective, check=True)
+                            
+                            # Step S4: Resize perspective image back to the same dimensions as the first resize
+                            cmd_spine_resize_perspective = [
+                                'convert',
+                                temp_spine_perspective,
+                                '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                temp_spine_perspective_resized
+                            ]
+                            logging.info(f"3D Box Spine Step 3 - Resize: {' '.join(cmd_spine_resize_perspective)}")
+                            subprocess.run(cmd_spine_resize_perspective, check=True)
+                            
+                            # Step S5: Composite spine onto the result (which already has front)
+                            # Use source coordinates for compositing (exactly like the front surface)
+                            cmd_spine_composite = [
+                                'composite',
+                                '-geometry', f'+{spine_source_topleft_x}+{spine_source_topleft_y}',
+                                temp_spine_perspective_resized,
+                                output_path,
+                                output_path
+                            ]
+                            logging.info(f"3D Box Spine Step 4 - Composite at ({spine_source_topleft_x},{spine_source_topleft_y}): {' '.join(cmd_spine_composite)}")
+                            subprocess.run(cmd_spine_composite, check=True)
+                            
+                            logging.info(f"✅ Spine composited successfully")
             
             logging.info(f"✅ 3D Box generated successfully: {output_path}")
             if debug:
