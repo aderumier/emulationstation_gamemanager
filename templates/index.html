@@ -4441,7 +4441,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             
                             <div class="mb-3">
                                 <button type="button" class="btn btn-outline-primary btn-sm me-2" id="saveTemplateBtn">
-                                    <i class="bi bi-save me-1"></i>Save Template
+                                    <i class="bi bi-save me-1"></i>Update Template
                                 </button>
                                 <button type="button" class="btn btn-outline-success btn-sm me-2" id="createTemplateBtn">
                                     <i class="bi bi-plus-circle me-1"></i>Create Template
@@ -4471,6 +4471,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <option value="">Loading media fields...</option>
                                 </select>
                                 <div class="form-text">Field where the generated box will be saved</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="templateOverwriteExisting" checked>
+                                    <label class="form-check-label" for="templateOverwriteExisting">
+                                        Overwrite existing media
+                                    </label>
+                                </div>
+                                <div class="form-text">If disabled, skip games that already have media in the target field</div>
                             </div>
                             
                             <div class="mb-3" style="display: none;">

@@ -12204,6 +12204,18 @@ class GameCollectionManager {
                 y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
             };
             
+            // Validate corners - screenshot corners must not be all zero
+            if (this.areAllCornersZero(corners)) {
+                this.showAlert('Cannot save template: Screenshot corners are not defined. Please set the screenshot zone in the interactive preview.', 'warning');
+                return;
+            }
+            
+            // Validate logo corners - if logo is configured, logo corners must not be all zero
+            if (logoSource !== 'none' && this.areAllCornersZero(logoCorners)) {
+                this.showAlert('Cannot save template: Logo corners are not defined. Please set the logo zone in the interactive preview.', 'warning');
+                return;
+            }
+            
             this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, currentHasBackgroundFile, currentHasLoadedPath, false, currentHasLoadedFilename);
         }, 100);
     }
@@ -12261,6 +12273,18 @@ class GameCollectionManager {
                 y4: parseInt(document.getElementById('templateLogoCorner4Y')?.value) || 0
             };
             
+            // Validate corners - screenshot corners must not be all zero
+            if (this.areAllCornersZero(corners)) {
+                this.showAlert('Cannot create template: Screenshot corners are not defined. Please set the screenshot zone in the interactive preview.', 'warning');
+                return;
+            }
+            
+            // Validate logo corners - if logo is configured, logo corners must not be all zero
+            if (logoSource !== 'none' && this.areAllCornersZero(logoCorners)) {
+                this.showAlert('Cannot create template: Logo corners are not defined. Please set the logo zone in the interactive preview.', 'warning');
+                return;
+            }
+            
             // Re-check the loaded path/filename in case it changed
             const currentHasBackgroundFile = backgroundInput?.files[0];
             const currentHasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
@@ -12268,6 +12292,14 @@ class GameCollectionManager {
             
             this.saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, currentHasBackgroundFile, currentHasLoadedPath, true, currentHasLoadedFilename);
         }, 100);
+    }
+    
+    areAllCornersZero(corners) {
+        // Check if all corner values are zero
+        return corners.x1 === 0 && corners.y1 === 0 &&
+               corners.x2 === 0 && corners.y2 === 0 &&
+               corners.x3 === 0 && corners.y3 === 0 &&
+               corners.x4 === 0 && corners.y4 === 0;
     }
     
     saveTemplateWithData(trimmedName, backgroundInput, corners, logoSource, logoCorners, hasBackgroundFile, hasLoadedPath, isNewTemplate = false, hasLoadedFilename = null) {
@@ -12363,12 +12395,10 @@ class GameCollectionManager {
             if (data.success) {
                 this.showAlert('Template saved successfully', 'success');
                 this.loadTemplateList(() => {
-                    // If this is a new template, select it in the dropdown
-                    if (isNewTemplate) {
-                        const templateSelect = document.getElementById('templateSelect');
-                        if (templateSelect) {
-                            templateSelect.value = trimmedName;
-                        }
+                    // Keep the template selected in the dropdown (for both new and updated templates)
+                    const templateSelect = document.getElementById('templateSelect');
+                    if (templateSelect) {
+                        templateSelect.value = trimmedName;
                     }
                 });
             } else {
@@ -12746,6 +12776,10 @@ class GameCollectionManager {
             formData.append('system_name', this.currentSystem);
             formData.append('game_paths', JSON.stringify(this.selectedGames.map(g => g.path)));
             formData.append('logo_source', logoSource);
+            
+            // Get overwrite existing media option
+            const overwriteExisting = document.getElementById('templateOverwriteExisting')?.checked ?? true;
+            formData.append('overwrite_existing', overwriteExisting ? 'true' : 'false');
             if (logoSource !== 'none') {
                 formData.append('logo_corners', JSON.stringify(logoCorners));
             }

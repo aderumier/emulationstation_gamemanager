@@ -2859,6 +2859,7 @@ def process_next_queued_task():
         logo_source = task_data.get('logo_source', 'none')
         logo_corners = task_data.get('logo_corners', {})
         text_logo_settings = task_data.get('text_logo_settings')
+        overwrite_existing = task_data.get('overwrite_existing', True)
         if system_name and selected_games:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2872,7 +2873,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start template box generation in background thread
-            thread = threading.Thread(target=run_template_box_generation_task, args=(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source, logo_corners, text_logo_settings))
+            thread = threading.Thread(target=run_template_box_generation_task, args=(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source, logo_corners, text_logo_settings, overwrite_existing))
             thread.daemon = True
             thread.start()
     elif task_type == 'logo_generation':
@@ -23062,7 +23063,7 @@ def wrap_text_to_lines(text, max_chars_per_line=15):
     
     return lines if lines else ['']
 
-def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source='none', logo_corners=None, text_logo_settings=None):
+def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source='none', logo_corners=None, text_logo_settings=None, overwrite_existing=True):
     """Run template box generation task in background thread"""
     global current_task_id
     
@@ -23161,6 +23162,14 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                 
                 game_name = game.get('name', 'Unknown')
                 task.update_progress(f"Processing: {game_name}")
+                
+                # Check if target field already has media and overwrite is disabled
+                if not overwrite_existing:
+                    existing_target = game.get(target_field)
+                    if existing_target and existing_target.strip():
+                        print(f"⏭️  Skipping {game_name} - target field already has media")
+                        task.update_progress(f"⏭️  Skipped: {game_name} (existing media)")
+                        continue
                 
                 # Get screenshot path from game field
                 screenshot_path = None
@@ -24914,12 +24923,20 @@ def save_box_template():
         corners_json = request.form.get('corners')
         corners = json.loads(corners_json) if corners_json else {}
         
+        # Validate screenshot corners - must not be all zero
+        if corners and all(corners.get(coord) == 0 for coord in ['x1', 'y1', 'x2', 'y2', 'x3', 'y3', 'x4', 'y4']):
+            return jsonify({'success': False, 'error': 'Screenshot corners are not defined. Please set the screenshot zone in the interactive preview.'}), 400
+        
         # Get logo corner positions
         logo_corners_json = request.form.get('logo_corners')
         logo_corners = json.loads(logo_corners_json) if logo_corners_json else {}
         
         # Get logo source
         logo_source = request.form.get('logo_source', 'marquee')
+        
+        # Validate logo corners - if logo is configured, must not be all zero
+        if logo_source != 'none' and logo_corners and all(logo_corners.get(coord) == 0 for coord in ['x1', 'y1', 'x2', 'y2', 'x3', 'y3', 'x4', 'y4']):
+            return jsonify({'success': False, 'error': 'Logo corners are not defined. Please set the logo zone in the interactive preview.'}), 400
         
         # Get text logo settings if present
         text_logo_settings_json = request.form.get('text_logo_settings')
@@ -25063,6 +25080,7 @@ def generate_template_box():
         logo_source = request.form.get('logo_source', 'none')
         logo_corners_json = request.form.get('logo_corners')
         text_logo_settings_json = request.form.get('text_logo_settings')
+        overwrite_existing = request.form.get('overwrite_existing', 'true').lower() == 'true'
         
         if not system_name or not game_paths_json or not target_field or not screenshot_field:
             return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
@@ -25115,7 +25133,8 @@ def generate_template_box():
             'temp_dir': temp_dir,
             'logo_source': logo_source,
             'logo_corners': logo_corners,
-            'text_logo_settings': text_logo_settings
+            'text_logo_settings': text_logo_settings,
+            'overwrite_existing': overwrite_existing
         }
         
         task = add_task_to_queue('template_box_generation', task_data)
