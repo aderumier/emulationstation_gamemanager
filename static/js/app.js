@@ -13353,11 +13353,43 @@ class GameCollectionManager {
         this.box3DImageNaturalWidth = 0;
         this.box3DImageNaturalHeight = 0;
         this.box3DDisplayScale = 1;
+        this.box3DCanvasOffsetX = 0;
+        this.box3DCanvasOffsetY = 0;
         this.box3DDragging = null;
         this.box3DSpineImagePath = null; // Path to uploaded spine image
         
         // Load media fields
         this.load3DBoxGeneratorFields();
+        
+        // Load fonts for 3D box generator logo font selector
+        const template3DLogoFont = document.getElementById('template3DLogoFont');
+        if (template3DLogoFont) {
+            this.loadAvailableFonts().then(() => {
+                const fontSelect = document.getElementById('logoGeneratorFont');
+                if (fontSelect) {
+                    // Copy font options from logo generator to 3D box generator
+                    const options = fontSelect.querySelectorAll('option');
+                    template3DLogoFont.innerHTML = '';
+                    options.forEach(option => {
+                        const newOption = option.cloneNode(true);
+                        template3DLogoFont.appendChild(newOption);
+                    });
+                }
+            }).catch(() => {
+                // Fallback to default fonts
+                const defaultFonts = ['Arial', 'Helvetica', 'Times-Roman', 'Courier', 'DejaVu-Sans', 
+                                     'DejaVu-Serif', 'DejaVu-Sans-Mono', 'Impact', 'Verdana', 'Georgia'];
+                if (template3DLogoFont) {
+                    template3DLogoFont.innerHTML = '';
+                    defaultFonts.forEach(font => {
+                        const option = document.createElement('option');
+                        option.value = font;
+                        option.textContent = font;
+                        template3DLogoFont.appendChild(option);
+                    });
+                }
+            });
+        }
         
         // Load saved templates
         this.load3DTemplateList();
@@ -13586,6 +13618,10 @@ class GameCollectionManager {
             this.box3DImageNaturalWidth = img.naturalWidth;
             this.box3DImageNaturalHeight = img.naturalHeight;
             
+            // Reset offset when loading new image
+            this.box3DCanvasOffsetX = 0;
+            this.box3DCanvasOffsetY = 0;
+            
             // Calculate display scale to fit in container
             const containerWidth = container.clientWidth - 20;
             const maxHeight = 600;
@@ -13619,6 +13655,10 @@ class GameCollectionManager {
         
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Apply offset transformation
+        ctx.save();
+        ctx.translate(this.box3DCanvasOffsetX, this.box3DCanvasOffsetY);
         
         // Draw image
         ctx.drawImage(this.box3DImage, 0, 0, canvas.width, canvas.height);
@@ -13746,6 +13786,9 @@ class GameCollectionManager {
             drawPolygon(this.box3DSpineCorners, 'rgba(255, 0, 255, 0.8)', true);
             drawCorners(spineCorners, this.box3DSpineCorners, true, false);
         }
+        
+        // Restore context
+        ctx.restore();
     }
     
     handle3DCanvasMouseDown(event) {
@@ -13753,8 +13796,9 @@ class GameCollectionManager {
         if (!canvas || !this.box3DImage) return;
         
         const rect = canvas.getBoundingClientRect();
-        const displayX = event.clientX - rect.left;
-        const displayY = event.clientY - rect.top;
+        // Account for canvas offset
+        const displayX = event.clientX - rect.left - this.box3DCanvasOffsetX;
+        const displayY = event.clientY - rect.top - this.box3DCanvasOffsetY;
         
         // Check if clicking near an existing crosshair (within 20 pixels)
         const hitRadius = 20;
@@ -13819,8 +13863,9 @@ class GameCollectionManager {
         if (!canvas || !this.box3DImage) return;
         
         const rect = canvas.getBoundingClientRect();
-        const displayX = event.clientX - rect.left;
-        const displayY = event.clientY - rect.top;
+        // Account for canvas offset
+        const displayX = event.clientX - rect.left - this.box3DCanvasOffsetX;
+        const displayY = event.clientY - rect.top - this.box3DCanvasOffsetY;
         
         // If dragging a corner, update its position
         if (this.box3DDragging) {
@@ -13885,6 +13930,19 @@ class GameCollectionManager {
         const canvas = document.getElementById('template3DCanvas');
         if (!canvas || !this.box3DImage) return;
         
+        // Get mouse position relative to canvas (accounting for current offset)
+        const rect = canvas.getBoundingClientRect();
+        const mouseScreenX = event.clientX - rect.left;
+        const mouseScreenY = event.clientY - rect.top;
+        
+        // Convert to canvas coordinates (accounting for offset)
+        const mouseCanvasX = mouseScreenX - this.box3DCanvasOffsetX;
+        const mouseCanvasY = mouseScreenY - this.box3DCanvasOffsetY;
+        
+        // Convert to image coordinates (before zoom)
+        const imageX = mouseCanvasX / this.box3DDisplayScale;
+        const imageY = mouseCanvasY / this.box3DDisplayScale;
+        
         // Zoom factor
         const zoomSpeed = 0.1;
         const minScale = 0.1;
@@ -13900,7 +13958,18 @@ class GameCollectionManager {
             newScale = Math.max(minScale, this.box3DDisplayScale * (1 - zoomSpeed));
         }
         
-        // Update scale and redraw
+        // Calculate where the image point will be after zoom (in canvas coordinates)
+        const newCanvasX = imageX * newScale;
+        const newCanvasY = imageY * newScale;
+        
+        // Calculate offset to keep mouse position fixed on screen
+        // The mouse should stay at the same screen position, so:
+        // mouseScreenX = newCanvasX + newOffsetX
+        // Therefore: newOffsetX = mouseScreenX - newCanvasX
+        this.box3DCanvasOffsetX = mouseScreenX - newCanvasX;
+        this.box3DCanvasOffsetY = mouseScreenY - newCanvasY;
+        
+        // Update scale
         this.box3DDisplayScale = newScale;
         
         // Resize canvas
@@ -14084,6 +14153,48 @@ class GameCollectionManager {
                         }
                     }
                     
+                    // Load logo source selection
+                    if (data.use_marquee_field) {
+                        const marqueeRadio = document.getElementById('template3DLogoSourceMarquee');
+                        if (marqueeRadio) marqueeRadio.checked = true;
+                    } else if (data.use_text_logo && data.text_logo_settings) {
+                        const textRadio = document.getElementById('template3DLogoSourceText');
+                        if (textRadio) textRadio.checked = true;
+                        // Restore text logo settings
+                        if (data.text_logo_settings.font) {
+                            const fontSelect = document.getElementById('template3DLogoFont');
+                            if (fontSelect && fontSelect.querySelector(`option[value="${data.text_logo_settings.font}"]`)) {
+                                fontSelect.value = data.text_logo_settings.font;
+                            }
+                        }
+                        if (data.text_logo_settings.color) {
+                            const colorText = document.getElementById('template3DLogoColorText');
+                            const colorPicker = document.getElementById('template3DLogoColor');
+                            if (colorText) colorText.value = data.text_logo_settings.color;
+                            if (colorPicker && /^#[0-9A-F]{6}$/i.test(data.text_logo_settings.color)) {
+                                colorPicker.value = data.text_logo_settings.color;
+                            }
+                        }
+                        if (data.text_logo_settings.fontSize) {
+                            const fontSizeInput = document.getElementById('template3DLogoFontSize');
+                            if (fontSizeInput) fontSizeInput.value = data.text_logo_settings.fontSize;
+                        }
+                        if (data.text_logo_settings.alignment) {
+                            const alignmentSelect = document.getElementById('template3DLogoAlignment');
+                            if (alignmentSelect) alignmentSelect.value = data.text_logo_settings.alignment;
+                        }
+                    } else {
+                        const noneRadio = document.getElementById('template3DLogoSourceNone');
+                        if (noneRadio) noneRadio.checked = true;
+                    }
+                    // Trigger change event to update UI
+                    const logoSourceRadios = document.querySelectorAll('input[name="template3DLogoSource"]');
+                    logoSourceRadios.forEach(radio => {
+                        if (radio.checked) {
+                            radio.dispatchEvent(new Event('change'));
+                        }
+                    });
+                    
                     this.showAlert('Template loaded successfully', 'success');
                 } else {
                     this.showAlert('Error loading template: ' + (data.error || 'Unknown error'), 'danger');
@@ -14162,6 +14273,21 @@ class GameCollectionManager {
         const spineSourceField = document.getElementById('template3DSpineSourceField');
         if (spineSourceField && spineSourceField.value) {
             formData.append('spine_source_field', spineSourceField.value);
+        }
+        
+        // Get logo source selection for template save
+        const logoSource = document.querySelector('input[name="template3DLogoSource"]:checked')?.value;
+        if (logoSource === 'marquee') {
+            formData.append('use_marquee_field', 'true');
+        } else if (logoSource === 'text') {
+            const textLogoSettings = {
+                font: document.getElementById('template3DLogoFont')?.value || 'Arial',
+                color: document.getElementById('template3DLogoColorText')?.value || '#ffffff',
+                fontSize: parseInt(document.getElementById('template3DLogoFontSize')?.value) || 72,
+                alignment: document.getElementById('template3DLogoAlignment')?.value || 'center'
+            };
+            formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
+            formData.append('use_text_logo', 'true');
         }
         
         fetch('/api/save-3dbox-template', {
@@ -14274,6 +14400,27 @@ class GameCollectionManager {
             if (spineSourceField && spineSourceField.value) {
                 formData.append('spine_source_field', spineSourceField.value);
             }
+            
+            // Check logo source selection
+            const logoSource = document.querySelector('input[name="template3DLogoSource"]:checked')?.value;
+            const useTextLogo = logoSource === 'text';
+            const useMarqueeField = logoSource === 'marquee';
+            
+            if (useTextLogo) {
+                // Get text logo settings
+                const textLogoSettings = {
+                    font: document.getElementById('template3DLogoFont')?.value || 'Arial',
+                    color: document.getElementById('template3DLogoColorText')?.value || '#ffffff',
+                    fontSize: parseInt(document.getElementById('template3DLogoFontSize')?.value) || 72,
+                    alignment: document.getElementById('template3DLogoAlignment')?.value || 'center'
+                };
+                formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
+                formData.append('use_text_logo', 'true');
+            } else if (useMarqueeField) {
+                // Use marquee field for logo
+                formData.append('use_marquee_field', 'true');
+            }
+            // If logoSource is 'none', don't add any logo-related fields
             
             const response = await fetch('/api/preview-3dbox', {
                 method: 'POST',
@@ -14395,6 +14542,26 @@ class GameCollectionManager {
             if (spineSourceField && spineSourceField.value) {
                 formData.append('spine_source_field', spineSourceField.value);
             }
+            
+            // Check if text logo is selected
+            const logoSource = document.querySelector('input[name="template3DLogoSource"]:checked')?.value;
+            const useTextLogo = logoSource === 'text';
+            
+            if (useTextLogo) {
+                // Get text logo settings
+                const textLogoSettings = {
+                    font: document.getElementById('template3DLogoFont')?.value || 'Arial',
+                    color: document.getElementById('template3DLogoColorText')?.value || '#ffffff',
+                    fontSize: parseInt(document.getElementById('template3DLogoFontSize')?.value) || 72,
+                    alignment: document.getElementById('template3DLogoAlignment')?.value || 'center'
+                };
+                formData.append('text_logo_settings', JSON.stringify(textLogoSettings));
+                formData.append('use_text_logo', 'true');
+            } else if (useMarqueeField) {
+                // Use marquee field for logo
+                formData.append('use_marquee_field', 'true');
+            }
+            // If logoSource is 'none', don't add any logo-related fields
             
             const response = await fetch('/api/generate-3dbox', {
                 method: 'POST',
@@ -25682,13 +25849,73 @@ class GameCollectionManager {
         const template3DSpineImage = document.getElementById('template3DSpineImage');
         if (template3DSpineImage) {
             template3DSpineImage.addEventListener('change', (e) => {
-                // Just store the file, no preview needed
+                // Clear any loaded spine image path
                 const file = e.target.files[0];
                 if (file) {
-                    // Clear any loaded spine image path
                     e.target.removeAttribute('data-loaded-filename');
                     e.target.removeAttribute('data-loaded-path');
                 }
+                // Auto-refresh preview if preview tab is active
+                this.autoRefresh3DPreview();
+            });
+        }
+        
+        // Helper function to check if preview tab is active and refresh if needed
+        this.autoRefresh3DPreview = function() {
+            const previewTab = document.getElementById('template3DResultPreviewTab');
+            const previewPane = document.getElementById('template3DResultPreviewPane');
+            // Check if preview tab is active (Bootstrap 5 uses aria-selected or active class)
+            const isActive = previewTab && (
+                previewTab.classList.contains('active') || 
+                previewTab.getAttribute('aria-selected') === 'true' ||
+                (previewPane && previewPane.classList.contains('active') && previewPane.classList.contains('show'))
+            );
+            if (isActive) {
+                // Small delay to ensure form values are updated
+                setTimeout(() => {
+                    this.generate3DBoxPreview();
+                }, 100);
+            }
+        };
+        
+        // Auto-refresh preview when logo configuration changes
+        const logoSourceRadios = document.querySelectorAll('input[name="template3DLogoSource"]');
+        logoSourceRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                this.autoRefresh3DPreview();
+            });
+        });
+        
+        // Auto-refresh preview when text logo options change
+        const textLogoFields = ['template3DLogoFont', 'template3DLogoColor', 'template3DLogoColorText', 'template3DLogoFontSize', 'template3DLogoAlignment'];
+        textLogoFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.addEventListener('change', () => {
+                    this.autoRefresh3DPreview();
+                });
+                // Also listen to input events for color fields (picker and text)
+                if (fieldId === 'template3DLogoColorText' || fieldId === 'template3DLogoColor') {
+                    field.addEventListener('input', () => {
+                        this.autoRefresh3DPreview();
+                    });
+                }
+            }
+        });
+        
+        // Auto-refresh preview when spine source field changes
+        const template3DSpineSourceField = document.getElementById('template3DSpineSourceField');
+        if (template3DSpineSourceField) {
+            template3DSpineSourceField.addEventListener('change', () => {
+                this.autoRefresh3DPreview();
+            });
+        }
+        
+        // Auto-refresh preview when 2D box source field changes
+        const template3DSourceField = document.getElementById('template3DSourceField');
+        if (template3DSourceField) {
+            template3DSourceField.addEventListener('change', () => {
+                this.autoRefresh3DPreview();
             });
         }
         

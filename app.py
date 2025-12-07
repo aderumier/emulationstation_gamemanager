@@ -2930,7 +2930,10 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start 3D box generation in background thread
-            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field))
+            use_marquee_field = task_data.get('use_marquee_field', False)
+            use_text_logo = task_data.get('use_text_logo', False)
+            text_logo_settings = task_data.get('text_logo_settings')
+            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -23307,7 +23310,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
-def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None):
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None):
     """Run 3D box generation task in background thread"""
     global current_task_id
     
@@ -23409,6 +23412,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 
                 # Determine spine image for this game: prioritize game's spine field, then uploaded spine, then None (will use 2D box)
                 game_spine_path = None
+                using_uploaded_spine = False
                 if spine_source_field:
                     # Try to get spine from game's media field
                     game_spine = game.get(spine_source_field)
@@ -23426,6 +23430,44 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 # Fallback to uploaded spine image if game doesn't have one
                 if not game_spine_path and spine_image_path and os.path.exists(spine_image_path):
                     game_spine_path = spine_image_path
+                    using_uploaded_spine = True
+                
+                # Get logo if using uploaded spine
+                logo_path = None
+                if using_uploaded_spine:
+                    if use_text_logo and text_logo_settings:
+                        # Generate text logo from game name
+                        temp_logo_path = os.path.join(temp_dir, f'logo_{processed}_{failed}.png')
+                        generated_logo = generator.generate_single_line_text_logo(
+                            game_name=game_name,
+                            text_logo_settings=text_logo_settings,
+                            output_path=temp_logo_path
+                        )
+                        if generated_logo and os.path.exists(generated_logo):
+                            logo_path = generated_logo
+                            logging.info(f"Generated text logo for {game_name}: {logo_path}")
+                        else:
+                            logging.warning(f"Failed to generate text logo for {game_name}")
+                    elif use_marquee_field:
+                        # Use logo from marquee field
+                        game_logo = game.get('marquee')
+                        if game_logo and game_logo.strip():  # Check if field exists and is not empty
+                            if game_logo.startswith('./'):
+                                game_logo_path = os.path.join(system_path, game_logo[2:])
+                            elif game_logo.startswith('/'):
+                                game_logo_path = game_logo
+                            else:
+                                game_logo_path = os.path.join(system_path, game_logo)
+                            
+                            if os.path.exists(game_logo_path):
+                                logo_path = game_logo_path
+                                logging.info(f"Using marquee logo for {game_name}: {logo_path}")
+                            else:
+                                logging.info(f"Skipping logo for {game_name}: marquee file not found at {game_logo_path}")
+                                logo_path = None  # Explicitly set to None to skip logo
+                        else:
+                            logging.info(f"Skipping logo for {game_name}: marquee field is empty or missing")
+                            logo_path = None  # Explicitly set to None to skip logo
                 
                 # Generate output filename
                 rom_filename = os.path.basename(game_path)
@@ -23442,6 +23484,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     corners=corners,
                     spine_corners=spine_corners,
                     spine_image_path=game_spine_path,  # Use game's spine or fallback to uploaded spine
+                    spine_logo_path=logo_path,  # Pass logo path if using uploaded spine
                     debug=is_first_game
                 )
                 
@@ -25358,8 +25401,18 @@ def save_3dbox_template():
         spine_corners_json = request.form.get('spine_corners')
         spine_corners = json.loads(spine_corners_json) if spine_corners_json else {}
         
-        # Get spine source field if provided
+        # Get spine source field and logo source settings if provided
         spine_source_field = request.form.get('spine_source_field')
+        use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
+        use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
+        text_logo_settings = None
+        if use_text_logo:
+            text_logo_settings_json = request.form.get('text_logo_settings')
+            if text_logo_settings_json:
+                try:
+                    text_logo_settings = json.loads(text_logo_settings_json)
+                except:
+                    text_logo_settings = None
         
         # Save template metadata as JSON
         template_data = {
@@ -25374,6 +25427,13 @@ def save_3dbox_template():
         
         if spine_source_field:
             template_data['spine_source_field'] = spine_source_field
+        
+        if use_marquee_field:
+            template_data['use_marquee_field'] = True
+        
+        if use_text_logo and text_logo_settings:
+            template_data['use_text_logo'] = True
+            template_data['text_logo_settings'] = text_logo_settings
         
         template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
         with open(template_json_path, 'w') as f:
@@ -25452,6 +25512,16 @@ def load_3dbox_template():
         if spine_source_field:
             response_data['spine_source_field'] = spine_source_field
         
+        use_marquee_field = template_data.get('use_marquee_field', False)
+        if use_marquee_field:
+            response_data['use_marquee_field'] = True
+        
+        use_text_logo = template_data.get('use_text_logo', False)
+        text_logo_settings = template_data.get('text_logo_settings')
+        if use_text_logo and text_logo_settings:
+            response_data['use_text_logo'] = True
+            response_data['text_logo_settings'] = text_logo_settings
+        
         return jsonify(response_data)
         
     except Exception as e:
@@ -25514,10 +25584,23 @@ def preview_3dbox():
         spine_image_path = request.form.get('spine_image_path')
         spine_source_field = request.form.get('spine_source_field')
         
+        # Get logo source settings
+        use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
+        use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
+        text_logo_settings = None
+        if use_text_logo:
+            text_logo_settings_json = request.form.get('text_logo_settings')
+            if text_logo_settings_json:
+                try:
+                    text_logo_settings = json.loads(text_logo_settings_json)
+                except:
+                    text_logo_settings = None
+        
         # Create temp directory
         temp_dir = tempfile.mkdtemp(prefix='3dbox_preview_')
         background_path = os.path.join(temp_dir, 'background.png')
         spine_path = None
+        using_uploaded_spine = False
         
         if background_file:
             background_file.save(background_path)
@@ -25579,6 +25662,7 @@ def preview_3dbox():
         
         # Fallback to uploaded spine image if game doesn't have one
         if not spine_path:
+            using_uploaded_spine = True
             if spine_file:
                 spine_path = os.path.join(temp_dir, 'spine.png')
                 spine_file.save(spine_path)
@@ -25588,6 +25672,48 @@ def preview_3dbox():
                 if os.path.exists(source_spine_path):
                     spine_path = os.path.join(temp_dir, 'spine.png')
                     shutil.copy2(source_spine_path, spine_path)
+        
+        # Get logo if using uploaded spine
+        logo_path = None
+        if using_uploaded_spine and spine_path:
+            # Get game name for logging
+            game_name = game.get('name', game_path)
+            
+            if use_text_logo and text_logo_settings:
+                # Generate text logo from game name
+                from box_generator import BoxGenerator
+                generator = BoxGenerator()
+                temp_logo_path = os.path.join(temp_dir, 'preview_logo.png')
+                generated_logo = generator.generate_single_line_text_logo(
+                    game_name=game_name,
+                    text_logo_settings=text_logo_settings,
+                    output_path=temp_logo_path
+                )
+                if generated_logo and os.path.exists(generated_logo):
+                    logo_path = generated_logo
+                    logging.info(f"Generated text logo for preview {game_name}: {logo_path}")
+                else:
+                    logging.warning(f"Failed to generate text logo for preview {game_name}")
+            elif use_marquee_field:
+                # Use logo from marquee field
+                game_logo = game.get('marquee')
+                if game_logo and game_logo.strip():  # Check if field exists and is not empty
+                    if game_logo.startswith('./'):
+                        game_logo_path = os.path.join(system_path, game_logo[2:])
+                    elif game_logo.startswith('/'):
+                        game_logo_path = game_logo
+                    else:
+                        game_logo_path = os.path.join(system_path, game_logo)
+                    
+                    if os.path.exists(game_logo_path):
+                        logo_path = game_logo_path
+                        logging.info(f"Using marquee logo for preview {game_name}: {logo_path}")
+                    else:
+                        logging.info(f"Skipping logo for preview {game_name}: marquee file not found at {game_logo_path}")
+                        logo_path = None  # Explicitly set to None to skip logo
+                else:
+                    logging.info(f"Skipping logo for preview {game_name}: marquee field is empty or missing")
+                    logo_path = None  # Explicitly set to None to skip logo
         
         # Generate 3D box preview (enable debug mode for previews)
         output_path = os.path.join(temp_dir, 'preview.png')
@@ -25601,6 +25727,7 @@ def preview_3dbox():
             corners=corners,
             spine_corners=spine_corners,
             spine_image_path=spine_path,  # Pass spine image if available
+            spine_logo_path=logo_path,  # Pass logo path if using uploaded spine
             debug=True  # Keep intermediate files for debugging
         )
         
@@ -25653,6 +25780,18 @@ def generate_3dbox():
         spine_image_path = request.form.get('spine_image_path')
         spine_source_field = request.form.get('spine_source_field')
         
+        # Get logo source settings
+        use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
+        use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
+        text_logo_settings = None
+        if use_text_logo:
+            text_logo_settings_json = request.form.get('text_logo_settings')
+            if text_logo_settings_json:
+                try:
+                    text_logo_settings = json.loads(text_logo_settings_json)
+                except:
+                    text_logo_settings = None
+        
         # Create temp directory for this task
         temp_dir = tempfile.mkdtemp(prefix='3dbox_')
         background_path = os.path.join(temp_dir, 'background.png')
@@ -25701,6 +25840,9 @@ def generate_3dbox():
             'spine_corners': spine_corners,
             'spine_image_path': spine_path,  # Pass uploaded spine image path if available (fallback)
             'spine_source_field': spine_source_field,  # Pass spine source field if selected
+            'use_marquee_field': use_marquee_field,  # Flag indicating if marquee field should be used for logo
+            'use_text_logo': use_text_logo,  # Flag indicating if text logo should be used
+            'text_logo_settings': text_logo_settings,  # Text logo settings if using text logo
             'temp_dir': temp_dir,
             'overwrite_existing': overwrite_existing
         }
