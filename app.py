@@ -25432,8 +25432,9 @@ def save_3dbox_template():
         spine_corners_json = request.form.get('spine_corners')
         spine_corners = json.loads(spine_corners_json) if spine_corners_json else {}
         
-        # Get spine source field and logo source settings if provided
+        # Get spine source field, spine crop width, and logo source settings if provided
         spine_source_field = request.form.get('spine_source_field')
+        spine_crop_width = request.form.get('spine_crop_width')
         use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
         use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
         text_logo_settings = None
@@ -25456,8 +25457,11 @@ def save_3dbox_template():
         if spine_filename:
             template_data['spine_image'] = spine_filename
         
-        if spine_source_field:
-            template_data['spine_source_field'] = spine_source_field
+        # Always save spine_source_field, even if empty, to properly restore undefined state
+        template_data['spine_source_field'] = spine_source_field if spine_source_field else ''
+        
+        # Always save spine_crop_width, even if empty, to properly restore undefined state
+        template_data['spine_crop_width'] = spine_crop_width if spine_crop_width else ''
         
         if use_marquee_field:
             template_data['use_marquee_field'] = True
@@ -25542,6 +25546,10 @@ def load_3dbox_template():
         spine_source_field = template_data.get('spine_source_field')
         if spine_source_field:
             response_data['spine_source_field'] = spine_source_field
+        
+        spine_crop_width = template_data.get('spine_crop_width')
+        if spine_crop_width:
+            response_data['spine_crop_width'] = spine_crop_width
         
         use_marquee_field = template_data.get('use_marquee_field', False)
         if use_marquee_field:

@@ -13602,11 +13602,14 @@ class GameCollectionManager {
         const file = event.target.files[0];
         if (!file) return;
         
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            this.load3DBoxImage(e.target.result);
-        };
-        reader.readAsDataURL(file);
+        // Switch to interactive tab if not active before loading image
+        this.ensureInteractiveTabActive().then(() => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.load3DBoxImage(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        });
         
         // Clear loaded template filename attributes
         const fileInput = document.getElementById('template3DBackgroundImage');
@@ -13614,6 +13617,38 @@ class GameCollectionManager {
             fileInput.removeAttribute('data-loaded-filename');
             fileInput.removeAttribute('data-loaded-path');
         }
+    }
+    
+    ensureInteractiveTabActive() {
+        return new Promise((resolve) => {
+            const interactiveTab = document.getElementById('template3DInteractiveTab');
+            const interactivePane = document.getElementById('template3DInteractivePane');
+            
+            if (!interactiveTab || !interactivePane) {
+                resolve();
+                return;
+            }
+            
+            // Check if interactive tab is already active
+            const isActive = interactiveTab.classList.contains('active') && 
+                           interactivePane.classList.contains('show') && 
+                           interactivePane.classList.contains('active');
+            
+            if (isActive) {
+                resolve();
+                return;
+            }
+            
+            // Wait for tab transition to complete before resolving
+            const handleTabShown = () => {
+                resolve();
+            };
+            interactiveTab.addEventListener('shown.bs.tab', handleTabShown, { once: true });
+            
+            // Switch to interactive tab
+            const tabInstance = new bootstrap.Tab(interactiveTab);
+            tabInstance.show();
+        });
     }
     
     load3DBoxImage(imageSrc) {
@@ -14131,7 +14166,10 @@ class GameCollectionManager {
                             fileInput.setAttribute('data-loaded-path', data.background_image_path);
                         }
                         
-                        this.load3DBoxImage(imageUrl);
+                        // Switch to interactive tab if not active before loading image
+                        this.ensureInteractiveTabActive().then(() => {
+                            this.load3DBoxImage(imageUrl);
+                        });
                     }
                     
                     // Load spine image path
@@ -14161,11 +14199,23 @@ class GameCollectionManager {
                         }
                     }
                     
-                    // Load spine source field
-                    if (data.spine_source_field) {
-                        const spineSourceField = document.getElementById('template3DSpineSourceField');
-                        if (spineSourceField) {
+                    // Load spine source field (explicitly set to empty if not present or empty)
+                    const spineSourceField = document.getElementById('template3DSpineSourceField');
+                    if (spineSourceField) {
+                        if (data.spine_source_field) {
                             spineSourceField.value = data.spine_source_field;
+                        } else {
+                            spineSourceField.value = ''; // Explicitly reset to empty/undefined
+                        }
+                    }
+                    
+                    // Load spine crop width (explicitly set to empty if not present or empty)
+                    const spineCropWidth = document.getElementById('template3DSpineCropWidth');
+                    if (spineCropWidth) {
+                        if (data.spine_crop_width && data.spine_crop_width !== '') {
+                            spineCropWidth.value = data.spine_crop_width;
+                        } else {
+                            spineCropWidth.value = ''; // Explicitly reset to empty/undefined
                         }
                     }
                     
@@ -14285,10 +14335,16 @@ class GameCollectionManager {
             formData.append('spine_image_path', hasSpineLoadedPath);
         }
         
-        // Add spine source field if selected
+        // Add spine source field (always send, even if empty, to properly restore undefined state)
         const spineSourceField = document.getElementById('template3DSpineSourceField');
-        if (spineSourceField && spineSourceField.value) {
-            formData.append('spine_source_field', spineSourceField.value);
+        if (spineSourceField) {
+            formData.append('spine_source_field', spineSourceField.value || '');
+        }
+        
+        // Add spine crop width (always send, even if empty, to properly restore undefined state)
+        const spineCropWidth = document.getElementById('template3DSpineCropWidth');
+        if (spineCropWidth) {
+            formData.append('spine_crop_width', spineCropWidth.value || '');
         }
         
         // Get logo source selection for template save
@@ -25990,6 +26046,30 @@ class GameCollectionManager {
         if (template3DSpineCropWidth) {
             template3DSpineCropWidth.addEventListener('input', () => {
                 this.autoRefresh3DPreview();
+            });
+        }
+        
+        // 3D Box Generator Modal initialization - ensure interactive tab is shown when modal opens
+        const box3DGeneratorModal = document.getElementById('box3DGeneratorModal');
+        if (box3DGeneratorModal) {
+            box3DGeneratorModal.addEventListener('shown.bs.modal', () => {
+                // Workaround: Switch to preview tab first, then back to interactive tab
+                // This forces Bootstrap to properly initialize both tab contents
+                const previewTab = document.getElementById('template3DResultPreviewTab');
+                const interactiveTab = document.getElementById('template3DInteractiveTab');
+                
+                if (previewTab && interactiveTab) {
+                    // First switch to preview tab
+                    const previewTabInstance = new bootstrap.Tab(previewTab);
+                    previewTabInstance.show();
+                    
+                    // Then immediately switch back to interactive tab
+                    // Use a small delay to ensure the preview tab switch completes
+                    setTimeout(() => {
+                        const interactiveTabInstance = new bootstrap.Tab(interactiveTab);
+                        interactiveTabInstance.show();
+                    }, 50);
+                }
             });
         }
         
