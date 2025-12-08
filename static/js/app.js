@@ -12900,16 +12900,16 @@ class GameCollectionManager {
             const data = await response.json();
             
             if (response.ok && data.success) {
-                this.showAlert(`Template box generation started for ${this.selectedGames.length} game(s)`, 'success');
+                this.showAlert(`2D box generation started for ${this.selectedGames.length} game(s)`, 'success');
                 // Refresh game list after a delay
                 setTimeout(() => {
                     this.loadGames();
                 }, 2000);
             } else {
-                this.showAlert('Error starting template box generation: ' + (data.error || 'Unknown error'), 'danger');
+                this.showAlert('Error starting 2D box generation: ' + (data.error || 'Unknown error'), 'danger');
             }
         } catch (error) {
-            this.showAlert('Error starting template box generation: ' + error.message, 'danger');
+                this.showAlert('Error starting 2D box generation: ' + error.message, 'danger');
         }
     }
 
@@ -14321,22 +14321,61 @@ class GameCollectionManager {
                     // Load background image
                     if (data.background_image_path) {
                         let imageUrl = data.background_image_path;
+                        // Extract filename from original path (before converting to API URL)
+                        let originalFilename = data.background_image_path;
+                        if (originalFilename.includes('/')) {
+                            originalFilename = originalFilename.split('/').pop();
+                        }
+                        // Remove query parameters if any
+                        if (originalFilename.includes('?')) {
+                            originalFilename = originalFilename.split('?')[0];
+                        }
+                        
                         if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/api/')) {
-                            const extractedFilename = imageUrl.split('/').pop() || imageUrl;
-                            imageUrl = `/api/3dbox-template-image?path=${encodeURIComponent(extractedFilename)}&type=background`;
+                            imageUrl = `/api/3dbox-template-image?path=${encodeURIComponent(originalFilename)}&type=background`;
                         }
                         
                         // Store loaded path for saving
                         const fileInput = document.getElementById('template3DBackgroundImage');
                         const displayInput = document.getElementById('template3DBackgroundImageDisplay');
                         if (fileInput) {
-                            const filename = imageUrl.split('/').pop()?.split('?')[0] || 'template';
+                            // Ensure we have a valid filename (extract from original path if needed)
+                            let storedFilename = originalFilename;
+                            // If originalFilename is still an API URL or path, extract just the filename
+                            if (storedFilename.includes('/api/') || storedFilename.includes('?path=')) {
+                                // Extract from query parameter
+                                if (storedFilename.includes('?path=')) {
+                                    try {
+                                        const urlParams = new URLSearchParams(storedFilename.split('?')[1]);
+                                        storedFilename = urlParams.get('path') || storedFilename;
+                                        if (storedFilename) {
+                                            storedFilename = decodeURIComponent(storedFilename);
+                                        }
+                                    } catch (e) {
+                                        const match = storedFilename.match(/[?&]path=([^&]+)/);
+                                        if (match) {
+                                            storedFilename = decodeURIComponent(match[1]);
+                                        }
+                                    }
+                                }
+                                // Remove path separators
+                                if (storedFilename.includes('/')) {
+                                    storedFilename = storedFilename.split('/').pop();
+                                }
+                                // Remove query parameters
+                                if (storedFilename.includes('?')) {
+                                    storedFilename = storedFilename.split('?')[0];
+                                }
+                            }
+                            
                             // Display filename in the text input
                             if (displayInput) {
-                                displayInput.value = filename;
+                                displayInput.value = storedFilename;
                                 displayInput.style.color = '#28a745';
                             }
-                            fileInput.setAttribute('data-loaded-filename', filename);
+                            // Store the filename (ensure it's just the filename, not a path or URL)
+                            fileInput.setAttribute('data-loaded-filename', storedFilename);
+                            // Store the original path for reference (but we'll use filename for generation)
                             fileInput.setAttribute('data-loaded-path', data.background_image_path);
                         }
                         
@@ -14762,18 +14801,75 @@ class GameCollectionManager {
             
             if (hasBackgroundFile) {
                 formData.append('background_image', fileInput.files[0]);
-            } else if (hasLoadedFilename) {
-                formData.append('background_image_path', hasLoadedFilename);
-            } else if (hasLoadedPath) {
+            } else {
+                // Determine the filename to use
+                let filenameToUse = null;
+                
+                // First priority: use stored filename attribute
+                if (hasLoadedFilename && hasLoadedFilename.trim() !== '' && hasLoadedFilename !== '3dbox-template-image') {
+                    filenameToUse = hasLoadedFilename;
+                } 
+                // Second priority: extract from loaded path
+                else if (hasLoadedPath) {
+                // Extract filename from the loaded path
                 let filename = hasLoadedPath;
-                if (filename.includes('?path=')) {
-                    const urlParams = new URLSearchParams(filename.split('?')[1]);
-                    filename = urlParams.get('path') || filename;
+                
+                // If it's an API URL, extract the path parameter
+                if (filename.includes('/api/3dbox-template-image') || filename.includes('?path=')) {
+                    try {
+                        const urlParams = new URLSearchParams(filename.split('?')[1]);
+                        filename = urlParams.get('path') || filename;
+                        // Decode URL-encoded filename
+                        if (filename) {
+                            filename = decodeURIComponent(filename);
+                        }
+                    } catch (e) {
+                        // Fallback: simple regex extraction
+                        const match = filename.match(/[?&]path=([^&]+)/);
+                        if (match) {
+                            filename = decodeURIComponent(match[1]);
+                        }
+                    }
                 }
+                
+                // Remove any path separators - get just the filename
                 if (filename.includes('/')) {
                     filename = filename.split('/').pop();
                 }
-                formData.append('background_image_path', filename);
+                
+                // Remove any query parameters that might remain
+                if (filename.includes('?')) {
+                    filename = filename.split('?')[0];
+                }
+                
+                // Decode URL-encoded characters one more time
+                try {
+                    filename = decodeURIComponent(filename);
+                } catch (e) {
+                    // If decoding fails, use as-is
+                }
+                
+                    // Ensure we have a valid filename (not empty and not the API endpoint name)
+                    if (filename && filename !== '3dbox-template-image' && filename.length > 0) {
+                        filenameToUse = filename;
+                    }
+                }
+                
+                // Final fallback: use display input value (what user sees)
+                if (!filenameToUse) {
+                    const displayInput = document.getElementById('template3DBackgroundImageDisplay');
+                    if (displayInput && displayInput.value && displayInput.value.trim() !== '' && displayInput.value !== 'No file selected') {
+                        filenameToUse = displayInput.value.trim();
+                    }
+                }
+                
+                // Send the filename if we found one
+                if (filenameToUse && filenameToUse.trim() !== '' && filenameToUse !== '3dbox-template-image') {
+                    formData.append('background_image_path', filenameToUse);
+                } else {
+                    this.showAlert('Error: Could not determine background image filename. Please reload the template or select a new image.', 'danger');
+                    return;
+                }
             }
             
             if (hasSpineFile) {

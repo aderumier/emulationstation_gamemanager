@@ -23062,7 +23062,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
-def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=False, spine_crop_width=None):
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=True, spine_crop_width=None):
     """Run 3D box generation task in background thread"""
     global current_task_id
     
@@ -23165,6 +23165,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 # Determine spine image for this game: prioritize game's spine field, then uploaded spine, then None (will use 2D box)
                 game_spine_path = None
                 using_uploaded_spine = False
+                generated_spine_path = None  # Initialize early to avoid UnboundLocalError
                 if spine_source_field:
                     # Try to get spine from game's media field
                     game_spine = game.get(spine_source_field)
@@ -23185,12 +23186,14 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     using_uploaded_spine = True
                 
                 # Always generate spine background from 2D box if no spine is available (enabled by default)
+                # Check if spine_corners are provided and valid (not all zeros)
                 if not game_spine_path and use_generate_spine_background and spine_corners:
                     # Calculate spine width from spine corners
                     spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
                     spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
                     spine_width = spine_tr.get('x', 0) - spine_tl.get('x', 0)
                     
+                    # Only generate spine if width is valid (greater than 0)
                     if spine_width > 0:
                         generated_spine_path = os.path.join(temp_dir, f'generated_spine_{processed}_{failed}.png')
                         try:
@@ -25744,15 +25747,22 @@ def generate_3dbox():
             background_file.save(background_path)
         else:
             templates_dir = 'var/3dbox/templates'
-            source_path = os.path.join(templates_dir, background_image_path)
+            # Ensure background_image_path is just a filename (no path separators)
+            # Remove any path components that might have been included
+            background_filename = os.path.basename(background_image_path)
+            # Remove any query parameters
+            if '?' in background_filename:
+                background_filename = background_filename.split('?')[0]
+            
+            source_path = os.path.join(templates_dir, background_filename)
             
             abs_templates_dir = os.path.abspath(templates_dir)
             abs_source_path = os.path.abspath(source_path)
             if not abs_source_path.startswith(abs_templates_dir):
-                return jsonify({'success': False, 'error': 'Invalid background image path'}), 403
+                return jsonify({'success': False, 'error': f'Invalid background image path: {background_filename}'}), 403
             
             if not os.path.exists(source_path):
-                return jsonify({'success': False, 'error': 'Background image not found'}), 404
+                return jsonify({'success': False, 'error': f'Background image not found: {source_path}'}), 404
             
             shutil.copy2(source_path, background_path)
         
