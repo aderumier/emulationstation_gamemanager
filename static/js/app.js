@@ -14142,6 +14142,11 @@ class GameCollectionManager {
                             }
                             spineFileInput.setAttribute('data-loaded-filename', spineFilename);
                             spineFileInput.setAttribute('data-loaded-path', data.spine_image_path);
+                            // Show delete button
+                            const spineDeleteBtn = document.getElementById('template3DSpineImageDelete');
+                            if (spineDeleteBtn) {
+                                spineDeleteBtn.style.display = 'block';
+                            }
                         }
                     }
                     
@@ -14422,6 +14427,12 @@ class GameCollectionManager {
             }
             // If logoSource is 'none', don't add any logo-related fields
             
+            // Add spine background generation option
+            const generateSpineBackground = document.getElementById('template3DGenerateSpineBackground');
+            if (generateSpineBackground && generateSpineBackground.checked) {
+                formData.append('generate_spine_background', 'true');
+            }
+            
             const response = await fetch('/api/preview-3dbox', {
                 method: 'POST',
                 body: formData
@@ -14543,9 +14554,16 @@ class GameCollectionManager {
                 formData.append('spine_source_field', spineSourceField.value);
             }
             
-            // Check if text logo is selected
+            // Add spine background generation option
+            const generateSpineBackground = document.getElementById('template3DGenerateSpineBackground');
+            if (generateSpineBackground && generateSpineBackground.checked) {
+                formData.append('generate_spine_background', 'true');
+            }
+            
+            // Check logo source selection
             const logoSource = document.querySelector('input[name="template3DLogoSource"]:checked')?.value;
             const useTextLogo = logoSource === 'text';
+            const useMarqueeField = logoSource === 'marquee';
             
             if (useTextLogo) {
                 // Get text logo settings
@@ -25847,6 +25865,17 @@ class GameCollectionManager {
         
         // 3D Box spine image change handler
         const template3DSpineImage = document.getElementById('template3DSpineImage');
+        const template3DSpineImageDelete = document.getElementById('template3DSpineImageDelete');
+        
+        // Function to update delete button visibility
+        const updateSpineImageDeleteButton = () => {
+            if (template3DSpineImage && template3DSpineImageDelete) {
+                const hasFile = template3DSpineImage.files && template3DSpineImage.files.length > 0;
+                const hasLoadedPath = template3DSpineImage.getAttribute('data-loaded-path') || template3DSpineImage.getAttribute('data-loaded-filename');
+                template3DSpineImageDelete.style.display = (hasFile || hasLoadedPath) ? 'block' : 'none';
+            }
+        };
+        
         if (template3DSpineImage) {
             template3DSpineImage.addEventListener('change', (e) => {
                 // Clear any loaded spine image path
@@ -25855,8 +25884,29 @@ class GameCollectionManager {
                     e.target.removeAttribute('data-loaded-filename');
                     e.target.removeAttribute('data-loaded-path');
                 }
+                updateSpineImageDeleteButton();
                 // Auto-refresh preview if preview tab is active
                 this.autoRefresh3DPreview();
+            });
+            
+            // Initial check for delete button visibility
+            updateSpineImageDeleteButton();
+        }
+        
+        // Delete button handler
+        if (template3DSpineImageDelete) {
+            template3DSpineImageDelete.addEventListener('click', () => {
+                if (template3DSpineImage) {
+                    // Clear file input
+                    template3DSpineImage.value = '';
+                    // Clear loaded paths
+                    template3DSpineImage.removeAttribute('data-loaded-filename');
+                    template3DSpineImage.removeAttribute('data-loaded-path');
+                    // Hide delete button
+                    template3DSpineImageDelete.style.display = 'none';
+                    // Auto-refresh preview if preview tab is active
+                    this.autoRefresh3DPreview();
+                }
             });
         }
         
@@ -25879,8 +25929,8 @@ class GameCollectionManager {
         };
         
         // Auto-refresh preview when logo configuration changes
-        const logoSourceRadios = document.querySelectorAll('input[name="template3DLogoSource"]');
-        logoSourceRadios.forEach(radio => {
+        const template3DLogoSourceRadios = document.querySelectorAll('input[name="template3DLogoSource"]');
+        template3DLogoSourceRadios.forEach(radio => {
             radio.addEventListener('change', () => {
                 this.autoRefresh3DPreview();
             });
@@ -25915,6 +25965,14 @@ class GameCollectionManager {
         const template3DSourceField = document.getElementById('template3DSourceField');
         if (template3DSourceField) {
             template3DSourceField.addEventListener('change', () => {
+                this.autoRefresh3DPreview();
+            });
+        }
+        
+        // Auto-refresh preview when spine background generation checkbox changes
+        const template3DGenerateSpineBackground = document.getElementById('template3DGenerateSpineBackground');
+        if (template3DGenerateSpineBackground) {
+            template3DGenerateSpineBackground.addEventListener('change', () => {
                 this.autoRefresh3DPreview();
             });
         }

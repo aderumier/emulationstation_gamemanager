@@ -4753,7 +4753,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             
                             <div class="mb-3">
                                 <label for="template3DSpineImage" class="form-label">Spine Image (Optional)</label>
-                                <input type="file" class="form-control" id="template3DSpineImage" accept="image/*">
+                                <div class="input-group">
+                                    <input type="file" class="form-control" id="template3DSpineImage" accept="image/*">
+                                    <button class="btn btn-outline-danger" type="button" id="template3DSpineImageDelete" title="Delete uploaded spine image" style="display: none;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
                                 <div class="form-text">Select spine image to use for spine surface (if not provided, 2D box image will be used)</div>
                             </div>
                             
@@ -4763,6 +4768,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     <option value="">Use uploaded spine image</option>
                                 </select>
                                 <div class="form-text">Field containing spine images from gamelist (if available, will be used instead of uploaded spine)</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="template3DGenerateSpineBackground">
+                                    <label class="form-check-label" for="template3DGenerateSpineBackground">
+                                        Generate spine background from 2D box
+                                    </label>
+                                </div>
+                                <div class="form-text">If enabled and no spine image is available, generate a spine by cropping and mirroring the left side of the 2D box</div>
                             </div>
                             
                             <div class="mb-3">

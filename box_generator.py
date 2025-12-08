@@ -149,6 +149,129 @@ class BoxGenerator:
         
         return lines if lines else ['']
     
+    def generate_single_line_text_logo(self, game_name, text_logo_settings, output_path, width=None):
+        """
+        Generate a single-line text logo image from game name.
+        
+        Args:
+            game_name: Name of the game
+            text_logo_settings: Dict with text logo settings (color, font_size, font, alignment, etc.)
+            output_path: Path where the generated logo will be saved
+            width: Optional width for the logo (if None, will be auto-calculated)
+        
+        Returns:
+            Path to generated logo file, or None if generation failed
+        """
+        try:
+            # Get settings
+            font_size = text_logo_settings.get('fontSize') or 72
+            color = text_logo_settings.get('color') or '#ffffff'
+            font = text_logo_settings.get('font') or 'Arial'
+            alignment = text_logo_settings.get('alignment', 'center')
+            
+            # Convert alignment to ImageMagick gravity
+            gravity_map = {
+                'left': 'west',
+                'center': 'center',
+                'right': 'east'
+            }
+            gravity = gravity_map.get(alignment, 'center')
+            
+            # Clean and prepare text (single line, no wrapping)
+            text = self._clean_game_name(game_name)
+            if text_logo_settings.get('uppercase', False):
+                text = text.upper()
+            
+            # Escape text for ImageMagick
+            escaped_text = text.replace('\\', '\\\\').replace('"', '\\"')
+            
+            # Check for custom font
+            font_path = font
+            custom_fonts_dir = 'var/fonts'
+            if os.path.exists(custom_fonts_dir):
+                font_extensions = ['.ttf', '.otf', '.woff', '.woff2', '.ttc', '.eot']
+                for ext in font_extensions:
+                    font_file = os.path.join(custom_fonts_dir, f"{font}{ext}")
+                    if os.path.exists(font_file):
+                        font_path = font_file
+                        break
+                # Also check with exact filename match
+                if font_path == font:
+                    for filename in os.listdir(custom_fonts_dir):
+                        if os.path.splitext(filename)[0] == font:
+                            font_path = os.path.join(custom_fonts_dir, filename)
+                            break
+            
+            # Calculate width if not provided (estimate based on text length and font size)
+            if width is None:
+                # Average character width is ~0.4-0.5 times font size
+                avg_char_width = font_size * 0.5
+                estimated_width = int(len(text) * avg_char_width * 1.2)  # Add 20% padding
+                width = max(200, estimated_width)  # Minimum 200px
+            
+            # Build command for text generation
+            cmd = [
+                'convert',
+                '-background', 'none',
+                '-fill', color,
+                '-font', font_path,
+                '-pointsize', str(font_size),
+            ]
+            
+            # Simulate bold using stroke
+            if text_logo_settings.get('bold', False):
+                cmd.extend(['-stroke', color, '-strokewidth', '1'])
+            
+            # Add shear for italic effect
+            if text_logo_settings.get('italic', False):
+                cmd.extend(['-shear', '15x0'])
+            
+            # Generate text logo (single line)
+            cmd.extend([
+                '-size', f'{width}x',
+                '-gravity', gravity,
+                f'caption:{escaped_text}',
+                output_path
+            ])
+            
+            logging.info(f"Generating single-line text logo: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                logging.error(f"ImageMagick text generation failed: {result.stderr}")
+                return None
+            
+            # Add underline if needed
+            if text_logo_settings.get('underline', False):
+                identify_cmd = ['identify', '-format', '%wx%h', output_path]
+                dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                if dim_result.returncode == 0:
+                    logo_width, logo_height = dim_result.stdout.strip().split('x')
+                    underline_y = int(logo_height) - 2
+                    temp_with_underline = output_path + '.tmp'
+                    cmd_underline = [
+                        'convert', output_path,
+                        '-stroke', color,
+                        '-strokewidth', '2',
+                        '-draw', f'line 0,{underline_y} {logo_width},{underline_y}',
+                        temp_with_underline
+                    ]
+                    logging.info(f"Adding underline: {' '.join(cmd_underline)}")
+                    subprocess.run(cmd_underline, check=True)
+                    os.replace(temp_with_underline, output_path)
+            
+            if os.path.exists(output_path):
+                logging.info(f"✅ Single-line text logo generated: {output_path}")
+                return output_path
+            else:
+                logging.error(f"Text logo file was not created: {output_path}")
+                return None
+                
+        except Exception as e:
+            logging.error(f"Error generating single-line text logo: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
     def generate_2d_box(self, titlescreen_path, gameplay_path, logo_path, output_path, 
                        secondary_logo_path=None, additional_screenshot_path=None):
         """
@@ -801,7 +924,65 @@ class BoxGenerator:
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {temp_file}: {e}")
 
-    def generate_3dbox(self, background_path, box2d_path, output_path, corners, spine_corners=None, spine_image_path=None, debug=False):
+    def generate_spine_background(self, box2d_path, spine_width, output_path, debug=False):
+        """
+        Generate a spine background by cropping the left side of a 2D box and mirroring it.
+        
+        Args:
+            box2d_path: Path to the 2D box image
+            spine_width: Width of the spine in template coordinates (will be used directly as pixel width)
+            output_path: Path where the generated spine will be saved
+            debug: If True, log the command
+        """
+        if not os.path.exists(box2d_path):
+            raise Exception(f"2D box image not found: {box2d_path}")
+        
+        if spine_width <= 0:
+            raise Exception(f"Invalid spine width: {spine_width}")
+        
+        # Get the dimensions of the 2D box
+        cmd_info = [
+            'identify',
+            '-format', '%wx%h',
+            box2d_path
+        ]
+        result = subprocess.run(cmd_info, capture_output=True, text=True, check=True)
+        box_dims = result.stdout.strip().split('x')
+        box_width = int(box_dims[0])
+        box_height = int(box_dims[1])
+        
+        # Use spine_width directly as the crop width (in pixels)
+        crop_width = int(spine_width)
+        
+        # Ensure crop_width is within bounds
+        if crop_width <= 0:
+            crop_width = max(1, int(box_width * 0.1))  # Default to 10% of box width
+        if crop_width > box_width:
+            crop_width = box_width
+        
+        # Crop left side: crop from (0,0) with width=crop_width, height=box_height
+        # Then flip horizontally with -flop
+        cmd = [
+            'convert',
+            box2d_path,
+            '-crop', f'{crop_width}x{box_height}+0+0',  # Crop from left: width x height +x +y
+            '-flop',  # Mirror horizontally
+            output_path
+        ]
+        
+        if debug:
+            logging.info(f"Generating spine background: box={box_width}x{box_height}, spine_width={spine_width}, crop_width={crop_width}")
+            logging.info(f"Generating spine background: {' '.join(cmd)}")
+        
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        
+        if not os.path.exists(output_path):
+            raise Exception(f"Generated spine background file was not created: {output_path}")
+        
+        logging.info(f"✅ Spine background generated successfully: {output_path}")
+        return output_path
+
+    def generate_3dbox(self, background_path, box2d_path, output_path, corners, spine_corners=None, spine_image_path=None, spine_logo_path=None, generated_spine_path=None, debug=False):
         """
         Generate a 3D box by applying perspective distortion to a 2D box image
         and compositing it onto a 3D box template.
@@ -977,7 +1158,14 @@ class BoxGenerator:
                     
                     if spine_resize_width > 0 and spine_resize_height > 0:
                         # Determine which image to use for spine
-                        spine_source_image = spine_image_path if spine_image_path and os.path.exists(spine_image_path) else box2d_path
+                        # Use generated_spine_path if provided (same workflow as when no spine is provided)
+                        # Otherwise use spine_image_path if provided, else fallback to box2d_path
+                        if generated_spine_path and os.path.exists(generated_spine_path):
+                            spine_source_image = generated_spine_path
+                        elif spine_image_path and os.path.exists(spine_image_path):
+                            spine_source_image = spine_image_path
+                        else:
+                            spine_source_image = box2d_path
                         if not os.path.exists(spine_source_image):
                             logging.warning(f"Spine source image not found: {spine_source_image}, skipping spine")
                         else:
@@ -1003,6 +1191,58 @@ class BoxGenerator:
                             ]
                             logging.info(f"3D Box Spine Step 1 - Resize {spine_source_image} to {spine_resize_width}x{spine_resize_height}: {' '.join(cmd_spine_resize)}")
                             subprocess.run(cmd_spine_resize, check=True)
+                            
+                            # Step S1.5: Add logo to spine if using uploaded spine and logo is provided
+                            if spine_logo_path and os.path.exists(spine_logo_path) and spine_image_path and os.path.exists(spine_image_path):
+                                # Logo should only be added when using uploaded spine (not from game's spine field)
+                                logging.info(f"3D Box Spine: Adding logo from {spine_logo_path}")
+                                
+                                # Create temp file for rotated and resized logo
+                                if debug:
+                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                    temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
+                                else:
+                                    temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
+                                
+                                temp_files.append(temp_logo_rotated_resized)
+                                
+                                # Rotate logo 90 degrees and resize to 80% of spine width (maintain aspect ratio)
+                                logo_target_width = int(spine_resize_width * 0.8)  # 80% of spine width
+                                cmd_logo_rotate_resize = [
+                                    'convert',
+                                    spine_logo_path,
+                                    '-rotate', '90',
+                                    '-resize', f'{logo_target_width}x',  # Resize to 80% of spine width, maintain aspect ratio
+                                    temp_logo_rotated_resized
+                                ]
+                                logging.info(f"3D Box Spine: Rotate and resize logo to {logo_target_width}px width (80% of spine width): {' '.join(cmd_logo_rotate_resize)}")
+                                subprocess.run(cmd_logo_rotate_resize, check=True)
+                                
+                                # Get logo dimensions after rotation and resize
+                                identify_cmd = ['identify', '-format', '%wx%h', temp_logo_rotated_resized]
+                                logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                                if logo_dim_result.returncode == 0:
+                                    logo_dims = logo_dim_result.stdout.strip().split('x')
+                                    logo_width = int(logo_dims[0])
+                                    logo_height = int(logo_dims[1])
+                                    
+                                    # Calculate position: centered horizontally, at 2/3 of spine height
+                                    logo_x = (spine_resize_width - logo_width) // 2  # Center horizontally
+                                    logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)  # At 2/3 height, centered vertically
+                                    
+                                    # Composite logo onto resized spine
+                                    cmd_logo_composite = [
+                                        'composite',
+                                        '-geometry', f'+{logo_x}+{logo_y}',
+                                        temp_logo_rotated_resized,
+                                        temp_spine_resized,
+                                        temp_spine_resized
+                                    ]
+                                    logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
+                                    subprocess.run(cmd_logo_composite, check=True)
+                                    logging.info(f"✅ Logo composited onto spine")
+                                else:
+                                    logging.warning(f"Failed to get logo dimensions, skipping logo composite")
                             
                             # Step S2: Compute spine source coordinates (new formula)
                             # source_topright_x = target_topright_x, source_topright_y = target_topright_y

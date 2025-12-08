@@ -2933,7 +2933,8 @@ def process_next_queued_task():
             use_marquee_field = task_data.get('use_marquee_field', False)
             use_text_logo = task_data.get('use_text_logo', False)
             text_logo_settings = task_data.get('text_logo_settings')
-            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings))
+            use_generate_spine_background = task_data.get('use_generate_spine_background', False)
+            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings, use_generate_spine_background))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -23310,7 +23311,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
-def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None):
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=False):
     """Run 3D box generation task in background thread"""
     global current_task_id
     
@@ -23432,6 +23433,30 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     game_spine_path = spine_image_path
                     using_uploaded_spine = True
                 
+                # Fallback to generated spine background if option is enabled and no spine is available
+                if not game_spine_path and use_generate_spine_background and spine_corners:
+                    # Calculate spine width from spine corners
+                    spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
+                    spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
+                    spine_width = spine_tr.get('x', 0) - spine_tl.get('x', 0)
+                    
+                    if spine_width > 0:
+                        generated_spine_path = os.path.join(temp_dir, f'generated_spine_{processed}_{failed}.png')
+                        try:
+                            # Use the original 2D box from the source field to generate the spine
+                            generator.generate_spine_background(
+                                box2d_path=source_2dbox_path,  # Original 2D box from source_field
+                                spine_width=spine_width,
+                                output_path=generated_spine_path,
+                                debug=(processed == 0 and failed == 0)  # Debug for first game only
+                            )
+                            game_spine_path = generated_spine_path
+                            using_uploaded_spine = True  # Treat generated spine as uploaded spine for logo purposes
+                            logging.info(f"Generated spine background for {game_name}: {game_spine_path}")
+                        except Exception as e:
+                            logging.warning(f"Failed to generate spine background for {game_name}: {e}")
+                            game_spine_path = None
+                
                 # Get logo if using uploaded spine
                 logo_path = None
                 if using_uploaded_spine:
@@ -23477,14 +23502,18 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 
                 # Generate 3D box (debug mode for first game only to avoid filling disk)
                 is_first_game = (processed == 0 and failed == 0)
+                # When using generated spine, pass None for spine_image_path so it uses the same workflow
+                # as when no spine is provided (uses generated_spine_path or box2d_path)
+                spine_image_path_for_call = game_spine_path if game_spine_path and not generated_spine_path else None
                 generator.generate_3dbox(
                     background_path=background_path,
                     box2d_path=source_2dbox_path,
                     output_path=output_path,
                     corners=corners,
                     spine_corners=spine_corners,
-                    spine_image_path=game_spine_path,  # Use game's spine or fallback to uploaded spine
+                    spine_image_path=spine_image_path_for_call,  # Pass None when using generated spine
                     spine_logo_path=logo_path,  # Pass logo path if using uploaded spine
+                    generated_spine_path=generated_spine_path,  # Pass generated spine to use same workflow as box2d_path
                     debug=is_first_game
                 )
                 
@@ -25673,6 +25702,32 @@ def preview_3dbox():
                     spine_path = os.path.join(temp_dir, 'spine.png')
                     shutil.copy2(source_spine_path, spine_path)
         
+        # Fallback to generated spine background if option is enabled and no spine is available
+        generate_spine_background = request.form.get('generate_spine_background', 'false').lower() == 'true'
+        generated_spine_path = None
+        if not spine_path and generate_spine_background and spine_corners:
+            # Calculate spine width from spine corners
+            spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
+            spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
+            spine_width = spine_tr.get('x', 0) - spine_tl.get('x', 0)
+            
+            if spine_width > 0:
+                from box_generator import BoxGenerator
+                generator = BoxGenerator()
+                generated_spine_path = os.path.join(temp_dir, 'generated_spine.png')
+                try:
+                    # Use the original 2D box from the source field to generate the spine
+                    generator.generate_spine_background(
+                        box2d_path=source_2dbox_path,  # Original 2D box from source_field
+                        spine_width=spine_width,
+                        output_path=generated_spine_path,
+                        debug=True
+                    )
+                    logging.info(f"Generated spine background for preview: {generated_spine_path}")
+                except Exception as e:
+                    logging.warning(f"Failed to generate spine background: {e}")
+                    generated_spine_path = None
+        
         # Get logo if using uploaded spine
         logo_path = None
         if using_uploaded_spine and spine_path:
@@ -25720,14 +25775,18 @@ def preview_3dbox():
         
         from box_generator import BoxGenerator
         generator = BoxGenerator()
+        # When using generated spine, pass None for spine_image_path so it uses the same workflow
+        # as when no spine is provided (uses generated_spine_path or box2d_path)
+        spine_image_path_for_call = spine_path if spine_path and not generated_spine_path else None
         generator.generate_3dbox(
             background_path=background_path,
             box2d_path=source_2dbox_path,
             output_path=output_path,
             corners=corners,
             spine_corners=spine_corners,
-            spine_image_path=spine_path,  # Pass spine image if available
+            spine_image_path=spine_image_path_for_call,  # Pass None when using generated spine
             spine_logo_path=logo_path,  # Pass logo path if using uploaded spine
+            generated_spine_path=generated_spine_path,  # Pass generated spine to use same workflow as box2d_path
             debug=True  # Keep intermediate files for debugging
         )
         
@@ -25783,6 +25842,7 @@ def generate_3dbox():
         # Get logo source settings
         use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
         use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
+        use_generate_spine_background = request.form.get('generate_spine_background', 'false').lower() == 'true'
         text_logo_settings = None
         if use_text_logo:
             text_logo_settings_json = request.form.get('text_logo_settings')
@@ -25843,6 +25903,7 @@ def generate_3dbox():
             'use_marquee_field': use_marquee_field,  # Flag indicating if marquee field should be used for logo
             'use_text_logo': use_text_logo,  # Flag indicating if text logo should be used
             'text_logo_settings': text_logo_settings,  # Text logo settings if using text logo
+            'use_generate_spine_background': use_generate_spine_background,  # Flag indicating if spine background should be generated from 2D box
             'temp_dir': temp_dir,
             'overwrite_existing': overwrite_existing
         }
