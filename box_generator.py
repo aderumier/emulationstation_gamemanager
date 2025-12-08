@@ -1174,75 +1174,7 @@ class BoxGenerator:
                                 temp_spine_perspective = os.path.join(temp_dir, 'spine_perspective.png')
                                 temp_spine_perspective_resized = os.path.join(temp_dir, 'spine_perspective_resized.png')
                             
-                            temp_files.extend([temp_spine_resized, temp_spine_perspective, temp_spine_perspective_resized])
-                            
-                            # Step S1: Resize the spine image (or 2D box if no spine image) to fit the target area
-                            cmd_spine_resize = [
-                                'convert',
-                                spine_source_image,
-                                '-resize', f'{spine_resize_width}x{spine_resize_height}!',
-                                temp_spine_resized
-                            ]
-                            logging.info(f"3D Box Spine Step 1 - Resize {spine_source_image} to {spine_resize_width}x{spine_resize_height}: {' '.join(cmd_spine_resize)}")
-                            subprocess.run(cmd_spine_resize, check=True)
-                            
-                            # Step S1.5: Add logo to spine if logo is provided
-                            if spine_logo_path and os.path.exists(spine_logo_path):
-                                # Logo can be added to any spine (uploaded, generated, or from box2d)
-                                logging.info(f"3D Box Spine: Adding logo from {spine_logo_path}")
-                                
-                                # Create temp file for rotated and resized logo
-                                if debug:
-                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                    temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
-                                else:
-                                    temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
-                                
-                                temp_files.append(temp_logo_rotated_resized)
-                                
-                                # Rotate logo 90 degrees and resize to 80% of spine width (maintain aspect ratio)
-                                logo_target_width = int(spine_resize_width * 0.8)  # 80% of spine width
-                                cmd_logo_rotate_resize = [
-                                    'convert',
-                                    spine_logo_path,
-                                    '-rotate', '90',
-                                    '-resize', f'{logo_target_width}x',  # Resize to 80% of spine width, maintain aspect ratio
-                                    temp_logo_rotated_resized
-                                ]
-                                logging.info(f"3D Box Spine: Rotate and resize logo to {logo_target_width}px width (80% of spine width): {' '.join(cmd_logo_rotate_resize)}")
-                                subprocess.run(cmd_logo_rotate_resize, check=True)
-                                
-                                # Get logo dimensions after rotation and resize
-                                identify_cmd = ['identify', '-format', '%wx%h', temp_logo_rotated_resized]
-                                logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
-                                if logo_dim_result.returncode == 0:
-                                    logo_dims = logo_dim_result.stdout.strip().split('x')
-                                    logo_width = int(logo_dims[0])
-                                    logo_height = int(logo_dims[1])
-                                    
-                                    # Calculate position: centered horizontally, at 2/3 of spine height
-                                    logo_x = (spine_resize_width - logo_width) // 2  # Center horizontally
-                                    logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)  # At 2/3 height, centered vertically
-                                    
-                                    # Composite logo onto resized spine
-                                    cmd_logo_composite = [
-                                        'composite',
-                                        '-geometry', f'+{logo_x}+{logo_y}',
-                                        temp_logo_rotated_resized,
-                                        temp_spine_resized,
-                                        temp_spine_resized
-                                    ]
-                                    logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
-                                    subprocess.run(cmd_logo_composite, check=True)
-                                    logging.info(f"✅ Logo composited onto spine")
-                                else:
-                                    logging.warning(f"Failed to get logo dimensions, skipping logo composite")
-                            
-                            # Step S2: Compute spine source coordinates (new formula)
-                            # source_topright_x = target_topright_x, source_topright_y = target_topright_y
-                            # source_bottomright_x = target_topright_x, source_bottomright_y = target_bottomright_y
-                            # source_topleft_x = target_topleft_x, source_topleft_y = target_topright_y
-                            # source_bottomleft_x = target_topleft_x, source_bottomleft_y = target_bottomright_y
+                            # Compute spine source coordinates (needed for perspective)
                             spine_source_topleft_x = spine_target_topleft_x
                             spine_source_topleft_y = spine_target_topright_y
                             spine_source_topright_x = spine_target_topright_x
@@ -1252,8 +1184,6 @@ class BoxGenerator:
                             spine_source_bottomright_x = spine_target_topright_x
                             spine_source_bottomright_y = spine_target_bottomright_y
                             
-                            # Step S3-S4: For generated spines, use separate steps (no optimization)
-                            # For uploaded/field spines, combine perspective + resize for better performance
                             spine_perspective_str = (
                                 f'{spine_source_topleft_x},{spine_source_topleft_y} {spine_target_topleft_x},{spine_target_topleft_y}  '
                                 f'{spine_source_topright_x},{spine_source_topright_y} {spine_target_topright_x},{spine_target_topright_y}  '
@@ -1261,8 +1191,74 @@ class BoxGenerator:
                                 f'{spine_source_bottomleft_x},{spine_source_bottomleft_y} {spine_target_bottomleft_x},{spine_target_bottomleft_y}'
                             )
                             
+                            has_logo = spine_logo_path and os.path.exists(spine_logo_path)
+                            
                             if is_generated_spine:
-                                # Generated spine: use separate steps (no optimization) to ensure perspective works correctly
+                                # Generated spine: always use separate steps (no optimization) to ensure perspective works correctly
+                                temp_files.extend([temp_spine_resized, temp_spine_perspective, temp_spine_perspective_resized])
+                                
+                                # Step S1: Resize
+                                cmd_spine_resize = [
+                                    'convert',
+                                    spine_source_image,
+                                    '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                    temp_spine_resized
+                                ]
+                                logging.info(f"3D Box Spine Step 1 (Generated) - Resize: {' '.join(cmd_spine_resize)}")
+                                subprocess.run(cmd_spine_resize, check=True)
+                                
+                                # Step S1.5: Add logo to spine if logo is provided
+                                if has_logo:
+                                    logging.info(f"3D Box Spine: Adding logo from {spine_logo_path}")
+                                    
+                                    # Create temp file for rotated and resized logo
+                                    if debug:
+                                        output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                        temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
+                                    else:
+                                        temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
+                                    
+                                    temp_files.append(temp_logo_rotated_resized)
+                                    
+                                    # Rotate logo 90 degrees and resize to 80% of spine width (maintain aspect ratio)
+                                    logo_target_width = int(spine_resize_width * 0.8)  # 80% of spine width
+                                    cmd_logo_rotate_resize = [
+                                        'convert',
+                                        spine_logo_path,
+                                        '-rotate', '90',
+                                        '-resize', f'{logo_target_width}x',  # Resize to 80% of spine width, maintain aspect ratio
+                                        temp_logo_rotated_resized
+                                    ]
+                                    logging.info(f"3D Box Spine: Rotate and resize logo to {logo_target_width}px width (80% of spine width): {' '.join(cmd_logo_rotate_resize)}")
+                                    subprocess.run(cmd_logo_rotate_resize, check=True)
+                                    
+                                    # Get logo dimensions after rotation and resize
+                                    identify_cmd = ['identify', '-format', '%wx%h', temp_logo_rotated_resized]
+                                    logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                                    if logo_dim_result.returncode == 0:
+                                        logo_dims = logo_dim_result.stdout.strip().split('x')
+                                        logo_width = int(logo_dims[0])
+                                        logo_height = int(logo_dims[1])
+                                        
+                                        # Calculate position: centered horizontally, at 2/3 of spine height
+                                        logo_x = (spine_resize_width - logo_width) // 2  # Center horizontally
+                                        logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)  # At 2/3 height, centered vertically
+                                        
+                                        # Composite logo onto resized spine
+                                        cmd_logo_composite = [
+                                            'composite',
+                                            '-geometry', f'+{logo_x}+{logo_y}',
+                                            temp_logo_rotated_resized,
+                                            temp_spine_resized,
+                                            temp_spine_resized
+                                        ]
+                                        logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
+                                        subprocess.run(cmd_logo_composite, check=True)
+                                        logging.info(f"✅ Logo composited onto spine")
+                                    else:
+                                        logging.warning(f"Failed to get logo dimensions, skipping logo composite")
+                                
+                                # Step S2: Apply perspective distortion
                                 cmd_spine_perspective = [
                                     'convert',
                                     temp_spine_resized,
@@ -1275,7 +1271,7 @@ class BoxGenerator:
                                 logging.info(f"3D Box Spine Step 2 (Generated) - Perspective: {' '.join(cmd_spine_perspective)}")
                                 subprocess.run(cmd_spine_perspective, check=True)
                                 
-                                # Step S4: Resize perspective image
+                                # Step S3: Resize perspective image
                                 cmd_spine_resize_perspective = [
                                     'convert',
                                     temp_spine_perspective,
@@ -1285,19 +1281,101 @@ class BoxGenerator:
                                 logging.info(f"3D Box Spine Step 3 (Generated) - Resize: {' '.join(cmd_spine_resize_perspective)}")
                                 subprocess.run(cmd_spine_resize_perspective, check=True)
                             else:
-                                # Uploaded/field spine: combine perspective + resize for better performance
-                                cmd_spine_combined = [
-                                    'convert',
-                                    temp_spine_resized,
-                                    '-background', 'none',
-                                    '-virtual-pixel', 'transparent',
-                                    '-alpha', 'set',
-                                    '-distort', 'Perspective', spine_perspective_str,
-                                    '-resize', f'{spine_resize_width}x{spine_resize_height}!',
-                                    temp_spine_perspective_resized
-                                ]
-                                logging.info(f"3D Box Spine Step 2-3 (Combined) - Perspective, Resize: {' '.join(cmd_spine_combined)}")
-                                subprocess.run(cmd_spine_combined, check=True)
+                                # Uploaded/field spine: optimize based on whether logo is present
+                                if has_logo:
+                                    # With logo: resize first (needed for logo compositing), then combine perspective + resize
+                                    temp_files.extend([temp_spine_resized, temp_spine_perspective_resized])
+                                    
+                                    # Step S1: Resize (needed for logo compositing)
+                                    cmd_spine_resize = [
+                                        'convert',
+                                        spine_source_image,
+                                        '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                        temp_spine_resized
+                                    ]
+                                    logging.info(f"3D Box Spine Step 1 (Uploaded/Field with logo) - Resize: {' '.join(cmd_spine_resize)}")
+                                    subprocess.run(cmd_spine_resize, check=True)
+                                    
+                                    # Step S1.5: Add logo to spine
+                                    logging.info(f"3D Box Spine: Adding logo from {spine_logo_path}")
+                                    
+                                    # Create temp file for rotated and resized logo
+                                    if debug:
+                                        output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                        temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
+                                    else:
+                                        temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
+                                    
+                                    temp_files.append(temp_logo_rotated_resized)
+                                    
+                                    # Rotate logo 90 degrees and resize to 80% of spine width (maintain aspect ratio)
+                                    logo_target_width = int(spine_resize_width * 0.8)  # 80% of spine width
+                                    cmd_logo_rotate_resize = [
+                                        'convert',
+                                        spine_logo_path,
+                                        '-rotate', '90',
+                                        '-resize', f'{logo_target_width}x',  # Resize to 80% of spine width, maintain aspect ratio
+                                        temp_logo_rotated_resized
+                                    ]
+                                    logging.info(f"3D Box Spine: Rotate and resize logo to {logo_target_width}px width (80% of spine width): {' '.join(cmd_logo_rotate_resize)}")
+                                    subprocess.run(cmd_logo_rotate_resize, check=True)
+                                    
+                                    # Get logo dimensions after rotation and resize
+                                    identify_cmd = ['identify', '-format', '%wx%h', temp_logo_rotated_resized]
+                                    logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                                    if logo_dim_result.returncode == 0:
+                                        logo_dims = logo_dim_result.stdout.strip().split('x')
+                                        logo_width = int(logo_dims[0])
+                                        logo_height = int(logo_dims[1])
+                                        
+                                        # Calculate position: centered horizontally, at 2/3 of spine height
+                                        logo_x = (spine_resize_width - logo_width) // 2  # Center horizontally
+                                        logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)  # At 2/3 height, centered vertically
+                                        
+                                        # Composite logo onto resized spine
+                                        cmd_logo_composite = [
+                                            'composite',
+                                            '-geometry', f'+{logo_x}+{logo_y}',
+                                            temp_logo_rotated_resized,
+                                            temp_spine_resized,
+                                            temp_spine_resized
+                                        ]
+                                        logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
+                                        subprocess.run(cmd_logo_composite, check=True)
+                                        logging.info(f"✅ Logo composited onto spine")
+                                    else:
+                                        logging.warning(f"Failed to get logo dimensions, skipping logo composite")
+                                    
+                                    # Step S2-3: Combined perspective + resize
+                                    cmd_spine_combined = [
+                                        'convert',
+                                        temp_spine_resized,
+                                        '-background', 'none',
+                                        '-virtual-pixel', 'transparent',
+                                        '-alpha', 'set',
+                                        '-distort', 'Perspective', spine_perspective_str,
+                                        '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                        temp_spine_perspective_resized
+                                    ]
+                                    logging.info(f"3D Box Spine Step 2-3 (Uploaded/Field with logo) - Perspective, Resize: {' '.join(cmd_spine_combined)}")
+                                    subprocess.run(cmd_spine_combined, check=True)
+                                else:
+                                    # No logo: combine all 3 steps (resize + perspective + resize) for maximum optimization
+                                    temp_files.append(temp_spine_perspective_resized)
+                                    
+                                    cmd_spine_combined = [
+                                        'convert',
+                                        spine_source_image,
+                                        '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                        '-background', 'none',
+                                        '-virtual-pixel', 'transparent',
+                                        '-alpha', 'set',
+                                        '-distort', 'Perspective', spine_perspective_str,
+                                        '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                        temp_spine_perspective_resized
+                                    ]
+                                    logging.info(f"3D Box Spine Step 1-3 (Uploaded/Field, no logo) - Resize, Perspective, Resize: {' '.join(cmd_spine_combined)}")
+                                    subprocess.run(cmd_spine_combined, check=True)
                             
                             # Step S5: Composite spine onto the result (which already has front)
                             # Use source coordinates for compositing (exactly like the front surface)
