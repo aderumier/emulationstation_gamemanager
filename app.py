@@ -2934,7 +2934,8 @@ def process_next_queued_task():
             use_text_logo = task_data.get('use_text_logo', False)
             text_logo_settings = task_data.get('text_logo_settings')
             use_generate_spine_background = task_data.get('use_generate_spine_background', False)
-            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings, use_generate_spine_background))
+            spine_crop_width = task_data.get('spine_crop_width')
+            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings, use_generate_spine_background, spine_crop_width))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -23311,7 +23312,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
-def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=False):
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=False, spine_crop_width=None):
     """Run 3D box generation task in background thread"""
     global current_task_id
     
@@ -23433,7 +23434,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     game_spine_path = spine_image_path
                     using_uploaded_spine = True
                 
-                # Fallback to generated spine background if option is enabled and no spine is available
+                # Always generate spine background from 2D box if no spine is available (enabled by default)
                 if not game_spine_path and use_generate_spine_background and spine_corners:
                     # Calculate spine width from spine corners
                     spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
@@ -23448,7 +23449,8 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                                 box2d_path=source_2dbox_path,  # Original 2D box from source_field
                                 spine_width=spine_width,
                                 output_path=generated_spine_path,
-                                debug=(processed == 0 and failed == 0)  # Debug for first game only
+                                debug=(processed == 0 and failed == 0),  # Debug for first game only
+                                crop_width=spine_crop_width
                             )
                             game_spine_path = generated_spine_path
                             using_uploaded_spine = True  # Treat generated spine as uploaded spine for logo purposes
@@ -25702,14 +25704,26 @@ def preview_3dbox():
                     spine_path = os.path.join(temp_dir, 'spine.png')
                     shutil.copy2(source_spine_path, spine_path)
         
-        # Fallback to generated spine background if option is enabled and no spine is available
-        generate_spine_background = request.form.get('generate_spine_background', 'false').lower() == 'true'
+        # Always generate spine background from 2D box if no spine is available (enabled by default)
+        generate_spine_background = request.form.get('generate_spine_background', 'true').lower() == 'true'
         generated_spine_path = None
         if not spine_path and generate_spine_background and spine_corners:
             # Calculate spine width from spine corners
             spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
             spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
             spine_width = spine_tr.get('x', 0) - spine_tl.get('x', 0)
+            
+            # Get crop width parameter (defaults to spine_width if empty or 0)
+            spine_crop_width = request.form.get('spine_crop_width')
+            if spine_crop_width:
+                try:
+                    spine_crop_width = int(spine_crop_width)
+                    if spine_crop_width == 0:
+                        spine_crop_width = None  # Use spine width if 0
+                except (ValueError, TypeError):
+                    spine_crop_width = None
+            else:
+                spine_crop_width = None  # Use spine width if empty
             
             if spine_width > 0:
                 from box_generator import BoxGenerator
@@ -25721,16 +25735,17 @@ def preview_3dbox():
                         box2d_path=source_2dbox_path,  # Original 2D box from source_field
                         spine_width=spine_width,
                         output_path=generated_spine_path,
-                        debug=True
+                        debug=True,
+                        crop_width=spine_crop_width
                     )
                     logging.info(f"Generated spine background for preview: {generated_spine_path}")
                 except Exception as e:
                     logging.warning(f"Failed to generate spine background: {e}")
                     generated_spine_path = None
         
-        # Get logo if using uploaded spine
+        # Get logo if logo options are enabled and spine exists
         logo_path = None
-        if using_uploaded_spine and spine_path:
+        if (use_text_logo or use_marquee_field) and (spine_path or generated_spine_path or spine_corners):
             # Get game name for logging
             game_name = game.get('name', game_path)
             
@@ -25842,7 +25857,17 @@ def generate_3dbox():
         # Get logo source settings
         use_text_logo = request.form.get('use_text_logo', 'false').lower() == 'true'
         use_marquee_field = request.form.get('use_marquee_field', 'false').lower() == 'true'
-        use_generate_spine_background = request.form.get('generate_spine_background', 'false').lower() == 'true'
+        use_generate_spine_background = request.form.get('generate_spine_background', 'true').lower() == 'true'
+        spine_crop_width = request.form.get('spine_crop_width')
+        if spine_crop_width:
+            try:
+                spine_crop_width = int(spine_crop_width)
+                if spine_crop_width == 0:
+                    spine_crop_width = None  # Use spine width if 0
+            except (ValueError, TypeError):
+                spine_crop_width = None
+        else:
+            spine_crop_width = None  # Use spine width if empty
         text_logo_settings = None
         if use_text_logo:
             text_logo_settings_json = request.form.get('text_logo_settings')
@@ -25904,6 +25929,7 @@ def generate_3dbox():
             'use_text_logo': use_text_logo,  # Flag indicating if text logo should be used
             'text_logo_settings': text_logo_settings,  # Text logo settings if using text logo
             'use_generate_spine_background': use_generate_spine_background,  # Flag indicating if spine background should be generated from 2D box
+            'spine_crop_width': spine_crop_width,  # Width of 2D box crop in pixels for spine generation
             'temp_dir': temp_dir,
             'overwrite_existing': overwrite_existing
         }

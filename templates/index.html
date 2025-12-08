@@ -4718,6 +4718,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <h5 class="modal-title" id="box3DGeneratorModalLabel">
                         <i class="bi bi-box me-2"></i>3D Box Generator
                     </h5>
+                    <button type="button" class="btn btn-primary" id="generate3DBoxBtn">
+                        <i class="bi bi-play-fill me-1"></i>Generate 3D Box
+                    </button>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -4752,14 +4755,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                             
                             <div class="mb-3">
-                                <label for="template3DSpineImage" class="form-label">Spine Image (Optional)</label>
-                                <div class="input-group">
-                                    <input type="file" class="form-control" id="template3DSpineImage" accept="image/*">
-                                    <button class="btn btn-outline-danger" type="button" id="template3DSpineImageDelete" title="Delete uploaded spine image" style="display: none;">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                <div class="form-text">Select spine image to use for spine surface (if not provided, 2D box image will be used)</div>
+                                <label for="template3DSpineCropWidth" class="form-label">Spine from 2D cover crop size</label>
+                                <input type="number" class="form-control" id="template3DSpineCropWidth" min="5" value="5" placeholder="Auto (spine width)">
+                                <div class="form-text">Width of the 2D box crop in pixels (min: 5, max: 2D cover width). Leave empty to use spine width.</div>
                             </div>
                             
                             <div class="mb-3">
@@ -4771,13 +4769,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                             
                             <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="template3DGenerateSpineBackground">
-                                    <label class="form-check-label" for="template3DGenerateSpineBackground">
-                                        Generate spine background from 2D box
-                                    </label>
+                                <label for="template3DSpineImage" class="form-label">Spine Image (Optional)</label>
+                                <div class="input-group">
+                                    <input type="file" class="form-control" id="template3DSpineImage" accept="image/*">
+                                    <button class="btn btn-outline-danger" type="button" id="template3DSpineImageDelete" title="Delete uploaded spine image" style="display: none;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
-                                <div class="form-text">If enabled and no spine image is available, generate a spine by cropping and mirroring the left side of the 2D box</div>
+                                <div class="form-text">Select spine image to use for spine surface (if not provided, 2D box image will be used)</div>
                             </div>
                             
                             <div class="mb-3">
@@ -5010,12 +5009,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="generate3DBoxBtn">
-                        <i class="bi bi-play-fill me-1"></i>Generate 3D Box
-                    </button>
                 </div>
             </div>
         </div>

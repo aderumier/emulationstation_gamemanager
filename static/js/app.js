@@ -14427,10 +14427,12 @@ class GameCollectionManager {
             }
             // If logoSource is 'none', don't add any logo-related fields
             
-            // Add spine background generation option
-            const generateSpineBackground = document.getElementById('template3DGenerateSpineBackground');
-            if (generateSpineBackground && generateSpineBackground.checked) {
-                formData.append('generate_spine_background', 'true');
+            // Always generate spine background from 2D box (enabled by default)
+            formData.append('generate_spine_background', 'true');
+            const spineCropWidth = document.getElementById('template3DSpineCropWidth');
+            if (spineCropWidth) {
+                // Always send the value, even if empty (empty means use spine width)
+                formData.append('spine_crop_width', spineCropWidth.value || '');
             }
             
             const response = await fetch('/api/preview-3dbox', {
@@ -14554,10 +14556,12 @@ class GameCollectionManager {
                 formData.append('spine_source_field', spineSourceField.value);
             }
             
-            // Add spine background generation option
-            const generateSpineBackground = document.getElementById('template3DGenerateSpineBackground');
-            if (generateSpineBackground && generateSpineBackground.checked) {
-                formData.append('generate_spine_background', 'true');
+            // Always generate spine background from 2D box (enabled by default)
+            formData.append('generate_spine_background', 'true');
+            const spineCropWidth = document.getElementById('template3DSpineCropWidth');
+            if (spineCropWidth) {
+                // Always send the value, even if empty (empty means use spine width)
+                formData.append('spine_crop_width', spineCropWidth.value || '');
             }
             
             // Check logo source selection
@@ -25970,9 +25974,10 @@ class GameCollectionManager {
         }
         
         // Auto-refresh preview when spine background generation checkbox changes
-        const template3DGenerateSpineBackground = document.getElementById('template3DGenerateSpineBackground');
-        if (template3DGenerateSpineBackground) {
-            template3DGenerateSpineBackground.addEventListener('change', () => {
+        // Auto-refresh preview when crop width changes
+        const template3DSpineCropWidth = document.getElementById('template3DSpineCropWidth');
+        if (template3DSpineCropWidth) {
+            template3DSpineCropWidth.addEventListener('input', () => {
                 this.autoRefresh3DPreview();
             });
         }

@@ -924,15 +924,16 @@ class BoxGenerator:
                 except Exception as e:
                     logging.warning(f"Could not remove temp file {temp_file}: {e}")
 
-    def generate_spine_background(self, box2d_path, spine_width, output_path, debug=False):
+    def generate_spine_background(self, box2d_path, spine_width, output_path, debug=False, crop_width=None):
         """
         Generate a spine background by cropping the left side of a 2D box and mirroring it.
         
         Args:
             box2d_path: Path to the 2D box image
-            spine_width: Width of the spine in template coordinates (will be used directly as pixel width)
+            spine_width: Width of the spine in template coordinates (will be used directly as pixel width if crop_width not provided)
             output_path: Path where the generated spine will be saved
             debug: If True, log the command
+            crop_width: Optional width of the 2D box crop in pixels (defaults to spine_width, min 5, max box_width)
         """
         if not os.path.exists(box2d_path):
             raise Exception(f"2D box image not found: {box2d_path}")
@@ -951,14 +952,16 @@ class BoxGenerator:
         box_width = int(box_dims[0])
         box_height = int(box_dims[1])
         
-        # Use spine_width directly as the crop width (in pixels)
-        crop_width = int(spine_width)
-        
-        # Ensure crop_width is within bounds
-        if crop_width <= 0:
-            crop_width = max(1, int(box_width * 0.1))  # Default to 10% of box width
-        if crop_width > box_width:
-            crop_width = box_width
+        # Use crop_width if provided and not empty/None, otherwise default to spine_width
+        if crop_width is None or crop_width == '' or crop_width == 0:
+            crop_width = int(spine_width)
+        else:
+            crop_width = int(crop_width)
+            # Ensure crop_width is within bounds: min 5, max box_width
+            if crop_width < 5:
+                crop_width = 5
+            if crop_width > box_width:
+                crop_width = box_width
         
         # Crop left side: crop from (0,0) with width=crop_width, height=box_height
         # Then flip horizontally with -flop
@@ -1192,9 +1195,9 @@ class BoxGenerator:
                             logging.info(f"3D Box Spine Step 1 - Resize {spine_source_image} to {spine_resize_width}x{spine_resize_height}: {' '.join(cmd_spine_resize)}")
                             subprocess.run(cmd_spine_resize, check=True)
                             
-                            # Step S1.5: Add logo to spine if using uploaded spine and logo is provided
-                            if spine_logo_path and os.path.exists(spine_logo_path) and spine_image_path and os.path.exists(spine_image_path):
-                                # Logo should only be added when using uploaded spine (not from game's spine field)
+                            # Step S1.5: Add logo to spine if logo is provided
+                            if spine_logo_path and os.path.exists(spine_logo_path):
+                                # Logo can be added to any spine (uploaded, generated, or from box2d)
                                 logging.info(f"3D Box Spine: Adding logo from {spine_logo_path}")
                                 
                                 # Create temp file for rotated and resized logo
