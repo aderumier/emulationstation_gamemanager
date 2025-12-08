@@ -11358,15 +11358,15 @@ class GameCollectionManager {
                         sel2.hidden = false;
                         sel2.active = false;
                         
-                        // Set first selection (screenshot): x=170, y=150, width=80, height=80
+                        // Set first selection (screenshot): x=170, y=150, width=160, height=160 (doubled)
                         if (typeof sel1.$change === 'function') {
-                            sel1.$change(170, 150, 80, 80);
+                            sel1.$change(170, 150, 160, 160);
                             this.updateTemplateCornersFromCropper();
                         }
                         
-                        // Set second selection (logo): x=100, y=70, width=80, height=80
+                        // Set second selection (logo): x=100, y=70, width=240, height=80 (width tripled)
                         if (typeof sel2.$change === 'function') {
-                            sel2.$change(100, 70, 80, 80);
+                            sel2.$change(100, 70, 240, 80);
                             this.updateTemplateLogoCornersFromCropper();
                         }
                     }
@@ -11396,18 +11396,23 @@ class GameCollectionManager {
                     const corner1X = document.getElementById('templateCorner1X');
                     const hasSavedCorners = corner1X && corner1X.value && corner1X.value.trim() !== '';
                     
-                    if (hasSavedCorners) {
-                        // Load from saved corners
+                    // Check if we're loading from a template (isLoadingTemplate flag) or from field/image change
+                    // If not loading template, reset selections to default positions to avoid out-of-bounds issues
+                    const isLoadingFromTemplate = this.isLoadingTemplate;
+                    
+                    if (hasSavedCorners && isLoadingFromTemplate) {
+                        // Load from saved corners only when loading template
                         this.updateTemplateCropperFromCorners();
                         this.updateTemplateCropperFromLogoCorners();
                     } else {
-                        // No saved corners, create default selections
+                        // Reset to default selections when image changes (not from template)
+                        // This ensures selections are within bounds of the new image
                         if (currentScreenshotSelection && typeof currentScreenshotSelection.$change === 'function') {
-                            currentScreenshotSelection.$change(170, 150, 80, 80);
+                            currentScreenshotSelection.$change(170, 150, 160, 160);
                             this.updateTemplateCornersFromCropper();
                         }
                         if (currentLogoSelection && typeof currentLogoSelection.$change === 'function') {
-                            currentLogoSelection.$change(100, 70, 80, 80);
+                            currentLogoSelection.$change(100, 70, 240, 80);
                             this.updateTemplateLogoCornersFromCropper();
                         }
                     }
@@ -26183,6 +26188,15 @@ class GameCollectionManager {
                     }
                     // Hide delete button
                     templateBackgroundImageDelete.style.display = 'none';
+                    
+                    // Clear saved corner values to prevent out-of-bounds positions when loading new image
+                    ['templateCorner1X', 'templateCorner1Y', 'templateCorner2X', 'templateCorner2Y',
+                     'templateCorner3X', 'templateCorner3Y', 'templateCorner4X', 'templateCorner4Y',
+                     'templateLogoCorner1X', 'templateLogoCorner1Y', 'templateLogoCorner2X', 'templateLogoCorner2Y',
+                     'templateLogoCorner3X', 'templateLogoCorner3Y', 'templateLogoCorner4X', 'templateLogoCorner4Y'].forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) element.value = '';
+                    });
                     
                     // Try to load from Background Image Field if available
                     await this.updateTemplatePreviewFromField();
