@@ -99,13 +99,16 @@ RUN mkdir -p /opt/gamemanager/mobygames_db.default && \
     chmod -R 644 /opt/gamemanager/mobygames_db.default/*.json 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/mobygames_db.default/
 
-# Copy IGDB pickle files to default location outside var (for volume mount scenarios)
+# Copy IGDB pickle files and JSON files to default location outside var (for volume mount scenarios)
 RUN mkdir -p /opt/gamemanager/igdb_db.default && \
     chmod -R 755 /opt/gamemanager/var/db/igdb/ 2>/dev/null || true && \
     chmod -R 644 /opt/gamemanager/var/db/igdb/*.pkl 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/db/igdb/*.json 2>/dev/null || true && \
     (cp /opt/gamemanager/var/db/igdb/*.pkl /opt/gamemanager/igdb_db.default/ 2>/dev/null || echo "No IGDB pickle files found") && \
+    (cp /opt/gamemanager/var/db/igdb/*.json /opt/gamemanager/igdb_db.default/ 2>/dev/null || echo "No IGDB JSON files found") && \
     chmod -R 755 /opt/gamemanager/igdb_db.default/ && \
     chmod -R 644 /opt/gamemanager/igdb_db.default/*.pkl 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/igdb_db.default/*.json 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/igdb_db.default/
 
 # Copy EmuMovies database files to default location outside var (for volume mount scenarios)
@@ -239,15 +242,15 @@ cp /opt/gamemanager/launchbox_mediatype.json.default /opt/gamemanager/var/db/lau
 cp /opt/gamemanager/steam_mediastype.txt.default /opt/gamemanager/var/db/steam/mediastype.txt
 cp /opt/gamemanager/steamgrid_mediastype.txt.default /opt/gamemanager/var/db/steamgrid/mediastype.txt
 
-# Copy additional database files to var/db (always copy to ensure they're in the volume)
-echo "Copying additional database files to var/db..."
-# Create empty files for cache and data files that will be populated by the application (only if they don't exist)
-[ ! -f /opt/gamemanager/var/db/igdb/companies.json ] && touch /opt/gamemanager/var/db/igdb/companies.json
-[ ! -f /opt/gamemanager/var/db/igdb/genres.json ] && touch /opt/gamemanager/var/db/igdb/genres.json
-[ ! -f /opt/gamemanager/var/db/igdb/regions_cache.json ] && touch /opt/gamemanager/var/db/igdb/regions_cache.json
-[ ! -f /opt/gamemanager/var/db/igdb/sample_games.json ] && touch /opt/gamemanager/var/db/igdb/sample_games.json
-# Metadata.xml should only be created when downloading metadata, not as an empty file
-[ ! -f /opt/gamemanager/var/db/steam/appindex.json ] && touch /opt/gamemanager/var/db/steam/appindex.json
+# Copy IGDB pickle files and JSON files to var/db (always copy to ensure they're in the volume)
+echo "Copying IGDB pickle files and JSON files to var/db/igdb..."
+if [ -d /opt/gamemanager/igdb_db.default ] && [ "$(ls -A /opt/gamemanager/igdb_db.default 2>/dev/null)" ]; then
+    cp /opt/gamemanager/igdb_db.default/*.pkl /opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB pickle files found"
+    cp /opt/gamemanager/igdb_db.default/*.json /opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB JSON files found"
+    echo "✅ IGDB database files copied to volume"
+else
+    echo "⚠️  No IGDB database files found in default location"
+fi
 
 # Copy MobyGames database files to var/db (always copy to ensure they're in the volume)
 echo "Copying MobyGames database files to var/db/mobygames..."
@@ -258,14 +261,16 @@ else
     echo "⚠️  No MobyGames database files found in default location"
 fi
 
-# Copy IGDB pickle files to var/db (always copy to ensure they're in the volume)
-echo "Copying IGDB pickle files to var/db/igdb..."
-if [ -d /opt/gamemanager/igdb_db.default ] && [ "$(ls -A /opt/gamemanager/igdb_db.default 2>/dev/null)" ]; then
-    cp /opt/gamemanager/igdb_db.default/*.pkl /opt/gamemanager/var/db/igdb/
-    echo "✅ IGDB pickle files copied to volume"
-else
-    echo "⚠️  No IGDB pickle files found in default location"
-fi
+# Copy additional database files to var/db (always copy to ensure they're in the volume)
+echo "Copying additional database files to var/db..."
+# Create empty files for cache and data files that will be populated by the application (only if they don't exist and weren't copied from default)
+# Note: IGDB JSON files are now copied from igdb_db.default above, so we only create empty files if they're still missing
+[ ! -f /opt/gamemanager/var/db/igdb/companies.json ] && touch /opt/gamemanager/var/db/igdb/companies.json
+[ ! -f /opt/gamemanager/var/db/igdb/genres.json ] && touch /opt/gamemanager/var/db/igdb/genres.json
+[ ! -f /opt/gamemanager/var/db/igdb/regions_cache.json ] && touch /opt/gamemanager/var/db/igdb/regions_cache.json
+[ ! -f /opt/gamemanager/var/db/igdb/sample_games.json ] && touch /opt/gamemanager/var/db/igdb/sample_games.json
+# Metadata.xml should only be created when downloading metadata, not as an empty file
+[ ! -f /opt/gamemanager/var/db/steam/appindex.json ] && touch /opt/gamemanager/var/db/steam/appindex.json
 
 # Copy EmuMovies database files to var/db (always copy to ensure they're in the volume)
 echo "Copying EmuMovies database files to var/db/emumovies..."

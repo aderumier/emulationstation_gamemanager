@@ -68,6 +68,7 @@ echo "📦 Copying IGDB databases and pickle files..."
 mkdir -p debian/opt/gamemanager/var/db/igdb
 cp var/db/igdb/*.pkl debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB pickle files found, skipping..."
 cp var/db/igdb/mediatype.txt debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB mediatype.txt found, skipping..."
+cp var/db/igdb/*.json debian/opt/gamemanager/var/db/igdb/ 2>/dev/null || echo "⚠️  No IGDB JSON files found, skipping..."
 
 # EmuMovies databases
 echo "📦 Copying EmuMovies databases..."
