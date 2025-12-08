@@ -10814,7 +10814,20 @@ class GameCollectionManager {
             
             const reader = new FileReader();
             reader.onload = async (event) => {
+                // Ensure canvas is visible before setting up cropper (in case it was hidden after deletion)
+                const cropperCanvas = document.getElementById('templateCropperCanvas');
+                const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+                if (cropperCanvas) {
+                    cropperCanvas.style.display = 'block';
+                    cropperCanvas.style.visibility = 'visible';
+                    cropperCanvas.style.opacity = '1';
+                }
+                if (previewPlaceholder) {
+                    previewPlaceholder.style.display = 'none';
+                }
+                
                 // Always reset canvas to ensure selections are properly initialized
+                // setupTemplateCropper will handle activating the interactive tab and resetting the cropper
                 await this.setupTemplateCropper(event.target.result, true);
             };
             reader.readAsDataURL(file);
@@ -26174,16 +26187,28 @@ class GameCollectionManager {
                     // Try to load from Background Image Field if available
                     await this.updateTemplatePreviewFromField();
                     
-                    // If no field image was loaded, clear the canvas
+                    // If no field image was loaded, properly reset the cropper canvas
                     const backgroundImageField = document.getElementById('templateBackgroundImageField');
                     const hasBackgroundField = backgroundImageField && backgroundImageField.value;
                     if (!hasBackgroundField) {
                         const cropperCanvas = document.getElementById('templateCropperCanvas');
                         const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+                        
                         if (cropperCanvas) {
-                            const ctx = cropperCanvas.getContext('2d');
-                            ctx.clearRect(0, 0, cropperCanvas.width, cropperCanvas.height);
+                            // Hide canvas and show placeholder
+                            cropperCanvas.style.display = 'none';
+                            cropperCanvas.style.visibility = 'hidden';
+                            cropperCanvas.style.opacity = '0';
+                            
+                            // Remove all cropper elements to ensure clean state
+                            while (cropperCanvas.firstChild) {
+                                cropperCanvas.removeChild(cropperCanvas.firstChild);
+                            }
+                            
+                            // Reset the listeners setup flag so they get re-setup when image loads
+                            this.templateSelectionListenersSetup = false;
                         }
+                        
                         if (previewPlaceholder) {
                             previewPlaceholder.style.display = 'block';
                         }
