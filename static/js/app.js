@@ -10891,12 +10891,16 @@ class GameCollectionManager {
             backgroundInput.value = '';
             backgroundInput.removeAttribute('data-loaded-filename');
             backgroundInput.removeAttribute('data-loaded-path');
-            // Reset helper text
-            const helperText = backgroundInput.parentElement.querySelector('.form-text');
-            if (helperText) {
-                helperText.textContent = 'Select background image file (will be used as base dimensions)';
-                helperText.style.color = '';
-                helperText.style.fontWeight = '';
+            // Reset display
+            const displayInput = document.getElementById('templateBackgroundImageDisplay');
+            if (displayInput) {
+                displayInput.value = '';
+                displayInput.style.color = '#212529';
+            }
+            // Hide delete button
+            const deleteBtn = document.getElementById('templateBackgroundImageDelete');
+            if (deleteBtn) {
+                deleteBtn.style.display = 'none';
             }
         }
         // Don't reset screenshotField and targetField - they are persisted via localStorage
@@ -10967,12 +10971,17 @@ class GameCollectionManager {
             backgroundInput.removeAttribute('data-loaded-filename');
             backgroundInput.removeAttribute('data-loaded-path');
             
-            // Update helper text to show selected file
-            const helperText = backgroundInput.parentElement.querySelector('.form-text');
-            if (helperText) {
-                helperText.textContent = `Selected: ${file.name}`;
-                helperText.style.color = '#28a745';
-                helperText.style.fontWeight = '500';
+            // Update display
+            const displayInput = document.getElementById('templateBackgroundImageDisplay');
+            if (displayInput) {
+                displayInput.value = file.name;
+                displayInput.style.color = '#212529';
+            }
+            
+            // Show delete button
+            const deleteBtn = document.getElementById('templateBackgroundImageDelete');
+            if (deleteBtn) {
+                deleteBtn.style.display = 'block';
             }
             
             const reader = new FileReader();
@@ -12590,15 +12599,18 @@ class GameCollectionManager {
                     
                     // Update the background image input field display
                     const backgroundInput = document.getElementById('templateBackgroundImage');
+                    const displayInput = document.getElementById('templateBackgroundImageDisplay');
+                    const deleteBtn = document.getElementById('templateBackgroundImageDelete');
                     if (backgroundInput) {
-                        // Create a data transfer object to set the file input
-                        // Note: We can't directly set file input value, but we can show the filename
-                        // Create a label or helper text to show the loaded image
-                        const helperText = backgroundInput.parentElement.querySelector('.form-text');
-                        if (helperText) {
-                            helperText.textContent = `Current: ${actualFilename} (loaded from template)`;
-                            helperText.style.color = '#28a745';
-                            helperText.style.fontWeight = '500';
+                        // Display filename in the text input
+                        if (displayInput) {
+                            displayInput.value = actualFilename;
+                            displayInput.style.color = '#28a745';
+                        }
+                        
+                        // Show delete button
+                        if (deleteBtn) {
+                            deleteBtn.style.display = 'block';
                         }
                         
                         // Store the filename and full path in data attributes for reference
@@ -13602,6 +13614,13 @@ class GameCollectionManager {
         const file = event.target.files[0];
         if (!file) return;
         
+        // Update display
+        const displayInput = document.getElementById('template3DBackgroundImageDisplay');
+        if (displayInput) {
+            displayInput.value = file.name;
+            displayInput.style.color = '#212529';
+        }
+        
         // Switch to interactive tab if not active before loading image
         this.ensureInteractiveTabActive().then(() => {
             const reader = new FileReader();
@@ -14155,12 +14174,13 @@ class GameCollectionManager {
                         
                         // Store loaded path for saving
                         const fileInput = document.getElementById('template3DBackgroundImage');
+                        const displayInput = document.getElementById('template3DBackgroundImageDisplay');
                         if (fileInput) {
-                            const helperText = fileInput.parentElement.querySelector('.form-text');
                             const filename = imageUrl.split('/').pop()?.split('?')[0] || 'template';
-                            if (helperText) {
-                                helperText.textContent = `Current: ${filename} (loaded from template)`;
-                                helperText.style.color = '#28a745';
+                            // Display filename in the text input
+                            if (displayInput) {
+                                displayInput.value = filename;
+                                displayInput.style.color = '#28a745';
                             }
                             fileInput.setAttribute('data-loaded-filename', filename);
                             fileInput.setAttribute('data-loaded-path', data.background_image_path);
@@ -14175,8 +14195,8 @@ class GameCollectionManager {
                     // Load spine image path
                     if (data.spine_image_path) {
                         const spineFileInput = document.getElementById('template3DSpineImage');
+                        const spineDisplayInput = document.getElementById('template3DSpineImageDisplay');
                         if (spineFileInput) {
-                            const helperText = spineFileInput.parentElement.querySelector('.form-text');
                             let spineFilename = data.spine_image_path;
                             if (spineFilename.includes('?path=')) {
                                 const urlParams = new URLSearchParams(spineFilename.split('?')[1]);
@@ -14185,9 +14205,10 @@ class GameCollectionManager {
                             if (spineFilename.includes('/')) {
                                 spineFilename = spineFilename.split('/').pop();
                             }
-                            if (helperText) {
-                                helperText.textContent = `Current: ${spineFilename} (loaded from template)`;
-                                helperText.style.color = '#28a745';
+                            // Display filename in the text input
+                            if (spineDisplayInput) {
+                                spineDisplayInput.value = spineFilename;
+                                spineDisplayInput.style.color = '#28a745';
                             }
                             spineFileInput.setAttribute('data-loaded-filename', spineFilename);
                             spineFileInput.setAttribute('data-loaded-path', data.spine_image_path);
@@ -25838,9 +25859,86 @@ class GameCollectionManager {
         }
         
         // Template generator event listeners
+        // Box Template Generator background image change handler
         const templateBackgroundInput = document.getElementById('templateBackgroundImage');
+        const templateBackgroundImageDisplay = document.getElementById('templateBackgroundImageDisplay');
+        const templateBackgroundImageBrowse = document.getElementById('templateBackgroundImageBrowse');
+        const templateBackgroundImageDelete = document.getElementById('templateBackgroundImageDelete');
+        
+        // Function to update delete button visibility
+        const updateBackgroundImageDeleteButton = () => {
+            if (templateBackgroundInput && templateBackgroundImageDelete) {
+                const hasFile = templateBackgroundInput.files && templateBackgroundInput.files.length > 0;
+                const hasLoadedPath = templateBackgroundInput.getAttribute('data-loaded-path') || templateBackgroundInput.getAttribute('data-loaded-filename');
+                templateBackgroundImageDelete.style.display = (hasFile || hasLoadedPath) ? 'block' : 'none';
+            }
+        };
+        
+        // Browse button handler
+        if (templateBackgroundImageBrowse && templateBackgroundInput) {
+            templateBackgroundImageBrowse.addEventListener('click', () => {
+                templateBackgroundInput.click();
+            });
+        }
+        
         if (templateBackgroundInput) {
-            templateBackgroundInput.addEventListener('change', (e) => this.handleTemplateBackgroundChange(e));
+            templateBackgroundInput.addEventListener('change', (e) => {
+                this.handleTemplateBackgroundChange(e);
+                updateBackgroundImageDeleteButton();
+            });
+            
+            // Update display on page load if file is already selected or loaded
+            const updateBackgroundImageDisplay = () => {
+                if (!templateBackgroundInput || !templateBackgroundImageDisplay) return;
+                
+                const hasFile = templateBackgroundInput.files && templateBackgroundInput.files.length > 0;
+                const loadedFilename = templateBackgroundInput.getAttribute('data-loaded-filename');
+                
+                if (hasFile) {
+                    templateBackgroundImageDisplay.value = templateBackgroundInput.files[0].name;
+                    templateBackgroundImageDisplay.style.color = '#212529';
+                } else if (loadedFilename) {
+                    templateBackgroundImageDisplay.value = loadedFilename;
+                    templateBackgroundImageDisplay.style.color = '#28a745';
+                } else {
+                    templateBackgroundImageDisplay.value = '';
+                    templateBackgroundImageDisplay.style.color = '#212529';
+                }
+            };
+            
+            // Initial check for display and delete button
+            updateBackgroundImageDisplay();
+            updateBackgroundImageDeleteButton();
+        }
+        
+        // Delete button handler
+        if (templateBackgroundImageDelete) {
+            templateBackgroundImageDelete.addEventListener('click', () => {
+                if (templateBackgroundInput) {
+                    // Clear file input
+                    templateBackgroundInput.value = '';
+                    // Clear loaded paths
+                    templateBackgroundInput.removeAttribute('data-loaded-filename');
+                    templateBackgroundInput.removeAttribute('data-loaded-path');
+                    // Clear display
+                    if (templateBackgroundImageDisplay) {
+                        templateBackgroundImageDisplay.value = '';
+                        templateBackgroundImageDisplay.style.color = '#212529';
+                    }
+                    // Hide delete button
+                    templateBackgroundImageDelete.style.display = 'none';
+                    // Clear cropper canvas
+                    const cropperCanvas = document.getElementById('templateCropperCanvas');
+                    const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+                    if (cropperCanvas) {
+                        const ctx = cropperCanvas.getContext('2d');
+                        ctx.clearRect(0, 0, cropperCanvas.width, cropperCanvas.height);
+                    }
+                    if (previewPlaceholder) {
+                        previewPlaceholder.style.display = 'block';
+                    }
+                }
+            });
         }
         
         const templateScreenshotInput = document.getElementById('templateScreenshotImage');
@@ -25929,14 +26027,68 @@ class GameCollectionManager {
         });
         
         // 3D Box background image change handler
+        // 3D Box background image change handler
         const template3DBackgroundImage = document.getElementById('template3DBackgroundImage');
+        const template3DBackgroundImageDisplay = document.getElementById('template3DBackgroundImageDisplay');
+        const template3DBackgroundImageBrowse = document.getElementById('template3DBackgroundImageBrowse');
+        
+        // Browse button handler
+        if (template3DBackgroundImageBrowse && template3DBackgroundImage) {
+            template3DBackgroundImageBrowse.addEventListener('click', () => {
+                template3DBackgroundImage.click();
+            });
+        }
+        
         if (template3DBackgroundImage) {
             template3DBackgroundImage.addEventListener('change', (e) => this.handle3DBackgroundChange(e));
+            
+            // Update display on page load if file is already selected or loaded
+            const updateBackgroundImageDisplay = () => {
+                if (!template3DBackgroundImage || !template3DBackgroundImageDisplay) return;
+                
+                const hasFile = template3DBackgroundImage.files && template3DBackgroundImage.files.length > 0;
+                const loadedFilename = template3DBackgroundImage.getAttribute('data-loaded-filename');
+                
+                if (hasFile) {
+                    template3DBackgroundImageDisplay.value = template3DBackgroundImage.files[0].name;
+                    template3DBackgroundImageDisplay.style.color = '#212529';
+                } else if (loadedFilename) {
+                    template3DBackgroundImageDisplay.value = loadedFilename;
+                    template3DBackgroundImageDisplay.style.color = '#28a745';
+                } else {
+                    template3DBackgroundImageDisplay.value = '';
+                    template3DBackgroundImageDisplay.style.color = '#212529';
+                }
+            };
+            
+            // Initial check for display
+            updateBackgroundImageDisplay();
         }
         
         // 3D Box spine image change handler
         const template3DSpineImage = document.getElementById('template3DSpineImage');
+        const template3DSpineImageDisplay = document.getElementById('template3DSpineImageDisplay');
+        const template3DSpineImageBrowse = document.getElementById('template3DSpineImageBrowse');
         const template3DSpineImageDelete = document.getElementById('template3DSpineImageDelete');
+        
+        // Function to update filename display
+        const updateSpineImageDisplay = () => {
+            if (!template3DSpineImage || !template3DSpineImageDisplay) return;
+            
+            const hasFile = template3DSpineImage.files && template3DSpineImage.files.length > 0;
+            const loadedFilename = template3DSpineImage.getAttribute('data-loaded-filename');
+            
+            if (hasFile) {
+                template3DSpineImageDisplay.value = template3DSpineImage.files[0].name;
+                template3DSpineImageDisplay.style.color = '#212529';
+            } else if (loadedFilename) {
+                template3DSpineImageDisplay.value = loadedFilename;
+                template3DSpineImageDisplay.style.color = '#28a745';
+            } else {
+                template3DSpineImageDisplay.value = '';
+                template3DSpineImageDisplay.style.color = '#212529';
+            }
+        };
         
         // Function to update delete button visibility
         const updateSpineImageDeleteButton = () => {
@@ -25947,6 +26099,13 @@ class GameCollectionManager {
             }
         };
         
+        // Browse button handler
+        if (template3DSpineImageBrowse && template3DSpineImage) {
+            template3DSpineImageBrowse.addEventListener('click', () => {
+                template3DSpineImage.click();
+            });
+        }
+        
         if (template3DSpineImage) {
             template3DSpineImage.addEventListener('change', (e) => {
                 // Clear any loaded spine image path
@@ -25955,12 +26114,14 @@ class GameCollectionManager {
                     e.target.removeAttribute('data-loaded-filename');
                     e.target.removeAttribute('data-loaded-path');
                 }
+                updateSpineImageDisplay();
                 updateSpineImageDeleteButton();
                 // Auto-refresh preview if preview tab is active
                 this.autoRefresh3DPreview();
             });
             
-            // Initial check for delete button visibility
+            // Initial check for delete button visibility and display
+            updateSpineImageDisplay();
             updateSpineImageDeleteButton();
         }
         
@@ -25973,6 +26134,11 @@ class GameCollectionManager {
                     // Clear loaded paths
                     template3DSpineImage.removeAttribute('data-loaded-filename');
                     template3DSpineImage.removeAttribute('data-loaded-path');
+                    // Clear display
+                    if (template3DSpineImageDisplay) {
+                        template3DSpineImageDisplay.value = '';
+                        template3DSpineImageDisplay.style.color = '#212529';
+                    }
                     // Hide delete button
                     template3DSpineImageDelete.style.display = 'none';
                     // Auto-refresh preview if preview tab is active

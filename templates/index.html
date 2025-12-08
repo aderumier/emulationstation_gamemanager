@@ -4456,7 +4456,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             
                             <div class="mb-3">
                                 <label for="templateBackgroundImage" class="form-label">Background Image</label>
-                                <input type="file" class="form-control" id="templateBackgroundImage" accept="image/*">
+                                <div class="input-group position-relative">
+                                    <div class="position-relative flex-grow-1">
+                                        <input type="text" class="form-control" id="templateBackgroundImageDisplay" readonly placeholder="No file selected" style="background-color: white;">
+                                        <input type="file" class="position-absolute" id="templateBackgroundImage" accept="image/*" style="opacity: 0; cursor: pointer; top: 0; left: 0; width: 100%; height: 100%;" title="Click to select file">
+                                    </div>
+                                    <button class="btn btn-outline-secondary" type="button" id="templateBackgroundImageBrowse">
+                                        <i class="bi bi-folder2-open"></i> Upload
+                                    </button>
+                                    <button class="btn btn-outline-danger" type="button" id="templateBackgroundImageDelete" title="Delete uploaded background image" style="display: none;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
                                 <div class="form-text">Select background image file (will be used as base dimensions)</div>
                             </div>
                             
@@ -4744,7 +4755,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             
                             <div class="mb-3">
                                 <label for="template3DBackgroundImage" class="form-label">3D Box Template Image</label>
-                                <input type="file" class="form-control" id="template3DBackgroundImage" accept="image/*">
+                                <div class="input-group position-relative">
+                                    <div class="position-relative flex-grow-1">
+                                        <input type="text" class="form-control" id="template3DBackgroundImageDisplay" readonly placeholder="No file selected" style="background-color: white;">
+                                        <input type="file" class="position-absolute" id="template3DBackgroundImage" accept="image/*" style="opacity: 0; cursor: pointer; top: 0; left: 0; width: 100%; height: 100%;" title="Click to select file">
+                                    </div>
+                                    <button class="btn btn-outline-secondary" type="button" id="template3DBackgroundImageBrowse">
+                                        <i class="bi bi-folder2-open"></i> Upload
+                                    </button>
+                                </div>
                                 <div class="form-text">Select 3D box template image (the box frame where 2D box will be placed)</div>
                             </div>
                             
@@ -4772,8 +4791,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             
                             <div class="mb-3">
                                 <label for="template3DSpineImage" class="form-label">Spine Image (Optional)</label>
-                                <div class="input-group">
-                                    <input type="file" class="form-control" id="template3DSpineImage" accept="image/*">
+                                <div class="input-group position-relative">
+                                    <div class="position-relative flex-grow-1">
+                                        <input type="text" class="form-control" id="template3DSpineImageDisplay" readonly placeholder="No file selected" style="background-color: white;">
+                                        <input type="file" class="position-absolute" id="template3DSpineImage" accept="image/*" style="opacity: 0; cursor: pointer; top: 0; left: 0; width: 100%; height: 100%;" title="Click to select file">
+                                    </div>
+                                    <button class="btn btn-outline-secondary" type="button" id="template3DSpineImageBrowse">
+                                        <i class="bi bi-folder2-open"></i> Upload
+                                    </button>
                                     <button class="btn btn-outline-danger" type="button" id="template3DSpineImageDelete" title="Delete uploaded spine image" style="display: none;">
                                         <i class="bi bi-trash"></i>
                                     </button>
