@@ -25735,7 +25735,7 @@ def preview_3dbox():
                         box2d_path=source_2dbox_path,  # Original 2D box from source_field
                         spine_width=spine_width,
                         output_path=generated_spine_path,
-                        debug=True,
+                        debug=False,
                         crop_width=spine_crop_width
                     )
                     logging.info(f"Generated spine background for preview: {generated_spine_path}")
@@ -25802,7 +25802,7 @@ def preview_3dbox():
             spine_image_path=spine_image_path_for_call,  # Pass None when using generated spine
             spine_logo_path=logo_path,  # Pass logo path if using uploaded spine
             generated_spine_path=generated_spine_path,  # Pass generated spine to use same workflow as box2d_path
-            debug=True  # Keep intermediate files for debugging
+            debug=False  # Don't keep intermediate files
         )
         
         if not os.path.exists(output_path):

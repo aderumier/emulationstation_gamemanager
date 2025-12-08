@@ -13400,6 +13400,17 @@ class GameCollectionManager {
         // Setup canvas event listeners
         this.setup3DBoxCanvas();
         
+        // Clear previous preview when opening modal
+        const previewImage = document.getElementById('template3DResultPreviewImage');
+        const placeholder = document.getElementById('template3DResultPreviewPlaceholder');
+        const loading = document.getElementById('template3DResultPreviewLoading');
+        if (previewImage) {
+            previewImage.src = '';
+            previewImage.style.display = 'none';
+        }
+        if (placeholder) placeholder.style.display = 'block';
+        if (loading) loading.style.display = 'none';
+        
         // Show the modal
         const modalElement = document.getElementById('box3DGeneratorModal');
         const modal = new bootstrap.Modal(modalElement);
