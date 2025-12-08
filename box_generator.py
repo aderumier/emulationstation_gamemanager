@@ -1272,7 +1272,7 @@ class BoxGenerator:
                                 '-background', 'none',
                                 '-virtual-pixel', 'transparent',
                                 '-alpha', 'set',
-                                '+distort', 'Perspective', spine_perspective_str,
+                                '-distort', 'Perspective', spine_perspective_str,
                                 temp_spine_perspective
                             ]
                             logging.info(f"3D Box Spine Step 2 - Perspective: {' '.join(cmd_spine_perspective)}")
