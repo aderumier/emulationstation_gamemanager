@@ -1882,11 +1882,6 @@ class GameCollectionManager {
             this.findBestMatchForSelectedCustom(); // Use Custom-specific functionality
         });
         
-        document.getElementById('global2DBoxGeneratorBtn').addEventListener('click', async (e) => {
-            e.preventDefault();
-            await this.ensurePanelGameSavedIfOpen();
-            this.openBox2DGeneratorModal();
-        });
         document.getElementById('globalBoxTemplateGeneratorBtn').addEventListener('click', async (e) => {
             e.preventDefault();
             await this.ensurePanelGameSavedIfOpen();
@@ -1903,7 +1898,6 @@ class GameCollectionManager {
             this.open3DBoxGeneratorModal();
         });
         document.getElementById('startLogoGeneratorBtn').addEventListener('click', () => this.startLogoGeneration());
-        document.getElementById('startBox2DGeneratorBtn').addEventListener('click', () => this.startBox2DGeneration());
         // Sync color picker with text input and update preview
         const logoColorPicker = document.getElementById('logoGeneratorColor');
         const logoColorText = document.getElementById('logoGeneratorColorText');
@@ -3597,8 +3591,12 @@ class GameCollectionManager {
             // Update Find Best Match button state
             this.updateFindBestMatchButtonState();
             
-            // Update 2D Box Generator button state
-            this.update2DBoxGeneratorButtonState();
+            
+            // Update Generator button state
+            this.updateGeneratorButtonState();
+            
+            // Update Generator button state
+            this.updateGeneratorButtonState();
             
             // Update YouTube Download button state
             this.updateYoutubeDownloadButtonState();
@@ -10569,195 +10567,6 @@ class GameCollectionManager {
         return row;
     }
 
-    async openBox2DGeneratorModal() {
-        if (!this.selectedGames || this.selectedGames.length === 0) {
-            this.showAlert('Please select at least one game first', 'warning');
-            return;
-        }
-        
-        // Load media fields
-        await this.loadBox2DGeneratorFields();
-        
-        // Load saved settings
-        this.loadBox2DGeneratorSettings();
-        
-        // Open modal
-        const modal = new bootstrap.Modal(document.getElementById('box2DGeneratorModal'));
-        modal.show();
-    }
-    
-    async loadBox2DGeneratorFields() {
-        try {
-            const response = await fetch('/api/config');
-            const config = await response.json();
-            
-            if (response.ok) {
-                const mediaFields = config.media_fields || {};
-                const box2DConfig = config['2dboxgenerator'] || {};
-                
-                // Populate dropdowns
-                const backgroundField = document.getElementById('box2DGeneratorBackgroundField');
-                const screenField = document.getElementById('box2DGeneratorScreenField');
-                const additionalScreenshotField = document.getElementById('box2DGeneratorAdditionalScreenshotField');
-                const targetField = document.getElementById('box2DGeneratorTargetField');
-                
-                // Clear existing options
-                [backgroundField, screenField, additionalScreenshotField, targetField].forEach(select => {
-                    select.innerHTML = '';
-                });
-                
-                // Add "None" option to additional screenshot
-                additionalScreenshotField.innerHTML = '<option value="">None (disabled)</option>';
-                
-                // Populate with media fields
-                Object.keys(mediaFields).forEach(field => {
-                    const option = document.createElement('option');
-                    option.value = field;
-                    option.textContent = field;
-                    
-                    backgroundField.appendChild(option.cloneNode(true));
-                    screenField.appendChild(option.cloneNode(true));
-                    additionalScreenshotField.appendChild(option.cloneNode(true));
-                    targetField.appendChild(option.cloneNode(true));
-                });
-                
-                // Set defaults from config
-                const sourceFields = box2DConfig.source_fields || {};
-                if (sourceFields.titlescreen) {
-                    backgroundField.value = sourceFields.titlescreen;
-                }
-                if (sourceFields.gameplay) {
-                    screenField.value = sourceFields.gameplay;
-                }
-                if (box2DConfig.media_field) {
-                    targetField.value = box2DConfig.media_field;
-                }
-            }
-        } catch (error) {
-            console.error('Error loading media fields:', error);
-            this.showAlert('Error loading media fields', 'danger');
-        }
-    }
-    
-    loadBox2DGeneratorSettings() {
-        try {
-            const saved = localStorage.getItem('box2DGeneratorSettings');
-            if (saved) {
-                const settings = JSON.parse(saved);
-                if (settings.backgroundField) {
-                    document.getElementById('box2DGeneratorBackgroundField').value = settings.backgroundField;
-                }
-                if (settings.screenField) {
-                    document.getElementById('box2DGeneratorScreenField').value = settings.screenField;
-                }
-                if (settings.additionalScreenshotField) {
-                    document.getElementById('box2DGeneratorAdditionalScreenshotField').value = settings.additionalScreenshotField;
-                }
-                if (settings.targetField) {
-                    document.getElementById('box2DGeneratorTargetField').value = settings.targetField;
-                }
-            }
-        } catch (error) {
-            console.error('Error loading saved settings:', error);
-        }
-    }
-    
-    saveBox2DGeneratorSettings() {
-        try {
-            const settings = {
-                backgroundField: document.getElementById('box2DGeneratorBackgroundField').value,
-                screenField: document.getElementById('box2DGeneratorScreenField').value,
-                additionalScreenshotField: document.getElementById('box2DGeneratorAdditionalScreenshotField').value,
-                targetField: document.getElementById('box2DGeneratorTargetField').value
-            };
-            localStorage.setItem('box2DGeneratorSettings', JSON.stringify(settings));
-        } catch (error) {
-            console.error('Error saving settings:', error);
-        }
-    }
-    
-    async startBox2DGeneration() {
-        try {
-            if (!this.selectedGames || this.selectedGames.length === 0) {
-                this.showAlert('Please select at least one game first', 'warning');
-                return;
-            }
-            
-            // Get configuration from modal
-            const backgroundField = document.getElementById('box2DGeneratorBackgroundField').value;
-            const screenField = document.getElementById('box2DGeneratorScreenField').value;
-            const additionalScreenshotField = document.getElementById('box2DGeneratorAdditionalScreenshotField').value || null;
-            const targetField = document.getElementById('box2DGeneratorTargetField').value;
-            
-            // Validate inputs
-            if (!backgroundField || !screenField || !targetField) {
-                this.showAlert('Please select all required fields', 'danger');
-                return;
-            }
-            
-            // Save settings before closing
-            this.saveBox2DGeneratorSettings();
-            
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('box2DGeneratorModal'));
-            if (modal) {
-                modal.hide();
-            }
-            
-            // Update button state
-            const button = document.getElementById('globalGeneratorBtn');
-            if (button) {
-                button.disabled = true;
-                button.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Generating...';
-            }
-            
-            // Get the paths of selected games
-            const selectedGamePaths = this.selectedGames.map(game => game.path);
-            
-            const response = await fetch('/api/generate-2d-box', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    system_name: this.currentSystem,
-                    selected_games: selectedGamePaths,
-                    background_field: backgroundField,
-                    screen_field: screenField,
-                    additional_screenshot_field: additionalScreenshotField,
-                    target_field: targetField
-                })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showAlert(`2D box generation started for ${data.games_count} games.`, 'success');
-                // Refresh the task grid to show the new task
-                this.refreshTasks();
-            } else {
-                this.showAlert('Error starting 2D box generation: ' + (data.error || 'Unknown error'), 'danger');
-            }
-            
-        } catch (error) {
-            this.showAlert('Error starting 2D box generation: ' + error.message, 'danger');
-        } finally {
-            // Reset button state
-            const button = document.getElementById('globalGeneratorBtn');
-            if (button) {
-                button.disabled = false;
-                button.innerHTML = '<i class="bi bi-magic"></i> Generator';
-            }
-        }
-    }
-    
-    async generate2DBoxForSelected() {
-        // Legacy function - now redirects to modal
-        this.openBox2DGeneratorModal();
-    }
 
     openBoxTemplateGeneratorModal() {
         if (!this.currentSystem) {
@@ -26187,13 +25996,6 @@ class GameCollectionManager {
         }
 
         // 2D Box Generator Configuration event listeners
-        const open2DBoxGeneratorConfigBtn = document.getElementById('open2DBoxGeneratorConfigModal');
-        if (open2DBoxGeneratorConfigBtn) {
-            open2DBoxGeneratorConfigBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.open2DBoxGeneratorConfigModal();
-            });
-        }
         
         const openBoxTemplateGeneratorBtn = document.getElementById('openBoxTemplateGeneratorModal');
         if (openBoxTemplateGeneratorBtn) {
@@ -26798,21 +26600,6 @@ class GameCollectionManager {
             }
         });
 
-        const saveBoxGeneratorConfigBtn = document.getElementById('saveBoxGeneratorConfigBtn');
-        if (saveBoxGeneratorConfigBtn) {
-            saveBoxGeneratorConfigBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.save2DBoxGeneratorConfig();
-            });
-        }
-
-        const refreshBoxGeneratorConfigBtn = document.getElementById('refreshBoxGeneratorConfigBtn');
-        if (refreshBoxGeneratorConfigBtn) {
-            refreshBoxGeneratorConfigBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.load2DBoxGeneratorConfig();
-            });
-        }
     }
     
     async loadSteamMappingsData() {
@@ -29601,7 +29388,7 @@ class GameCollectionManager {
         }
     }
     
-    update2DBoxGeneratorButtonState() {
+    updateGeneratorButtonState() {
         const generatorBtn = document.getElementById('globalGeneratorBtn');
         if (generatorBtn) {
             generatorBtn.disabled = this.selectedGames.length === 0;
@@ -30132,7 +29919,7 @@ class GameCollectionManager {
         
         // Update other button states
         this.updateFindBestMatchButtonState();
-        this.update2DBoxGeneratorButtonState();
+        this.updateGeneratorButtonState();
         this.updateYoutubeDownloadButtonState();
     }
 
@@ -33858,127 +33645,6 @@ class GameCollectionManager {
         }
     }
 
-    // 2D Box Generator Configuration Functions
-    open2DBoxGeneratorConfigModal() {
-        this.load2DBoxGeneratorConfig();
-        const modal = new bootstrap.Modal(document.getElementById('2DBoxGeneratorConfigModal'));
-        modal.show();
-    }
-
-    async load2DBoxGeneratorConfig() {
-        try {
-            // Load media fields from config
-            const response = await fetch('/api/config');
-            const config = await response.json();
-            
-            if (response.ok) {
-                const mediaFields = config.media_fields || {};
-                const boxGeneratorConfig = config['2dboxgenerator'] || {};
-                const currentField = boxGeneratorConfig.media_field || 'thumbnail';
-                const sourceFields = boxGeneratorConfig.source_fields || {
-                    'titlescreen': 'titleshot',
-                    'gameplay': 'image',
-                    'logo': 'marquee'
-                };
-                
-                // Populate the target media field combobox
-                const targetSelect = document.getElementById('boxGeneratorMediaField');
-                targetSelect.innerHTML = '';
-                
-                Object.keys(mediaFields).forEach(field => {
-                    const option = document.createElement('option');
-                    option.value = field;
-                    option.textContent = field;
-                    if (field === currentField) {
-                        option.selected = true;
-                    }
-                    targetSelect.appendChild(option);
-                });
-                
-                // Populate the source field comboboxes
-                const populateSourceField = (selectId, currentValue) => {
-                    const select = document.getElementById(selectId);
-                    select.innerHTML = '';
-                    
-                    Object.keys(mediaFields).forEach(field => {
-                        const option = document.createElement('option');
-                        option.value = field;
-                        option.textContent = field;
-                        if (field === currentValue) {
-                            option.selected = true;
-                        }
-                        select.appendChild(option);
-                    });
-                };
-                
-                populateSourceField('boxGeneratorTitlescreenField', sourceFields.titlescreen);
-                populateSourceField('boxGeneratorGameplayField', sourceFields.gameplay);
-                populateSourceField('boxGeneratorLogoField', sourceFields.logo);
-                
-                // Update current setting display
-                const currentFieldDisplay = document.getElementById('currentBoxGeneratorField');
-                currentFieldDisplay.innerHTML = `<span class="badge bg-primary">${currentField}</span>`;
-            } else {
-                this.showAlert('Error loading configuration', 'error');
-            }
-        } catch (error) {
-            this.showAlert('Error loading configuration', 'error');
-        }
-    }
-
-    async save2DBoxGeneratorConfig() {
-        try {
-            const selectedField = document.getElementById('boxGeneratorMediaField').value;
-            const titlescreenField = document.getElementById('boxGeneratorTitlescreenField').value;
-            const gameplayField = document.getElementById('boxGeneratorGameplayField').value;
-            const logoField = document.getElementById('boxGeneratorLogoField').value;
-            
-            if (!selectedField) {
-                this.showAlert('Please select a target media field', 'warning');
-                return;
-            }
-            
-            if (!titlescreenField || !gameplayField || !logoField) {
-                this.showAlert('Please select all source media fields', 'warning');
-                return;
-            }
-            
-            const response = await fetch('/api/config', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    '2dboxgenerator': {
-                        'media_field': selectedField,
-                        'source_fields': {
-                            'titlescreen': titlescreenField,
-                            'gameplay': gameplayField,
-                            'logo': logoField
-                        }
-                    }
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (response.ok && result.success) {
-                this.showAlert('2D Box Generator configuration saved successfully!', 'success');
-                
-                // Update current setting display
-                const currentFieldDisplay = document.getElementById('currentBoxGeneratorField');
-                currentFieldDisplay.innerHTML = `<span class="badge bg-primary">${selectedField}</span>`;
-                
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('2DBoxGeneratorConfigModal'));
-                modal.hide();
-            } else {
-                this.showAlert(`Error saving configuration: ${result.error || 'Unknown error'}`, 'error');
-            }
-        } catch (error) {
-            this.showAlert('Error saving configuration', 'error');
-        }
-    }
 
     // Favorite and Kidgame Functions
     toggleFavorite() {

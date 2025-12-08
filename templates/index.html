@@ -444,9 +444,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openScraperConfigModal">
                             <i class="bi bi-gear me-2"></i>Scraper Configuration
                         </a></li>
-                        <li><a class="dropdown-item" href="#" id="open2DBoxGeneratorConfigModal">
-                            <i class="bi bi-box-seam me-2"></i>2D Box Generator Configuration
-                        </a></li>
                         <li><a class="dropdown-item" href="#" id="openBoxTemplateGeneratorModal">
                             <i class="bi bi-layout-text-window me-2"></i>Box Template Generator
                         </a></li>
@@ -681,9 +678,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <i class="bi bi-magic"></i> Generator
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="globalGeneratorBtn">
-                        <li><a class="dropdown-item" href="#" id="global2DBoxGeneratorBtn">
-                            <i class="bi bi-image me-2"></i>2D Box Generator
-                        </a></li>
                         <li><a class="dropdown-item" href="#" id="globalBoxTemplateGeneratorBtn">
                             <i class="bi bi-layout-text-window me-2"></i>Box Template Generator
                         </a></li>
@@ -4172,97 +4166,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
-    <!-- 2D Box Generator Configuration Modal -->
-    <div class="modal fade" id="2DBoxGeneratorConfigModal" tabindex="-1" aria-labelledby="2DBoxGeneratorConfigModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="2DBoxGeneratorConfigModalLabel">
-                        <i class="bi bi-box-seam me-2"></i>2D Box Generator Configuration
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <h6>Target Media Field</h6>
-                        <p class="text-muted small">Select which media field the 2D box generator should target. The generated 2D boxes will be saved to this field in the gamelist.</p>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="mb-3">
-                                <label for="boxGeneratorMediaField" class="form-label">Target Media Field</label>
-                                <select class="form-select" id="boxGeneratorMediaField">
-                                    <option value="">Loading media fields...</option>
-                                </select>
-                                <div class="form-text">Choose the media field where 2D boxes will be saved</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Current Setting</label>
-                                <div class="form-control-plaintext" id="currentBoxGeneratorField">
-                                    <span class="badge bg-secondary">Not loaded</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <hr>
-                    
-                    <div class="mb-3">
-                        <h6>Source Media Field Mappings</h6>
-                        <p class="text-muted small">Configure which gamelist fields the 2D box generator should use as sources for titlescreen, gameplay, and logo images.</p>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="boxGeneratorTitlescreenField" class="form-label">Titlescreen Field</label>
-                                <select class="form-select" id="boxGeneratorTitlescreenField">
-                                    <option value="">Loading...</option>
-                                </select>
-                                <div class="form-text">Field for titlescreen images</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="boxGeneratorGameplayField" class="form-label">Gameplay Field</label>
-                                <select class="form-select" id="boxGeneratorGameplayField">
-                                    <option value="">Loading...</option>
-                                </select>
-                                <div class="form-text">Field for gameplay/screenshot images</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="boxGeneratorLogoField" class="form-label">Logo Field</label>
-                                <select class="form-select" id="boxGeneratorLogoField">
-                                    <option value="">Loading...</option>
-                                </select>
-                                <div class="form-text">Field for logo/marquee images</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <strong>Note:</strong> The 2D box generator creates composite images from titlescreen, gameplay, and logo images. Configure which gamelist fields contain these source images and where the generated boxes should be saved.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshBoxGeneratorConfigBtn">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                    </button>
-                    <button type="button" class="btn btn-primary" id="saveBoxGeneratorConfigBtn">
-                        <i class="bi bi-check-lg me-1"></i>Save Configuration
-                    </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Logo Generator Modal -->
     <div class="modal fade" id="logoGeneratorModal" tabindex="-1" aria-labelledby="logoGeneratorModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -4361,66 +4264,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="startLogoGeneratorBtn">
                         <i class="bi bi-play-fill me-1"></i>Generate Logos
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 2D Box Generator Modal -->
-    <div class="modal fade" id="box2DGeneratorModal" tabindex="-1" aria-labelledby="box2DGeneratorModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="box2DGeneratorModalLabel">
-                        <i class="bi bi-image me-2"></i>2D Box Generator Configuration
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted small mb-3">Generate 2D box art by combining background, screen, and additional screenshot images. Select which media fields to use for each component.</p>
-                    
-                    <div class="mb-3">
-                        <label for="box2DGeneratorBackgroundField" class="form-label">Background Image Field</label>
-                        <select class="form-select" id="box2DGeneratorBackgroundField">
-                            <option value="">Loading media fields...</option>
-                        </select>
-                        <div class="form-text">Field used for the background image (typically titleshot)</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="box2DGeneratorScreenField" class="form-label">Screen Image Field</label>
-                        <select class="form-select" id="box2DGeneratorScreenField">
-                            <option value="">Loading media fields...</option>
-                        </select>
-                        <div class="form-text">Field used for the main screen/gameplay image (typically image)</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="box2DGeneratorAdditionalScreenshotField" class="form-label">Additional Screenshot Field (Optional)</label>
-                        <select class="form-select" id="box2DGeneratorAdditionalScreenshotField">
-                            <option value="">None (disabled)</option>
-                        </select>
-                        <div class="form-text">Optional: Additional screenshot to place in the middle, under the logo and above the main screen image</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="box2DGeneratorTargetField" class="form-label">Target Media Field</label>
-                        <select class="form-select" id="box2DGeneratorTargetField">
-                            <option value="">Loading media fields...</option>
-                        </select>
-                        <div class="form-text">Field where the generated 2D box will be saved</div>
-                    </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <strong>Note:</strong> The 2D box generator will combine the selected images into a single box art image. The additional screenshot (if selected) will be positioned in the middle, centered, under the logo and above the main screen image.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="startBox2DGeneratorBtn">
-                        <i class="bi bi-play-fill me-1"></i>Generate 2D Boxes
                     </button>
                 </div>
             </div>
