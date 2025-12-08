@@ -10831,10 +10831,12 @@ class GameCollectionManager {
                 const mediaFields = config.media_fields || {};
                 const targetField = document.getElementById('templateTargetField');
                 const screenshotField = document.getElementById('templateScreenshotField');
+                const backgroundImageField = document.getElementById('templateBackgroundImageField');
                 
                 // Clear existing options
                 if (targetField) targetField.innerHTML = '<option value="">Loading media fields...</option>';
                 if (screenshotField) screenshotField.innerHTML = '<option value="">Loading media fields...</option>';
+                if (backgroundImageField) backgroundImageField.innerHTML = '<option value="">Loading media fields...</option>';
                 
                 // Populate with media fields
                 Object.keys(mediaFields).forEach(field => {
@@ -10843,11 +10845,13 @@ class GameCollectionManager {
                     option.textContent = field;
                     if (targetField) targetField.appendChild(option.cloneNode(true));
                     if (screenshotField) screenshotField.appendChild(option.cloneNode(true));
+                    if (backgroundImageField) backgroundImageField.appendChild(option.cloneNode(true));
                 });
                 
                 // Restore saved values from localStorage
                 const savedScreenshotField = localStorage.getItem('templateGenerator_screenshotField');
                 const savedTargetField = localStorage.getItem('templateGenerator_targetField');
+                // Don't restore Background Image Field - it should be reset on each modal opening
                 
                 if (savedScreenshotField && screenshotField) {
                     screenshotField.value = savedScreenshotField;
@@ -10855,16 +10859,24 @@ class GameCollectionManager {
                 if (savedTargetField && targetField) {
                     targetField.value = savedTargetField;
                 }
+                // Background Image Field is reset in resetTemplateGeneratorForm() and should remain empty
                 
                 // Add event listeners to save values when they change
                 if (screenshotField) {
                     screenshotField.addEventListener('change', () => {
                         localStorage.setItem('templateGenerator_screenshotField', screenshotField.value);
+                        // Don't update the interactive canvas - screenshot is only used for generation
                     });
                 }
                 if (targetField) {
                     targetField.addEventListener('change', () => {
                         localStorage.setItem('templateGenerator_targetField', targetField.value);
+                    });
+                }
+                if (backgroundImageField) {
+                    backgroundImageField.addEventListener('change', () => {
+                        localStorage.setItem('templateGenerator_backgroundImageField', backgroundImageField.value);
+                        this.updateTemplatePreviewFromField();
                     });
                 }
             }
@@ -10877,6 +10889,7 @@ class GameCollectionManager {
         const backgroundInput = document.getElementById('templateBackgroundImage');
         const screenshotField = document.getElementById('templateScreenshotField');
         const targetField = document.getElementById('templateTargetField');
+        const backgroundImageField = document.getElementById('templateBackgroundImageField');
         const previewContainer = document.getElementById('templatePreviewContainer');
         const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
         const cropperCanvas = document.getElementById('templateCropperCanvas');
@@ -10903,6 +10916,12 @@ class GameCollectionManager {
                 deleteBtn.style.display = 'none';
             }
         }
+        
+        // Reset Background Image Field to empty (don't persist between modal openings)
+        if (backgroundImageField) {
+            backgroundImageField.value = '';
+        }
+        
         // Don't reset screenshotField and targetField - they are persisted via localStorage
         // They will be restored in loadTemplateGeneratorFields()
         
@@ -10963,7 +10982,7 @@ class GameCollectionManager {
         if (logoTextConfig) logoTextConfig.style.display = 'none';
     }
     
-    handleTemplateBackgroundChange(e) {
+    async handleTemplateBackgroundChange(e) {
         const file = e.target.files[0];
         if (file) {
             // Clear loaded template data attributes
@@ -10985,10 +11004,109 @@ class GameCollectionManager {
             }
             
             const reader = new FileReader();
-            reader.onload = (event) => {
-                this.setupTemplateCropper(event.target.result);
+            reader.onload = async (event) => {
+                // Always reset canvas to ensure selections are properly initialized
+                await this.setupTemplateCropper(event.target.result, true);
             };
             reader.readAsDataURL(file);
+        } else {
+            // No file selected, try to load from field
+            await this.updateTemplatePreviewFromField();
+        }
+    }
+    
+    async updateTemplatePreviewFromField() {
+        const backgroundInput = document.getElementById('templateBackgroundImage');
+        const backgroundImageField = document.getElementById('templateBackgroundImageField');
+        
+        // Check if file is uploaded
+        const hasFile = backgroundInput?.files && backgroundInput.files.length > 0;
+        const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
+        
+        if (hasFile || hasLoadedPath) {
+            // File is uploaded, don't use field
+            return;
+        }
+        
+        if (!backgroundImageField || !backgroundImageField.value) {
+            // No field selected
+            return;
+        }
+        
+        // Get first selected game
+        if (!this.gridApi) {
+            return;
+        }
+        
+        const selectedRows = this.gridApi.getSelectedRows();
+        if (selectedRows.length === 0) {
+            return;
+        }
+        
+        const firstGame = selectedRows[0];
+        const fieldName = backgroundImageField.value;
+        const imagePath = firstGame[fieldName];
+        
+        if (!imagePath || !imagePath.trim()) {
+            return;
+        }
+        
+        // Get canvas dimensions from cropper
+        const cropperCanvas = document.getElementById('templateCropperCanvas');
+        if (!cropperCanvas) {
+            return;
+        }
+        
+        const canvasWidth = cropperCanvas.width || 600;
+        const canvasHeight = cropperCanvas.height || 900;
+        
+        // Build image path - handle relative paths
+        let imageUrl = imagePath.trim();
+        // If it's already a full path or URL, use it as-is
+        if (imageUrl.startsWith('http') || imageUrl.startsWith('/')) {
+            // Already a URL or absolute path
+        } else if (!imageUrl.startsWith('roms/')) {
+            // Relative path, prepend roms/system/
+            if (this.currentSystem) {
+                imageUrl = `roms/${this.currentSystem}/${imageUrl}`;
+            } else {
+                // Try to get system from URL or use default
+                const urlMatch = window.location.pathname.match(/\/roms\/([^\/]+)/);
+                if (urlMatch) {
+                    imageUrl = `roms/${urlMatch[1]}/${imageUrl}`;
+                } else {
+                    imageUrl = `roms/${imageUrl}`;
+                }
+            }
+        }
+        
+        // Process image with stretch and blur
+        try {
+            const formData = new FormData();
+            formData.append('image_path', imageUrl);
+            formData.append('width', canvasWidth);
+            formData.append('height', canvasHeight);
+            formData.append('blur_intensity', '30');
+            if (this.currentSystem) {
+                formData.append('system_name', this.currentSystem);
+            }
+            
+            const response = await fetch('/api/process-background-image', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const imageSrc = URL.createObjectURL(blob);
+                // Only reset canvas when background image field changes (to fix movable issue)
+                await this.setupTemplateCropper(imageSrc, true);
+            } else {
+                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                console.error('Failed to process background image:', errorData);
+            }
+        } catch (error) {
+            console.error('Error processing background image:', error);
         }
     }
     
@@ -11000,6 +11118,12 @@ class GameCollectionManager {
         let logoSelection = document.getElementById('templateLogoSelection');
         
         if (!cropperCanvas) return;
+        
+        // Validate image source
+        if (!imageSrc) {
+            console.error('setupTemplateCropper: No image source provided');
+            return;
+        }
         
         // Ensure Interactive tab is active before initializing cropper
         // This is necessary for cropper selections to initialize properly
@@ -11216,10 +11340,79 @@ class GameCollectionManager {
         // Insert as first child (before selections)
         cropperCanvas.prepend(cropperImage);
         
-        // Update references if we recreated selections
-        if (skipDefaultCrop) {
-            screenshotSelection = document.getElementById('templateScreenshotSelection');
-            logoSelection = document.getElementById('templateLogoSelection');
+        // Always update references to selections (they may need to be re-initialized)
+        screenshotSelection = document.getElementById('templateScreenshotSelection');
+        logoSelection = document.getElementById('templateLogoSelection');
+        
+        // If selections don't exist and skipDefaultCrop is false, we need to create them
+        if (!skipDefaultCrop && (!screenshotSelection || !logoSelection)) {
+            // Selections should exist in HTML, but if they don't, create them
+            if (!screenshotSelection) {
+                screenshotSelection = document.createElement('cropper-selection');
+                screenshotSelection.id = 'templateScreenshotSelection';
+                screenshotSelection.setAttribute('movable', 'true');
+                screenshotSelection.setAttribute('resizable', '');
+                screenshotSelection.setAttribute('outlined', '');
+                screenshotSelection.setAttribute('multiple', 'true');
+                screenshotSelection.setAttribute('keyboard', '');
+                screenshotSelection.setAttribute('active', '');
+                screenshotSelection.setAttribute('theme-color', 'rgba(51, 153, 255, 0.5)');
+                
+                const screenshotGrid = document.createElement('cropper-grid');
+                screenshotGrid.setAttribute('role', 'grid');
+                screenshotGrid.setAttribute('bordered', '');
+                screenshotGrid.setAttribute('covered', '');
+                screenshotSelection.appendChild(screenshotGrid);
+                
+                const screenshotCrosshair = document.createElement('cropper-crosshair');
+                screenshotCrosshair.setAttribute('centered', '');
+                screenshotSelection.appendChild(screenshotCrosshair);
+                
+                const handleActions = ['move', 'n-resize', 'e-resize', 's-resize', 'w-resize', 'ne-resize', 'nw-resize', 'se-resize', 'sw-resize'];
+                handleActions.forEach(action => {
+                    const handle = document.createElement('cropper-handle');
+                    handle.setAttribute('action', action);
+                    if (action === 'move') {
+                        handle.setAttribute('theme-color', 'rgba(255, 255, 255, 0.35)');
+                    }
+                    screenshotSelection.appendChild(handle);
+                });
+                
+                cropperCanvas.appendChild(screenshotSelection);
+            }
+            
+            if (!logoSelection) {
+                logoSelection = document.createElement('cropper-selection');
+                logoSelection.id = 'templateLogoSelection';
+                logoSelection.setAttribute('movable', 'true');
+                logoSelection.setAttribute('resizable', '');
+                logoSelection.setAttribute('outlined', '');
+                logoSelection.setAttribute('multiple', 'true');
+                logoSelection.setAttribute('keyboard', '');
+                logoSelection.setAttribute('theme-color', 'rgba(255, 153, 51, 0.5)');
+                
+                const logoGrid = document.createElement('cropper-grid');
+                logoGrid.setAttribute('role', 'grid');
+                logoGrid.setAttribute('bordered', '');
+                logoGrid.setAttribute('covered', '');
+                logoSelection.appendChild(logoGrid);
+                
+                const logoCrosshair = document.createElement('cropper-crosshair');
+                logoCrosshair.setAttribute('centered', '');
+                logoSelection.appendChild(logoCrosshair);
+                
+                const handleActions = ['move', 'n-resize', 'e-resize', 's-resize', 'w-resize', 'ne-resize', 'nw-resize', 'se-resize', 'sw-resize'];
+                handleActions.forEach(action => {
+                    const handle = document.createElement('cropper-handle');
+                    handle.setAttribute('action', action);
+                    if (action === 'move') {
+                        handle.setAttribute('theme-color', 'rgba(255, 255, 255, 0.35)');
+                    }
+                    logoSelection.appendChild(handle);
+                });
+                
+                cropperCanvas.appendChild(logoSelection);
+            }
         }
         
         // Set image source
@@ -11271,18 +11464,29 @@ class GameCollectionManager {
             const currentCropperImage = document.getElementById('templateCropperImage');
             
             // Ensure selections are movable (explicitly set to ensure it's not lost)
-            if (currentScreenshotSelection) {
-                currentScreenshotSelection.movable = true;
-                currentScreenshotSelection.resizable = true;
-                currentScreenshotSelection.setAttribute('movable', 'true');
-                currentScreenshotSelection.setAttribute('resizable', '');
-            }
-            if (currentLogoSelection) {
-                currentLogoSelection.movable = true;
-                currentLogoSelection.resizable = true;
-                currentLogoSelection.setAttribute('movable', 'true');
-                currentLogoSelection.setAttribute('resizable', '');
-            }
+            // Use setTimeout to ensure this happens after the cropper library has processed the new image
+            setTimeout(() => {
+                const refreshedScreenshotSelection = document.getElementById('templateScreenshotSelection');
+                const refreshedLogoSelection = document.getElementById('templateLogoSelection');
+                
+                if (refreshedScreenshotSelection) {
+                    // Remove and re-add movable attribute to force refresh
+                    refreshedScreenshotSelection.removeAttribute('movable');
+                    refreshedScreenshotSelection.setAttribute('movable', 'true');
+                    refreshedScreenshotSelection.setAttribute('resizable', '');
+                    refreshedScreenshotSelection.movable = true;
+                    refreshedScreenshotSelection.resizable = true;
+                }
+                
+                if (refreshedLogoSelection) {
+                    // Remove and re-add movable attribute to force refresh
+                    refreshedLogoSelection.removeAttribute('movable');
+                    refreshedLogoSelection.setAttribute('movable', 'true');
+                    refreshedLogoSelection.setAttribute('resizable', '');
+                    refreshedLogoSelection.movable = true;
+                    refreshedLogoSelection.resizable = true;
+                }
+            }, 200);
             
             // Ensure cropper-image has proper attributes
             if (currentCropperImage) {
@@ -11302,6 +11506,25 @@ class GameCollectionManager {
             }
             
             if (!skipDefaultCrop) {
+                // Ensure selections exist and are visible
+                if (currentScreenshotSelection) {
+                    currentScreenshotSelection.hidden = false;
+                    currentScreenshotSelection.active = true;
+                    currentScreenshotSelection.movable = true;
+                    currentScreenshotSelection.resizable = true;
+                    currentScreenshotSelection.setAttribute('movable', 'true');
+                    currentScreenshotSelection.setAttribute('resizable', '');
+                }
+                
+                if (currentLogoSelection) {
+                    currentLogoSelection.hidden = false;
+                    currentLogoSelection.active = false;
+                    currentLogoSelection.movable = true;
+                    currentLogoSelection.resizable = true;
+                    currentLogoSelection.setAttribute('movable', 'true');
+                    currentLogoSelection.setAttribute('resizable', '');
+                }
+                
                 // Create 2 default selections with specified positions and sizes
                 setTimeout(() => {
                     const sel1 = document.getElementById('templateScreenshotSelection');
@@ -11327,7 +11550,7 @@ class GameCollectionManager {
                     }
                 }, 100);
             } else {
-                // If loading template, ensure selections are visible and configured
+                // If skipDefaultCrop is true, ensure selections are visible and configured
                 if (currentScreenshotSelection) {
                     currentScreenshotSelection.hidden = false;
                     currentScreenshotSelection.active = true;
@@ -11346,10 +11569,26 @@ class GameCollectionManager {
                     currentLogoSelection.setAttribute('resizable', '');
                 }
                 
-                // Wait a bit more for the cropper to be fully ready, then update from corners
+                // Try to update from saved corners, but if none exist, create default selections
                 setTimeout(() => {
-                    this.updateTemplateCropperFromCorners();
-                    this.updateTemplateCropperFromLogoCorners();
+                    const corner1X = document.getElementById('templateCorner1X');
+                    const hasSavedCorners = corner1X && corner1X.value && corner1X.value.trim() !== '';
+                    
+                    if (hasSavedCorners) {
+                        // Load from saved corners
+                        this.updateTemplateCropperFromCorners();
+                        this.updateTemplateCropperFromLogoCorners();
+                    } else {
+                        // No saved corners, create default selections
+                        if (currentScreenshotSelection && typeof currentScreenshotSelection.$change === 'function') {
+                            currentScreenshotSelection.$change(170, 150, 80, 80);
+                            this.updateTemplateCornersFromCropper();
+                        }
+                        if (currentLogoSelection && typeof currentLogoSelection.$change === 'function') {
+                            currentLogoSelection.$change(100, 70, 80, 80);
+                            this.updateTemplateLogoCornersFromCropper();
+                        }
+                    }
                 }, 150);
             }
         };
@@ -12173,12 +12412,14 @@ class GameCollectionManager {
         const trimmedName = selectedTemplate.trim();
         
         const backgroundInput = document.getElementById('templateBackgroundImage');
-        // Check if background image is selected OR loaded from template
+        // Check if background image is selected OR loaded from template OR background image field is set
         const hasBackgroundFile = backgroundInput?.files[0];
         const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
         const hasLoadedFilename = backgroundInput?.getAttribute('data-loaded-filename');
-        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename)) {
-            this.showAlert('Please select a background image', 'warning');
+        const backgroundImageField = document.getElementById('templateBackgroundImageField');
+        const hasBackgroundField = backgroundImageField && backgroundImageField.value;
+        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename && !hasBackgroundField)) {
+            this.showAlert('Please select a background image or background image field', 'warning');
             return;
         }
         
@@ -12247,12 +12488,14 @@ class GameCollectionManager {
         const trimmedName = templateName.trim();
         
         const backgroundInput = document.getElementById('templateBackgroundImage');
-        // Check if background image is selected OR loaded from template
+        // Check if background image is selected OR loaded from template OR background image field is set
         const hasBackgroundFile = backgroundInput?.files[0];
         const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
         const hasLoadedFilename = backgroundInput?.getAttribute('data-loaded-filename');
-        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename)) {
-            this.showAlert('Please select a background image', 'warning');
+        const backgroundImageField = document.getElementById('templateBackgroundImageField');
+        const hasBackgroundField = backgroundImageField && backgroundImageField.value;
+        if (!backgroundInput || (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename && !hasBackgroundField)) {
+            this.showAlert('Please select a background image or background image field', 'warning');
             return;
         }
         
@@ -12689,11 +12932,13 @@ class GameCollectionManager {
                 return;
             }
             
-            // Check if background image is selected OR loaded from template
+            // Check if background image is selected OR loaded from template OR background image field is set
             const hasBackgroundFile = backgroundInput.files[0];
             const hasLoadedPath = backgroundInput.getAttribute('data-loaded-path');
-            if (!hasBackgroundFile && !hasLoadedPath) {
-                this.showAlert('Please select a background image', 'warning');
+            const backgroundImageField = document.getElementById('templateBackgroundImageField');
+            const hasBackgroundField = backgroundImageField && backgroundImageField.value;
+            if (!hasBackgroundFile && !hasLoadedPath && !hasBackgroundField) {
+                this.showAlert('Please select a background image or background image field', 'warning');
                 return;
             }
             
@@ -12835,11 +13080,13 @@ class GameCollectionManager {
             const backgroundInput = document.getElementById('templateBackgroundImage');
             const screenshotFieldSelect = document.getElementById('templateScreenshotField');
             
-            // Check if background image is selected OR loaded from template
+            // Check if background image is selected OR loaded from template OR background image field is set
             const hasBackgroundFile = backgroundInput?.files[0];
             const hasLoadedPath = backgroundInput?.getAttribute('data-loaded-path');
-            if (!hasBackgroundFile && !hasLoadedPath) {
-                this.showAlert('Please select a background image', 'warning');
+            const backgroundImageField = document.getElementById('templateBackgroundImageField');
+            const hasBackgroundField = backgroundImageField && backgroundImageField.value;
+            if (!hasBackgroundFile && !hasLoadedPath && !hasBackgroundField) {
+                this.showAlert('Please select a background image or background image field', 'warning');
                 return;
             }
             
@@ -12918,6 +13165,70 @@ class GameCollectionManager {
                     filename = filename.split('?')[0];
                 }
                 formData.append('background_image_path', filename);
+            } else if (hasBackgroundField) {
+                // Get image from background image field
+                const firstGame = this.selectedGames[0];
+                const fieldName = backgroundImageField.value;
+                const imagePath = firstGame[fieldName];
+                
+                if (imagePath && imagePath.trim()) {
+                    // Build image path - handle relative paths
+                    let imageUrl = imagePath.trim();
+                    if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/') && !imageUrl.startsWith('roms/')) {
+                        if (this.currentSystem) {
+                            imageUrl = `roms/${this.currentSystem}/${imageUrl}`;
+                        } else {
+                            const urlMatch = window.location.pathname.match(/\/roms\/([^\/]+)/);
+                            if (urlMatch) {
+                                imageUrl = `roms/${urlMatch[1]}/${imageUrl}`;
+                            } else {
+                                imageUrl = `roms/${imageUrl}`;
+                            }
+                        }
+                    }
+                    
+                    // Get canvas dimensions (default template size)
+                    const cropperCanvas = document.getElementById('templateCropperCanvas');
+                    const canvasWidth = cropperCanvas?.width || 600;
+                    const canvasHeight = cropperCanvas?.height || 900;
+                    
+                    // Process image with stretch and blur, then send as file
+                    try {
+                        const processFormData = new FormData();
+                        processFormData.append('image_path', imageUrl);
+                        processFormData.append('width', canvasWidth);
+                        processFormData.append('height', canvasHeight);
+                        processFormData.append('blur_intensity', '30');
+                        if (this.currentSystem) {
+                            processFormData.append('system_name', this.currentSystem);
+                        }
+                        
+                        const processResponse = await fetch('/api/process-background-image', {
+                            method: 'POST',
+                            body: processFormData
+                        });
+                        
+                        if (processResponse.ok) {
+                            const blob = await processResponse.blob();
+                            // Convert blob to File for FormData
+                            const file = new File([blob], 'background.jpg', { type: 'image/jpeg' });
+                            formData.append('background_image', file);
+                        } else {
+                            throw new Error('Failed to process background image');
+                        }
+                    } catch (error) {
+                        console.error('Error processing background image:', error);
+                        this.showAlert('Error processing background image from field', 'danger');
+                        if (loadingDiv) loadingDiv.style.display = 'none';
+                        if (placeholder) placeholder.style.display = 'block';
+                        return;
+                    }
+                } else {
+                    this.showAlert('No image found in selected background image field', 'warning');
+                    if (loadingDiv) loadingDiv.style.display = 'none';
+                    if (placeholder) placeholder.style.display = 'block';
+                    return;
+                }
             }
             formData.append('screenshot_field', screenshotField);
             formData.append('corners', JSON.stringify(corners));
@@ -25913,7 +26224,7 @@ class GameCollectionManager {
         
         // Delete button handler
         if (templateBackgroundImageDelete) {
-            templateBackgroundImageDelete.addEventListener('click', () => {
+            templateBackgroundImageDelete.addEventListener('click', async () => {
                 if (templateBackgroundInput) {
                     // Clear file input
                     templateBackgroundInput.value = '';
@@ -25927,15 +26238,23 @@ class GameCollectionManager {
                     }
                     // Hide delete button
                     templateBackgroundImageDelete.style.display = 'none';
-                    // Clear cropper canvas
-                    const cropperCanvas = document.getElementById('templateCropperCanvas');
-                    const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
-                    if (cropperCanvas) {
-                        const ctx = cropperCanvas.getContext('2d');
-                        ctx.clearRect(0, 0, cropperCanvas.width, cropperCanvas.height);
-                    }
-                    if (previewPlaceholder) {
-                        previewPlaceholder.style.display = 'block';
+                    
+                    // Try to load from Background Image Field if available
+                    await this.updateTemplatePreviewFromField();
+                    
+                    // If no field image was loaded, clear the canvas
+                    const backgroundImageField = document.getElementById('templateBackgroundImageField');
+                    const hasBackgroundField = backgroundImageField && backgroundImageField.value;
+                    if (!hasBackgroundField) {
+                        const cropperCanvas = document.getElementById('templateCropperCanvas');
+                        const previewPlaceholder = document.getElementById('templatePreviewPlaceholder');
+                        if (cropperCanvas) {
+                            const ctx = cropperCanvas.getContext('2d');
+                            ctx.clearRect(0, 0, cropperCanvas.width, cropperCanvas.height);
+                        }
+                        if (previewPlaceholder) {
+                            previewPlaceholder.style.display = 'block';
+                        }
                     }
                 }
             });

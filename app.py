@@ -25253,6 +25253,132 @@ def save_box_template():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to save template: {str(e)}'}), 500
 
+@app.route('/api/process-background-image', methods=['POST'])
+@login_required
+def process_background_image():
+    """Process background image with stretch and blur for template preview"""
+    try:
+        image_path = request.form.get('image_path')
+        width = int(request.form.get('width', 600))
+        height = int(request.form.get('height', 900))
+        blur_intensity = int(request.form.get('blur_intensity', 30))
+        
+        if not image_path:
+            return jsonify({'error': 'No image path provided'}), 400
+        
+        # Resolve image path - handle various formats
+        system_name = request.form.get('system_name')
+        if not os.path.isabs(image_path):
+            if image_path.startswith('roms/'):
+                # Already has roms/ prefix
+                image_path = os.path.join(os.getcwd(), image_path)
+            elif '/' in image_path:
+                # Relative path with subdirectories
+                if image_path.startswith('./'):
+                    image_path = image_path[2:]
+                # Try relative to roms root first
+                potential_path = os.path.join(os.getcwd(), 'roms', image_path)
+                if os.path.exists(potential_path):
+                    image_path = potential_path
+                elif system_name:
+                    # Try with system name
+                    potential_path = os.path.join(os.getcwd(), 'roms', system_name, image_path)
+                    if os.path.exists(potential_path):
+                        image_path = potential_path
+                    else:
+                        # Try in media subdirectory
+                        potential_path = os.path.join(os.getcwd(), 'roms', system_name, 'media', image_path)
+                        if os.path.exists(potential_path):
+                            image_path = potential_path
+                else:
+                    image_path = potential_path
+            else:
+                # Just filename, need system name
+                if system_name:
+                    # Try in system directory and media subdirectories
+                    roms_dir = os.path.join(os.getcwd(), 'roms', system_name)
+                    found_path = None
+                    if os.path.exists(roms_dir):
+                        # Try root of system directory
+                        potential_path = os.path.join(roms_dir, image_path)
+                        if os.path.exists(potential_path):
+                            found_path = potential_path
+                        else:
+                            # Try in media subdirectories
+                            media_dir = os.path.join(roms_dir, 'media')
+                            if os.path.exists(media_dir):
+                                for subdir in os.listdir(media_dir):
+                                    subdir_path = os.path.join(media_dir, subdir)
+                                    if os.path.isdir(subdir_path):
+                                        potential_path = os.path.join(subdir_path, image_path)
+                                        if os.path.exists(potential_path):
+                                            found_path = potential_path
+                                            break
+                    if found_path:
+                        image_path = found_path
+                    else:
+                        return jsonify({'error': f'Image file not found: {image_path} (system: {system_name})'}), 404
+                else:
+                    # No system name, search all systems
+                    roms_dir = os.path.join(os.getcwd(), 'roms')
+                    found_path = None
+                    if os.path.exists(roms_dir):
+                        for system_dir in os.listdir(roms_dir):
+                            system_path = os.path.join(roms_dir, system_dir)
+                            if os.path.isdir(system_path):
+                                potential_path = os.path.join(system_path, image_path)
+                                if os.path.exists(potential_path):
+                                    found_path = potential_path
+                                    break
+                                # Also check media subdirectories
+                                media_dir = os.path.join(system_path, 'media')
+                                if os.path.exists(media_dir):
+                                    for subdir in os.listdir(media_dir):
+                                        subdir_path = os.path.join(media_dir, subdir)
+                                        if os.path.isdir(subdir_path):
+                                            potential_path = os.path.join(subdir_path, image_path)
+                                            if os.path.exists(potential_path):
+                                                found_path = potential_path
+                                                break
+                    if found_path:
+                        image_path = found_path
+                    else:
+                        return jsonify({'error': f'Image file not found: {image_path}'}), 404
+        
+        if not os.path.exists(image_path):
+            return jsonify({'error': f'Image file not found: {image_path}'}), 404
+        
+        # Create temporary output file
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+            output_path = tmp_file.name
+        
+        try:
+            # Process image with stretch and blur (same as 2D box generator)
+            cmd = [
+                'convert', image_path,
+                '-resize', f'{width}x{height}^',  # ^ means fill, maintaining aspect ratio
+                '-gravity', 'center',
+                '-extent', f'{width}x{height}',  # Crop to exact size
+                '-blur', f'0x{blur_intensity}',
+                output_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode != 0:
+                return jsonify({'error': f'ImageMagick processing failed: {result.stderr}'}), 500
+            
+            # Return the processed image
+            return send_file(output_path, mimetype='image/jpeg')
+            
+        except Exception as e:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+            return jsonify({'error': f'Error processing image: {str(e)}'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/list-box-templates', methods=['GET'])
 @login_required
 def list_box_templates():

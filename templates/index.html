@@ -4431,11 +4431,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     <div class="modal fade" id="boxTemplateGeneratorModal" tabindex="-1" aria-labelledby="boxTemplateGeneratorModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl" style="max-width: 95vw; width: 1400px;">
             <div class="modal-content">
-                <div class="modal-header">
+                <div class="modal-header d-flex justify-content-between align-items-center">
                     <h5 class="modal-title" id="boxTemplateGeneratorModalLabel">
                         <i class="bi bi-layout-text-window me-2"></i>Box Template Generator
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-primary" id="generateTemplateBoxBtn">
+                            <i class="bi bi-play-fill me-1"></i>Generate Box
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -4469,6 +4474,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                     </button>
                                 </div>
                                 <div class="form-text">Select background image file (will be used as base dimensions)</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="templateBackgroundImageField" class="form-label">Background Image Field</label>
+                                <select class="form-select" id="templateBackgroundImageField">
+                                    <option value="">Loading media fields...</option>
+                                </select>
+                                <div class="form-text">If no background image is uploaded, use image from this field (from first selected game) with stretch and blur</div>
                             </div>
                             
                             <div class="mb-3">
@@ -4710,12 +4723,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="generateTemplateBoxBtn">
-                        <i class="bi bi-play-fill me-1"></i>Generate Box
-                    </button>
                 </div>
             </div>
         </div>
