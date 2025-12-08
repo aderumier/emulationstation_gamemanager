@@ -1,0 +1,42 @@
+{
+  "name": "arcade",
+  "background_image": "arcade_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 110,
+      "y": 28
+    },
+    "topRight": {
+      "x": 576,
+      "y": 97
+    },
+    "bottomLeft": {
+      "x": 109,
+      "y": 879
+    },
+    "bottomRight": {
+      "x": 578,
+      "y": 798
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 6,
+      "y": 49
+    },
+    "topRight": {
+      "x": 93,
+      "y": 28
+    },
+    "bottomLeft": {
+      "x": 6,
+      "y": 853
+    },
+    "bottomRight": {
+      "x": 93,
+      "y": 875
+    }
+  },
+  "spine_source_field": "",
+  "spine_crop_width": "5"
+}

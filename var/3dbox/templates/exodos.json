@@ -1,0 +1,42 @@
+{
+  "name": "exodos",
+  "background_image": "exodos_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 55,
+      "y": 3
+    },
+    "topRight": {
+      "x": 572,
+      "y": 53
+    },
+    "bottomLeft": {
+      "x": 55,
+      "y": 884
+    },
+    "bottomRight": {
+      "x": 572,
+      "y": 835
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 6,
+      "y": 29
+    },
+    "topRight": {
+      "x": 53,
+      "y": 5
+    },
+    "bottomLeft": {
+      "x": 6,
+      "y": 865
+    },
+    "bottomRight": {
+      "x": 54,
+      "y": 886
+    }
+  },
+  "spine_image": "exodos_spine.png",
+  "spine_source_field": ""
+}

@@ -5439,6 +5439,12 @@ class GameCollectionManager {
                             // Add click functionality for media selection
                             mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
                             
+                            // Add double-click functionality for uploading/replacing video
+                            mediaItem.addEventListener('dblclick', (e) => {
+                                e.stopPropagation();
+                                this.uploadMediaForGame(game, field);
+                            });
+                            
                             mediaItem.style.cursor = 'pointer';
                             mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
                         })
@@ -5528,12 +5534,6 @@ class GameCollectionManager {
                             // Add click functionality for media selection
                             mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
                             
-                            // Add double-click functionality for uploading/replacing media
-                            mediaItem.addEventListener('dblclick', (e) => {
-                                e.stopPropagation();
-                                this.uploadMediaForGame(game, field);
-                            });
-                            
                             // Add hover effects to show replace overlay
                             mediaItem.addEventListener('mouseenter', () => {
                                 const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
@@ -5550,7 +5550,7 @@ class GameCollectionManager {
                             });
                             
                             mediaItem.style.cursor = 'pointer';
-                            mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
+                            mediaItem.title = `Click to select ${field}. Press Delete to remove.`;
                         })
                         .catch(() => {
                             // Network error or file doesn't exist - show placeholder
@@ -16500,6 +16500,13 @@ class GameCollectionManager {
                             // Add click functionality for media selection
                             mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
                             
+                            // Add double-click functionality for uploading/replacing video
+                            mediaItem.addEventListener('dblclick', (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.uploadMediaForGame(game, field);
+                            });
+                            
                             mediaItem.style.cursor = 'pointer';
                             mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
                         })
@@ -16605,7 +16612,7 @@ class GameCollectionManager {
                             // Add click functionality for media selection
                             mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
                             
-                            // Add double-click functionality for uploading/replacing media
+                            // Add double-click functionality for uploading/replacing PDF/CBZ
                             mediaItem.addEventListener('dblclick', (e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -16693,13 +16700,6 @@ class GameCollectionManager {
                 // Add click functionality for media selection
                 mediaItem.addEventListener('click', () => this.selectMediaItem(mediaItem, field, game, mediaPath));
                 
-                // Add double-click functionality for uploading/replacing media
-                mediaItem.addEventListener('dblclick', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.uploadMediaForGame(game, field);
-                });
-                
                 // Add hover effects to show replace and delete overlays
                 mediaItem.addEventListener('mouseenter', () => {
                     const replaceOverlay = mediaItem.querySelector('.media-replace-overlay');
@@ -16736,7 +16736,7 @@ class GameCollectionManager {
                 }
                 
                 mediaItem.style.cursor = 'pointer';
-                mediaItem.title = `Click to select ${field}. Double-click to replace. Press Delete to remove.`;
+                mediaItem.title = `Click to select ${field}. Press Delete to remove.`;
             } else {
                 // Media missing - show placeholder with upload functionality
                 const placeholderSize = '150px'; // Use same size for all media types including video
@@ -35479,6 +35479,26 @@ class GameCollectionManager {
         modalElement.addEventListener('hidden.bs.modal', () => {
             this.cleanupImageCropper();
         }, { once: true });
+    }
+    
+    uploadImageFromContextMenu() {
+        // Hide context menu
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+        
+        // Use currentCroppingImage or currentRotatingImage to get game and field
+        const currentImage = this.currentCroppingImage || this.currentRotatingImage;
+        if (!currentImage) {
+            this.showAlert('No image selected for upload', 'error');
+            return;
+        }
+        
+        const { game, field } = currentImage;
+        
+        // Call the existing upload function
+        this.uploadMediaForGame(game, field);
     }
     
     loadImageAndSetupCropper(imagePath) {

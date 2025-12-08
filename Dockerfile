@@ -137,6 +137,24 @@ RUN mkdir -p /opt/gamemanager/fonts.default && \
     chmod -R 644 /opt/gamemanager/fonts.default/* 2>/dev/null || true && \
     chown -R appuser:appuser /opt/gamemanager/fonts.default/
 
+# Copy 2D box template files to default location outside var (for volume mount scenarios)
+RUN mkdir -p /opt/gamemanager/2dbox_templates.default && \
+    chmod -R 755 /opt/gamemanager/var/2dbox/templates/ 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/2dbox/templates/* 2>/dev/null || true && \
+    (cp /opt/gamemanager/var/2dbox/templates/* /opt/gamemanager/2dbox_templates.default/ 2>/dev/null || echo "No 2D box templates found") && \
+    chmod -R 755 /opt/gamemanager/2dbox_templates.default/ && \
+    chmod -R 644 /opt/gamemanager/2dbox_templates.default/* 2>/dev/null || true && \
+    chown -R appuser:appuser /opt/gamemanager/2dbox_templates.default/
+
+# Copy 3D box template files to default location outside var (for volume mount scenarios)
+RUN mkdir -p /opt/gamemanager/3dbox_templates.default && \
+    chmod -R 755 /opt/gamemanager/var/3dbox/templates/ 2>/dev/null || true && \
+    chmod -R 644 /opt/gamemanager/var/3dbox/templates/* 2>/dev/null || true && \
+    (cp /opt/gamemanager/var/3dbox/templates/* /opt/gamemanager/3dbox_templates.default/ 2>/dev/null || echo "No 3D box templates found") && \
+    chmod -R 755 /opt/gamemanager/3dbox_templates.default/ && \
+    chmod -R 644 /opt/gamemanager/3dbox_templates.default/* 2>/dev/null || true && \
+    chown -R appuser:appuser /opt/gamemanager/3dbox_templates.default/
+
 # Copy mediatype files to default location outside var (for volume mount scenarios)
 RUN (cp /opt/gamemanager/var/db/igdb/mediatype.txt /opt/gamemanager/igdb_mediatype.txt.default 2>/dev/null || echo 'cover\nscreenshots\nartworks\nlogos' > /opt/gamemanager/igdb_mediatype.txt.default) && \
     (cp /opt/gamemanager/var/db/launchbox/mediatype.json /opt/gamemanager/launchbox_mediatype.json.default 2>/dev/null || echo '{}' > /opt/gamemanager/launchbox_mediatype.json.default) && \
@@ -178,6 +196,8 @@ mkdir -p /opt/gamemanager/var/temp
 mkdir -p /opt/gamemanager/var/temp/medias
 mkdir -p /opt/gamemanager/var/temp/videos
 mkdir -p /opt/gamemanager/var/fonts
+mkdir -p /opt/gamemanager/var/2dbox/templates
+mkdir -p /opt/gamemanager/var/3dbox/templates
 
 # Copy default config files if they don't exist in var/config
 if [ ! -f /opt/gamemanager/var/config/config.json ]; then
@@ -274,6 +294,32 @@ else
     echo "⚠️  No font files found in default location"
 fi
 
+# Copy 2D box template files to var/2dbox/templates (only if directory is empty)
+echo "Copying 2D box template files to var/2dbox/templates..."
+if [ -z "$(ls -A /opt/gamemanager/var/2dbox/templates 2>/dev/null)" ]; then
+    if [ -d /opt/gamemanager/2dbox_templates.default ] && [ "$(ls -A /opt/gamemanager/2dbox_templates.default 2>/dev/null)" ]; then
+        cp /opt/gamemanager/2dbox_templates.default/* /opt/gamemanager/var/2dbox/templates/
+        echo "✅ 2D box template files copied to volume (directory was empty)"
+    else
+        echo "⚠️  No 2D box template files found in default location"
+    fi
+else
+    echo "⚠️  2D box templates directory not empty, skipping copy"
+fi
+
+# Copy 3D box template files to var/3dbox/templates (only if directory is empty)
+echo "Copying 3D box template files to var/3dbox/templates..."
+if [ -z "$(ls -A /opt/gamemanager/var/3dbox/templates 2>/dev/null)" ]; then
+    if [ -d /opt/gamemanager/3dbox_templates.default ] && [ "$(ls -A /opt/gamemanager/3dbox_templates.default 2>/dev/null)" ]; then
+        cp /opt/gamemanager/3dbox_templates.default/* /opt/gamemanager/var/3dbox/templates/
+        echo "✅ 3D box template files copied to volume (directory was empty)"
+    else
+        echo "⚠️  No 3D box template files found in default location"
+    fi
+else
+    echo "⚠️  3D box templates directory not empty, skipping copy"
+fi
+
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/screenscraper/* 2>/dev/null || true
@@ -284,6 +330,10 @@ chmod 644 /opt/gamemanager/var/db/emumovies/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/custom/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steam/* 2>/dev/null || true
 chmod 644 /opt/gamemanager/var/db/steamgrid/* 2>/dev/null || true
+chmod 755 /opt/gamemanager/var/2dbox/templates 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/2dbox/templates/* 2>/dev/null || true
+chmod 755 /opt/gamemanager/var/3dbox/templates 2>/dev/null || true
+chmod 644 /opt/gamemanager/var/3dbox/templates/* 2>/dev/null || true
 
 echo "✅ All directories and configuration files ready"
 echo "Starting GameManager..."

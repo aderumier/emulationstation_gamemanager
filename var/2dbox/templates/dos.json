@@ -1,0 +1,33 @@
+{
+  "name": "dos",
+  "background_image": "dos_background.jpg",
+  "background_image_field": null,
+  "corners_screenshot": {
+    "x1": 152,
+    "y1": 339,
+    "x2": 843,
+    "y2": 339,
+    "x3": 843,
+    "y3": 1006,
+    "x4": 152,
+    "y4": 1006
+  },
+  "corners_logo": {
+    "x1": 108,
+    "y1": 64,
+    "x2": 843,
+    "y2": 64,
+    "x3": 843,
+    "y3": 292,
+    "x4": 108,
+    "y4": 292
+  },
+  "logo_source": "text",
+  "text_logo_settings": {
+    "font": "NeotriadFree-1jzAg",
+    "color": "#ffffff",
+    "fontSize": 72,
+    "alignment": "top-left",
+    "maxCharsPerLine": null
+  }
+}

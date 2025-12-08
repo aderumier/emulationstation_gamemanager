@@ -85,6 +85,26 @@ echo "📦 Copying fonts..."
 mkdir -p debian/opt/gamemanager/var/fonts
 cp var/fonts/* debian/opt/gamemanager/var/fonts/ 2>/dev/null || echo "⚠️  No font files found, skipping..."
 
+# 2D Box Templates (only if directory is empty)
+echo "📦 Copying 2D box templates..."
+mkdir -p debian/opt/gamemanager/var/2dbox/templates
+if [ -z "$(ls -A debian/opt/gamemanager/var/2dbox/templates 2>/dev/null)" ]; then
+    cp var/2dbox/templates/* debian/opt/gamemanager/var/2dbox/templates/ 2>/dev/null || echo "⚠️  No 2D box templates found, skipping..."
+    echo "✅ 2D box templates copied (directory was empty)"
+else
+    echo "⚠️  2D box templates directory not empty, skipping copy"
+fi
+
+# 3D Box Templates (only if directory is empty)
+echo "📦 Copying 3D box templates..."
+mkdir -p debian/opt/gamemanager/var/3dbox/templates
+if [ -z "$(ls -A debian/opt/gamemanager/var/3dbox/templates 2>/dev/null)" ]; then
+    cp var/3dbox/templates/* debian/opt/gamemanager/var/3dbox/templates/ 2>/dev/null || echo "⚠️  No 3D box templates found, skipping..."
+    echo "✅ 3D box templates copied (directory was empty)"
+else
+    echo "⚠️  3D box templates directory not empty, skipping copy"
+fi
+
 # Credentials and embedded modules
 cp var/config/credentials.enc debian/opt/gamemanager/var/config/credentials.enc
 

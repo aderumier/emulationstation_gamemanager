@@ -1,0 +1,44 @@
+{
+  "name": "bigbox",
+  "background_image": "bigbox_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 88,
+      "y": 17
+    },
+    "topRight": {
+      "x": 567,
+      "y": 62
+    },
+    "bottomLeft": {
+      "x": 88,
+      "y": 883
+    },
+    "bottomRight": {
+      "x": 567,
+      "y": 835
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 9,
+      "y": 47
+    },
+    "topRight": {
+      "x": 88,
+      "y": 13
+    },
+    "bottomLeft": {
+      "x": 11,
+      "y": 850
+    },
+    "bottomRight": {
+      "x": 88,
+      "y": 884
+    }
+  },
+  "spine_image": "bigbox_spine.png",
+  "spine_source_field": "",
+  "spine_crop_width": "5",
+  "use_marquee_field": true
+}
