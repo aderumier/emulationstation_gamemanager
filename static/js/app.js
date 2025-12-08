@@ -12582,7 +12582,11 @@ class GameCollectionManager {
         // Save background image and template metadata
         const formData = new FormData();
         formData.append('template_name', trimmedName);
-        // If file is selected, use it; otherwise use the loaded path from template
+        // Check for background image field
+        const backgroundImageField = document.getElementById('templateBackgroundImageField');
+        const hasBackgroundField = backgroundImageField && backgroundImageField.value;
+        
+        // If file is selected, use it; otherwise use the loaded path from template; or use background image field
         if (hasBackgroundFile) {
             formData.append('background_image', backgroundInput.files[0]);
             console.log('Saving template with new background file:', backgroundInput.files[0].name);
@@ -12629,9 +12633,13 @@ class GameCollectionManager {
             // For saving, we need to reference the existing file, so send the filename
             formData.append('background_image_path', filename);
             console.log('Saving template with extracted background filename:', filename, 'from path:', hasLoadedPath);
+        } else if (hasBackgroundField) {
+            // Use background image field
+            formData.append('background_image_field', backgroundImageField.value);
+            console.log('Saving template with background image field:', backgroundImageField.value);
         } else {
             // No background image found - this should not happen if validation worked
-            console.error('No background image found - hasBackgroundFile:', hasBackgroundFile, 'hasLoadedPath:', hasLoadedPath, 'hasLoadedFilename:', hasLoadedFilename);
+            console.error('No background image found - hasBackgroundFile:', hasBackgroundFile, 'hasLoadedPath:', hasLoadedPath, 'hasLoadedFilename:', hasLoadedFilename, 'hasBackgroundField:', hasBackgroundField);
             this.showAlert('Error: Background image is required', 'danger');
             return;
         }
@@ -12707,13 +12715,13 @@ class GameCollectionManager {
         }
     }
     
-    loadTemplate(templateName) {
+    async loadTemplate(templateName) {
         // Set flag to prevent cropper from overwriting loaded values
         this.isLoadingTemplate = true;
         
         fetch(`/api/load-box-template?name=${encodeURIComponent(templateName)}`)
         .then(response => response.json())
-        .then(data => {
+        .then(async (data) => {
             if (data.success) {
                 // Store template data for later use
                 this.currentTemplateData = data;
@@ -12808,6 +12816,16 @@ class GameCollectionManager {
                     }
                 }
                 
+                // Load background image field if present
+                if (data.background_image_field) {
+                    const backgroundImageField = document.getElementById('templateBackgroundImageField');
+                    if (backgroundImageField) {
+                        backgroundImageField.value = data.background_image_field;
+                        // Update preview from field
+                        await this.updateTemplatePreviewFromField();
+                    }
+                }
+                
                 // Load background image and setup cropper with skipDefaultCrop flag
                 if (data.background_image_path) {
                     // Extract filename from path for display
@@ -12895,6 +12913,19 @@ class GameCollectionManager {
                                     this.updateTemplateCropperFromLogoCorners();
                                 };
                             }
+                        }
+                    }
+                } else if (data.background_image_field) {
+                    // Only background_image_field, no file - image should already be loaded from updateTemplatePreviewFromField above
+                    // Update logo corners immediately when image is ready
+                    const logoCornersToUpdate = data.corners_logo || data.logo_corners || {};
+                    if (logoCornersToUpdate && Object.keys(logoCornersToUpdate).length > 0) {
+                        // Wait for image to be ready
+                        const cropperImage = document.getElementById('templateCropperImage');
+                        if (cropperImage && typeof cropperImage.$ready === 'function') {
+                            cropperImage.$ready().then(() => {
+                                this.updateTemplateCropperFromLogoCorners();
+                            });
                         }
                     }
                 }
@@ -13005,7 +13036,7 @@ class GameCollectionManager {
             
             // Upload background image and start generation
             const formData = new FormData();
-            // If file is selected, use it; otherwise use the loaded path from template
+            // If file is selected, use it; otherwise use the loaded path from template; or use background image field
             if (hasBackgroundFile) {
                 formData.append('background_image', backgroundInput.files[0]);
             } else if (hasLoadedPath) {
@@ -13031,6 +13062,9 @@ class GameCollectionManager {
                 
                 // Send the filename (not full path) to backend
                 formData.append('background_image_path', filename);
+            } else if (hasBackgroundField) {
+                // Use background image field
+                formData.append('background_image_field', backgroundImageField.value);
             }
             formData.append('screenshot_field', screenshotField);
             formData.append('corners', JSON.stringify(corners));

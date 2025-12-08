@@ -2873,7 +2873,8 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start template box generation in background thread
-            thread = threading.Thread(target=run_template_box_generation_task, args=(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source, logo_corners, text_logo_settings, overwrite_existing))
+            background_image_field = task_data.get('background_image_field')
+            thread = threading.Thread(target=run_template_box_generation_task, args=(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source, logo_corners, text_logo_settings, overwrite_existing, background_image_field))
             thread.daemon = True
             thread.start()
     elif task_type == 'logo_generation':
@@ -23097,7 +23098,7 @@ def wrap_text_to_lines(text, max_chars_per_line=15):
     
     return lines if lines else ['']
 
-def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source='none', logo_corners=None, text_logo_settings=None, overwrite_existing=True):
+def run_template_box_generation_task(system_name, selected_games, target_field, screenshot_field, background_path, corners, temp_dir, logo_source='none', logo_corners=None, text_logo_settings=None, overwrite_existing=True, background_image_field=None):
     """Run template box generation task in background thread"""
     global current_task_id
     
@@ -23245,9 +23246,66 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                             logo_path = None
                             task.update_progress(f"⚠️  Logo not found for {game_name}, skipping logo")
                 
+                # Get background image path - either from shared path or from game field
+                current_background_path = background_path
+                if not current_background_path and background_image_field:
+                    # Process background image from game field
+                    background_element = game.get(background_image_field)
+                    if background_element:
+                        # Handle relative paths
+                        if background_element.startswith('./'):
+                            current_background_path = os.path.join(system_path, background_element[2:])
+                        elif background_element.startswith('/'):
+                            current_background_path = background_element
+                        else:
+                            current_background_path = os.path.join(system_path, background_element)
+                        
+                        # Process the image with stretch and blur
+                        if os.path.exists(current_background_path):
+                            # Create temp file for processed background
+                            import tempfile as tf
+                            processed_bg_fd, processed_bg_path = tf.mkstemp(suffix='.jpg', prefix='template_bg_')
+                            os.close(processed_bg_fd)
+                            
+                            try:
+                                # Process image: resize with stretch and blur
+                                cmd = [
+                                    'convert', current_background_path,
+                                    '-resize', '600x900^',
+                                    '-gravity', 'center',
+                                    '-extent', '600x900',
+                                    '-blur', '0x30',
+                                    processed_bg_path
+                                ]
+                                subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=True)
+                                current_background_path = processed_bg_path
+                            except Exception as e:
+                                print(f"⚠️  Error processing background image for {game_name}: {e}")
+                                if os.path.exists(processed_bg_path):
+                                    os.unlink(processed_bg_path)
+                                failed += 1
+                                task.update_progress(f"⚠️  Skipped: {game_name} (background processing failed)")
+                                continue
+                        else:
+                            print(f"⚠️  Background image not found for {game_name}: {current_background_path}")
+                            failed += 1
+                            task.update_progress(f"⚠️  Skipped: {game_name} (no background image)")
+                            continue
+                    else:
+                        print(f"⚠️  No background image field value for {game_name}")
+                        failed += 1
+                        task.update_progress(f"⚠️  Skipped: {game_name} (no background image field)")
+                        continue
+                
+                if not current_background_path or not os.path.exists(current_background_path):
+                    print(f"⚠️  Background image not found for {game_name}: {current_background_path}")
+                    failed += 1
+                    task.update_progress(f"⚠️  Skipped: {game_name} (no background image)")
+                    continue
+                
                 # Generate template box
                 generator.generate_template_box(
-                    background_path=background_path,
+                    background_path=current_background_path,
                     screenshot_path=screenshot_path,
                     output_path=output_path,
                     corner1_x=corner1_x,
@@ -23264,6 +23322,13 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
                     text_logo_settings=text_logo_settings,
                     game_name=game_name
                 )
+                
+                # Cleanup processed background temp file if it was created
+                if background_image_field and current_background_path != background_path and os.path.exists(current_background_path):
+                    try:
+                        os.unlink(current_background_path)
+                    except:
+                        pass
                 
                 # Update gamelist.xml
                 game_element = None
@@ -25153,9 +25218,10 @@ def save_box_template():
         # Sanitize template name for filesystem
         safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
         
-        # Handle background image - either new file upload or existing path
+        # Handle background image - either new file upload, existing path, or background image field
         background_file = request.files.get('background_image')
         background_image_path = request.form.get('background_image_path')
+        background_image_field = request.form.get('background_image_field')
         
         background_filename = None
         
@@ -25203,11 +25269,13 @@ def save_box_template():
                     background_filename = potential_filename
                 else:
                     return jsonify({'success': False, 'error': f'Background image file not found: {existing_filename}'}), 400
+        elif background_image_field:
+            # Use background image field - no file needed, just store the field name
+            background_filename = None  # No file, will use field
         else:
             return jsonify({'success': False, 'error': 'Background image is required'}), 400
         
-        if not background_filename:
-            return jsonify({'success': False, 'error': 'Background image is required'}), 400
+        # Note: background_filename can be None if using background_image_field
         
         # Get corner positions
         corners_json = request.form.get('corners')
@@ -25235,7 +25303,8 @@ def save_box_template():
         # Save template metadata as JSON
         template_data = {
             'name': template_name,
-            'background_image': background_filename,  # Store relative path
+            'background_image': background_filename,  # Store relative path (or None if using field)
+            'background_image_field': background_image_field if background_image_field else None,  # Store field name if using field
             'corners_screenshot': corners,
             'corners_logo': logo_corners,
             'logo_source': logo_source
@@ -25428,8 +25497,9 @@ def load_box_template():
         with open(template_json_path, 'r') as f:
             template_data = json.load(f)
         
-        # Get background image filename
+        # Get background image filename or field
         background_image = template_data.get('background_image', '')
+        background_image_field = template_data.get('background_image_field')
         
         # Return paths that can be accessed via URL
         # Support both old format (corners) and new format (corners_screenshot, corners_logo)
@@ -25440,12 +25510,19 @@ def load_box_template():
         
         response_data = {
             'success': True,
-            'background_image_path': f'/api/template-image?path={background_image}&type=background',
             'corners': corners_screenshot,  # Keep for backward compatibility
             'corners_screenshot': corners_screenshot,
             'corners_logo': corners_logo,
             'logo_source': logo_source
         }
+        
+        # Include background_image_path only if background_image exists
+        if background_image:
+            response_data['background_image_path'] = f'/api/template-image?path={background_image}&type=background'
+        
+        # Include background_image_field if it exists
+        if background_image_field:
+            response_data['background_image_field'] = background_image_field
         
         if text_logo_settings:
             response_data['text_logo_settings'] = text_logo_settings
@@ -26102,11 +26179,12 @@ def generate_template_box():
         logo_corners = json.loads(logo_corners_json) if logo_corners_json else {}
         text_logo_settings = json.loads(text_logo_settings_json) if text_logo_settings_json else None
         
-        # Get background image - either from file upload or from template path
+        # Get background image - either from file upload, template path, or background image field
         background_file = request.files.get('background_image')
         background_image_path = request.form.get('background_image_path')
+        background_image_field = request.form.get('background_image_field')
         
-        if not background_file and not background_image_path:
+        if not background_file and not background_image_path and not background_image_field:
             return jsonify({'success': False, 'error': 'Background image is required'}), 400
         
         # Create temp directory for this task
@@ -26133,6 +26211,10 @@ def generate_template_box():
             # Copy template image to temp directory
             import shutil
             shutil.copy2(source_path, background_path)
+        elif background_image_field:
+            # Process background image from field (will be processed during task execution)
+            # For now, just store the field name - the actual image will be processed per game
+            background_path = None  # Will be processed per game from the field
         
         # Add task to queue (screenshot will be loaded from game field during processing)
         task_data = {
@@ -26141,6 +26223,7 @@ def generate_template_box():
             'target_field': target_field,
             'screenshot_field': screenshot_field,
             'background_path': background_path,
+            'background_image_field': background_image_field,  # Store field name if using field
             'corners': corners,
             'temp_dir': temp_dir,
             'logo_source': logo_source,
