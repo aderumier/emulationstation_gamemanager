@@ -1055,19 +1055,7 @@ class BoxGenerator:
             temp_files.append(temp_perspective)
             temp_files.append(temp_perspective_resized)
             
-            # Step 1: Resize the 2D box to fit the target area (no aspect ratio)
-            cmd_resize = [
-                'convert',
-                box2d_path,
-                '-resize', f'{resize_width}x{resize_height}!',
-                temp_resized
-            ]
-            logging.info(f"3D Box Step 1 - Resize: {' '.join(cmd_resize)}")
-            subprocess.run(cmd_resize, check=True)
-            if debug:
-                logging.info(f"🔧 DEBUG: Resized image saved to: {temp_resized}")
-            
-            # Step 2: Compute source coordinates (rectangle before distortion)
+            # Compute source coordinates (rectangle before distortion)
             # The source coordinates form a rectangle at the target position
             # This rectangle will be distorted to match the target quadrilateral
             source_topleft_x = target_topleft_x
@@ -1081,8 +1069,8 @@ class BoxGenerator:
             
             logging.info(f"3D Box: Source rectangle - TL({source_topleft_x},{source_topleft_y}) TR({source_topright_x},{source_topright_y}) BL({source_bottomleft_x},{source_bottomleft_y}) BR({source_bottomright_x},{source_bottomright_y})")
             
-            # Step 3: Apply perspective distortion
-            # The perspective distortion maps source rectangle corners to target quadrilateral corners
+            # Step 1-3: Combined resize, perspective distortion, and resize in a single convert command
+            # This reduces from 3 separate ImageMagick calls to 1, improving performance
             perspective_str = (
                 f'{source_topleft_x},{source_topleft_y} {target_topleft_x},{target_topleft_y}  '
                 f'{source_topright_x},{source_topright_y} {target_topright_x},{target_topright_y}  '
@@ -1090,34 +1078,23 @@ class BoxGenerator:
                 f'{source_bottomleft_x},{source_bottomleft_y} {target_bottomleft_x},{target_bottomleft_y}'
             )
             
-            cmd_perspective = [
+            cmd_combined = [
                 'convert',
-                temp_resized,
+                box2d_path,
+                '-resize', f'{resize_width}x{resize_height}!',
                 '-background', 'none',
                 '-virtual-pixel', 'transparent',
                 '-alpha', 'set',
                 '+distort', 'Perspective', perspective_str,
-                temp_perspective
-            ]
-            logging.info(f"3D Box Step 2 - Perspective: {' '.join(cmd_perspective)}")
-            subprocess.run(cmd_perspective, check=True)
-            if debug:
-                logging.info(f"🔧 DEBUG: Perspective image saved to: {temp_perspective}")
-            
-            # Step 4: Resize perspective image back to the same dimensions as the first resize
-            # Use -resize (not -extent) to scale without cropping
-            cmd_resize_perspective = [
-                'convert',
-                temp_perspective,
                 '-resize', f'{resize_width}x{resize_height}!',
                 temp_perspective_resized
             ]
-            logging.info(f"3D Box Step 3 - Resize to {resize_width}x{resize_height}: {' '.join(cmd_resize_perspective)}")
-            subprocess.run(cmd_resize_perspective, check=True)
+            logging.info(f"3D Box Step 1-3 (Combined) - Resize, Perspective, Resize: {' '.join(cmd_combined)}")
+            subprocess.run(cmd_combined, check=True)
             if debug:
-                logging.info(f"🔧 DEBUG: Resized perspective image saved to: {temp_perspective_resized}")
+                logging.info(f"🔧 DEBUG: Combined processed image saved to: {temp_perspective_resized}")
             
-            # Step 5: Composite the distorted 2D box onto the 3D box template
+            # Step 4: Composite the distorted 2D box onto the 3D box template
             # Use composite with exact geometry positioning at source top-left coordinates
             cmd_composite = [
                 'composite',
@@ -1172,6 +1149,20 @@ class BoxGenerator:
                         if not os.path.exists(spine_source_image):
                             logging.warning(f"Spine source image not found: {spine_source_image}, skipping spine")
                         else:
+                            # Create temp files for spine
+                            if debug:
+                                output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                temp_spine_resized = os.path.join(temp_dir, f'{output_base}_spine_1_resized.png')
+                                temp_spine_perspective = os.path.join(temp_dir, f'{output_base}_spine_2_perspective.png')
+                                temp_spine_perspective_resized = os.path.join(temp_dir, f'{output_base}_spine_3_perspective_resized.png')
+                            else:
+                                temp_spine_resized = os.path.join(temp_dir, 'spine_resized.png')
+                                temp_spine_perspective = os.path.join(temp_dir, 'spine_perspective.png')
+                                temp_spine_perspective_resized = os.path.join(temp_dir, 'spine_perspective_resized.png')
+                            
+                            # Check if this is a generated spine (from cropped 2D box) vs uploaded/field spine
+                            is_generated_spine = (generated_spine_path and spine_source_image == generated_spine_path)
+                            
                             # Create temp files for spine
                             if debug:
                                 output_base = os.path.splitext(os.path.basename(output_path))[0]
@@ -1261,7 +1252,8 @@ class BoxGenerator:
                             spine_source_bottomright_x = spine_target_topright_x
                             spine_source_bottomright_y = spine_target_bottomright_y
                             
-                            # Step S3: Apply perspective distortion to spine
+                            # Step S3-S4: For generated spines, use separate steps (no optimization)
+                            # For uploaded/field spines, combine perspective + resize for better performance
                             spine_perspective_str = (
                                 f'{spine_source_topleft_x},{spine_source_topleft_y} {spine_target_topleft_x},{spine_target_topleft_y}  '
                                 f'{spine_source_topright_x},{spine_source_topright_y} {spine_target_topright_x},{spine_target_topright_y}  '
@@ -1269,27 +1261,43 @@ class BoxGenerator:
                                 f'{spine_source_bottomleft_x},{spine_source_bottomleft_y} {spine_target_bottomleft_x},{spine_target_bottomleft_y}'
                             )
                             
-                            cmd_spine_perspective = [
-                                'convert',
-                                temp_spine_resized,
-                                '-background', 'none',
-                                '-virtual-pixel', 'transparent',
-                                '-alpha', 'set',
-                                '-distort', 'Perspective', spine_perspective_str,
-                                temp_spine_perspective
-                            ]
-                            logging.info(f"3D Box Spine Step 2 - Perspective: {' '.join(cmd_spine_perspective)}")
-                            subprocess.run(cmd_spine_perspective, check=True)
-                            
-                            # Step S4: Resize perspective image back to the same dimensions as the first resize
-                            cmd_spine_resize_perspective = [
-                                'convert',
-                                temp_spine_perspective,
-                                '-resize', f'{spine_resize_width}x{spine_resize_height}!',
-                                temp_spine_perspective_resized
-                            ]
-                            logging.info(f"3D Box Spine Step 3 - Resize: {' '.join(cmd_spine_resize_perspective)}")
-                            subprocess.run(cmd_spine_resize_perspective, check=True)
+                            if is_generated_spine:
+                                # Generated spine: use separate steps (no optimization) to ensure perspective works correctly
+                                cmd_spine_perspective = [
+                                    'convert',
+                                    temp_spine_resized,
+                                    '-background', 'none',
+                                    '-virtual-pixel', 'transparent',
+                                    '-alpha', 'set',
+                                    '-distort', 'Perspective', spine_perspective_str,
+                                    temp_spine_perspective
+                                ]
+                                logging.info(f"3D Box Spine Step 2 (Generated) - Perspective: {' '.join(cmd_spine_perspective)}")
+                                subprocess.run(cmd_spine_perspective, check=True)
+                                
+                                # Step S4: Resize perspective image
+                                cmd_spine_resize_perspective = [
+                                    'convert',
+                                    temp_spine_perspective,
+                                    '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                    temp_spine_perspective_resized
+                                ]
+                                logging.info(f"3D Box Spine Step 3 (Generated) - Resize: {' '.join(cmd_spine_resize_perspective)}")
+                                subprocess.run(cmd_spine_resize_perspective, check=True)
+                            else:
+                                # Uploaded/field spine: combine perspective + resize for better performance
+                                cmd_spine_combined = [
+                                    'convert',
+                                    temp_spine_resized,
+                                    '-background', 'none',
+                                    '-virtual-pixel', 'transparent',
+                                    '-alpha', 'set',
+                                    '-distort', 'Perspective', spine_perspective_str,
+                                    '-resize', f'{spine_resize_width}x{spine_resize_height}!',
+                                    temp_spine_perspective_resized
+                                ]
+                                logging.info(f"3D Box Spine Step 2-3 (Combined) - Perspective, Resize: {' '.join(cmd_spine_combined)}")
+                                subprocess.run(cmd_spine_combined, check=True)
                             
                             # Step S5: Composite spine onto the result (which already has front)
                             # Use source coordinates for compositing (exactly like the front surface)
@@ -1300,7 +1308,7 @@ class BoxGenerator:
                                 output_path,
                                 output_path
                             ]
-                            logging.info(f"3D Box Spine Step 4 - Composite at ({spine_source_topleft_x},{spine_source_topleft_y}): {' '.join(cmd_spine_composite)}")
+                            logging.info(f"3D Box Spine Step 5 - Composite at ({spine_source_topleft_x},{spine_source_topleft_y}): {' '.join(cmd_spine_composite)}")
                             subprocess.run(cmd_spine_composite, check=True)
                             
                             logging.info(f"✅ Spine composited successfully")
