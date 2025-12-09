@@ -933,7 +933,7 @@ class BoxGenerator:
             spine_width: Width of the spine in template coordinates (will be used directly as pixel width if crop_width not provided)
             output_path: Path where the generated spine will be saved
             debug: If True, log the command
-            crop_width: Optional width of the 2D box crop in pixels (defaults to spine_width, min 5, max box_width)
+            crop_width: Optional width of the 2D box crop in pixels (defaults to spine_width, min 1, max box_width)
         """
         if not os.path.exists(box2d_path):
             raise Exception(f"2D box image not found: {box2d_path}")
@@ -957,9 +957,9 @@ class BoxGenerator:
             crop_width = int(spine_width)
         else:
             crop_width = int(crop_width)
-            # Ensure crop_width is within bounds: min 5, max box_width
-            if crop_width < 5:
-                crop_width = 5
+            # Ensure crop_width is within bounds: min 1, max box_width
+            if crop_width < 1:
+                crop_width = 1
             if crop_width > box_width:
                 crop_width = box_width
         

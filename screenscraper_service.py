@@ -543,7 +543,8 @@ class ScreenScraperService:
         # Static ScreenScraper configuration
         self.api_url = 'https://api.screenscraper.fr/api2/jeuInfos.php'
         self.max_connections = max_connections  # Dynamic max_connections from user info
-        self.timeout = 60
+        # Use httpx.Timeout for better timeout control (connect, read, write, pool timeouts)
+        self.timeout = httpx.Timeout(30.0, connect=10.0)  # 30s total, 10s connect
         self.retry_attempts = 3
         
         # Extract credentials
@@ -644,8 +645,20 @@ class ScreenScraperService:
                 obfuscated_url = full_url.replace(f"devid={self.devid}", "devid=***").replace(f"devpassword={self.devpassword}", "devpassword=***").replace(f"ssid={self.ssid}", "ssid=***").replace(f"sspassword={self.sspassword}", "sspassword=***")
                 print(f"🔗 Full URL: {obfuscated_url}")
                 
-                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
-                    response = await client.get(search_api_url, params=params)
+                # Use asyncio.wait_for to ensure request times out even if httpx timeout doesn't work
+                async def make_request():
+                    async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                        return await client.get(search_api_url, params=params)
+                
+                try:
+                    # Wrap with asyncio.wait_for for additional timeout protection (35 seconds total)
+                    response = await asyncio.wait_for(make_request(), timeout=35.0)
+                except asyncio.TimeoutError:
+                    print(f"⏱️ ScreenScraper API request timed out after 35 seconds")
+                    return []
+                except httpx.TimeoutException as e:
+                    print(f"⏱️ ScreenScraper API request timed out: {e}")
+                    return []
                 
                 print(f"📡 ScreenScraper API Response: {response.status_code}")
                 
@@ -884,8 +897,22 @@ class ScreenScraperService:
                 
                 import time
                 start_time = time.time()
-                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
-                    response = await client.get(self.api_url, params=params)
+                
+                # Use asyncio.wait_for to ensure request times out even if httpx timeout doesn't work
+                async def make_request():
+                    async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                        return await client.get(self.api_url, params=params)
+                
+                try:
+                    # Wrap with asyncio.wait_for for additional timeout protection (35 seconds total)
+                    response = await asyncio.wait_for(make_request(), timeout=35.0)
+                except asyncio.TimeoutError:
+                    print(f"⏱️ ScreenScraper API request timed out after 35 seconds")
+                    return None
+                except httpx.TimeoutException as e:
+                    print(f"⏱️ ScreenScraper API request timed out: {e}")
+                    return None
+                
                 request_duration = time.time() - start_time
                 
                 print(f"📡 Response received in {request_duration:.2f}s")
@@ -1025,8 +1052,22 @@ class ScreenScraperService:
                 
                 import time
                 start_time = time.time()
-                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
-                    response = await client.get(self.api_url, params=params)
+                
+                # Use asyncio.wait_for to ensure request times out even if httpx timeout doesn't work
+                async def make_request():
+                    async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                        return await client.get(self.api_url, params=params)
+                
+                try:
+                    # Wrap with asyncio.wait_for for additional timeout protection (35 seconds total)
+                    response = await asyncio.wait_for(make_request(), timeout=35.0)
+                except asyncio.TimeoutError:
+                    print(f"⏱️ ScreenScraper API request timed out after 35 seconds")
+                    return None
+                except httpx.TimeoutException as e:
+                    print(f"⏱️ ScreenScraper API request timed out: {e}")
+                    return None
+                
                 request_duration = time.time() - start_time
                 
                 print(f"📡 Response received in {request_duration:.2f}s")
