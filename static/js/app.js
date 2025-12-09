@@ -14692,6 +14692,10 @@ class GameCollectionManager {
                     });
                     
                     this.showAlert('Template loaded successfully', 'success');
+                    // Save template name to localStorage for next modal opening
+                    setTimeout(() => {
+                        localStorage.setItem('box3DGenerator_lastTemplate', templateName);
+                    }, 800);
                 } else {
                     this.showAlert('Error loading template: ' + (data.error || 'Unknown error'), 'danger');
                 }
@@ -14728,6 +14732,12 @@ class GameCollectionManager {
             
             if (data.success) {
                 this.showAlert('Template deleted successfully', 'success');
+                
+                // Clear localStorage if this was the last loaded template
+                const lastTemplate = localStorage.getItem('box3DGenerator_lastTemplate');
+                if (lastTemplate === templateName) {
+                    localStorage.removeItem('box3DGenerator_lastTemplate');
+                }
                 
                 // Clear the form if this template was currently loaded
                 this.reset3DBoxCanvas();
@@ -26880,6 +26890,27 @@ class GameCollectionManager {
                         const interactiveTabInstance = new bootstrap.Tab(interactiveTab);
                         interactiveTabInstance.show();
                     }, 50);
+                }
+                
+                // Load last used template from localStorage
+                const lastTemplate = localStorage.getItem('box3DGenerator_lastTemplate');
+                if (lastTemplate) {
+                    // Wait a bit for template list to be loaded, then load the template
+                    setTimeout(() => {
+                        // Check if template still exists in the list
+                        const templateSelect = document.getElementById('template3DSelect');
+                        if (templateSelect) {
+                            const option = Array.from(templateSelect.options).find(opt => opt.value === lastTemplate);
+                            if (option) {
+                                // Template exists, set select value and load it
+                                templateSelect.value = lastTemplate;
+                                this.load3DTemplate(lastTemplate);
+                            } else {
+                                // Template no longer exists, clear from localStorage
+                                localStorage.removeItem('box3DGenerator_lastTemplate');
+                            }
+                        }
+                    }, 500);
                 }
             });
         }

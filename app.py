@@ -1654,6 +1654,10 @@ client_systems = {}  # {client_sid: system_name}
 system_clients = {}  # {system_name: set(client_sids)}
 system_clients_lock = threading.Lock()  # Thread safety for system_clients operations
 
+# Gamelist write locks - one per system to prevent concurrent writes
+gamelist_write_locks = {}  # {system_name: threading.Lock}
+gamelist_locks_lock = threading.Lock()  # Thread safety for gamelist_write_locks dictionary
+
 # Task management
 _igdb_cancel_maps = {}  # dict of {task_id: cancel_map} for IGDB tasks
 _cleanup_in_progress = False  # Flag to prevent multiple cleanup attempts
@@ -9269,8 +9273,24 @@ def rom_system_gamelist(system_name):
                 
                 app.logger.info(f'File deletion completed: {len(deleted_files)} files deleted, {len(failed_deletions)} failed')
             
-            # Write the updated games back to gamelist.xml
-            write_gamelist_xml(games, gamelist_path)
+            # Write the updated games back to gamelist.xml with verification
+            try:
+                write_gamelist_xml(games, gamelist_path)
+                
+                # Verify the write succeeded
+                if not os.path.exists(gamelist_path):
+                    raise Exception(f"Gamelist file was not written: {gamelist_path}")
+                
+                # Sync to roms directory
+                sync_result = save_gamelist_to_roms(system_name)
+                if not sync_result.get('success', False):
+                    raise Exception(f"Failed to sync gamelist: {sync_result.get('error', 'Unknown error')}")
+                    
+            except Exception as e:
+                app.logger.error(f'Error writing/syncing gamelist after game deletion: {e}')
+                import traceback
+                traceback.print_exc()
+                # Continue anyway - files are deleted but gamelist might not be updated
             
             # Get changed games data before notifications
             changed_games = data.get('changed_games', [])
@@ -9609,41 +9629,73 @@ def _dedupe_games_by_path(games):
     return deduped
 
 def write_gamelist_xml(games, file_path):
-    """Write games list to gamelist.xml file (deduped by path)."""
+    """Write games list to gamelist.xml file (deduped by path).
+    
+    This function uses per-system locking to prevent concurrent writes to the same gamelist file.
+    """
+    # Extract system name from file path (format: var/gamelists/{system_name}/gamelist.xml)
+    system_name = None
     try:
-        games_to_write = _dedupe_games_by_path(games)
-        root = ET.Element('gameList')
-        
-        for game in games_to_write:
-            game_elem = ET.SubElement(root, 'game')
+        path_parts = file_path.replace('\\', '/').split('/')
+        if 'gamelists' in path_parts:
+            gamelists_index = path_parts.index('gamelists')
+            if gamelists_index + 1 < len(path_parts):
+                system_name = path_parts[gamelists_index + 1]
+    except Exception:
+        pass  # If we can't extract system name, proceed without locking (fallback)
+    
+    # Get or create lock for this system
+    if system_name:
+        with gamelist_locks_lock:
+            if system_name not in gamelist_write_locks:
+                gamelist_write_locks[system_name] = threading.Lock()
+            lock = gamelist_write_locks[system_name]
+    else:
+        # Fallback: create a temporary lock if we can't determine system name
+        lock = threading.Lock()
+    
+    # Use the lock to prevent concurrent writes
+    with lock:
+        try:
+            games_to_write = _dedupe_games_by_path(games)
+            root = ET.Element('gameList')
             
-            # Add all game fields
-            for field, value in game.items():
-                # Format releasedate field to ISO 8601 format
-                if field == 'releasedate' and value:
-                    value = format_releasedate_to_iso8601(value)
+            for game in games_to_write:
+                game_elem = ET.SubElement(root, 'game')
                 
-                # Handle boolean fields - convert to lowercase string
-                if field in ['favorite', 'kidgame']:
-                    if value == 'true' or value is True:
-                        value = 'true'
-                    elif value == 'false' or value is False:
-                        value = 'false'
-                    else:
-                        # Keep empty string as empty (don't convert to 'false')
-                        value = ''
-                
-                # Add all fields from the game data
-                field_elem = ET.SubElement(game_elem, field)
-                field_elem.text = str(value) if value else ''
-                
-        
-        # Write to file with formatting
-        tree = ET.ElementTree(root)
-        save_formatted_gamelist_xml(tree, file_path)
-        
-    except Exception as e:
-        print(f"Error writing gamelist.xml: {e}")
+                # Add all game fields
+                for field, value in game.items():
+                    # Format releasedate field to ISO 8601 format
+                    if field == 'releasedate' and value:
+                        value = format_releasedate_to_iso8601(value)
+                    
+                    # Handle boolean fields - convert to lowercase string
+                    if field in ['favorite', 'kidgame']:
+                        if value == 'true' or value is True:
+                            value = 'true'
+                        elif value == 'false' or value is False:
+                            value = 'false'
+                        else:
+                            # Keep empty string as empty (don't convert to 'false')
+                            value = ''
+                    
+                    # Add all fields from the game data
+                    field_elem = ET.SubElement(game_elem, field)
+                    field_elem.text = str(value) if value else ''
+                    
+            
+            # Write to file with formatting
+            tree = ET.ElementTree(root)
+            save_formatted_gamelist_xml(tree, file_path)
+            
+        except Exception as e:
+            error_msg = f"Error writing gamelist.xml to {file_path}: {e}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            # Re-raise to allow calling code to handle the error
+            # This is important for critical operations like move ROM
+            raise
 
 
 @app.route('/api/scrap-launchbox/<system_name>', methods=['GET', 'POST'])
@@ -15775,8 +15827,49 @@ def delete_game_media(system_name):
         # Clear the media field in the game object
         game[media_field] = ''
         
-        # Update the gamelist.xml file
-        write_gamelist_xml(games, gamelist_path)
+        # Update the gamelist.xml file with retry logic
+        max_retries = 3
+        retry_delay = 0.1
+        gamelist_updated = False
+        
+        for attempt in range(max_retries):
+            try:
+                write_gamelist_xml(games, gamelist_path)
+                
+                # Verify the write succeeded
+                if not os.path.exists(gamelist_path):
+                    raise Exception(f"Gamelist file was not written: {gamelist_path}")
+                
+                # Sync to roms directory
+                sync_result = save_gamelist_to_roms(system_name)
+                if not sync_result.get('success', False):
+                    raise Exception(f"Failed to sync gamelist: {sync_result.get('error', 'Unknown error')}")
+                
+                gamelist_updated = True
+                break
+                
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    app.logger.warning(f'Error updating gamelist (attempt {attempt + 1}/{max_retries}): {e}, retrying...')
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    # Reload gamelist to get latest state
+                    games = parse_gamelist_xml(gamelist_path)
+                    game = next((g for g in games if g.get('path') == rom_path), None)
+                    if game:
+                        game[media_field] = ''
+                else:
+                    raise
+        
+        if not gamelist_updated:
+            # File was deleted but gamelist update failed
+            error_msg = f"Media file deleted but gamelist update failed after {max_retries} attempts"
+            app.logger.error(error_msg)
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 500
         
         # Notify all connected clients about the gamelist update
         notify_gamelist_updated(system_name, len(games))
@@ -15792,6 +15885,8 @@ def delete_game_media(system_name):
         
     except Exception as e:
         app.logger.error(f'Error deleting media: {str(e)}')
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to delete media: {str(e)}'}), 500
 @app.route('/api/rom-system/<system_name>/game/delete-media-batch', methods=['POST'])
 @login_required
@@ -15861,25 +15956,76 @@ def delete_game_media_batch(system_name):
             game[media_field] = ''
             deleted_fields.append(media_field)
         
-        # Update the gamelist.xml file only once after all deletions
-        write_gamelist_xml(games, gamelist_path)
+        # Update the gamelist.xml file only once after all deletions with retry logic
+        max_retries = 3
+        retry_delay = 0.1
+        gamelist_updated = False
+        
+        if deleted_fields:  # Only update if we actually deleted something
+            for attempt in range(max_retries):
+                try:
+                    write_gamelist_xml(games, gamelist_path)
+                    
+                    # Verify the write succeeded
+                    if not os.path.exists(gamelist_path):
+                        raise Exception(f"Gamelist file was not written: {gamelist_path}")
+                    
+                    # Sync to roms directory
+                    sync_result = save_gamelist_to_roms(system_name)
+                    if not sync_result.get('success', False):
+                        raise Exception(f"Failed to sync gamelist: {sync_result.get('error', 'Unknown error')}")
+                    
+                    gamelist_updated = True
+                    break
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        app.logger.warning(f'Error updating gamelist (attempt {attempt + 1}/{max_retries}): {e}, retrying...')
+                        import time
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        # Reload gamelist to get latest state
+                        games = parse_gamelist_xml(gamelist_path)
+                        game = next((g for g in games if g.get('path') == rom_path), None)
+                        if game:
+                            # Re-apply deletions
+                            for media_field in deleted_fields:
+                                if media_field in game:
+                                    game[media_field] = ''
+                    else:
+                        raise
+            
+            if not gamelist_updated:
+                # Files were deleted but gamelist update failed
+                error_msg = f"Media files deleted but gamelist update failed after {max_retries} attempts"
+                app.logger.error(error_msg)
+                # Add to failed fields
+                for field in deleted_fields:
+                    failed_fields.append(f'{field}: Gamelist update failed')
+                deleted_fields = []
         
         # Notify all connected clients about the gamelist update
-        notify_gamelist_updated(system_name, len(games))
-        notify_game_updated(system_name, game.get('path', ''), deleted_fields)
+        if gamelist_updated or not deleted_fields:
+            notify_gamelist_updated(system_name, len(games))
+            if deleted_fields:
+                notify_game_updated(system_name, game.get('path', ''), deleted_fields)
         
         # Log the deletion
-        app.logger.info(f'Deleted media fields {deleted_fields} for game {rom_path}')
+        if deleted_fields:
+            app.logger.info(f'Deleted media fields {deleted_fields} for game {rom_path}')
         
+        success = len(deleted_fields) > 0 and gamelist_updated
         return jsonify({
-            'success': True,
-            'message': f'Media deleted successfully for {len(deleted_fields)} fields',
+            'success': success,
+            'message': f'Media deleted successfully for {len(deleted_fields)} fields' if success else f'Media files deleted but gamelist update failed',
             'deleted_fields': deleted_fields,
             'failed_fields': failed_fields
         })
         
     except Exception as e:
         app.logger.error(f'Error deleting media batch: {str(e)}')
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to delete media batch: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/game/manual-scrap', methods=['POST'])
@@ -16338,8 +16484,30 @@ def move_rom(system_name):
                 new_relative = './' + new_relative
             # Use batch function with single entry
             path_updates = {game_path: new_relative}
-            update_gamelist_after_move_batch(system_name, path_updates, system_rom_dir)
-            print(f"Gamelist update completed")
+            update_result = update_gamelist_after_move_batch(system_name, path_updates)
+            
+            if not update_result.get('success', False):
+                # File was moved but gamelist update failed - this is a problem
+                error_msg = f"ROM moved but gamelist update failed: {update_result.get('error', 'Unknown error')}"
+                print(f"ERROR: {error_msg}")
+                # Try to move the file back to original location
+                try:
+                    print(f"Attempting to rollback file move...")
+                    shutil.move(new_path, full_game_path)
+                    print(f"Rollback successful")
+                except Exception as rollback_error:
+                    print(f"ERROR: Rollback failed: {rollback_error}")
+                    return jsonify({
+                        'success': False,
+                        'error': f'{error_msg}. File was moved but rollback failed. Manual intervention required.',
+                        'new_path': os.path.relpath(new_path, system_rom_dir).replace('\\', '/')
+                    }), 500
+                return jsonify({
+                    'success': False,
+                    'error': error_msg
+                }), 500
+            
+            print(f"Gamelist update completed successfully ({update_result.get('updated_count', 0)} paths updated)")
             
             return jsonify({
                 'success': True,
@@ -16362,43 +16530,102 @@ def update_gamelist_after_move_batch(system_name, path_updates):
     Args:
         system_name: Name of the system
         path_updates: Dictionary mapping old_path -> new_path (both should already be in relative format like "./myrom.zip")
+    
+    Returns:
+        dict with 'success' (bool), 'updated_count' (int), and 'error' (str if failed)
     """
     try:
+        # Helper function to normalize paths for comparison
+        def normalize_path_for_comparison(path):
+            """Normalize a path for comparison by removing ./ prefix, normalizing separators, and stripping whitespace"""
+            if not path:
+                return ''
+            # Replace backslashes with forward slashes
+            normalized = path.replace('\\', '/')
+            # Remove leading './' if present
+            while normalized.startswith('./'):
+                normalized = normalized[2:]
+            # Remove leading '/' if present
+            normalized = normalized.lstrip('/')
+            # Strip whitespace
+            normalized = normalized.strip()
+            return normalized
+        
         # Load gamelist from var/gamelists
         gamelist_path = get_gamelist_path(system_name)
         if not os.path.exists(gamelist_path):
-            return
+            error_msg = f"Gamelist not found: {gamelist_path}"
+            print(error_msg)
+            return {'success': False, 'updated_count': 0, 'error': error_msg}
         
-        games = parse_gamelist_xml(gamelist_path)
+        # Retry logic to handle potential race conditions
+        max_retries = 3
+        retry_delay = 0.1
         
-        # Update all paths in a single pass
-        updated_count = 0
-        for game in games:
-            current_path = game.get('path', '')
-            
-            # Check direct match
-            if current_path in path_updates:
-                game['path'] = path_updates[current_path]
-                updated_count += 1
-                continue
+        for attempt in range(max_retries):
+            try:
+                games = parse_gamelist_xml(gamelist_path)
+                
+                # Normalize path_updates keys for comparison
+                normalized_path_updates = {}
+                for old_path, new_path in path_updates.items():
+                    normalized_old = normalize_path_for_comparison(old_path)
+                    normalized_path_updates[normalized_old] = new_path
+                
+                # Update all paths in a single pass
+                updated_count = 0
+                for game in games:
+                    current_path = game.get('path', '')
+                    normalized_current = normalize_path_for_comparison(current_path)
+                    
+                    # Check if normalized path matches any of the old paths
+                    if normalized_current in normalized_path_updates:
+                        game['path'] = normalized_path_updates[normalized_current]
+                        updated_count += 1
+                        print(f"  Updated path: '{current_path}' -> '{game['path']}'")
+                        continue
+                
+                if updated_count > 0:
+                    # Save updated gamelist to var/gamelists
+                    print(f"Saving updated gamelist to: {gamelist_path} ({updated_count} paths updated)")
+                    write_gamelist_xml(games, gamelist_path)
+                    
+                    # Verify the write succeeded by checking if file exists and is readable
+                    if not os.path.exists(gamelist_path):
+                        raise Exception(f"Gamelist file was not written: {gamelist_path}")
+                    
+                    # Sync to roms directory
+                    print(f"Syncing gamelist to roms directory for {system_name}")
+                    sync_result = save_gamelist_to_roms(system_name)
+                    if not sync_result.get('success', False):
+                        raise Exception(f"Failed to sync gamelist: {sync_result.get('error', 'Unknown error')}")
+                    
+                    # Notify clients
+                    notify_gamelist_updated(system_name, len(games))
+                    print(f"Gamelist updated successfully for {system_name} - {updated_count} paths updated")
+                    return {'success': True, 'updated_count': updated_count, 'error': None}
+                else:
+                    error_msg = f"No matching games found for any of the {len(path_updates)} path updates"
+                    print(error_msg)
+                    print(f"  Path updates provided: {list(path_updates.keys())}")
+                    print(f"  Sample gamelist paths (first 5): {[normalize_path_for_comparison(g.get('path', '')) for g in games[:5]]}")
+                    return {'success': False, 'updated_count': 0, 'error': error_msg}
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Error updating gamelist (attempt {attempt + 1}/{max_retries}): {e}, retrying...")
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    raise
         
-        if updated_count > 0:
-            # Save updated gamelist to var/gamelists
-            print(f"Saving updated gamelist to: {gamelist_path} ({updated_count} paths updated)")
-            write_gamelist_xml(games, gamelist_path)
-            
-            # Sync to roms directory
-            print(f"Syncing gamelist to roms directory for {system_name}")
-            save_gamelist_to_roms(system_name)
-            
-            # Notify clients
-            notify_gamelist_updated(system_name, len(games))
-            print(f"Gamelist updated successfully for {system_name} - {updated_count} paths updated")
-        else:
-            print(f"No matching games found for any of the {len(path_updates)} path updates")
-            
     except Exception as e:
-        print(f"Error batch updating gamelist after move: {e}")
+        error_msg = f"Error batch updating gamelist after move: {e}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'updated_count': 0, 'error': error_msg}
 
 @app.route('/api/rom-system/<system_name>/move-roms-bulk', methods=['POST'])
 @login_required
@@ -16494,20 +16721,36 @@ def move_roms_bulk(system_name):
                 failed_games.append({'name': game_name, 'error': str(e)})
         
         # Batch update gamelist for all moved games (save once at the end)
+        gamelist_update_failed = False
         if path_updates:
             print(f"Batch updating gamelist for {len(path_updates)} moved games")
-            update_gamelist_after_move_batch(system_name, path_updates)
+            update_result = update_gamelist_after_move_batch(system_name, path_updates)
+            
+            if not update_result.get('success', False):
+                gamelist_update_failed = True
+                error_msg = f"Gamelist update failed: {update_result.get('error', 'Unknown error')}"
+                print(f"ERROR: {error_msg}")
+                # Add to failed games list
+                for moved_game in moved_games:
+                    failed_games.append({
+                        'name': moved_game['name'],
+                        'error': f"File moved but gamelist update failed: {error_msg}"
+                    })
+                # Note: We don't rollback bulk moves as it's complex and risky
+                # The user will need to manually fix the gamelist or move files back
         
         # Prepare response
         response_data = {
-            'success': True,
+            'success': not gamelist_update_failed and len(failed_games) == 0,
             'moved_count': len(moved_games),
             'failed_count': len(failed_games),
             'moved_games': moved_games,
             'failed_games': failed_games
         }
         
-        if failed_games:
+        if gamelist_update_failed:
+            response_data['message'] = f'Moved {len(moved_games)} files but gamelist update failed. Files are moved but gamelist.xml was not updated.'
+        elif failed_games:
             response_data['message'] = f'Moved {len(moved_games)} games, {len(failed_games)} failed'
         else:
             response_data['message'] = f'Successfully moved {len(moved_games)} games'
