@@ -35501,6 +35501,194 @@ class GameCollectionManager {
         this.uploadMediaForGame(game, field);
     }
     
+    async openMoveImageModal() {
+        // Hide context menu
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+        
+        // Use currentCroppingImage or currentRotatingImage to get game and field
+        const currentImage = this.currentCroppingImage || this.currentRotatingImage;
+        if (!currentImage) {
+            this.showAlert('No image selected for move', 'error');
+            return;
+        }
+        
+        const { game, field } = currentImage;
+        
+        // Check if image exists
+        if (!game[field] || !game[field].trim()) {
+            this.showAlert('No image found to move', 'error');
+            return;
+        }
+        
+        // Store current image info for move operation
+        this.currentMovingImage = { game, field };
+        
+        // Get media fields from config
+        const targetFieldSelect = document.getElementById('moveImageTargetField');
+        if (!targetFieldSelect) {
+            this.showAlert('Move image modal not found', 'error');
+            return;
+        }
+        
+        // Clear existing options
+        targetFieldSelect.innerHTML = '<option value="">Select target field...</option>';
+        
+        // Clear error message
+        const errorDiv = document.getElementById('moveImageError');
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+        }
+        
+        // Clear overwrite checkbox
+        const overwriteCheckbox = document.getElementById('moveImageOverwrite');
+        if (overwriteCheckbox) {
+            overwriteCheckbox.checked = false;
+            // Add change listener to clear error when overwrite is toggled
+            overwriteCheckbox.addEventListener('change', () => {
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.textContent = '';
+                }
+            });
+        }
+        
+        // Add change listener to target field to clear error
+        targetFieldSelect.addEventListener('change', () => {
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+                errorDiv.textContent = '';
+            }
+        });
+        
+        try {
+            const mediaFields = await this.getMediaFieldsFromConfig();
+            
+            // Filter out the current field and add other fields
+            mediaFields.forEach(mediaField => {
+                if (mediaField !== field) {
+                    const option = document.createElement('option');
+                    option.value = mediaField;
+                    option.textContent = mediaField;
+                    targetFieldSelect.appendChild(option);
+                }
+            });
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('moveImageModal'));
+            modal.show();
+        } catch (error) {
+            console.error('Error loading media fields:', error);
+            this.showAlert('Failed to load media fields', 'error');
+        }
+    }
+    
+    async moveImage() {
+        const currentImage = this.currentMovingImage;
+        if (!currentImage) {
+            this.showAlert('No image selected for move', 'error');
+            return;
+        }
+        
+        const { game, field } = currentImage;
+        const targetField = document.getElementById('moveImageTargetField')?.value;
+        const overwrite = document.getElementById('moveImageOverwrite')?.checked || false;
+        
+        if (!targetField) {
+            this.showAlert('Please select a target media field', 'warning');
+            return;
+        }
+        
+        if (targetField === field) {
+            this.showAlert('Target field must be different from source field', 'warning');
+            return;
+        }
+        
+        // Disable button during operation
+        const validateBtn = document.getElementById('moveImageValidateBtn');
+        if (validateBtn) {
+            validateBtn.disabled = true;
+            validateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Moving...';
+        }
+        
+        try {
+            const response = await fetch('/api/move-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    game_name: game.name,
+                    source_field: field,
+                    target_field: targetField,
+                    overwrite: overwrite
+                })
+            });
+            
+            const data = await response.json();
+            
+            // Get error div
+            const errorDiv = document.getElementById('moveImageError');
+            
+            if (response.ok && data.success) {
+                // Hide error if visible
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.textContent = '';
+                }
+                
+                this.showAlert(`Image moved successfully from ${field} to ${targetField}`, 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('moveImageModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Reload gamelist to reflect changes
+                await this.refreshGameGridWithData();
+                
+                // Refresh media preview with updated game data
+                const updatedGame = this.games.find(g => g.name === game.name);
+                if (updatedGame) {
+                    this.showMediaPreview(updatedGame);
+                }
+            } else {
+                // Display error in modal
+                if (errorDiv) {
+                    errorDiv.textContent = data.error || 'Failed to move image';
+                    errorDiv.style.display = 'block';
+                    // Scroll to error
+                    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    // Fallback to alert if error div not found
+                    this.showAlert(data.error || 'Failed to move image', 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Error moving image:', error);
+            const errorDiv = document.getElementById('moveImageError');
+            if (errorDiv) {
+                errorDiv.textContent = 'Error moving image: ' + error.message;
+                errorDiv.style.display = 'block';
+                errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                // Fallback to alert if error div not found
+                this.showAlert('Error moving image: ' + error.message, 'error');
+            }
+        } finally {
+            // Re-enable button
+            if (validateBtn) {
+                validateBtn.disabled = false;
+                validateBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Move';
+            }
+        }
+    }
+    
     loadImageAndSetupCropper(imagePath) {
         try {
             const cropperImage = document.getElementById('imageCropperImage');

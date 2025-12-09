@@ -10429,6 +10429,165 @@ def validate_move_medias():
         print(f"Error validating move medias: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/api/move-image', methods=['POST'])
+@login_required
+def move_image():
+    """Move a single image from one media field to another"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        game_name = data.get('game_name')
+        source_field = data.get('source_field')
+        target_field = data.get('target_field')
+        overwrite = data.get('overwrite', False)
+        
+        if not all([system_name, game_name, source_field, target_field]):
+            return jsonify({'error': 'System name, game name, source field, and target field are required'}), 400
+        
+        # Load configuration to get media field directories
+        config_path = os.path.join('var', 'config', 'config.json')
+        if not os.path.exists(config_path):
+            return jsonify({'error': 'Configuration not found'}), 404
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Get source and target media field configurations
+        if 'media_fields' not in config:
+            return jsonify({'error': 'Media fields configuration not found'}), 400
+        
+        if source_field not in config['media_fields']:
+            return jsonify({'error': f'Source media field {source_field} not found in configuration'}), 400
+        
+        if target_field not in config['media_fields']:
+            return jsonify({'error': f'Target media field {target_field} not found in configuration'}), 400
+        
+        source_config = config['media_fields'][source_field]
+        target_config = config['media_fields'][target_field]
+        
+        source_dir = source_config.get('directory', f'media/{source_field}')
+        target_dir = target_config.get('directory', f'media/{target_field}')
+        
+        # Ensure directories include 'media/' prefix if not already present
+        if not source_dir.startswith('media/'):
+            source_dir = f'media/{source_dir}'
+        if not target_dir.startswith('media/'):
+            target_dir = f'media/{target_dir}'
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            return jsonify({'error': 'No games found in gamelist'}), 400
+        
+        # Find the game
+        game = None
+        for g in games:
+            if g.get('name') == game_name:
+                game = g
+                break
+        
+        if not game:
+            return jsonify({'error': f'Game "{game_name}" not found in gamelist'}), 404
+        
+        # Check if source field has an image
+        if source_field not in game or not game[source_field] or not game[source_field].strip():
+            return jsonify({'error': f'No image found in source field {source_field}'}), 400
+        
+        current_path = game[source_field]
+        
+        # Use the exact path from gamelist.xml as source
+        if current_path.startswith('./'):
+            current_path = current_path[2:]  # Remove './' prefix
+        
+        # Construct the full source path
+        full_source_path = os.path.join('roms', system_name, current_path)
+        
+        # Check if source file exists
+        if not os.path.exists(full_source_path):
+            return jsonify({'error': f'Source file not found: {full_source_path}'}), 404
+        
+        # Get filename
+        filename = os.path.basename(current_path)
+        
+        # Create target directory if it doesn't exist
+        full_target_dir = os.path.join('roms', system_name, target_dir)
+        os.makedirs(full_target_dir, exist_ok=True)
+        
+        # Construct target path
+        target_path = os.path.join(full_target_dir, filename)
+        
+        # Handle overwrite: if enabled and target field has existing media, delete it first
+        if overwrite and target_field in game and game[target_field] and game[target_field].strip():
+            existing_target_path = game[target_field]
+            # Use the exact path from gamelist.xml
+            if existing_target_path.startswith('./'):
+                existing_target_path = existing_target_path[2:]  # Remove './' prefix
+            
+            # Construct the full path to existing target media
+            full_existing_target_path = os.path.join('roms', system_name, existing_target_path)
+            
+            # Delete existing target media file if it exists
+            if os.path.exists(full_existing_target_path):
+                try:
+                    os.remove(full_existing_target_path)
+                    print(f"🗑️ Deleted existing target media: {full_existing_target_path}")
+                except Exception as e:
+                    print(f"⚠️ Warning: Could not delete existing target media: {e}")
+        
+        # Check if target file already exists (only if overwrite is disabled)
+        if not overwrite and os.path.exists(target_path):
+            return jsonify({'error': f'Target file already exists: {target_dir}/{filename}. Enable "Overwrite existing media" to replace it.'}), 400
+        
+        # If overwrite is enabled and target file exists, delete it first
+        if overwrite and os.path.exists(target_path):
+            try:
+                os.remove(target_path)
+                print(f"🗑️ Deleted existing target file: {target_path}")
+            except Exception as e:
+                return jsonify({'error': f'Failed to delete existing target file: {str(e)}'}), 500
+        
+        # Move the file
+        try:
+            shutil.move(full_source_path, target_path)
+        except Exception as e:
+            return jsonify({'error': f'Failed to move file: {str(e)}'}), 500
+        
+        # Update gamelist with new path
+        new_relative_path = os.path.join(target_dir, filename)
+        game[target_field] = new_relative_path
+        
+        # Clear source field
+        game[source_field] = ''
+        
+        # Save updated gamelist
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Notify clients about the gamelist update
+        try:
+            notify_gamelist_updated(system_name, len(games))
+        except Exception as e:
+            print(f"Warning: Could not notify clients of gamelist update: {e}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Image moved successfully from {source_field} to {target_field}',
+            'old_path': current_path,
+            'new_path': new_relative_path
+        })
+        
+    except Exception as e:
+        print(f"Error moving image: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/api/resize-medias', methods=['POST'])
 @login_required
 def resize_medias_endpoint():
