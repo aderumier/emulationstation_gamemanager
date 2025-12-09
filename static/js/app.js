@@ -11403,15 +11403,15 @@ class GameCollectionManager {
                     const hasSavedCorners = corner1X && corner1X.value && corner1X.value.trim() !== '';
                     
                     // Check if we're loading from a template (isLoadingTemplate flag) or from field/image change
-                    // If not loading template, reset selections to default positions to avoid out-of-bounds issues
                     const isLoadingFromTemplate = this.isLoadingTemplate;
                     
-                    if (hasSavedCorners && isLoadingFromTemplate) {
-                        // Load from saved corners only when loading template
+                    if (hasSavedCorners) {
+                        // If we have saved corners, clamp them to the new image dimensions instead of resetting
+                        // This preserves user's crop selections when changing images
                         this.updateTemplateCropperFromCorners();
                         this.updateTemplateCropperFromLogoCorners();
                     } else {
-                        // Reset to default selections when image changes (not from template)
+                        // Only reset to default selections if no saved corners exist
                         // This ensures selections are within bounds of the new image
                         if (currentScreenshotSelection && typeof currentScreenshotSelection.$change === 'function') {
                             currentScreenshotSelection.$change(170, 150, 160, 160);
@@ -26244,14 +26244,8 @@ class GameCollectionManager {
                     // Hide delete button
                     templateBackgroundImageDelete.style.display = 'none';
                     
-                    // Clear saved corner values to prevent out-of-bounds positions when loading new image
-                    ['templateCorner1X', 'templateCorner1Y', 'templateCorner2X', 'templateCorner2Y',
-                     'templateCorner3X', 'templateCorner3Y', 'templateCorner4X', 'templateCorner4Y',
-                     'templateLogoCorner1X', 'templateLogoCorner1Y', 'templateLogoCorner2X', 'templateLogoCorner2Y',
-                     'templateLogoCorner3X', 'templateLogoCorner3Y', 'templateLogoCorner4X', 'templateLogoCorner4Y'].forEach(id => {
-                        const element = document.getElementById(id);
-                        if (element) element.value = '';
-                    });
+                    // Don't clear corner values - they will be clamped to the new image dimensions when it loads
+                    // This preserves user's crop selections when switching images
                     
                     // Try to load from Background Image Field if available
                     await this.updateTemplatePreviewFromField();
