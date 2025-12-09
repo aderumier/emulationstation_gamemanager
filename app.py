@@ -25618,6 +25618,54 @@ def load_3dbox_template():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to load template: {str(e)}'}), 500
 
+@app.route('/api/delete-3dbox-template', methods=['POST'])
+@login_required
+def delete_3dbox_template():
+    """Delete a 3D box template by name"""
+    try:
+        data = request.get_json()
+        template_name = data.get('template_name')
+        if not template_name:
+            return jsonify({'success': False, 'error': 'Template name is required'}), 400
+        
+        templates_dir = 'var/3dbox/templates'
+        safe_name = re.sub(r'[^\w\s-]', '', template_name).strip().replace(' ', '_')
+        template_json_path = os.path.join(templates_dir, f'{safe_name}.json')
+        
+        if not os.path.exists(template_json_path):
+            return jsonify({'success': False, 'error': 'Template not found'}), 404
+        
+        # Load template data to check for associated images
+        try:
+            with open(template_json_path, 'r') as f:
+                template_data = json.load(f)
+                background_image = template_data.get('background_image', '')
+                spine_image = template_data.get('spine_image', '')
+                
+                # Delete associated background image if it exists and is a file path
+                if background_image and os.path.exists(os.path.join(templates_dir, background_image)):
+                    try:
+                        os.remove(os.path.join(templates_dir, background_image))
+                    except Exception as e:
+                        logging.warning(f'Failed to delete background image {background_image}: {e}')
+                
+                # Delete associated spine image if it exists and is a file path
+                if spine_image and os.path.exists(os.path.join(templates_dir, spine_image)):
+                    try:
+                        os.remove(os.path.join(templates_dir, spine_image))
+                    except Exception as e:
+                        logging.warning(f'Failed to delete spine image {spine_image}: {e}')
+        except Exception as e:
+            logging.warning(f'Failed to read template data before deletion: {e}')
+        
+        # Delete the template JSON file
+        os.remove(template_json_path)
+        
+        return jsonify({'success': True, 'message': 'Template deleted successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to delete template: {str(e)}'}), 500
+
 @app.route('/api/3dbox-template-image', methods=['GET'])
 @login_required
 def get_3dbox_template_image():

@@ -13822,6 +13822,16 @@ class GameCollectionManager {
         const canvas = document.getElementById('template3DCanvas');
         const placeholder = document.getElementById('template3DPlaceholder');
         
+        // Reset template select and hide delete button
+        const templateSelect = document.getElementById('template3DSelect');
+        if (templateSelect) {
+            templateSelect.value = '';
+        }
+        const deleteTemplateBtn = document.getElementById('delete3DTemplateBtn');
+        if (deleteTemplateBtn) {
+            deleteTemplateBtn.style.display = 'none';
+        }
+        
         if (canvas) {
             canvas.style.display = 'none';
         }
@@ -14437,12 +14447,15 @@ class GameCollectionManager {
                this.box3DSpineCorners.bottomRight.x === 0 && this.box3DSpineCorners.bottomRight.y === 0;
     }
     
-    load3DTemplateList() {
+    load3DTemplateList(callback) {
         fetch('/api/list-3dbox-templates')
             .then(response => response.json())
             .then(data => {
                 const select = document.getElementById('template3DSelect');
-                if (!select) return;
+                if (!select) {
+                    if (callback) callback();
+                    return;
+                }
                 
                 select.innerHTML = '<option value="">Select template...</option>';
                 
@@ -14454,14 +14467,29 @@ class GameCollectionManager {
                         select.appendChild(option);
                     });
                 }
+                
+                if (callback) callback();
             })
             .catch(error => {
                 console.error('Error loading 3D templates:', error);
+                if (callback) callback();
             });
     }
     
     load3DTemplate(templateName) {
         if (!templateName) return;
+        
+        // Update template select dropdown to show the selected template
+        const templateSelect = document.getElementById('template3DSelect');
+        if (templateSelect) {
+            templateSelect.value = templateName;
+        }
+        
+        // Show delete button when a template is selected
+        const deleteBtn = document.getElementById('delete3DTemplateBtn');
+        if (deleteBtn) {
+            deleteBtn.style.display = templateName ? 'inline-block' : 'none';
+        }
         
         fetch(`/api/load-3dbox-template?name=${encodeURIComponent(templateName)}`)
             .then(response => response.json())
@@ -14492,53 +14520,43 @@ class GameCollectionManager {
                     // Load background image
                     if (data.background_image_path) {
                         let imageUrl = data.background_image_path;
-                        // Extract filename from original path (before converting to API URL)
-                        let originalFilename = data.background_image_path;
-                        if (originalFilename.includes('/')) {
-                            originalFilename = originalFilename.split('/').pop();
-                        }
-                        // Remove query parameters if any
-                        if (originalFilename.includes('?')) {
-                            originalFilename = originalFilename.split('?')[0];
-                        }
+                        let storedFilename = null;
                         
-                        if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/api/')) {
-                            imageUrl = `/api/3dbox-template-image?path=${encodeURIComponent(originalFilename)}&type=background`;
+                        // Extract filename from API URL if it's an API URL
+                        if (imageUrl.includes('/api/3dbox-template-image') && imageUrl.includes('?path=')) {
+                            try {
+                                const urlObj = new URL(imageUrl, window.location.origin);
+                                const pathParam = urlObj.searchParams.get('path');
+                                if (pathParam) {
+                                    storedFilename = decodeURIComponent(pathParam);
+                                    // Remove any path separators - get just the filename
+                                    if (storedFilename.includes('/')) {
+                                        storedFilename = storedFilename.split('/').pop();
+                                    }
+                                }
+                            } catch (e) {
+                                // Fallback: regex extraction
+                                const match = imageUrl.match(/[?&]path=([^&]+)/);
+                                if (match) {
+                                    storedFilename = decodeURIComponent(match[1]);
+                                    if (storedFilename.includes('/')) {
+                                        storedFilename = storedFilename.split('/').pop();
+                                    }
+                                }
+                            }
+                        } else if (!imageUrl.startsWith('http') && !imageUrl.startsWith('/api/')) {
+                            // It's a direct filename/path
+                            storedFilename = imageUrl;
+                            if (storedFilename.includes('/')) {
+                                storedFilename = storedFilename.split('/').pop();
+                            }
+                            imageUrl = `/api/3dbox-template-image?path=${encodeURIComponent(storedFilename)}&type=background`;
                         }
                         
                         // Store loaded path for saving
                         const fileInput = document.getElementById('template3DBackgroundImage');
                         const displayInput = document.getElementById('template3DBackgroundImageDisplay');
-                        if (fileInput) {
-                            // Ensure we have a valid filename (extract from original path if needed)
-                            let storedFilename = originalFilename;
-                            // If originalFilename is still an API URL or path, extract just the filename
-                            if (storedFilename.includes('/api/') || storedFilename.includes('?path=')) {
-                                // Extract from query parameter
-                                if (storedFilename.includes('?path=')) {
-                                    try {
-                                        const urlParams = new URLSearchParams(storedFilename.split('?')[1]);
-                                        storedFilename = urlParams.get('path') || storedFilename;
-                                        if (storedFilename) {
-                                            storedFilename = decodeURIComponent(storedFilename);
-                                        }
-                                    } catch (e) {
-                                        const match = storedFilename.match(/[?&]path=([^&]+)/);
-                                        if (match) {
-                                            storedFilename = decodeURIComponent(match[1]);
-                                        }
-                                    }
-                                }
-                                // Remove path separators
-                                if (storedFilename.includes('/')) {
-                                    storedFilename = storedFilename.split('/').pop();
-                                }
-                                // Remove query parameters
-                                if (storedFilename.includes('?')) {
-                                    storedFilename = storedFilename.split('?')[0];
-                                }
-                            }
-                            
+                        if (fileInput && storedFilename) {
                             // Display filename in the text input
                             if (displayInput) {
                                 displayInput.value = storedFilename;
@@ -14546,7 +14564,7 @@ class GameCollectionManager {
                             }
                             // Store the filename (ensure it's just the filename, not a path or URL)
                             fileInput.setAttribute('data-loaded-filename', storedFilename);
-                            // Store the original path for reference (but we'll use filename for generation)
+                            // Store the original path for reference
                             fileInput.setAttribute('data-loaded-path', data.background_image_path);
                         }
                         
@@ -14561,25 +14579,52 @@ class GameCollectionManager {
                         const spineFileInput = document.getElementById('template3DSpineImage');
                         const spineDisplayInput = document.getElementById('template3DSpineImageDisplay');
                         if (spineFileInput) {
-                            let spineFilename = data.spine_image_path;
-                            if (spineFilename.includes('?path=')) {
-                                const urlParams = new URLSearchParams(spineFilename.split('?')[1]);
-                                spineFilename = urlParams.get('path') || spineFilename;
+                            let spineFilename = null;
+                            const spineImagePath = data.spine_image_path;
+                            
+                            // Extract filename from API URL if it's an API URL
+                            if (spineImagePath.includes('/api/3dbox-template-image') && spineImagePath.includes('?path=')) {
+                                try {
+                                    const urlObj = new URL(spineImagePath, window.location.origin);
+                                    const pathParam = urlObj.searchParams.get('path');
+                                    if (pathParam) {
+                                        spineFilename = decodeURIComponent(pathParam);
+                                        // Remove any path separators - get just the filename
+                                        if (spineFilename.includes('/')) {
+                                            spineFilename = spineFilename.split('/').pop();
+                                        }
+                                    }
+                                } catch (e) {
+                                    // Fallback: regex extraction
+                                    const match = spineImagePath.match(/[?&]path=([^&]+)/);
+                                    if (match) {
+                                        spineFilename = decodeURIComponent(match[1]);
+                                        if (spineFilename.includes('/')) {
+                                            spineFilename = spineFilename.split('/').pop();
+                                        }
+                                    }
+                                }
+                            } else if (!spineImagePath.startsWith('http') && !spineImagePath.startsWith('/api/')) {
+                                // It's a direct filename/path
+                                spineFilename = spineImagePath;
+                                if (spineFilename.includes('/')) {
+                                    spineFilename = spineFilename.split('/').pop();
+                                }
                             }
-                            if (spineFilename.includes('/')) {
-                                spineFilename = spineFilename.split('/').pop();
-                            }
-                            // Display filename in the text input
-                            if (spineDisplayInput) {
-                                spineDisplayInput.value = spineFilename;
-                                spineDisplayInput.style.color = '#28a745';
-                            }
-                            spineFileInput.setAttribute('data-loaded-filename', spineFilename);
-                            spineFileInput.setAttribute('data-loaded-path', data.spine_image_path);
-                            // Show delete button
-                            const spineDeleteBtn = document.getElementById('template3DSpineImageDelete');
-                            if (spineDeleteBtn) {
-                                spineDeleteBtn.style.display = 'block';
+                            
+                            if (spineFilename) {
+                                // Display filename in the text input
+                                if (spineDisplayInput) {
+                                    spineDisplayInput.value = spineFilename;
+                                    spineDisplayInput.style.color = '#28a745';
+                                }
+                                spineFileInput.setAttribute('data-loaded-filename', spineFilename);
+                                spineFileInput.setAttribute('data-loaded-path', data.spine_image_path);
+                                // Show delete button
+                                const spineDeleteBtn = document.getElementById('template3DSpineImageDelete');
+                                if (spineDeleteBtn) {
+                                    spineDeleteBtn.style.display = 'block';
+                                }
                             }
                         }
                     }
@@ -14657,6 +14702,52 @@ class GameCollectionManager {
             });
     }
     
+    async delete3DTemplate() {
+        const select = document.getElementById('template3DSelect');
+        if (!select || !select.value) {
+            return;
+        }
+        
+        const templateName = select.value;
+        
+        // Confirm deletion
+        if (!confirm(`Are you sure you want to delete the template "${templateName}"?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/delete-3dbox-template', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ template_name: templateName })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Template deleted successfully', 'success');
+                
+                // Clear the form if this template was currently loaded
+                this.reset3DBoxCanvas();
+                
+                // Reload template list and reset select
+                this.load3DTemplateList(() => {
+                    const deleteBtn = document.getElementById('delete3DTemplateBtn');
+                    if (deleteBtn) {
+                        deleteBtn.style.display = 'none';
+                    }
+                });
+            } else {
+                this.showAlert('Error deleting template: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (error) {
+            console.error('Error deleting template:', error);
+            this.showAlert('Error deleting template: ' + error.message, 'danger');
+        }
+    }
+    
     save3DTemplate(isNew = false) {
         let templateName;
         
@@ -14684,7 +14775,52 @@ class GameCollectionManager {
         const hasLoadedPath = fileInput?.getAttribute('data-loaded-path');
         const hasLoadedFilename = fileInput?.getAttribute('data-loaded-filename');
         
-        if (!hasBackgroundFile && !hasLoadedPath && !hasLoadedFilename) {
+        // Validate loaded filename - reject placeholder values and API URLs
+        const isValidLoadedFilename = hasLoadedFilename && 
+            hasLoadedFilename.trim() !== '' && 
+            hasLoadedFilename !== '3dbox-template-image' &&
+            !hasLoadedFilename.includes('/api/');
+        
+        // Validate loaded path - extract filename from API URL if needed
+        let isValidLoadedPath = false;
+        let extractedPathFromUrl = null;
+        if (hasLoadedPath && hasLoadedPath.trim() !== '') {
+            if (hasLoadedPath.includes('/api/3dbox-template-image') && hasLoadedPath.includes('?path=')) {
+                // Extract filename from API URL
+                try {
+                    const urlObj = new URL(hasLoadedPath, window.location.origin);
+                    const pathParam = urlObj.searchParams.get('path');
+                    if (pathParam) {
+                        extractedPathFromUrl = decodeURIComponent(pathParam);
+                        // Remove any path separators - get just the filename
+                        if (extractedPathFromUrl.includes('/')) {
+                            extractedPathFromUrl = extractedPathFromUrl.split('/').pop();
+                        }
+                        if (extractedPathFromUrl && extractedPathFromUrl !== '3dbox-template-image') {
+                            isValidLoadedPath = true;
+                        }
+                    }
+                } catch (e) {
+                    // Fallback: regex extraction
+                    const match = hasLoadedPath.match(/[?&]path=([^&]+)/);
+                    if (match) {
+                        extractedPathFromUrl = decodeURIComponent(match[1]);
+                        if (extractedPathFromUrl.includes('/')) {
+                            extractedPathFromUrl = extractedPathFromUrl.split('/').pop();
+                        }
+                        if (extractedPathFromUrl && extractedPathFromUrl !== '3dbox-template-image') {
+                            isValidLoadedPath = true;
+                        }
+                    }
+                }
+            } else if (!hasLoadedPath.includes('/api/')) {
+                // It's a direct file path (not an API URL)
+                isValidLoadedPath = true;
+                extractedPathFromUrl = hasLoadedPath;
+            }
+        }
+        
+        if (!hasBackgroundFile && !isValidLoadedFilename && !isValidLoadedPath) {
             this.showAlert('Please select a 3D box template image', 'warning');
             return;
         }
@@ -14699,6 +14835,51 @@ class GameCollectionManager {
         const hasSpineLoadedPath = spineFileInput?.getAttribute('data-loaded-path');
         const hasSpineLoadedFilename = spineFileInput?.getAttribute('data-loaded-filename');
         
+        // Validate spine loaded filename
+        const isValidSpineLoadedFilename = hasSpineLoadedFilename && 
+            hasSpineLoadedFilename.trim() !== '' && 
+            hasSpineLoadedFilename !== '3dbox-template-image' &&
+            !hasSpineLoadedFilename.includes('/api/');
+        
+        // Validate spine loaded path - extract filename from API URL if needed
+        let isValidSpineLoadedPath = false;
+        let extractedSpinePathFromUrl = null;
+        if (hasSpineLoadedPath && hasSpineLoadedPath.trim() !== '') {
+            if (hasSpineLoadedPath.includes('/api/3dbox-template-image') && hasSpineLoadedPath.includes('?path=')) {
+                // Extract filename from API URL
+                try {
+                    const urlObj = new URL(hasSpineLoadedPath, window.location.origin);
+                    const pathParam = urlObj.searchParams.get('path');
+                    if (pathParam) {
+                        extractedSpinePathFromUrl = decodeURIComponent(pathParam);
+                        // Remove any path separators - get just the filename
+                        if (extractedSpinePathFromUrl.includes('/')) {
+                            extractedSpinePathFromUrl = extractedSpinePathFromUrl.split('/').pop();
+                        }
+                        if (extractedSpinePathFromUrl && extractedSpinePathFromUrl !== '3dbox-template-image') {
+                            isValidSpineLoadedPath = true;
+                        }
+                    }
+                } catch (e) {
+                    // Fallback: regex extraction
+                    const match = hasSpineLoadedPath.match(/[?&]path=([^&]+)/);
+                    if (match) {
+                        extractedSpinePathFromUrl = decodeURIComponent(match[1]);
+                        if (extractedSpinePathFromUrl.includes('/')) {
+                            extractedSpinePathFromUrl = extractedSpinePathFromUrl.split('/').pop();
+                        }
+                        if (extractedSpinePathFromUrl && extractedSpinePathFromUrl !== '3dbox-template-image') {
+                            isValidSpineLoadedPath = true;
+                        }
+                    }
+                }
+            } else if (!hasSpineLoadedPath.includes('/api/')) {
+                // It's a direct file path (not an API URL)
+                isValidSpineLoadedPath = true;
+                extractedSpinePathFromUrl = hasSpineLoadedPath;
+            }
+        }
+        
         const formData = new FormData();
         formData.append('template_name', templateName);
         formData.append('corners', JSON.stringify(this.box3DCorners));
@@ -14706,18 +14887,20 @@ class GameCollectionManager {
         
         if (hasBackgroundFile) {
             formData.append('background_image', fileInput.files[0]);
-        } else if (hasLoadedFilename) {
+        } else if (isValidLoadedFilename) {
             formData.append('background_image_path', hasLoadedFilename);
-        } else if (hasLoadedPath) {
-            formData.append('background_image_path', hasLoadedPath);
+        } else if (isValidLoadedPath) {
+            // Use extracted filename if we extracted it from API URL, otherwise use the original path
+            formData.append('background_image_path', extractedPathFromUrl || hasLoadedPath);
         }
         
         if (hasSpineFile) {
             formData.append('spine_image', spineFileInput.files[0]);
-        } else if (hasSpineLoadedFilename) {
+        } else if (isValidSpineLoadedFilename) {
             formData.append('spine_image_path', hasSpineLoadedFilename);
-        } else if (hasSpineLoadedPath) {
-            formData.append('spine_image_path', hasSpineLoadedPath);
+        } else if (isValidSpineLoadedPath) {
+            // Use extracted filename if we extracted it from API URL, otherwise use the original path
+            formData.append('spine_image_path', extractedSpinePathFromUrl || hasSpineLoadedPath);
         }
         
         // Add spine source field (always send, even if empty, to properly restore undefined state)
@@ -14755,15 +14938,18 @@ class GameCollectionManager {
             .then(data => {
                 if (data.success) {
                     this.showAlert('Template saved successfully', 'success');
-                    this.load3DTemplateList();
-                    
-                    // Select the saved template
-                    setTimeout(() => {
+                    this.load3DTemplateList(() => {
+                        // Select the saved template and show delete button
                         const select = document.getElementById('template3DSelect');
                         if (select) {
                             select.value = templateName;
+                            // Show delete button when template is selected
+                            const deleteBtn = document.getElementById('delete3DTemplateBtn');
+                            if (deleteBtn) {
+                                deleteBtn.style.display = templateName ? 'inline-block' : 'none';
+                            }
                         }
-                    }, 100);
+                    });
                 } else {
                     this.showAlert('Error saving template: ' + (data.error || 'Unknown error'), 'danger');
                 }
@@ -26441,7 +26627,17 @@ class GameCollectionManager {
                 if (e.target.value) {
                     this.load3DTemplate(e.target.value);
                 }
+                // Show/hide delete button based on selection
+                const deleteBtn = document.getElementById('delete3DTemplateBtn');
+                if (deleteBtn) {
+                    deleteBtn.style.display = e.target.value ? 'inline-block' : 'none';
+                }
             });
+        }
+        
+        const delete3DTemplateBtn = document.getElementById('delete3DTemplateBtn');
+        if (delete3DTemplateBtn) {
+            delete3DTemplateBtn.addEventListener('click', () => this.delete3DTemplate());
         }
         
         const generate3DBoxBtn = document.getElementById('generate3DBoxBtn');
