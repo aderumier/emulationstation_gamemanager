@@ -3,14 +3,14 @@
   "background_image": "dos_background.jpg",
   "background_image_field": null,
   "corners_screenshot": {
-    "x1": 132,
-    "y1": 335,
-    "x2": 786,
-    "y2": 335,
-    "x3": 786,
-    "y3": 1001,
-    "x4": 132,
-    "y4": 1001
+    "x1": 32,
+    "y1": 332,
+    "x2": 686,
+    "y2": 332,
+    "x3": 686,
+    "y3": 998,
+    "x4": 32,
+    "y4": 998
   },
   "corners_logo": {
     "x1": 102,
@@ -24,7 +24,7 @@
   },
   "logo_source": "text",
   "text_logo_settings": {
-    "font": "Jackdriftdemo-YqLV4",
+    "font": "NeotriadFree-1jzAg",
     "color": "#ffffff",
     "fontSize": 72,
     "alignment": "top-left",

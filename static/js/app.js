@@ -11748,8 +11748,15 @@ class GameCollectionManager {
     updateTemplateCornersFromCropper() {
         const screenshotSelection = document.getElementById('templateScreenshotSelection');
         const cropperImage = document.getElementById('templateCropperImage');
+        const cropperCanvas = document.getElementById('templateCropperCanvas');
         
         if (!screenshotSelection || !cropperImage) return;
+        
+        // Check if cropper canvas is visible (not hidden by tab switching)
+        if (cropperCanvas && (cropperCanvas.offsetParent === null || cropperCanvas.style.display === 'none')) {
+            // Cropper is hidden, skip update - use existing input field values
+            return;
+        }
         
         // Get selection bounds (v2 API: x, y, width, height properties)
         const { x, y, width, height } = screenshotSelection;
@@ -11844,8 +11851,15 @@ class GameCollectionManager {
     updateTemplateLogoCornersFromCropper() {
         const logoSelection = document.getElementById('templateLogoSelection');
         const cropperImage = document.getElementById('templateCropperImage');
+        const cropperCanvas = document.getElementById('templateCropperCanvas');
         
         if (!logoSelection || !cropperImage) return;
+        
+        // Check if cropper canvas is visible (not hidden by tab switching)
+        if (cropperCanvas && (cropperCanvas.offsetParent === null || cropperCanvas.style.display === 'none')) {
+            // Cropper is hidden, skip update - use existing input field values
+            return;
+        }
         
         // Get selection bounds (v2 API: x, y, width, height properties)
         const { x, y, width, height } = logoSelection;
