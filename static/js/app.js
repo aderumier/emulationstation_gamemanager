@@ -10712,6 +10712,16 @@ class GameCollectionManager {
         const screenshotSelection = document.getElementById('templateScreenshotSelection');
         const logoSelection = document.getElementById('templateLogoSelection');
         
+        // Reset template select and hide delete button
+        const templateSelect = document.getElementById('templateSelect');
+        if (templateSelect) {
+            templateSelect.value = '';
+        }
+        const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
+        if (deleteTemplateBtn) {
+            deleteTemplateBtn.style.display = 'none';
+        }
+        
         // Reset zone editing state
         this.templateEditingZone = 'screenshot'; // 'screenshot' or 'logo'
         
@@ -12546,6 +12556,11 @@ class GameCollectionManager {
                     const templateSelect = document.getElementById('templateSelect');
                     if (templateSelect) {
                         templateSelect.value = trimmedName;
+                        // Show delete button when template is selected
+                        const deleteBtn = document.getElementById('deleteTemplateBtn');
+                        if (deleteBtn) {
+                            deleteBtn.style.display = trimmedName ? 'inline-block' : 'none';
+                        }
                     }
                 });
             } else {
@@ -12597,9 +12612,75 @@ class GameCollectionManager {
         }
     }
     
+    async deleteTemplate() {
+        const select = document.getElementById('templateSelect');
+        if (!select || !select.value) {
+            return;
+        }
+        
+        const templateName = select.value;
+        
+        // Confirm deletion
+        if (!confirm(`Are you sure you want to delete the template "${templateName}"?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/delete-box-template', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ template_name: templateName })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Template deleted successfully', 'success');
+                
+                // Clear the form if this template was currently loaded
+                if (this.currentTemplateData && this.currentTemplateData.name === templateName) {
+                    this.resetTemplateGeneratorForm();
+                }
+                
+                // Clear localStorage if this was the last loaded template
+                const lastTemplate = localStorage.getItem('boxTemplateGenerator_lastTemplate');
+                if (lastTemplate === templateName) {
+                    localStorage.removeItem('boxTemplateGenerator_lastTemplate');
+                }
+                
+                // Reload template list and reset select
+                this.loadTemplateList(() => {
+                    const deleteBtn = document.getElementById('deleteTemplateBtn');
+                    if (deleteBtn) {
+                        deleteBtn.style.display = 'none';
+                    }
+                });
+            } else {
+                this.showAlert('Error deleting template: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (error) {
+            console.error('Error deleting template:', error);
+            this.showAlert('Error deleting template: ' + error.message, 'danger');
+        }
+    }
+    
     async loadTemplate(templateName) {
         // Set flag to prevent cropper from overwriting loaded values
         this.isLoadingTemplate = true;
+        
+        // Update template select dropdown to show the selected template
+        const templateSelect = document.getElementById('templateSelect');
+        if (templateSelect) {
+            templateSelect.value = templateName;
+        }
+        
+        // Show delete button when a template is selected
+        const deleteBtn = document.getElementById('deleteTemplateBtn');
+        if (deleteBtn) {
+            deleteBtn.style.display = templateName ? 'inline-block' : 'none';
+        }
         
         fetch(`/api/load-box-template?name=${encodeURIComponent(templateName)}`)
         .then(response => response.json())
@@ -12607,6 +12688,7 @@ class GameCollectionManager {
             if (data.success) {
                 // Store template data for later use
                 this.currentTemplateData = data;
+                this.currentTemplateData.name = templateName; // Store template name for deletion check
                 
                 // Load corner positions FIRST, before initializing cropper
                 // Support both old format (corners) and new format (corners_screenshot)
@@ -12816,6 +12898,8 @@ class GameCollectionManager {
                 setTimeout(() => {
                     this.isLoadingTemplate = false;
                     this.showAlert('Template loaded successfully', 'success');
+                    // Save template name to localStorage for next modal opening
+                    localStorage.setItem('boxTemplateGenerator_lastTemplate', templateName);
                 }, 800);
             } else {
                 this.isLoadingTemplate = false;
@@ -26306,7 +26390,19 @@ class GameCollectionManager {
         
         const templateSelect = document.getElementById('templateSelect');
         if (templateSelect) {
-            templateSelect.addEventListener('change', () => this.loadTemplateFromSelect());
+            templateSelect.addEventListener('change', () => {
+                this.loadTemplateFromSelect();
+                // Show/hide delete button based on selection
+                const deleteBtn = document.getElementById('deleteTemplateBtn');
+                if (deleteBtn) {
+                    deleteBtn.style.display = templateSelect.value ? 'inline-block' : 'none';
+                }
+            });
+        }
+        
+        const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
+        if (deleteTemplateBtn) {
+            deleteTemplateBtn.addEventListener('click', () => this.deleteTemplate());
         }
         
         const generateTemplateBoxBtn = document.getElementById('generateTemplateBoxBtn');
@@ -26718,6 +26814,27 @@ class GameCollectionManager {
                 const cropperImage = document.getElementById('templateCropperImage');
                 if (previewPlaceholder && cropperImage && !cropperImage.src) {
                     previewPlaceholder.style.display = 'block';
+                }
+                
+                // Load last used template from localStorage
+                const lastTemplate = localStorage.getItem('boxTemplateGenerator_lastTemplate');
+                if (lastTemplate) {
+                    // Wait a bit for template list to be loaded, then load the template
+                    setTimeout(() => {
+                        // Check if template still exists in the list
+                        const templateSelect = document.getElementById('templateSelect');
+                        if (templateSelect) {
+                            const option = Array.from(templateSelect.options).find(opt => opt.value === lastTemplate);
+                            if (option) {
+                                // Template exists, set select value and load it
+                                templateSelect.value = lastTemplate;
+                                this.loadTemplate(lastTemplate);
+                            } else {
+                                // Template no longer exists, clear from localStorage
+                                localStorage.removeItem('boxTemplateGenerator_lastTemplate');
+                            }
+                        }
+                    }, 500);
                 }
                 
                 // Refresh cropper if image is already loaded
