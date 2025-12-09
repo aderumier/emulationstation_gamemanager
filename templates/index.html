@@ -1311,6 +1311,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                                 <span class="input-group-text right-col-label">Release Date</span>
                                                 <input type="date" class="form-control" id="editReleasedate">
                                             </div>
+                                            <small class="text-muted" id="editReleasedateFormatted" style="display: none;"></small>
                                         </div>
                                         <div class="mb-3">
                                             <div class="input-group">
@@ -3334,6 +3335,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                                
+                                <hr class="my-4">
+                                
+                                <h6><i class="bi bi-calendar me-2"></i>Date Format</h6>
+                                <div class="mb-3">
+                                    <label for="dateFormatSelect" class="form-label">Release Date Format</label>
+                                    <select class="form-select" id="dateFormatSelect">
+                                        <option value="dd-mm-yyyy">DD-MM-YYYY (e.g., 15-03-2024)</option>
+                                        <option value="mm-dd-yyyy">MM-DD-YYYY (e.g., 03-15-2024)</option>
+                                        <option value="yyyy-mm-dd">YYYY-MM-DD (e.g., 2024-03-15)</option>
+                                        <option value="dd/mm/yyyy">DD/MM/YYYY (e.g., 15/03/2024)</option>
+                                        <option value="mm/dd/yyyy">MM/DD/YYYY (e.g., 03/15/2024)</option>
+                                        <option value="yyyy/mm/dd">YYYY/MM/DD (e.g., 2024/03/15)</option>
+                                    </select>
+                                    <div class="form-text">Format for displaying release dates in modals</div>
                                 </div>
                             </div>
                         </div>

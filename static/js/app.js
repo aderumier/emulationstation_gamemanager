@@ -4765,6 +4765,8 @@ class GameCollectionManager {
             const dateInputElement = getModalElement('editReleasedate');
             if (dateInputElement) {
                 dateInputElement.value = releaseDateValue;
+                // Update formatted display
+                this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
             }
         }, 100);
         
@@ -4875,11 +4877,15 @@ class GameCollectionManager {
         // Initialize Find Best Match button
         this.initializeFindBestMatchButton();
         
-        // Add release date validation
+        // Add release date validation and formatted display update
         const releasedateField = document.getElementById('editReleasedate');
         if (releasedateField) {
             releasedateField.addEventListener('blur', () => {
                 this.validateReleaseDate(releasedateField);
+                this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
+            });
+            releasedateField.addEventListener('change', () => {
+                this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
             });
         }
     }
@@ -12062,6 +12068,55 @@ class GameCollectionManager {
         if (!naturalWidth || !naturalHeight) {
             console.warn('Image dimensions not available');
             return;
+        }
+        
+        // Clamp corner values to image dimensions
+        corners.x1 = Math.max(0, Math.min(corners.x1, naturalWidth));
+        corners.y1 = Math.max(0, Math.min(corners.y1, naturalHeight));
+        corners.x2 = Math.max(0, Math.min(corners.x2, naturalWidth));
+        corners.y2 = Math.max(0, Math.min(corners.y2, naturalHeight));
+        corners.x3 = Math.max(0, Math.min(corners.x3, naturalWidth));
+        corners.y3 = Math.max(0, Math.min(corners.y3, naturalHeight));
+        corners.x4 = Math.max(0, Math.min(corners.x4, naturalWidth));
+        corners.y4 = Math.max(0, Math.min(corners.y4, naturalHeight));
+        
+        // Update input fields with clamped values if they were out of bounds
+        if (selection.id === 'templateScreenshotSelection') {
+            const corner1X = document.getElementById('templateCorner1X');
+            const corner1Y = document.getElementById('templateCorner1Y');
+            const corner2X = document.getElementById('templateCorner2X');
+            const corner2Y = document.getElementById('templateCorner2Y');
+            const corner3X = document.getElementById('templateCorner3X');
+            const corner3Y = document.getElementById('templateCorner3Y');
+            const corner4X = document.getElementById('templateCorner4X');
+            const corner4Y = document.getElementById('templateCorner4Y');
+            
+            if (corner1X && parseInt(corner1X.value) !== corners.x1) corner1X.value = corners.x1;
+            if (corner1Y && parseInt(corner1Y.value) !== corners.y1) corner1Y.value = corners.y1;
+            if (corner2X && parseInt(corner2X.value) !== corners.x2) corner2X.value = corners.x2;
+            if (corner2Y && parseInt(corner2Y.value) !== corners.y2) corner2Y.value = corners.y2;
+            if (corner3X && parseInt(corner3X.value) !== corners.x3) corner3X.value = corners.x3;
+            if (corner3Y && parseInt(corner3Y.value) !== corners.y3) corner3Y.value = corners.y3;
+            if (corner4X && parseInt(corner4X.value) !== corners.x4) corner4X.value = corners.x4;
+            if (corner4Y && parseInt(corner4Y.value) !== corners.y4) corner4Y.value = corners.y4;
+        } else if (selection.id === 'templateLogoSelection') {
+            const logoCorner1X = document.getElementById('templateLogoCorner1X');
+            const logoCorner1Y = document.getElementById('templateLogoCorner1Y');
+            const logoCorner2X = document.getElementById('templateLogoCorner2X');
+            const logoCorner2Y = document.getElementById('templateLogoCorner2Y');
+            const logoCorner3X = document.getElementById('templateLogoCorner3X');
+            const logoCorner3Y = document.getElementById('templateLogoCorner3Y');
+            const logoCorner4X = document.getElementById('templateLogoCorner4X');
+            const logoCorner4Y = document.getElementById('templateLogoCorner4Y');
+            
+            if (logoCorner1X && parseInt(logoCorner1X.value) !== corners.x1) logoCorner1X.value = corners.x1;
+            if (logoCorner1Y && parseInt(logoCorner1Y.value) !== corners.y1) logoCorner1Y.value = corners.y1;
+            if (logoCorner2X && parseInt(logoCorner2X.value) !== corners.x2) logoCorner2X.value = corners.x2;
+            if (logoCorner2Y && parseInt(logoCorner2Y.value) !== corners.y2) logoCorner2Y.value = corners.y2;
+            if (logoCorner3X && parseInt(logoCorner3X.value) !== corners.x3) logoCorner3X.value = corners.x3;
+            if (logoCorner3Y && parseInt(logoCorner3Y.value) !== corners.y3) logoCorner3Y.value = corners.y3;
+            if (logoCorner4X && parseInt(logoCorner4X.value) !== corners.x4) logoCorner4X.value = corners.x4;
+            if (logoCorner4Y && parseInt(logoCorner4Y.value) !== corners.y4) logoCorner4Y.value = corners.y4;
         }
         
         // Get canvas and image displayed dimensions
@@ -27161,6 +27216,13 @@ class GameCollectionManager {
         document.getElementById('mediaCardBackgroundColor').value = savedColor;
         document.getElementById('mediaCardBackgroundColorText').value = savedColor;
         
+        // Load date format preference (default: dd-mm-yyyy)
+        const savedDateFormat = localStorage.getItem('guiPreferences_dateFormat') || 'dd-mm-yyyy';
+        const dateFormatSelect = document.getElementById('dateFormatSelect');
+        if (dateFormatSelect) {
+            dateFormatSelect.value = savedDateFormat;
+        }
+        
         this.updateGuiPreview();
     }
     
@@ -27177,11 +27239,15 @@ class GameCollectionManager {
                 return;
             }
             
+            // Get date format
+            const dateFormat = document.getElementById('dateFormatSelect')?.value || 'dd-mm-yyyy';
+            
             // Save to localStorage
             localStorage.setItem('guiPreferences_mediaCardBackgroundColor', color);
             localStorage.setItem('guiPreferences_darkMode', darkMode.toString());
             localStorage.setItem('guiPreferences_verticalColumnHeaders', verticalHeaders.toString());
             localStorage.setItem('guiPreferences_rightPanel', rightPanel.toString());
+            localStorage.setItem('guiPreferences_dateFormat', dateFormat);
             
             // Save right panel width if panel is visible
             if (rightPanel) {
@@ -27205,6 +27271,103 @@ class GameCollectionManager {
             
         } catch (error) {
             console.error('Error saving GUI preferences:', error);
+        }
+    }
+    
+    getDateFormatPreference() {
+        return localStorage.getItem('guiPreferences_dateFormat') || 'dd-mm-yyyy';
+    }
+    
+    formatReleaseDate(dateString) {
+        if (!dateString || dateString === 'N/A' || dateString === 'Unknown' || dateString.trim() === '') {
+            return dateString || 'N/A';
+        }
+        
+        const dateFormat = this.getDateFormatPreference();
+        
+        // Try to parse the date string (could be ISO8601, YYYY-MM-DD, or other formats)
+        let date;
+        try {
+            // Try parsing as ISO8601 first
+            date = new Date(dateString);
+            
+            // Check if date is valid
+            if (isNaN(date.getTime())) {
+                // Try parsing as YYYY-MM-DD
+                const parts = dateString.split('-');
+                if (parts.length === 3) {
+                    date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                } else {
+                    // Try parsing as DD-MM-YYYY
+                    const parts2 = dateString.split('-');
+                    if (parts2.length === 3 && parts2[2].length === 4) {
+                        date = new Date(parseInt(parts2[2]), parseInt(parts2[1]) - 1, parseInt(parts2[0]));
+                    } else {
+                        return dateString; // Return original if can't parse
+                    }
+                }
+            }
+        } catch (e) {
+            return dateString; // Return original if parsing fails
+        }
+        
+        if (isNaN(date.getTime())) {
+            return dateString; // Return original if date is invalid
+        }
+        
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        
+        // Format according to preference
+        switch (dateFormat) {
+            case 'dd-mm-yyyy':
+                return `${day}-${month}-${year}`;
+            case 'mm-dd-yyyy':
+                return `${month}-${day}-${year}`;
+            case 'yyyy-mm-dd':
+                return `${year}-${month}-${day}`;
+            case 'dd/mm/yyyy':
+                return `${day}/${month}/${year}`;
+            case 'mm/dd/yyyy':
+                return `${month}/${day}/${year}`;
+            case 'yyyy/mm/dd':
+                return `${year}/${month}/${day}`;
+            default:
+                return `${day}-${month}-${year}`; // Default to dd-mm-yyyy
+        }
+    }
+    
+    updateReleaseDateFormattedDisplay(inputId, displayId) {
+        // Check if we're in the right panel or modal
+        const rightPanel = document.getElementById('rightPanel');
+        const isPanelVisible = rightPanel && rightPanel.style.display !== 'none';
+        const panelContent = document.getElementById('rightPanelContent');
+        
+        let dateInput, formattedDisplay;
+        
+        if (isPanelVisible && panelContent) {
+            // Use panel content scope
+            dateInput = panelContent.querySelector(`#${inputId}`);
+            formattedDisplay = panelContent.querySelector(`#${displayId}`);
+        } else {
+            // Use document scope (modal)
+            dateInput = document.getElementById(inputId);
+            formattedDisplay = document.getElementById(displayId);
+        }
+        
+        if (!dateInput || !formattedDisplay) {
+            return;
+        }
+        
+        const dateValue = dateInput.value;
+        if (dateValue) {
+            const formatted = this.formatReleaseDate(dateValue);
+            formattedDisplay.textContent = `(${formatted})`;
+            formattedDisplay.style.display = 'block';
+        } else {
+            formattedDisplay.style.display = 'none';
+            formattedDisplay.textContent = '';
         }
     }
     
@@ -27866,6 +28029,11 @@ class GameCollectionManager {
         }
         setField('editReleasedate', releaseDateValue);
         
+        // Update formatted display for release date in panel
+        setTimeout(() => {
+            this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
+        }, 100);
+        
         setField('editLaunchboxId', game.launchboxid);
         setField('editIgdbId', game.igdbid);
         setField('editScreenscraperId', game.screenscraperid);
@@ -27975,6 +28143,26 @@ class GameCollectionManager {
         }
         
         // Tab switching is now handled by Bootstrap tabs, no custom button handlers needed
+        
+        // Re-attach release date field listeners for panel
+        const panelContent = document.getElementById('rightPanelContent');
+        if (panelContent) {
+            const releasedateField = panelContent.querySelector('#editReleasedate');
+            if (releasedateField) {
+                // Remove existing listeners by cloning
+                const newField = releasedateField.cloneNode(true);
+                releasedateField.parentNode.replaceChild(newField, releasedateField);
+                
+                // Add event listeners
+                newField.addEventListener('blur', () => {
+                    this.validateReleaseDate(newField);
+                    this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
+                });
+                newField.addEventListener('change', () => {
+                    this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
+                });
+            }
+        }
         
         // Re-initialize tab functionality for panel
         const tabs = document.querySelectorAll('#rightPanelContent .nav-link');
@@ -32001,8 +32189,11 @@ class GameCollectionManager {
                 releaseDate = originalGame.date;
             } else if (originalGame.year) {
                 releaseDate = originalGame.year;
+            } else if (originalGame.releasedate) {
+                releaseDate = originalGame.releasedate;
             }
-            document.getElementById(releaseDateId).textContent = releaseDate;
+            // Format the release date according to user preference
+            document.getElementById(releaseDateId).textContent = this.formatReleaseDate(releaseDate);
         } else {
             // Clear fields if game not found
             document.getElementById(publisherId).textContent = 'N/A';

@@ -8,9 +8,9 @@
     "x2": 843,
     "y2": 339,
     "x3": 843,
-    "y3": 1006,
+    "y3": 1007,
     "x4": 152,
-    "y4": 1006
+    "y4": 1007
   },
   "corners_logo": {
     "x1": 108,
@@ -24,7 +24,7 @@
   },
   "logo_source": "text",
   "text_logo_settings": {
-    "font": "NeotriadFree-1jzAg",
+    "font": "Gecko",
     "color": "#ffffff",
     "fontSize": 72,
     "alignment": "top-left",

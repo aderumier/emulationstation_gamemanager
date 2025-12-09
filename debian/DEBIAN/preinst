@@ -25,6 +25,24 @@ if [ -f "/opt/gamemanager/var/config/systems.json" ]; then
     echo "Backed up systems.json"
 fi
 
+# Backup existing template files if directories are not empty
+echo "Checking template directories..."
+mkdir -p /tmp/gamemanager-upgrade/templates
+
+if [ -n "$(ls -A /opt/gamemanager/var/2dbox/templates 2>/dev/null)" ]; then
+    echo "Backing up existing 2D box templates..."
+    mkdir -p /tmp/gamemanager-upgrade/templates/2dbox
+    cp -r /opt/gamemanager/var/2dbox/templates/* /tmp/gamemanager-upgrade/templates/2dbox/ 2>/dev/null || true
+    echo "✅ Backed up 2D box templates"
+fi
+
+if [ -n "$(ls -A /opt/gamemanager/var/3dbox/templates 2>/dev/null)" ]; then
+    echo "Backing up existing 3D box templates..."
+    mkdir -p /tmp/gamemanager-upgrade/templates/3dbox
+    cp -r /opt/gamemanager/var/3dbox/templates/* /tmp/gamemanager-upgrade/templates/3dbox/ 2>/dev/null || true
+    echo "✅ Backed up 3D box templates"
+fi
+
 echo "GameManager pre-installation script completed."
 
 exit 0
