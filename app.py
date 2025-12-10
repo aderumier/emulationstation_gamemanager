@@ -23501,8 +23501,13 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
         games = parse_gamelist_xml(gamelist_path)
         games_by_path = {g['path']: g for g in games}
         
-        # Create output directory
-        box3d_directory = target_field
+        # Create output directory - get directory name from media fields config
+        box3d_directory = get_media_directory(target_field)
+        if not box3d_directory:
+            error_msg = f'No media mapping found for {target_field} field.'
+            print(f"❌ ERROR: {error_msg}")
+            task.complete(False, error_msg)
+            return
         output_dir = os.path.join(system_path, 'media', box3d_directory)
         os.makedirs(output_dir, exist_ok=True)
         
