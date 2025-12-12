@@ -4668,22 +4668,56 @@ def run_image_download_task(system_name, data):
                     
                     # Look for media files matching the ROM filename
                     extensions = field_data.get('extensions', ['.png', '.jpg', '.jpeg'])
-                    found_file = None
+                    found_files = []
                     
+                    # Check all extensions and collect all matching files
                     for ext in extensions:
                         potential_filename = create_media_filename(rom_path, ext)
                         potential_file = os.path.join(media_dir, potential_filename)
                         if os.path.exists(potential_file):
-                            found_file = f"./media/{media_type}/{potential_filename}"
-                            break
+                            # Get file modification time to determine most recent
+                            mtime = os.path.getmtime(potential_file)
+                            found_files.append({
+                                'path': potential_file,
+                                'relative': f"./media/{media_type}/{potential_filename}",
+                                'filename': potential_filename,
+                                'mtime': mtime
+                            })
                     
-                    # Update gamelist field if file exists
-                    if found_file:
+                    # If multiple files exist, pick the most recent one
+                    if found_files:
+                        # Sort by modification time (most recent first)
+                        found_files.sort(key=lambda x: x['mtime'], reverse=True)
+                        selected_file = found_files[0]
+                        found_file = selected_file['relative']
+                        
+                        # Remove old files that don't match the selected one
                         current_value = game.get(gamelist_field, '')
+                        for old_file in found_files[1:]:  # All files except the selected one
+                            try:
+                                os.remove(old_file['path'])
+                                print(f"DEBUG: Removed old file {old_file['filename']} for {game.get('name', 'Unknown')} - {gamelist_field}")
+                            except Exception as e:
+                                print(f"DEBUG: Failed to remove old file {old_file['filename']}: {e}")
+                        
+                        # Update gamelist field if file exists and is different
                         if current_value != found_file:
                             game[gamelist_field] = found_file
                             game_updated = True
                             print(f"DEBUG: Updated {game.get('name', 'Unknown')} - {gamelist_field}: {found_file}")
+                    else:
+                        # No files found - check if gamelist has a reference to a non-existent file
+                        current_value = game.get(gamelist_field, '')
+                        if current_value:
+                            # Check if the referenced file exists
+                            if current_value.startswith('./media/'):
+                                relative_path = current_value[2:]  # Remove './'
+                                full_path = os.path.join(system_path, relative_path)
+                                if not os.path.exists(full_path):
+                                    # File doesn't exist, clear the reference
+                                    game[gamelist_field] = ''
+                                    game_updated = True
+                                    print(f"DEBUG: Cleared non-existent file reference for {game.get('name', 'Unknown')} - {gamelist_field}: {current_value}")
                 
                 if game_updated:
                     updated_games += 1
