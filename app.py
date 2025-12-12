@@ -12460,7 +12460,7 @@ def download_and_save_media(media_url, game, media_type, system_name):
             else:
                 target_extension = '.pdf'
         else:
-            target_extension = media_config.get('target_extension', '.png')
+            target_extension = media_config.get('target_extension', '')
         
         print(f"🔧 DEBUG: Media config - target_dir: {target_dir}, target_extension: {target_extension}")
         
@@ -12472,17 +12472,43 @@ def download_and_save_media(media_url, game, media_type, system_name):
         print(f"🔧 DEBUG: Creating target directory: {full_target_dir}")
         os.makedirs(full_target_dir, exist_ok=True)
         
-        # Generate filename
-        media_filename = create_media_filename(game.get('path', ''), target_extension)
-        target_path = os.path.join(full_target_dir, media_filename)
-        print(f"🔧 DEBUG: Target file path: {target_path}")
-        
-        # Download the media
+        # Download the media first to get content type and determine extension if needed
         print(f"🔧 DEBUG: Downloading from URL: {media_url}")
         import requests
         response = requests.get(media_url, timeout=30)
         response.raise_for_status()
         print(f"🔧 DEBUG: Download successful, content length: {len(response.content)}")
+        
+        # If target_extension is not defined, determine from URL or Content-Type
+        if not target_extension:
+            # Try to get extension from URL
+            from urllib.parse import urlparse
+            parsed_url = urlparse(media_url)
+            url_ext = os.path.splitext(parsed_url.path)[1]
+            
+            if url_ext:
+                target_extension = url_ext
+                print(f"🔧 DEBUG: Using extension from URL: {target_extension}")
+            else:
+                # Try to get extension from Content-Type
+                content_type = response.headers.get('content-type', '').lower()
+                if 'image/jpeg' in content_type or 'image/jpg' in content_type:
+                    target_extension = '.jpg'
+                elif 'image/png' in content_type:
+                    target_extension = '.png'
+                elif 'image/gif' in content_type:
+                    target_extension = '.gif'
+                elif 'image/webp' in content_type:
+                    target_extension = '.webp'
+                else:
+                    # Default fallback
+                    target_extension = '.png'
+                print(f"🔧 DEBUG: Using extension from Content-Type: {target_extension}")
+        
+        # Generate filename with determined extension
+        media_filename = create_media_filename(game.get('path', ''), target_extension)
+        target_path = os.path.join(full_target_dir, media_filename)
+        print(f"🔧 DEBUG: Target file path: {target_path}")
         
         # Save the file
         with open(target_path, 'wb') as f:
