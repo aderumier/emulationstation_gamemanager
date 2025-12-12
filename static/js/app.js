@@ -24733,6 +24733,19 @@ class GameCollectionManager {
             } else if (fieldType === 'width' || fieldType === 'height') {
                 // Convert to integer, use 0 if empty or invalid
                 processedValue = value ? parseInt(value, 10) || 0 : 0;
+            } else if (fieldType === 'target_extension') {
+                // Validate target extension format: must be empty or a single extension with single dot (e.g., ".png", ".jpg")
+                if (value) {
+                    // Check if it matches the pattern: starts with dot, followed by alphanumeric characters
+                    const extensionPattern = /^\.\w+$/;
+                    if (!extensionPattern.test(value)) {
+                        this.showAlert('Target extension must be in the format ".ext" (e.g., ".png", ".jpg"). Only one extension with a single dot is allowed.', 'danger');
+                        // Reload data to revert changes
+                        this.loadMediaFieldsData();
+                        return;
+                    }
+                }
+                processedValue = value; // Keep as-is if valid or empty
             }
             
             const response = await fetch('/api/media-fields', {

@@ -7094,6 +7094,13 @@ def manage_media_fields():
             if not field_name.islower() or ' ' in field_name:
                 return jsonify({'error': 'Field name must be lowercase with no spaces'}), 400
             
+            # Validate target extension format: must be empty or a single extension with single dot (e.g., ".png", ".jpg")
+            if target_extension:
+                # Check if it matches the pattern: starts with dot, followed by alphanumeric characters
+                extension_pattern = re.compile(r'^\.\w+$')
+                if not extension_pattern.match(target_extension):
+                    return jsonify({'error': 'Target extension must be in the format ".ext" (e.g., ".png", ".jpg"). Only one extension with a single dot is allowed.'}), 400
+            
             # Check if field already exists
             if field_name in config.get('media_fields', {}):
                 return jsonify({'error': 'Media field already exists'}), 400
@@ -7130,7 +7137,15 @@ def manage_media_fields():
                 return jsonify({'error': 'Media field not found'}), 404
             
             # Update the specific field
-            if field_type in ['directory', 'target_extension']:
+            if field_type == 'target_extension':
+                # Validate target extension format: must be empty or a single extension with single dot (e.g., ".png", ".jpg")
+                if value:
+                    # Check if it matches the pattern: starts with dot, followed by alphanumeric characters
+                    extension_pattern = re.compile(r'^\.\w+$')
+                    if not extension_pattern.match(value):
+                        return jsonify({'error': 'Target extension must be in the format ".ext" (e.g., ".png", ".jpg"). Only one extension with a single dot is allowed.'}), 400
+                config['media_fields'][field_name][field_type] = value
+            elif field_type == 'directory':
                 config['media_fields'][field_name][field_type] = value
             elif field_type == 'extensions':
                 config['media_fields'][field_name][field_type] = value if isinstance(value, list) else []
