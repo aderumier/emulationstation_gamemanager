@@ -28872,11 +28872,18 @@ async def process_igdb_game_data_local(game, igdb_game, igdb_config, rom_filenam
             await populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, overwrite_text_fields)
         
         # Process media fields (cover, fanart, screenshots, marquee, etc.)
-        if not selected_fields or len(selected_fields) == 0 or any(field in selected_fields for field in ['cover', 'fanart', 'screenshot', 'marquee']):
+        # Check if any gamelist field that maps to IGDB media types is in selected_fields
+        # igdb_image_mapping maps gamelist fields (e.g., 'image') to IGDB media types (e.g., 'cover')
+        gamelist_media_fields = list(igdb_image_mapping.keys()) if igdb_image_mapping else []
+        should_process_media = (not selected_fields or len(selected_fields) == 0 or 
+                                any(field in selected_fields for field in gamelist_media_fields))
+        
+        if should_process_media:
             print(f"🔍 DEBUG: Processing media fields for '{game_name}'")
             print(f"🔍 DEBUG: selected_fields: {selected_fields}")
+            print(f"🔍 DEBUG: gamelist_media_fields: {gamelist_media_fields}")
             print(f"🔍 DEBUG: overwrite_media_fields: {overwrite_media_fields}")
-            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, igdb_config.get('system_name'), rom_path)
+            await download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, igdb_config.get('system_name'), rom_path, selected_fields)
         else:
             print(f"🔍 DEBUG: Skipping media fields for '{game_name}' - not in selected_fields")
         
@@ -29017,13 +29024,14 @@ async def populate_gamelist_with_igdb_data_local(game, igdb_game, igdb_mapping, 
         print(f"❌ Error populating gamelist with IGDB data for '{game_name}': {e}")
         return False
 
-async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, system_name=None, rom_path=None):
+async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_mapping, overwrite_media_fields, system_name=None, rom_path=None, selected_fields=None):
     """Download IGDB media using local database image IDs (reuse manual scraping logic)"""
     try:
         game_name = game.find('name').text.strip()
         
         print(f"🔍 DEBUG: System name: {system_name}")
         print(f"🔍 DEBUG: ROM path: {rom_path}")
+        print(f"🔍 DEBUG: Selected fields for media download: {selected_fields}")
         
         # Process cover image
         if 'cover' in igdb_game and igdb_game['cover']:
@@ -29035,26 +29043,31 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                     break
             if not cover_field:
                 cover_field = 'cover'  # fallback
-            print(f"🔍 DEBUG: Cover field mapping: 'cover' -> '{cover_field}'")
-            cover_elem = game.find(cover_field)
             
-            if cover_elem is None or not cover_elem.text or overwrite_media_fields:
-                # Create image data structure like manual scraping
-                cover_id = igdb_game['cover']
-                cover_data = {
-                    'image_id': cover_id,
-                    'url': normalize_igdb_url(cover_id, 'cover')
-                }
+            # Check if this field is selected
+            if selected_fields and len(selected_fields) > 0 and cover_field not in selected_fields:
+                print(f"🔍 DEBUG: Skipping cover download - '{cover_field}' not in selected_fields")
+            else:
+                print(f"🔍 DEBUG: Cover field mapping: 'cover' -> '{cover_field}'")
+                cover_elem = game.find(cover_field)
                 
-                # Use the same download function as manual scraping
-                cover_path = await download_igdb_image(cover_data, system_name, rom_path, 'cover')
-                if cover_path:
-                    if cover_elem is None:
-                        cover_elem = ET.SubElement(game, cover_field)
-                    cover_elem.text = cover_path
-                    print(f"✅ Downloaded cover for '{game_name}': {cover_path}")
-                else:
-                    print(f"❌ Failed to download cover for '{game_name}'")
+                if cover_elem is None or not cover_elem.text or overwrite_media_fields:
+                    # Create image data structure like manual scraping
+                    cover_id = igdb_game['cover']
+                    cover_data = {
+                        'image_id': cover_id,
+                        'url': normalize_igdb_url(cover_id, 'cover')
+                    }
+                    
+                    # Use the same download function as manual scraping
+                    cover_path = await download_igdb_image(cover_data, system_name, rom_path, 'cover')
+                    if cover_path:
+                        if cover_elem is None:
+                            cover_elem = ET.SubElement(game, cover_field)
+                        cover_elem.text = cover_path
+                        print(f"✅ Downloaded cover for '{game_name}': {cover_path}")
+                    else:
+                        print(f"❌ Failed to download cover for '{game_name}'")
         
         # Process fanart (artworks)
         if 'artworks' in igdb_game and igdb_game['artworks']:
@@ -29066,30 +29079,35 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                     break
             if not fanart_field:
                 fanart_field = 'fanart'  # fallback
-            print(f"🔍 DEBUG: Fanart field mapping: 'artworks' -> '{fanart_field}'")
-            fanart_elem = game.find(fanart_field)
             
-            if fanart_elem is None or not fanart_elem.text or overwrite_media_fields:
-                # Use the first artwork
-                if isinstance(igdb_game['artworks'], dict):
-                    # New format: dict with image_id as key
-                    artwork_id = next(iter(igdb_game['artworks'].keys())) if igdb_game['artworks'] else None
+            # Check if this field is selected
+            if selected_fields and len(selected_fields) > 0 and fanart_field not in selected_fields:
+                print(f"🔍 DEBUG: Skipping fanart download - '{fanart_field}' not in selected_fields")
+            else:
+                print(f"🔍 DEBUG: Fanart field mapping: 'artworks' -> '{fanart_field}'")
+                fanart_elem = game.find(fanart_field)
                 
-                if artwork_id:
-                    artwork_data = {
-                        'image_id': artwork_id,
-                        'url': normalize_igdb_url(artwork_id, 'artwork')
-                    }
-                
-                # Use the same download function as manual scraping
-                fanart_path = await download_igdb_image(artwork_data, system_name, rom_path, 'artworks')
-                if fanart_path:
-                    if fanart_elem is None:
-                        fanart_elem = ET.SubElement(game, fanart_field)
-                    fanart_elem.text = fanart_path
-                    print(f"✅ Downloaded fanart for '{game_name}': {fanart_path}")
-                else:
-                    print(f"❌ Failed to download fanart for '{game_name}'")
+                if fanart_elem is None or not fanart_elem.text or overwrite_media_fields:
+                    # Use the first artwork
+                    if isinstance(igdb_game['artworks'], dict):
+                        # New format: dict with image_id as key
+                        artwork_id = next(iter(igdb_game['artworks'].keys())) if igdb_game['artworks'] else None
+                    
+                    if artwork_id:
+                        artwork_data = {
+                            'image_id': artwork_id,
+                            'url': normalize_igdb_url(artwork_id, 'artwork')
+                        }
+                        
+                        # Use the same download function as manual scraping
+                        fanart_path = await download_igdb_image(artwork_data, system_name, rom_path, 'artworks')
+                        if fanart_path:
+                            if fanart_elem is None:
+                                fanart_elem = ET.SubElement(game, fanart_field)
+                            fanart_elem.text = fanart_path
+                            print(f"✅ Downloaded fanart for '{game_name}': {fanart_path}")
+                        else:
+                            print(f"❌ Failed to download fanart for '{game_name}'")
         
         # Process screenshots
         if 'screenshots' in igdb_game and igdb_game['screenshots']:
@@ -29101,30 +29119,35 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                     break
             if not screenshot_field:
                 screenshot_field = 'image'  # fallback
-            print(f"🔍 DEBUG: Screenshot field mapping: 'screenshots' -> '{screenshot_field}'")
-            screenshot_elem = game.find(screenshot_field)
             
-            if screenshot_elem is None or not screenshot_elem.text or overwrite_media_fields:
-                # Use the first screenshot
-                if isinstance(igdb_game['screenshots'], dict):
-                    # New format: dict with image_id as key
-                    screenshot_id = next(iter(igdb_game['screenshots'].keys())) if igdb_game['screenshots'] else None
+            # Check if this field is selected
+            if selected_fields and len(selected_fields) > 0 and screenshot_field not in selected_fields:
+                print(f"🔍 DEBUG: Skipping screenshot download - '{screenshot_field}' not in selected_fields")
+            else:
+                print(f"🔍 DEBUG: Screenshot field mapping: 'screenshots' -> '{screenshot_field}'")
+                screenshot_elem = game.find(screenshot_field)
                 
-                if screenshot_id:
-                    screenshot_data = {
-                        'image_id': screenshot_id,
-                        'url': normalize_igdb_url(screenshot_id)
-                    }
-                
-                # Use the same download function as manual scraping
-                screenshot_path = await download_igdb_image(screenshot_data, system_name, rom_path, 'screenshots')
-                if screenshot_path:
-                    if screenshot_elem is None:
-                        screenshot_elem = ET.SubElement(game, screenshot_field)
-                    screenshot_elem.text = screenshot_path
-                    print(f"✅ Downloaded screenshot for '{game_name}': {screenshot_path}")
-                else:
-                    print(f"❌ Failed to download screenshot for '{game_name}'")
+                if screenshot_elem is None or not screenshot_elem.text or overwrite_media_fields:
+                    # Use the first screenshot
+                    if isinstance(igdb_game['screenshots'], dict):
+                        # New format: dict with image_id as key
+                        screenshot_id = next(iter(igdb_game['screenshots'].keys())) if igdb_game['screenshots'] else None
+                    
+                    if screenshot_id:
+                        screenshot_data = {
+                            'image_id': screenshot_id,
+                            'url': normalize_igdb_url(screenshot_id)
+                        }
+                        
+                        # Use the same download function as manual scraping
+                        screenshot_path = await download_igdb_image(screenshot_data, system_name, rom_path, 'screenshots')
+                        if screenshot_path:
+                            if screenshot_elem is None:
+                                screenshot_elem = ET.SubElement(game, screenshot_field)
+                            screenshot_elem.text = screenshot_path
+                            print(f"✅ Downloaded screenshot for '{game_name}': {screenshot_path}")
+                        else:
+                            print(f"❌ Failed to download screenshot for '{game_name}'")
         
         # Process marquee (logos)
         if 'logos' in igdb_game and igdb_game['logos']:
@@ -29136,30 +29159,35 @@ async def download_igdb_media_local(game, igdb_game, rom_filename, igdb_image_ma
                     break
             if not marquee_field:
                 marquee_field = 'marquee'  # fallback
-            print(f"🔍 DEBUG: Marquee field mapping: 'logos' -> '{marquee_field}'")
-            marquee_elem = game.find(marquee_field)
             
-            if marquee_elem is None or not marquee_elem.text or overwrite_media_fields:
-                # Use the first logo
-                if isinstance(igdb_game['logos'], dict):
-                    # New format: dict with image_id as key
-                    logo_id = next(iter(igdb_game['logos'].keys())) if igdb_game['logos'] else None
+            # Check if this field is selected
+            if selected_fields and len(selected_fields) > 0 and marquee_field not in selected_fields:
+                print(f"🔍 DEBUG: Skipping marquee download - '{marquee_field}' not in selected_fields")
+            else:
+                print(f"🔍 DEBUG: Marquee field mapping: 'logos' -> '{marquee_field}'")
+                marquee_elem = game.find(marquee_field)
                 
-                if logo_id:
-                    logo_data = {
-                        'image_id': logo_id,
-                        'url': normalize_igdb_url(logo_id)
-                    }
-                
-                # Use the same download function as manual scraping
-                marquee_path = await download_igdb_image(logo_data, system_name, rom_path, 'logos')
-                if marquee_path:
-                    if marquee_elem is None:
-                        marquee_elem = ET.SubElement(game, marquee_field)
-                    marquee_elem.text = marquee_path
-                    print(f"✅ Downloaded marquee for '{game_name}': {marquee_path}")
-                else:
-                    print(f"❌ Failed to download marquee for '{game_name}'")
+                if marquee_elem is None or not marquee_elem.text or overwrite_media_fields:
+                    # Use the first logo
+                    if isinstance(igdb_game['logos'], dict):
+                        # New format: dict with image_id as key
+                        logo_id = next(iter(igdb_game['logos'].keys())) if igdb_game['logos'] else None
+                    
+                    if logo_id:
+                        logo_data = {
+                            'image_id': logo_id,
+                            'url': normalize_igdb_url(logo_id)
+                        }
+                        
+                        # Use the same download function as manual scraping
+                        marquee_path = await download_igdb_image(logo_data, system_name, rom_path, 'logos')
+                        if marquee_path:
+                            if marquee_elem is None:
+                                marquee_elem = ET.SubElement(game, marquee_field)
+                            marquee_elem.text = marquee_path
+                            print(f"✅ Downloaded marquee for '{game_name}': {marquee_path}")
+                        else:
+                            print(f"❌ Failed to download marquee for '{game_name}'")
         
     except Exception as e:
         print(f"❌ Error downloading IGDB media for '{game_name}': {e}")
