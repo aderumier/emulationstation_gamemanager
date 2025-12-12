@@ -1005,7 +1005,145 @@ class ScreenScraperService:
                 return None
         
         return None
-
+    
+    async def search_game_by_name_with_exact_match(self, game_name: str, system_name: str) -> Optional[Dict]:
+        """
+        Search for a game by name using jeuRecherche.php and return the first result with 100% match
+        on normalized name without parentheses.
+        
+        Args:
+            game_name: The game name to search for
+            system_name: The system name
+            
+        Returns:
+            Dictionary with 'jeu_id' and 'game_data' if exact match found, None otherwise
+        """
+        from game_utils import normalize_game_name
+        
+        print(f"🔍 Searching ScreenScraper by name (slow) for: {game_name}, System: {system_name}")
+        
+        if not all([self.devid, self.devpassword, self.ssid, self.sspassword]):
+            print("ScreenScraper credentials not configured")
+            return None
+        
+        # Get ScreenScraper system ID
+        systemeid = self.get_system_id(system_name)
+        if not systemeid:
+            print(f"No ScreenScraper system ID found for {system_name}")
+            return None
+        
+        # Clean the game name by removing text between parentheses (including parentheses)
+        import re
+        cleaned_game_name = re.sub(r'\s*\([^)]*\)', '', game_name).strip()
+        print(f"Original game name: '{game_name}' -> Cleaned: '{cleaned_game_name}'")
+        
+        # Normalize the cleaned game name for comparison (remove parentheses and articles)
+        normalized_search_name = normalize_game_name(cleaned_game_name, remove_paranthesis=True, remove_articles=True)
+        print(f"Normalized search name: '{normalized_search_name}'")
+        
+        # Use the jeuRecherche.php endpoint for searching by game name
+        search_api_url = 'https://api.screenscraper.fr/api2/jeuRecherche.php'
+        
+        params = {
+            'devid': self.devid,
+            'devpassword': self.devpassword,
+            'softname': 'cursorscraper',
+            'output': 'json',
+            'ssid': self.ssid,
+            'sspassword': self.sspassword,
+            'recherche': cleaned_game_name,
+            'systemeid': systemeid
+        }
+        
+        try:
+            print(f"🔍 Searching ScreenScraper for '{cleaned_game_name}' using jeuRecherche.php")
+            
+            # Use asyncio.wait_for to ensure request times out
+            async def make_request():
+                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                    return await client.get(search_api_url, params=params)
+            
+            try:
+                response = await asyncio.wait_for(make_request(), timeout=35.0)
+            except asyncio.TimeoutError:
+                print(f"⏱️ ScreenScraper API request timed out after 35 seconds")
+                return None
+            except httpx.TimeoutException as e:
+                print(f"⏱️ ScreenScraper API request timed out: {e}")
+                return None
+            
+            print(f"📡 ScreenScraper API Response: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse JSON response: {e}")
+                    print(f"Response content: {response.text[:500]}...")
+                    return None
+                
+                # Check for errors
+                if 'header' in data and 'erreur' in data['header'] and data['header']['erreur']:
+                    error_msg = data['header']['erreur']
+                    print(f"ScreenScraper API error: {error_msg}")
+                    return None
+                
+                # Extract games from response
+                if 'response' in data and 'jeux' in data['response']:
+                    jeux = data['response']['jeux']
+                    print(f"Found {len(jeux)} results from jeuRecherche.php")
+                    
+                    # Search for exact match on normalized name without parentheses
+                    for jeu in jeux:
+                        if 'id' not in jeu:
+                            continue
+                        
+                        # Get the game name from noms array (prefer 'wor' region, fallback to first available)
+                        result_game_name = 'Unknown'
+                        if 'noms' in jeu and isinstance(jeu['noms'], list) and len(jeu['noms']) > 0:
+                            # Look for 'wor' (world) region first, then use first available
+                            for nom in jeu['noms']:
+                                if nom.get('region') == 'wor':
+                                    result_game_name = nom.get('text', 'Unknown')
+                                    break
+                            if result_game_name == 'Unknown':
+                                result_game_name = jeu['noms'][0].get('text', 'Unknown')
+                        
+                        # Remove parentheses from result name and normalize
+                        cleaned_result_name = re.sub(r'\s*\([^)]*\)', '', result_game_name).strip()
+                        normalized_result_name = normalize_game_name(cleaned_result_name, remove_paranthesis=True, remove_articles=True)
+                        
+                        print(f"  Comparing: '{normalized_search_name}' with '{normalized_result_name}' (from '{result_game_name}')")
+                        
+                        # Check for 100% match
+                        if normalized_search_name == normalized_result_name:
+                            jeu_id = str(jeu['id'])
+                            print(f"✅ Found 100% match: ID={jeu_id}, Name='{result_game_name}'")
+                            
+                            # Get full game data using jeuInfos.php
+                            game_data = await self.get_game_by_id(jeu_id, system_name)
+                            if game_data:
+                                return {'jeu_id': jeu_id, 'game_data': game_data}
+                            else:
+                                # If we can't get full data, return basic structure
+                                return {'jeu_id': jeu_id, 'game_data': jeu}
+                    
+                    print(f"❌ No 100% match found for '{game_name}' (normalized: '{normalized_search_name}')")
+                    return None
+                else:
+                    print(f"❌ No jeux found in response")
+                    return None
+            else:
+                print(f"❌ ScreenScraper API returned status {response.status_code}")
+                print(f"📄 Response text (first 500 chars): {response.text[:500]}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Error searching ScreenScraper by name for '{game_name}': {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
     async def get_game_by_id(self, gameid: str, system_name: str) -> Optional[Dict]:
         """
         Fetch a ScreenScraper game's data directly by its ScreenScraper jeu ID.
@@ -1146,7 +1284,7 @@ class ScreenScraperService:
 
         return None
     
-    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None, is_cancelled_callback=None) -> Dict[str, str]:
+    async def process_games_batch(self, games: List[Dict], system_name: str, progress_callback=None, selected_fields: List[str] = None, overwrite_media_fields: bool = False, detailed_progress_callback=None, is_cancelled_callback=None, search_by_name: bool = False) -> Dict[str, str]:
         """
         Process a batch of games to find their ScreenScraper IDs.
         
@@ -1156,6 +1294,9 @@ class ScreenScraperService:
             progress_callback: Optional callback for progress updates
             selected_fields: List of selected fields to process
             overwrite_media_fields: Whether to overwrite existing media fields
+            detailed_progress_callback: Optional callback for detailed progress messages
+            is_cancelled_callback: Optional callback to check if task is cancelled
+            search_by_name: If True, use jeuRecherche.php to search by game name when screenscraperid is empty
             
         Returns:
             Dictionary mapping game paths to ScreenScraper IDs
@@ -1302,8 +1443,15 @@ class ScreenScraperService:
                     if detailed_progress_callback:
                         detailed_progress_callback(f"Searching ScreenScraper for: {game_name}")
                     
-                    # Pass MD5 to search function when no screenscraperid exists
-                    search_result = await self.search_game_by_rom_name(rom_filename, system_name, md5=rom_md5)
+                    # Use search by name if enabled, otherwise use ROM filename search
+                    if search_by_name:
+                        print(f"🔍 Using search by name (slow) for: {game_name}")
+                        if detailed_progress_callback:
+                            detailed_progress_callback(f"Using search by name (slow) for: {game_name}")
+                        search_result = await self.search_game_by_name_with_exact_match(game_name, system_name)
+                    else:
+                        # Pass MD5 to search function when no screenscraperid exists
+                        search_result = await self.search_game_by_rom_name(rom_filename, system_name, md5=rom_md5)
                     if search_result:
                         jeu_id = search_result['jeu_id']
                         game_data = search_result['game_data']

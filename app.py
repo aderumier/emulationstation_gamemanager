@@ -2957,8 +2957,13 @@ def process_next_queued_task():
             overwrite_text_fields = overwrite_text_fields.lower() in ('true', '1', 'yes')
         overwrite_text_fields = bool(overwrite_text_fields)
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
+        search_by_name = task_data.get('search_by_name', False)
+        # Ensure boolean type
+        if isinstance(search_by_name, str):
+            search_by_name = search_by_name.lower() in ('true', '1', 'yes')
+        search_by_name = bool(search_by_name)
         
-        print(f"🔧 DEBUG: ScreenScraper task data - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        print(f"🔧 DEBUG: ScreenScraper task data - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}, search_by_name: {search_by_name}")
         if system_name:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2972,7 +2977,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start ScreenScraper scraping in background thread
-            thread = threading.Thread(target=run_screenscraper_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, overwrite_media_fields))
+            thread = threading.Thread(target=run_screenscraper_task, args=(system_name, task.id, selected_games, selected_fields, overwrite_text_fields, overwrite_media_fields, search_by_name))
             thread.daemon = True
             thread.start()
     elif task_type == 'steam_scraping':
@@ -7856,9 +7861,10 @@ def scrap_screenscraper_system(system_name):
         # Get overwrite settings from cookies
         overwrite_text_fields = request.cookies.get('overwriteTextFieldsScreenscraper', 'false').lower() == 'true'
         overwrite_media_fields = request.cookies.get('overwriteMediaFieldsScreenscraper', 'false').lower() == 'true'
+        search_by_name = request.cookies.get('screenscraper_search_by_name', 'false').lower() == 'true'
         
-        print(f"🍪 DEBUG: ScreenScraper cookie values - overwriteTextFieldsScreenscraper: '{request.cookies.get('overwriteTextFieldsScreenscraper', 'NOT_SET')}', overwriteMediaFieldsScreenscraper: '{request.cookies.get('overwriteMediaFieldsScreenscraper', 'NOT_SET')}'")
-        print(f"🍪 DEBUG: ScreenScraper parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        print(f"🍪 DEBUG: ScreenScraper cookie values - overwriteTextFieldsScreenscraper: '{request.cookies.get('overwriteTextFieldsScreenscraper', 'NOT_SET')}', overwriteMediaFieldsScreenscraper: '{request.cookies.get('overwriteMediaFieldsScreenscraper', 'NOT_SET')}', screenscraper_search_by_name: '{request.cookies.get('screenscraper_search_by_name', 'NOT_SET')}'")
+        print(f"🍪 DEBUG: ScreenScraper parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}, search_by_name: {search_by_name}")
         
         # Create task object
         task_data = {
@@ -7866,7 +7872,8 @@ def scrap_screenscraper_system(system_name):
             'selected_games': selected_games,
             'selected_fields': selected_fields,
             'overwrite_text_fields': overwrite_text_fields,
-            'overwrite_media_fields': overwrite_media_fields
+            'overwrite_media_fields': overwrite_media_fields,
+            'search_by_name': search_by_name
         }
         username = current_user.username if current_user and current_user.is_authenticated else 'Unknown'
         
@@ -30087,8 +30094,8 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
     
     print(f"DEBUG: IGDB result listener ended for process {process.pid}")
 
-def run_screenscraper_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False):
-    print(f"🔧 DEBUG: run_screenscraper_task called with - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+def run_screenscraper_task(system_name, task_id, selected_games=None, selected_fields=None, overwrite_text_fields=False, overwrite_media_fields=False, search_by_name=False):
+    print(f"🔧 DEBUG: run_screenscraper_task called with - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}, search_by_name: {search_by_name}")
     """Run ScreenScraper task for a specific system"""
     import asyncio
     import threading
@@ -30213,7 +30220,7 @@ def run_screenscraper_task(system_name, task_id, selected_games=None, selected_f
                 # Don't return here - continue to save partial results (even if no games processed)
             
             # Process games in batches
-            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields, detailed_progress_callback, is_cancelled)
+            results = await service.process_games_batch(games_to_process, system_name, progress_callback, selected_fields, overwrite_media_fields, detailed_progress_callback, is_cancelled, search_by_name)
             
             # Check for cancellation after processing games
             if is_cancelled():

@@ -2293,6 +2293,11 @@ class GameCollectionManager {
             this.setCookie('overwriteMediaFieldsScreenscraper', e.target.checked);
         });
 
+        // ScreenScraper search by name toggle (in ScreenScraper Configuration modal)
+        document.getElementById('searchByIdByNameScreenscraperModal').addEventListener('change', (e) => {
+            this.setCookie('screenscraper_search_by_name', e.target.checked);
+        });
+
         // IGDB field selection checkboxes
         document.querySelectorAll('.igdb-field-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', async () => {
@@ -21550,10 +21555,12 @@ class GameCollectionManager {
         // Load saved settings from cookies
         const overwriteTextFields = this.getCookie('overwriteTextFieldsScreenscraper') === 'true';
         const overwriteMediaFields = this.getCookie('overwriteMediaFieldsScreenscraper') === 'true';
+        const searchByIdByName = this.getCookie('screenscraper_search_by_name') === 'true';
         
         // Set checkbox states
         document.getElementById('overwriteTextFieldsScreenscraperModal').checked = overwriteTextFields;
         document.getElementById('overwriteMediaFieldsScreenscraperModal').checked = overwriteMediaFields;
+        document.getElementById('searchByIdByNameScreenscraperModal').checked = searchByIdByName;
         
         // Load field selection settings
         this.loadScreenscraperFieldSettings();

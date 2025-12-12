@@ -2672,12 +2672,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             </div>
                             
                             <!-- Overwrite Media Fields Option -->
-                            <div class="form-check">
+                            <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="overwriteMediaFieldsScreenscraperModal">
                                 <label class="form-check-label" for="overwriteMediaFieldsScreenscraperModal">
                                     <i class="bi bi-image me-2"></i>Overwrite Media Fields
                                 </label>
                                 <div class="form-text">Always overwrite media fields (screenshots, marquee, boxart, etc.) during ScreenScraper scraping, even if they already have values</div>
+                            </div>
+                            
+                            <!-- Search ID by Name Option -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="searchByIdByNameScreenscraperModal">
+                                <label class="form-check-label" for="searchByIdByNameScreenscraperModal">
+                                    <i class="bi bi-search me-2"></i>Search ID by Name (slow)
+                                </label>
+                                <div class="form-text">When enabled, if screenscraperid is empty, search for game ID using game name instead of ROM filename. Only selects games with 100% match on normalized name without parentheses.</div>
                             </div>
                         </div>
                     </div>
