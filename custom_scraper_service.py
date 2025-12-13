@@ -47,12 +47,20 @@ class CustomScraperService:
         # Load all custom databases
         self._load_databases()
         
-        # Try to load partitioned indexes from cache, otherwise build them
-        if not self._load_partitioned_indexes_from_cache():
-            # Build partitioned similarity indexes for all databases during startup
-            self._build_all_partitioned_indexes()
-            # Save the indexes to cache for future use
-            self._save_partitioned_indexes_to_cache()
+        # Try to load partitioned indexes from cache
+        cache_file = os.path.join('var/cache', 'custom_partitioned_index.pkl')
+        cache_exists = os.path.exists(cache_file)
+        
+        if cache_exists:
+            # Cache exists, load it
+            self._load_partitioned_indexes_from_cache()
+        else:
+            # Cache doesn't exist, rebuild in background thread
+            print("🔍 Custom partitioned index cache not found, rebuilding in background thread...")
+            self.logger.info("🔍 Custom partitioned index cache not found, rebuilding in background thread...")
+            import threading
+            rebuild_thread = threading.Thread(target=self._rebuild_index_in_background, daemon=True)
+            rebuild_thread.start()
     
     def _load_databases(self):
         """Load all custom JSON databases into memory"""
@@ -115,6 +123,29 @@ class CustomScraperService:
         except Exception as e:
             self.logger.error(f"Error loading custom databases: {e}")
     
+    def _rebuild_index_in_background(self):
+        """Rebuild partitioned indexes in background thread"""
+        try:
+            print("🔧 [Background] Building partitioned similarity indexes for all custom databases...")
+            self.logger.info("🔧 [Background] Building partitioned similarity indexes for all custom databases...")
+            start_time = time.time()
+            
+            # Build the index
+            self._build_all_partitioned_indexes()
+            
+            # Save to cache after building
+            self._save_partitioned_indexes_to_cache()
+            
+            end_time = time.time()
+            print(f"✅ [Background] Custom partitioned index rebuild completed in {end_time - start_time:.2f} seconds!")
+            self.logger.info(f"✅ [Background] Custom partitioned index rebuild completed in {end_time - start_time:.2f} seconds!")
+            
+        except Exception as e:
+            print(f"❌ [Background] Error rebuilding partitioned indexes: {e}")
+            self.logger.error(f"[Background] Error rebuilding partitioned indexes: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def _build_all_partitioned_indexes(self):
         """Build partitioned similarity indexes for all loaded databases during startup"""
         try:
@@ -125,12 +156,15 @@ class CustomScraperService:
             total_databases = len(self.databases)
             processed_databases = 0
             
+            # Create a new index (don't merge with existing - atomic replacement)
+            new_index = {}
+            
             for db_name, games_dict in self.databases.items():
                 print(f"🔧 Building partitioned index for {db_name} ({len(games_dict)} games)...")
                 self.logger.info(f"🔧 Building partitioned index for {db_name} ({len(games_dict)} games)...")
                 
                 # Initialize database index
-                self._global_similarity_index[db_name] = {}
+                new_index[db_name] = {}
                 
                 for game_id, game_data in games_dict.items():
                     # Try to find game name field (common variations)
@@ -145,16 +179,25 @@ class CustomScraperService:
                     if game_name:
                         normalized_title = normalize_game_name(game_name, remove_paranthesis=True, remove_articles=False)
                         if normalized_title:
+                            normalized_title = normalized_title.strip()  # Ensure no leading/trailing whitespace
                             first_char = normalized_title[0] if normalized_title else 'other'
-                            if first_char not in self._global_similarity_index[db_name]:
-                                self._global_similarity_index[db_name][first_char] = {}
+                            if first_char not in new_index[db_name]:
+                                new_index[db_name][first_char] = {}
                             # Store normalized_name -> customid mapping
-                            self._global_similarity_index[db_name][first_char][normalized_title] = game_id
+                            # If key already exists, log a warning (shouldn't happen but helps debug)
+                            if normalized_title in new_index[db_name][first_char]:
+                                existing_id = new_index[db_name][first_char][normalized_title]
+                                if existing_id != game_id:
+                                    print(f"⚠️ WARNING: Duplicate normalized key '{normalized_title}' in {db_name} partition '{first_char}': existing_id={existing_id}, new_id={game_id}")
+                            new_index[db_name][first_char][normalized_title] = game_id
                 
                 processed_databases += 1
-                partition_count = len(self._global_similarity_index[db_name])
+                partition_count = len(new_index[db_name])
                 print(f"✅ Partitioned index built for {db_name} ({partition_count} partitions)")
                 self.logger.info(f"✅ Partitioned index built for {db_name} ({partition_count} partitions)")
+            
+            # Replace the old index with the new one atomically
+            self._global_similarity_index = new_index
             
             end_time = time.time()
             print(f"✅ All partitioned similarity indexes built successfully in {end_time - start_time:.2f} seconds!")
@@ -278,26 +321,13 @@ class CustomScraperService:
         # Get partition based on first character
         first_char = normalized_search[0] if normalized_search else 'other'
         
-        print(f"🔍 DEBUG find_game_exact: db_name={db_name}, game_name='{game_name}', normalized='{normalized_search}', first_char='{first_char}'")
-        
-        # Check if database exists in index
-        if db_name not in self._global_similarity_index:
-            print(f"❌ DEBUG: Database '{db_name}' not found in index. Available: {list(self._global_similarity_index.keys())}")
-            return None
-        
         # Search in the appropriate partition for exact match
         if first_char in self._global_similarity_index[db_name]:
             partition_dict = self._global_similarity_index[db_name][first_char]
-            print(f"🔍 DEBUG: Partition '{first_char}' has {len(partition_dict)} entries. Sample keys: {list(partition_dict.keys())[:5]}")
             if normalized_search in partition_dict:
                 game_id = partition_dict[normalized_search]
                 game_data = self.databases[db_name].get(game_id, {})
-                print(f"✅ DEBUG: Found match! game_id={game_id}")
                 return (game_id, game_data)
-            else:
-                print(f"❌ DEBUG: '{normalized_search}' not found in partition '{first_char}'. Looking for exact match...")
-        else:
-            print(f"❌ DEBUG: Partition '{first_char}' not found. Available partitions: {list(self._global_similarity_index[db_name].keys())}")
         
         return None
     
@@ -367,7 +397,7 @@ class CustomScraperService:
         Args:
             db_name: Name of the custom database
             game_id: Game ID
-            media_field: Media field name (e.g., 'boxfront', 'boxback', 'titleshot', 'screenshot')
+            media_field: Media field name (e.g., 'boxfront', 'boxback', 'titleshot', 'screenshot', 'image')
         
         Returns:
             Media URL or None if not found

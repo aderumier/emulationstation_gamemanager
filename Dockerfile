@@ -8,6 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 
+# Accept image version as build argument
+ARG IMAGE_VERSION="2.9.1-1"
+ENV IMAGE_VERSION=${IMAGE_VERSION}
+
 # Set working directory
 WORKDIR /opt/gamemanager
 
@@ -196,6 +200,27 @@ mkdir -p /opt/gamemanager/var/task_logs
 mkdir -p /opt/gamemanager/var/gamelists
 mkdir -p /opt/gamemanager/var/cache
 mkdir -p /opt/gamemanager/var/temp
+
+# Check for image upgrade and clear cache if version changed
+VERSION_FILE="/opt/gamemanager/var/cache/.image_version"
+IMAGE_VERSION="${IMAGE_VERSION:-unknown}"
+
+if [ -f "$VERSION_FILE" ]; then
+    STORED_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "")
+    if [ "$STORED_VERSION" != "$IMAGE_VERSION" ]; then
+        echo "🔄 Image version changed from '$STORED_VERSION' to '$IMAGE_VERSION'"
+        echo "Clearing cache directory for clean upgrade..."
+        rm -rf /opt/gamemanager/var/cache/*
+        echo "✅ Cache directory cleared"
+    else
+        echo "✅ Image version unchanged ($IMAGE_VERSION), keeping cache"
+    fi
+else
+    echo "First run detected (version: $IMAGE_VERSION), cache will be built on demand"
+fi
+
+# Store current image version
+echo "$IMAGE_VERSION" > "$VERSION_FILE"
 mkdir -p /opt/gamemanager/var/temp/medias
 mkdir -p /opt/gamemanager/var/temp/videos
 mkdir -p /opt/gamemanager/var/fonts
@@ -369,6 +394,6 @@ CMD ["/opt/gamemanager/start.sh"]
 # Labels for metadata
 LABEL maintainer="GameManager Team <admin@gamemanager.local>"
 LABEL description="Game Collection Management System with LaunchBox integration"
-LABEL version="2.9.1-1"
+LABEL version="${IMAGE_VERSION}"
 LABEL org.opencontainers.image.source="https://github.com/aderumier/emulationstation_gamemanager"
 LABEL org.opencontainers.image.description="Flask-based web application for managing game collections with metadata and media from LaunchBox database"

@@ -94,7 +94,7 @@ build_image() {
     # Determine the .deb file name based on version
     DEB_FILE="gamemanager_${VERSION}-1_all.deb"
     print_status "Using .deb package: ${DEB_FILE}"
-    if docker build --build-arg DEB_FILE=${DEB_FILE} -t ${FULL_IMAGE_NAME}:${VERSION} .; then
+    if docker build --build-arg DEB_FILE=${DEB_FILE} --build-arg IMAGE_VERSION=${VERSION} -t ${FULL_IMAGE_NAME}:${VERSION} .; then
         print_success "Image built successfully"
         # Also tag as latest during build
         docker tag ${FULL_IMAGE_NAME}:${VERSION} ${FULL_IMAGE_NAME}:latest

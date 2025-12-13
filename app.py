@@ -18237,7 +18237,6 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
                 if gamelist_field not in media_fields:
                     media_fields[gamelist_field] = []
                 
-                print(f"🔧 DEBUG scrape_custom_manual: Adding media - gamelist_field='{gamelist_field}', custom_field='{custom_field}', url='{media_url}'")
                 media_fields[gamelist_field].append({
                     'url': media_url,
                     'type': custom_field,
@@ -18260,12 +18259,6 @@ async def scrape_custom_manual(game, system_name, system_config, target_media_ty
                 text_fields['releasedate'] = game_data['release_date']
             if game_data.get('genre'):
                 text_fields['genre'] = game_data['genre']
-        
-        print(f"🔧 DEBUG scrape_custom_manual: Returning media_fields keys: {list(media_fields.keys())}")
-        for field, items in media_fields.items():
-            print(f"🔧 DEBUG scrape_custom_manual: Field '{field}' has {len(items)} items")
-            for i, item in enumerate(items):
-                print(f"🔧 DEBUG scrape_custom_manual:   Item {i}: url='{item.get('url')}'")
         
         return {
             'text_fields': text_fields,

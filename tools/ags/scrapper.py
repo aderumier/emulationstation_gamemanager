@@ -193,8 +193,7 @@ class AGSScraper:
             "page-number": str(page_number),
             "mags-id": "0",
             "title-or-author": "",
-            "sort": "5",
-            "ags-award-winners": "1"
+            "sort": "5"
         }
         
         try:
