@@ -3940,17 +3940,17 @@ class GameCollectionManager {
         // Single game operations
         if (!isMultipleSelected) {
             menuItems = `
-                <a class="dropdown-item" href="#" onclick="gameManager.editGame(${JSON.stringify(game)})">
+                <a class="dropdown-item" href="#" onclick="gameManager.editGame(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-pencil"></i> Edit
                 </a>
-                <a class="dropdown-item" href="#" onclick="gameManager.scanGameMedia(${JSON.stringify(game)})">
+                <a class="dropdown-item" href="#" onclick="gameManager.scanGameMedia(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-search"></i> Scan Media
                 </a>
-                <a class="dropdown-item" href="#" onclick="gameManager.moveRom(${JSON.stringify(game)})">
+                <a class="dropdown-item" href="#" onclick="gameManager.moveRom(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-folder2-open"></i> Move ROM
                 </a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game)})">
+                <a class="dropdown-item" href="#" onclick="gameManager.toggleGameHidden(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                     <i class="bi bi-${game.hidden === 'true' ? 'eye' : 'eye-slash'}"></i> ${game.hidden === 'true' ? 'Unhidden' : 'Hide'} Game
                 </a>
                 <div class="dropdown-divider"></div>
@@ -5386,11 +5386,11 @@ class GameCollectionManager {
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
                                         ${field === 'video' ? `
-                                        <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game)})">
+                                        <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                             <i class="bi bi-youtube"></i>
                                         </button>
                                         ` : ''}
-                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
                                     </div>
@@ -5508,14 +5508,14 @@ class GameCollectionManager {
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
                                         ${field === 'manual' || field === 'map' || field === 'magazine' ? `
-                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="${isCBZ ? 'CBZ Viewer' : 'PDF Viewer'}" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game)}, '${field}', '${mediaPath}')">
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="${isCBZ ? 'CBZ Viewer' : 'PDF Viewer'}" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </button>
-                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
                                         ` : `
-                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
                                         `}
@@ -5581,7 +5581,7 @@ class GameCollectionManager {
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary image-action-btn" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0.8; transition: opacity 0.2s ease;" onclick="gameManager.showImageActionMenu(event, this.parentElement, ${JSON.stringify(game)}, '${field}')" title="Image Actions">
+                            <button class="btn btn-sm btn-outline-secondary image-action-btn" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0.8; transition: opacity 0.2s ease;" onclick="gameManager.showImageActionMenu(event, this.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')" title="Image Actions">
                                 <i class="bi bi-three-dots-vertical"></i>
                             </button>
                         </div>
@@ -5589,21 +5589,21 @@ class GameCollectionManager {
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
                                 ${field === 'fanart' ? `
-                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game)})">
+                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-image"></i>
                                 </button>
                                 ` : ''}
                                 ${field === 'marquee' ? `
-                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game)})">
+                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-badge-ad"></i>
                                 </button>
                                 ` : ''}
                                 ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game)}, '${field}')">
+                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-google"></i>
                                 </button>
                                 ` : ''}
-                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
                             </div>
@@ -5688,26 +5688,26 @@ class GameCollectionManager {
                         <small class="text-center flex-grow-1">${field}</small>
                         <div class="d-flex gap-1">
                             ${field === 'video' ? `
-                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game)})">
+                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-youtube"></i>
                             </button>
                             ` : ''}
                             ${field === 'fanart' ? `
-                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game)})">
+                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-image"></i>
                             </button>
                             ` : ''}
                             ${field === 'marquee' ? `
-                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game)})">
+                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-badge-ad"></i>
                             </button>
                     ` : ''}
                     ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game)}, '${field}')">
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-google"></i>
                     </button>
                             ` : ''}
-                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
                         </div>
@@ -16789,11 +16789,11 @@ class GameCollectionManager {
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
                                         ${field === 'video' ? `
-                                        <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game)})">
+                                        <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                             <i class="bi bi-youtube"></i>
                                         </button>
                                         ` : ''}
-                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
                                     </div>
@@ -16913,29 +16913,29 @@ class GameCollectionManager {
                                     <small class="text-center flex-grow-1">${field}</small>
                                     <div class="d-flex gap-1">
                                         ${field === 'fanart' ? `
-                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game)})">
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                             <i class="bi bi-image"></i>
                                         </button>
                                         ` : ''}
                                         ${field === 'marquee' ? `
-                                        <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game)})">
+                                        <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                             <i class="bi bi-badge-ad"></i>
                                         </button>
                                         ` : ''}
                                         ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                                        <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game)}, '${field}')">
+                                        <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-google"></i>
                                         </button>
                                         ` : ''}
                                         ${field === 'manual' || field === 'map' || field === 'magazine' ? `
-                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="${isCBZ ? 'CBZ Viewer' : 'PDF Viewer'}" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game)}, '${field}', '${mediaPath}')">
+                                        <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="${isCBZ ? 'CBZ Viewer' : 'PDF Viewer'}" onclick="gameManager.openPDFViewerModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}', '${mediaPath}')">
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </button>
-                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
                                         ` : `
-                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                        <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                             <i class="bi bi-search"></i>
                                         </button>
                                         `}
@@ -17007,7 +17007,7 @@ class GameCollectionManager {
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary image-action-btn" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0.8; transition: opacity 0.2s ease;" onclick="gameManager.showImageActionMenu(event, this.parentElement, ${JSON.stringify(game)}, '${field}')" title="Image Actions">
+                            <button class="btn btn-sm btn-outline-secondary image-action-btn" style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0.8; transition: opacity 0.2s ease;" onclick="gameManager.showImageActionMenu(event, this.parentElement, ${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')" title="Image Actions">
                                 <i class="bi bi-three-dots-vertical"></i>
                             </button>
                         </div>
@@ -17015,21 +17015,21 @@ class GameCollectionManager {
                             <small class="text-center flex-grow-1">${field}</small>
                             <div class="d-flex gap-1">
                                 ${field === 'fanart' ? `
-                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game)})">
+                                <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-image"></i>
                                 </button>
                                 ` : ''}
                                 ${field === 'marquee' ? `
-                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game)})">
+                                <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                     <i class="bi bi-badge-ad"></i>
                                 </button>
                                 ` : ''}
                                 ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game)}, '${field}')">
+                                <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-google"></i>
                                 </button>
                                 ` : ''}
-                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                                <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                     <i class="bi bi-search"></i>
                                 </button>
                             </div>
@@ -17108,26 +17108,26 @@ class GameCollectionManager {
                         <small class="text-center flex-grow-1">${field}</small>
                         <div class="d-flex gap-1">
                             ${field === 'video' ? `
-                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game)})">
+                            <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-youtube"></i>
                             </button>
                             ` : ''}
                             ${field === 'fanart' ? `
-                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game)})">
+                            <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-image"></i>
                             </button>
                             ` : ''}
                             ${field === 'marquee' ? `
-                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game)})">
+                            <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                                 <i class="bi bi-badge-ad"></i>
                             </button>
                             ` : ''}
                             ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                            <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game)}, '${field}')">
+                            <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-google"></i>
                             </button>
                             ` : ''}
-                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                            <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                                 <i class="bi bi-search"></i>
                             </button>
                         </div>
@@ -17180,26 +17180,26 @@ class GameCollectionManager {
                 <small class="text-center flex-grow-1">${field}</small>
                 <div class="d-flex gap-1">
                     ${field === 'video' ? `
-                    <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game)})">
+                    <button class="btn btn-outline-danger btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="YouTube Search" onclick="gameManager.openYouTubeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                         <i class="bi bi-youtube"></i>
                     </button>
                     ` : ''}
                     ${field === 'fanart' ? `
-                    <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game)})">
+                    <button class="btn btn-outline-info btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Fanart" onclick="gameManager.openFanartSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                         <i class="bi bi-image"></i>
                     </button>
                     ` : ''}
                     ${field === 'marquee' ? `
-                    <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game)})">
+                    <button class="btn btn-outline-warning btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Search Marquee" onclick="gameManager.openMarqueeSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')})">
                         <i class="bi bi-badge-ad"></i>
                     </button>
                     ` : ''}
                     ${field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine' ? `
-                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game)}, '${field}')">
+                    <button class="btn btn-outline-secondary btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Google Images Search" onclick="gameManager.openGoogleImagesSearchModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-google"></i>
                     </button>
                     ` : ''}
-                    <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game)}, '${field}')">
+                    <button class="btn btn-outline-success btn-sm" style="font-size: 0.6rem; padding: 1px 4px;" title="Multiscraper Download" onclick="gameManager.openMultiscraperMediaModal(${JSON.stringify(game).replace(/"/g, '&quot;')}, '${field}')">
                         <i class="bi bi-search"></i>
                     </button>
                 </div>
@@ -30343,8 +30343,20 @@ class GameCollectionManager {
         try {
             // Construct the proper ROM path that includes system directory
             if (game.path && game.path.trim() && this.currentSystem) {
-                // game.path is just the filename, we need to construct the full relative path
-                const fullRomPath = `${this.currentSystem}/${game.path}`;
+                // Normalize the path: remove leading ./ and normalize separators
+                let normalizedPath = game.path.trim();
+                // Remove leading ./ if present
+                if (normalizedPath.startsWith('./')) {
+                    normalizedPath = normalizedPath.substring(2);
+                }
+                // Normalize path separators to forward slashes
+                normalizedPath = normalizedPath.replace(/\\/g, '/');
+                // Remove leading slashes
+                normalizedPath = normalizedPath.replace(/^\/+/, '');
+                
+                // Construct the full relative path: system/subdir/game.rom
+                // This will be relative to ROMS_FOLDER in the backend
+                const fullRomPath = `${this.currentSystem}/${normalizedPath}`;
                 // Return the full ROM path so it can be passed to updateGamelistAfterDeletion
                 return [fullRomPath];
             } else {
@@ -34531,7 +34543,7 @@ class GameCollectionManager {
                                     ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
                                 </div>
                                 <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleFanartImage(${JSON.stringify(url)}, ${JSON.stringify(result)}, ${JSON.stringify(this.currentFanartSearchGame)})">
+                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleFanartImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentFanartSearchGame).replace(/"/g, '&quot;')})">
                                         <i class="bi bi-download me-1"></i>Download This Fanart
                                     </button>
                                 </div>
@@ -34912,7 +34924,7 @@ class GameCollectionManager {
                                     ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
                                 </div>
                                 <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleMarqueeImage(${JSON.stringify(url)}, ${JSON.stringify(result)}, ${JSON.stringify(this.currentMarqueeSearchGame)})">
+                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleMarqueeImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentMarqueeSearchGame).replace(/"/g, '&quot;')})">
                                         <i class="bi bi-download me-1"></i>Download This Marquee
                                     </button>
                                 </div>

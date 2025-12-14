@@ -9278,11 +9278,23 @@ def rom_system_gamelist(system_name):
                 
                 for rom_path in delete_rom_paths:
                     try:
-                        # Convert relative path to absolute path relative to ROMS_FOLDER
-                        if not os.path.isabs(rom_path):
-                            rom_path = os.path.normpath(os.path.join(ROMS_FOLDER, rom_path))
+                        # Normalize the path: remove leading ./ and normalize separators
+                        normalized_rom_path = rom_path.strip()
+                        # Remove leading ./ if present
+                        while normalized_rom_path.startswith('./'):
+                            normalized_rom_path = normalized_rom_path[2:]
+                        # Normalize path separators
+                        normalized_rom_path = normalized_rom_path.replace('\\', '/')
+                        # Remove leading slashes
+                        normalized_rom_path = normalized_rom_path.lstrip('/')
                         
-                        rom_abs_path = os.path.abspath(rom_path)
+                        # Convert relative path to absolute path relative to ROMS_FOLDER
+                        if not os.path.isabs(normalized_rom_path):
+                            rom_path_abs = os.path.normpath(os.path.join(ROMS_FOLDER, normalized_rom_path))
+                        else:
+                            rom_path_abs = normalized_rom_path
+                        
+                        rom_abs_path = os.path.abspath(rom_path_abs)
                         
                         is_allowed = False
                         for allowed_dir in allowed_dirs:
@@ -16512,14 +16524,17 @@ def move_rom(system_name):
         if not os.path.exists(system_rom_dir):
             return jsonify({'error': f'System ROM directory not found: {system_rom_dir}'}), 404
         
-        # Resolve full paths
-        if game_path.startswith('./'):
-            # Remove './' prefix for file system operations
-            game_path_for_filesystem = game_path[2:]
-        else:
-            game_path_for_filesystem = game_path
+        # Normalize the path: remove leading ./ and normalize separators
+        normalized_game_path = game_path.strip()
+        # Remove leading ./ if present (handle multiple occurrences)
+        while normalized_game_path.startswith('./'):
+            normalized_game_path = normalized_game_path[2:]
+        # Normalize path separators
+        normalized_game_path = normalized_game_path.replace('\\', '/')
+        # Remove leading slashes
+        normalized_game_path = normalized_game_path.lstrip('/')
         
-        full_game_path = os.path.join(system_rom_dir, game_path_for_filesystem)
+        full_game_path = os.path.join(system_rom_dir, normalized_game_path)
         
         if destination_path == '/':
             full_destination_path = system_rom_dir
@@ -16760,13 +16775,17 @@ def move_roms_bulk(system_name):
                 continue
             
             try:
-                # Resolve full paths
-                if game_path.startswith('./'):
-                    game_path_for_filesystem = game_path[2:]
-                else:
-                    game_path_for_filesystem = game_path
+                # Normalize the path: remove leading ./ and normalize separators
+                normalized_game_path = game_path.strip()
+                # Remove leading ./ if present (handle multiple occurrences)
+                while normalized_game_path.startswith('./'):
+                    normalized_game_path = normalized_game_path[2:]
+                # Normalize path separators
+                normalized_game_path = normalized_game_path.replace('\\', '/')
+                # Remove leading slashes
+                normalized_game_path = normalized_game_path.lstrip('/')
                 
-                full_game_path = os.path.join(system_rom_dir, game_path_for_filesystem)
+                full_game_path = os.path.join(system_rom_dir, normalized_game_path)
                 new_path = os.path.join(full_destination_path, os.path.basename(full_game_path))
                 
                 # Security checks
