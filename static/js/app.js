@@ -7233,20 +7233,18 @@ class GameCollectionManager {
         if (originalGame.kidgame !== game.kidgame) changedFields.push('kidgame');
 
         try {
-            // Immediately save changes to gamelist.xml
+            // Use all fields from the game object
+            const gameData = { ...game };
+            
+            // Use optimized single-game update API instead of sending all games
             const response = await fetch(`/api/rom-system/${this.currentSystem}/gamelist`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    games: this.games,
-                    changed_games: [{
-                        game_id: game.id,
-                        game_name: game.name,
-                        rom_path: game.path,
-                        changed_fields: changedFields
-                    }]
+                    rom_path: game.path,
+                    game: gameData
                 })
             });
             
