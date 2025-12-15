@@ -4757,21 +4757,44 @@ class GameCollectionManager {
         setField('editRating', game.rating);
         setField('editPlayers', game.players);
         
-        // Handle release date with calendar widget conversion
-        let releaseDateValue = game.releasedate || '';
-        if (releaseDateValue) {
+        // Handle release date - convert to ISO8601 for Flatpickr
+        let iso8601Date = game.releasedate || '';
+        if (iso8601Date) {
             // Convert to ISO 8601 format if not already in correct format
-            releaseDateValue = this.convertReleaseDateToISO8601(releaseDateValue);
-            // Convert to YYYY-MM-DD format for date input
-            releaseDateValue = this.convertISO8601ToDateInput(releaseDateValue);
+            iso8601Date = this.convertReleaseDateToISO8601(iso8601Date);
         }
         // Set the date value with a small delay to ensure the modal is fully rendered
         setTimeout(() => {
             const dateInputElement = getModalElement('editReleasedate');
             if (dateInputElement) {
-                dateInputElement.value = releaseDateValue;
-                // Update formatted display
-                this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
+                // Initialize Flatpickr first
+                this.initializeDatePicker('editReleasedate');
+                // Then set the value (Flatpickr will format it according to user preference)
+                if (iso8601Date) {
+                    // Parse ISO8601 format (YYYYMMDDTHHMMSS) to create a Date object
+                    const datePart = iso8601Date.substring(0, 8);
+                    const timePart = iso8601Date.substring(9, 15) || '000000';
+                    
+                    if (datePart.length === 8) {
+                        const year = parseInt(datePart.substring(0, 4), 10);
+                        const month = parseInt(datePart.substring(4, 6), 10) - 1; // Month is 0-indexed
+                        const day = parseInt(datePart.substring(6, 8), 10);
+                        const hour = parseInt(timePart.substring(0, 2), 10) || 0;
+                        const minute = parseInt(timePart.substring(2, 4), 10) || 0;
+                        const second = parseInt(timePart.substring(4, 6), 10) || 0;
+                        
+                        // Create a Date object
+                        const dateObj = new Date(year, month, day, hour, minute, second);
+                        
+                        // Wait a bit for Flatpickr to initialize, then set the date
+                        setTimeout(() => {
+                            if (dateInputElement._flatpickr) {
+                                // Use the Date object directly - Flatpickr will format it correctly
+                                dateInputElement._flatpickr.setDate(dateObj, false);
+                            }
+                        }, 50);
+                    }
+                }
             }
         }, 100);
         
@@ -4882,17 +4905,152 @@ class GameCollectionManager {
         // Initialize Find Best Match button
         this.initializeFindBestMatchButton();
         
-        // Add release date validation and formatted display update
-        const releasedateField = document.getElementById('editReleasedate');
-        if (releasedateField) {
-            releasedateField.addEventListener('blur', () => {
-                this.validateReleaseDate(releasedateField);
-                this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
-            });
-            releasedateField.addEventListener('change', () => {
-                this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
+        // Initialize Flatpickr date picker for release date field
+        this.initializeDatePicker('editReleasedate');
+    }
+    
+    reinitializeDatePickers() {
+        /**
+         * Re-initialize all date pickers with the current date format preference
+         * Called when date format preference changes
+         * Preserves the current date value when re-initializing
+         */
+        // Helper function to preserve and restore date value
+        const preserveAndReinit = (dateInput) => {
+            if (!dateInput) return;
+            
+            // Get current date value from Flatpickr if available
+            let currentDate = null;
+            if (dateInput._flatpickr) {
+                const selectedDates = dateInput._flatpickr.selectedDates;
+                if (selectedDates && selectedDates.length > 0) {
+                    currentDate = selectedDates[0];
+                }
+            }
+            
+            // Re-initialize the date picker
+            this.initializeDatePicker('editReleasedate');
+            
+            // Restore the date value after a short delay to ensure Flatpickr is initialized
+            if (currentDate) {
+                setTimeout(() => {
+                    const updatedInput = dateInput._flatpickr ? dateInput : document.getElementById('editReleasedate');
+                    if (updatedInput && updatedInput._flatpickr) {
+                        // Convert Date to YYYY-MM-DD format for Flatpickr
+                        const year = currentDate.getFullYear();
+                        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(currentDate.getDate()).padStart(2, '0');
+                        const flatpickrDate = `${year}-${month}-${day}`;
+                        updatedInput._flatpickr.setDate(flatpickrDate, false);
+                    }
+                }, 50);
+            }
+        };
+        
+        // Re-initialize date picker in modal if it exists
+        const modalDateInput = document.getElementById('editReleasedate');
+        if (modalDateInput) {
+            preserveAndReinit(modalDateInput);
+        }
+        
+        // Re-initialize date picker in panel if it exists
+        const panelContent = document.getElementById('rightPanelContent');
+        if (panelContent) {
+            const panelDateInput = panelContent.querySelector('#editReleasedate');
+            if (panelDateInput) {
+                preserveAndReinit(panelDateInput);
+            }
+        }
+    }
+    
+    initializeDatePicker(fieldId) {
+        // Get the date format preference from GUI preferences
+        const dateFormat = this.getDateFormatPreference();
+        
+        // Map format preferences to Flatpickr date format strings
+        const formatMap = {
+            'dd-mm-yyyy': 'd-m-Y',
+            'mm-dd-yyyy': 'm-d-Y',
+            'yyyy-mm-dd': 'Y-m-d',
+            'dd/mm/yyyy': 'd/m/Y',
+            'mm/dd/yyyy': 'm/d/Y',
+            'yyyy/mm/dd': 'Y/m/d'
+        };
+        
+        const flatpickrFormat = formatMap[dateFormat] || 'd-m-Y';
+        
+        // Check if we're in the panel or modal
+        const rightPanel = document.getElementById('rightPanel');
+        const isPanelVisible = rightPanel && rightPanel.style.display !== 'none';
+        const panelContent = document.getElementById('rightPanelContent');
+        
+        let dateInput;
+        if (isPanelVisible && panelContent) {
+            dateInput = panelContent.querySelector(`#${fieldId}`);
+        } else {
+            dateInput = document.getElementById(fieldId);
+        }
+        
+        if (dateInput) {
+            // Destroy existing Flatpickr instance if it exists
+            if (dateInput._flatpickr) {
+                dateInput._flatpickr.destroy();
+            }
+            
+            // Initialize Flatpickr
+            flatpickr(dateInput, {
+                dateFormat: flatpickrFormat,
+                allowInput: true,
+                clickOpens: true,
+                onChange: (selectedDates, dateStr, instance) => {
+                    // Validate on change
+                    this.validateReleaseDate(dateInput);
+                },
+                onClose: (selectedDates, dateStr, instance) => {
+                    // Validate on close
+                    this.validateReleaseDate(dateInput);
+                }
             });
         }
+    }
+    
+    getDateValueFromFlatpickr(fieldId) {
+        /**
+         * Get date value from Flatpickr instance, converting to ISO8601 format
+         * Falls back to parsing input value if Flatpickr is not available
+         */
+        // Check if we're in the panel or modal
+        const rightPanel = document.getElementById('rightPanel');
+        const isPanelVisible = rightPanel && rightPanel.style.display !== 'none';
+        const panelContent = document.getElementById('rightPanelContent');
+        
+        let dateInput;
+        if (isPanelVisible && panelContent) {
+            dateInput = panelContent.querySelector(`#${fieldId}`);
+        } else {
+            dateInput = document.getElementById(fieldId);
+        }
+        
+        if (!dateInput) {
+            return '';
+        }
+        
+        // Try to get date from Flatpickr's selectedDates
+        if (dateInput._flatpickr) {
+            const selectedDates = dateInput._flatpickr.selectedDates;
+            if (selectedDates && selectedDates.length > 0) {
+                // Use the actual Date object from Flatpickr
+                return this.formatDateToISO8601(selectedDates[0]);
+            }
+        }
+        
+        // Fallback: parse the input value
+        const inputValue = dateInput.value;
+        if (inputValue) {
+            return this.convertDateInputToISO8601(inputValue);
+        }
+        
+        return '';
     }
     
     validateReleaseDate(field) {
@@ -4903,23 +5061,27 @@ class GameCollectionManager {
             return;
         }
         
-        // Check if the value matches the expected date input format (YYYY-MM-DD)
-        const dateInputPattern = /^\d{4}-\d{2}-\d{2}$/;
-        if (dateInputPattern.test(value)) {
-            // Additional validation: check if it's a valid date
-            const date = new Date(value + 'T00:00:00');
-            if (!isNaN(date.getTime())) {
-                field.classList.remove('is-invalid');
-                field.classList.add('is-valid');
-            } else {
-                field.classList.remove('is-valid');
-                field.classList.add('is-invalid');
-                this.showAlert('Please select a valid date', 'warning');
-            }
+        // Try to parse the date using convertDateInputToISO8601 which handles all formats
+        const iso8601Date = this.convertDateInputToISO8601(value);
+        if (iso8601Date && iso8601Date !== '') {
+            // Date is valid
+            field.classList.remove('is-invalid');
+            field.classList.add('is-valid');
         } else {
+            // Date is invalid
             field.classList.remove('is-valid');
             field.classList.add('is-invalid');
-            this.showAlert('Please select a valid date using the calendar widget', 'warning');
+            const dateFormat = this.getDateFormatPreference();
+            const formatMap = {
+                'dd-mm-yyyy': 'DD-MM-YYYY',
+                'mm-dd-yyyy': 'MM-DD-YYYY',
+                'yyyy-mm-dd': 'YYYY-MM-DD',
+                'dd/mm/yyyy': 'DD/MM/YYYY',
+                'mm/dd/yyyy': 'MM/DD/YYYY',
+                'yyyy/mm/dd': 'YYYY/MM/DD'
+            };
+            const formatHint = formatMap[dateFormat] || 'DD-MM-YYYY';
+            this.showAlert(`Please enter a valid date in format: ${formatHint}`, 'warning');
         }
     }
     
@@ -5080,13 +5242,64 @@ class GameCollectionManager {
     
     convertDateInputToISO8601(dateInputValue) {
         /**
-         * Convert YYYY-MM-DD from date input to ISO 8601 format (YYYYMMDDTHHMMSS)
+         * Convert formatted date string (from preferred format) to ISO 8601 format (YYYYMMDDTHHMMSS)
+         * Handles various formats: dd-mm-yyyy, mm-dd-yyyy, yyyy-mm-dd, dd/mm/yyyy, mm/dd/yyyy, yyyy/mm/dd
          */
         if (!dateInputValue || dateInputValue === '') {
             return '';
         }
         
-        // Date input provides YYYY-MM-DD format
+        const dateFormat = this.getDateFormatPreference();
+        let day, month, year;
+        
+        // Try to parse based on the preferred format
+        if (dateFormat.includes('/')) {
+            // Handle slash-separated formats
+            const parts = dateInputValue.split('/');
+            if (parts.length === 3) {
+                if (dateFormat === 'dd/mm/yyyy') {
+                    day = parts[0];
+                    month = parts[1];
+                    year = parts[2];
+                } else if (dateFormat === 'mm/dd/yyyy') {
+                    month = parts[0];
+                    day = parts[1];
+                    year = parts[2];
+                } else if (dateFormat === 'yyyy/mm/dd') {
+                    year = parts[0];
+                    month = parts[1];
+                    day = parts[2];
+                }
+            }
+        } else if (dateInputValue.includes('-')) {
+            // Handle dash-separated formats
+            const parts = dateInputValue.split('-');
+            if (parts.length === 3) {
+                if (dateFormat === 'dd-mm-yyyy') {
+                    day = parts[0];
+                    month = parts[1];
+                    year = parts[2];
+                } else if (dateFormat === 'mm-dd-yyyy') {
+                    month = parts[0];
+                    day = parts[1];
+                    year = parts[2];
+                } else if (dateFormat === 'yyyy-mm-dd') {
+                    year = parts[0];
+                    month = parts[1];
+                    day = parts[2];
+                }
+            }
+        }
+        
+        // If parsing succeeded, create date object
+        if (day && month && year) {
+            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            if (!isNaN(date.getTime())) {
+                return this.formatDateToISO8601(date);
+            }
+        }
+        
+        // Fallback: try parsing as YYYY-MM-DD (date input format)
         const date = new Date(dateInputValue + 'T00:00:00');
         if (!isNaN(date.getTime())) {
             return this.formatDateToISO8601(date);
@@ -7189,9 +7402,8 @@ class GameCollectionManager {
         game.family = document.getElementById('editFamily').value;
         game.rating = document.getElementById('editRating').value;
         game.players = document.getElementById('editPlayers').value;
-        // Convert date input back to internal format
-        const dateInputValue = document.getElementById('editReleasedate').value;
-        game.releasedate = this.convertDateInputToISO8601(dateInputValue);
+        // Get date from Flatpickr if available, otherwise parse the input value
+        game.releasedate = this.getDateValueFromFlatpickr('editReleasedate');
         game.launchboxid = document.getElementById('editLaunchboxId').value;
         game.igdbid = document.getElementById('editIgdbId').value;
         game.screenscraperid = document.getElementById('editScreenscraperId').value;
@@ -27611,6 +27823,7 @@ class GameCollectionManager {
             
             // Get date format
             const dateFormat = document.getElementById('dateFormatSelect')?.value || 'dd-mm-yyyy';
+            const oldDateFormat = this.getDateFormatPreference();
             
             // Save to localStorage
             localStorage.setItem('guiPreferences_mediaCardBackgroundColor', color);
@@ -27635,6 +27848,11 @@ class GameCollectionManager {
             
             // Apply vertical column headers
             this.applyVerticalColumnHeaders(verticalHeaders);
+            
+            // If date format changed, re-initialize date pickers with new format
+            if (dateFormat !== oldDateFormat) {
+                this.reinitializeDatePickers();
+            }
             
             // Apply right panel
             this.toggleRightPanel(rightPanel);
@@ -27972,8 +28190,22 @@ class GameCollectionManager {
         const currentMobygamesid = getFieldValue('editMobygamesid');
         const currentCustomid = getFieldValue('editCustomid');
         
-        // Handle release date - compare in date input format (not ISO8601)
-        const currentReleasedate = getFieldValue('editReleasedate');
+        // Handle release date - get value from Flatpickr and normalize for comparison
+        const dateInput = panelContent.querySelector('#editReleasedate');
+        let currentReleasedate = '';
+        if (dateInput) {
+            // Get date value from Flatpickr if available, convert to ISO8601 for comparison
+            if (dateInput._flatpickr && dateInput._flatpickr.selectedDates && dateInput._flatpickr.selectedDates.length > 0) {
+                // Use the Date object from Flatpickr and convert to ISO8601
+                currentReleasedate = this.formatDateToISO8601(dateInput._flatpickr.selectedDates[0]);
+            } else {
+                // Fallback: parse the input value
+                const inputValue = dateInput.value;
+                if (inputValue) {
+                    currentReleasedate = this.convertDateInputToISO8601(inputValue);
+                }
+            }
+        }
         
         // Handle favorite field
         const favoriteIcon = panelContent.querySelector('#editFavorite');
@@ -28312,13 +28544,12 @@ class GameCollectionManager {
     }
     
     async populateEditModalInPanel(game) {
-        // Store original game data for change detection (normalize to match form field format)
-        // Convert releasedate to the same format that will be in the form field (date input format)
+        // Store original game data for change detection
+        // Store releasedate in ISO8601 format for consistent comparison
         let originalReleasedate = '';
         if (game.releasedate) {
-            // Convert from ISO8601 to date input format for comparison
+            // Convert to ISO8601 format for normalized comparison
             originalReleasedate = this.convertReleaseDateToISO8601(game.releasedate);
-            originalReleasedate = this.convertISO8601ToDateInput(originalReleasedate);
         }
         
         this.rightPanelOriginalGame = {
@@ -28331,7 +28562,7 @@ class GameCollectionManager {
             family: String(game.family || '').trim(),
             rating: String(game.rating || '').trim(),
             players: String(game.players || '').trim(),
-            releasedate: originalReleasedate, // Store in date input format for comparison
+            releasedate: originalReleasedate, // Store in ISO8601 format for comparison
             launchboxid: String(game.launchboxid || '').trim(),
             igdbid: String(game.igdbid || '').trim(),
             screenscraperid: String(game.screenscraperid || '').trim(),
@@ -28391,17 +28622,43 @@ class GameCollectionManager {
         setField('editRating', game.rating);
         setField('editPlayers', game.players);
         
-        // Handle release date
-        let releaseDateValue = game.releasedate || '';
-        if (releaseDateValue) {
-            releaseDateValue = this.convertReleaseDateToISO8601(releaseDateValue);
-            releaseDateValue = this.convertISO8601ToDateInput(releaseDateValue);
+        // Handle release date - convert to ISO8601 for Flatpickr
+        let iso8601Date = game.releasedate || '';
+        if (iso8601Date) {
+            iso8601Date = this.convertReleaseDateToISO8601(iso8601Date);
         }
-        setField('editReleasedate', releaseDateValue);
+        setField('editReleasedate', ''); // Clear field, Flatpickr will set it
         
-        // Update formatted display for release date in panel
+        // Initialize Flatpickr date picker for panel
         setTimeout(() => {
-            this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
+            this.initializeDatePicker('editReleasedate');
+            // Set the date value after Flatpickr is initialized
+            const dateInputElement = panelContent.querySelector('#editReleasedate');
+            if (dateInputElement && iso8601Date) {
+                // Parse ISO8601 format (YYYYMMDDTHHMMSS) to create a Date object
+                const datePart = iso8601Date.substring(0, 8);
+                const timePart = iso8601Date.substring(9, 15) || '000000';
+                
+                if (datePart.length === 8) {
+                    const year = parseInt(datePart.substring(0, 4), 10);
+                    const month = parseInt(datePart.substring(4, 6), 10) - 1; // Month is 0-indexed
+                    const day = parseInt(datePart.substring(6, 8), 10);
+                    const hour = parseInt(timePart.substring(0, 2), 10) || 0;
+                    const minute = parseInt(timePart.substring(2, 4), 10) || 0;
+                    const second = parseInt(timePart.substring(4, 6), 10) || 0;
+                    
+                    // Create a Date object
+                    const dateObj = new Date(year, month, day, hour, minute, second);
+                    
+                    // Wait a bit for Flatpickr to initialize, then set the date
+                    setTimeout(() => {
+                        if (dateInputElement._flatpickr) {
+                            // Use the Date object directly - Flatpickr will format it correctly
+                            dateInputElement._flatpickr.setDate(dateObj, false);
+                        }
+                    }, 50);
+                }
+            }
         }, 100);
         
         setField('editLaunchboxId', game.launchboxid);
@@ -28523,14 +28780,8 @@ class GameCollectionManager {
                 const newField = releasedateField.cloneNode(true);
                 releasedateField.parentNode.replaceChild(newField, releasedateField);
                 
-                // Add event listeners
-                newField.addEventListener('blur', () => {
-                    this.validateReleaseDate(newField);
-                    this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
-                });
-                newField.addEventListener('change', () => {
-                    this.updateReleaseDateFormattedDisplay('editReleasedate', 'editReleasedateFormatted');
-                });
+                // Initialize Flatpickr date picker
+                this.initializeDatePicker('editReleasedate');
             }
         }
         
