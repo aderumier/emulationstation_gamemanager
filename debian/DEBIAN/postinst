@@ -322,10 +322,15 @@ EOF
     # Reload systemd
     systemctl daemon-reload
     
-    # Restart service if it was running
-    if systemctl is-active --quiet gamemanager; then
-        systemctl restart gamemanager
-        echo "GameManager service restarted."
+    # Restart service if it was enabled (it was stopped by prerm during upgrade)
+    # Check if service is enabled - if so, restart it regardless of current state
+    if systemctl is-enabled --quiet gamemanager 2>/dev/null; then
+        echo "GameManager service is enabled, restarting..."
+        systemctl restart gamemanager || systemctl start gamemanager
+        echo "✅ GameManager service restarted."
+    else
+        echo "GameManager service is not enabled, skipping restart."
+        echo "To enable and start the service: sudo systemctl enable --now gamemanager"
     fi
 
     echo "GameManager upgrade completed!"

@@ -5786,7 +5786,15 @@ class GameCollectionManager {
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
-                    const imageUrl = `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`;
+                    // Clean and encode the mediaPath properly
+                    let cleanMediaPath = mediaPath;
+                    if (cleanMediaPath.startsWith('./')) {
+                        cleanMediaPath = cleanMediaPath.substring(2);
+                    }
+                    // Encode path components separately to preserve "/" separators
+                    const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
+                    const encodedPath = pathParts.join('/');
+                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
                     
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
@@ -17216,9 +17224,18 @@ class GameCollectionManager {
                 } else {
                     // Add cache-busting parameter to force image refresh
                     const cacheBuster = new Date().getTime();
+                    // Clean and encode the mediaPath properly
+                    let cleanMediaPath = mediaPath;
+                    if (cleanMediaPath.startsWith('./')) {
+                        cleanMediaPath = cleanMediaPath.substring(2);
+                    }
+                    // Encode path components separately to preserve "/" separators
+                    const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
+                    const encodedPath = pathParts.join('/');
+                    const imageUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`;
                     mediaItem.innerHTML = `
                         <div style="position: relative;">
-                            <img src="/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
+                            <img src="${imageUrl}" alt="${field}" width="150" height="150" style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};">
                             <div class="media-replace-overlay" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; opacity: 0; transition: opacity 0.2s ease;">
                                 <i class="bi bi-arrow-clockwise"></i>
                             </div>
@@ -17259,7 +17276,14 @@ class GameCollectionManager {
                     
                     // Add hover preview functionality
                     img.addEventListener('mouseenter', (e) => {
-                        this.showMediaHover(e, `/roms/${this.currentSystem}/${mediaPath}?v=${cacheBuster}`, field);
+                        // Encode path components properly
+                        let cleanMediaPath = mediaPath;
+                        if (cleanMediaPath.startsWith('./')) {
+                            cleanMediaPath = cleanMediaPath.substring(2);
+                        }
+                        const pathParts = cleanMediaPath.split('/').map(part => part ? encodeURIComponent(part) : '');
+                        const encodedPath = pathParts.join('/');
+                        this.showMediaHover(e, `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}?v=${cacheBuster}`, field);
                     });
                     img.addEventListener('mouseleave', () => {
                         this.hideMediaHover();
