@@ -7941,14 +7941,19 @@ class GameCollectionManager {
             
             // Check if the path already contains the full structure starting with /roms/
             if (cleanPath.startsWith('/roms/')) {
-                // Path already contains full structure, use it as-is
-                mediaUrl = cleanPath;
+                // Path already contains full structure, encode path components
+                const pathParts = cleanPath.split('/').map(part => part ? encodeURIComponent(part) : '');
+                mediaUrl = pathParts.join('/');
             } else if (cleanPath.startsWith('media/')) {
                 // Path starts with media/, it's a relative path from system root
-                mediaUrl = `/roms/${this.currentSystem}/${cleanPath}`;
+                // Encode each path component separately to preserve "/" separators
+                const pathParts = cleanPath.split('/').map(part => part ? encodeURIComponent(part) : '');
+                const encodedPath = pathParts.join('/');
+                mediaUrl = `/roms/${encodeURIComponent(this.currentSystem)}/${encodedPath}`;
             } else {
                 // Path is just a filename, construct the full URL
-                mediaUrl = `/roms/${this.currentSystem}/media/${mediaType}s/${cleanPath}`;
+                const encodedFilename = encodeURIComponent(cleanPath);
+                mediaUrl = `/roms/${encodeURIComponent(this.currentSystem)}/media/${mediaType}s/${encodedFilename}`;
             }
         }
         
