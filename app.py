@@ -24264,14 +24264,24 @@ def notify_system_update(system_name, action, data=None):
         print(f"🔔 Notifying room {room} about {action} - {client_count} clients tracked in system {system_name}")
         
         if client_count > 0:
-            # Send to the specific room (Flask-SocketIO will handle the routing)
-            socketio.emit('system_updated', {
-                'system': system_name,
-                'action': action,
-                'data': data,
-                'timestamp': datetime.now().isoformat()
-            }, room=room)
-            print(f"✅ Notification sent to room {room} for {action} ({client_count} clients)")
+            # Send notification in background thread to prevent blocking
+            # This prevents the application from locking up when clients are slow/unresponsive
+            def send_notification():
+                try:
+                    socketio.emit('system_updated', {
+                        'system': system_name,
+                        'action': action,
+                        'data': data,
+                        'timestamp': datetime.now().isoformat()
+                    }, room=room)
+                    print(f"✅ Notification sent to room {room} for {action} ({client_count} clients)")
+                except Exception as e:
+                    print(f"⚠️  Error sending notification to room {room}: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Use background task to prevent blocking the main thread
+            socketio.start_background_task(send_notification)
         else:
             print(f"⚠️  System {system_name} has no clients to notify")
 
