@@ -6458,11 +6458,11 @@ class GameCollectionManager {
             }
             
             // Display video player if this is video type and we have a URL
-            // Skip video player for ScreenScraper and EmuMovies - these videos should be downloaded directly, not played in browser
+            // Skip video player for ScreenScraper - ScreenScraper videos should be downloaded directly, not played in browser
             const isScreenScraper = result.source && result.source.toLowerCase().includes('screenscraper');
             const isEmuMovies = result.source && result.source.toLowerCase() === 'emumovies';
             
-            if (mediaType === 'video' && videoURL && !isScreenScraper && !isEmuMovies) {
+            if (mediaType === 'video' && videoURL && !isScreenScraper) {
                 // Use the same video display logic as displayLaunchBoxMediaOptions
                 // Check for video hosting sites that need iframe embed players
                 const isYouTubeURL = videoURL.includes('youtube.com') || videoURL.includes('youtu.be');
@@ -6731,7 +6731,7 @@ class GameCollectionManager {
                 });
                 
                 card.appendChild(video);
-            } else {
+            } else if (mediaType === 'video' && videoURL && isScreenScraper) {
                 // Display image for other media types
                 const img = document.createElement('img');
                 img.className = 'card-img-top';
@@ -34812,10 +34812,25 @@ class GameCollectionManager {
                     const resultCard = document.createElement('div');
                     resultCard.className = 'col-md-4 mb-3';
                     
+                    // Escape HTML for safe insertion in attributes
+                    const escapeHtml = (str) => {
+                        if (!str) return '';
+                        return String(str)
+                            .replace(/&/g, '&amp;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                    };
+                    
+                    const escapedUrl = escapeHtml(url);
+                    const escapedResultJson = escapeHtml(JSON.stringify(result));
+                    const escapedGameJson = escapeHtml(JSON.stringify(this.currentFanartSearchGame));
+                    
                     resultCard.innerHTML = `
                         <div class="card">
                             <div class="card-body">
-                                <img src="${url}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" 
+                                <img src="${escapedUrl}" class="img-fluid rounded mb-2" style="width: 100%; height: 200px; object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};" 
                                      alt="Fanart" onerror="this.style.display='none'">
                                 <h6 class="card-title">${result.game_name}</h6>
                                 <p class="card-text">
@@ -34830,13 +34845,27 @@ class GameCollectionManager {
                                     ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
                                 </div>
                                 <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleFanartImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentFanartSearchGame).replace(/"/g, '&quot;')})">
+                                    <button class="btn btn-primary btn-sm fanart-download-btn" 
+                                            data-fanart-url="${escapedUrl}" 
+                                            data-fanart-result="${escapedResultJson}" 
+                                            data-fanart-game="${escapedGameJson}">
                                         <i class="bi bi-download me-1"></i>Download This Fanart
                                     </button>
                                 </div>
                             </div>
                         </div>
                     `;
+                    
+                    // Add click event listener to download button
+                    const downloadBtn = resultCard.querySelector('.fanart-download-btn');
+                    if (downloadBtn) {
+                        downloadBtn.addEventListener('click', () => {
+                            const fanartUrl = downloadBtn.getAttribute('data-fanart-url');
+                            const fanartResult = JSON.parse(downloadBtn.getAttribute('data-fanart-result'));
+                            const game = JSON.parse(downloadBtn.getAttribute('data-fanart-game'));
+                            this.downloadSingleFanartImage(fanartUrl, fanartResult, game);
+                        });
+                    }
                     
                     // Add image load handler to update resolution
                     const img = resultCard.querySelector('img');
@@ -35187,10 +35216,26 @@ class GameCollectionManager {
                 result.marquee_urls.forEach(url => {
                     const resultCard = document.createElement('div');
                     resultCard.className = 'col-md-4 col-lg-3 mb-3';
+                    
+                    // Escape HTML for safe insertion in attributes
+                    const escapeHtml = (str) => {
+                        if (!str) return '';
+                        return String(str)
+                            .replace(/&/g, '&amp;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                    };
+                    
+                    const escapedUrl = escapeHtml(url);
+                    const escapedResultJson = escapeHtml(JSON.stringify(result));
+                    const escapedGameJson = escapeHtml(JSON.stringify(this.currentMarqueeSearchGame));
+                    
                     resultCard.innerHTML = `
                         <div class="card h-100">
                             <div class="card-img-top-container" style="height: 200px; overflow: hidden; background-color: ${this.getMediaCardBackgroundColor()};">
-                                <img src="${url}" class="card-img-top" style="object-fit: contain; height: 100%; width: 100%;" 
+                                <img src="${escapedUrl}" class="card-img-top" style="object-fit: contain; height: 100%; width: 100%;" 
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                 <div class="d-flex align-items-center justify-content-center h-100" style="display: none;">
                                     <div class="text-muted text-center">
@@ -35211,13 +35256,27 @@ class GameCollectionManager {
                                     ${result.region ? `<div class="region-info">Region: ${result.region}</div>` : ''}
                                 </div>
                                 <div class="d-grid gap-2">
-                                    <button class="btn btn-primary btn-sm" onclick="gameManager.downloadSingleMarqueeImage('${url}', ${JSON.stringify(result).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentMarqueeSearchGame).replace(/"/g, '&quot;')})">
+                                    <button class="btn btn-primary btn-sm marquee-download-btn" 
+                                            data-marquee-url="${escapedUrl}" 
+                                            data-marquee-result="${escapedResultJson}" 
+                                            data-marquee-game="${escapedGameJson}">
                                         <i class="bi bi-download me-1"></i>Download This Marquee
                                     </button>
                                 </div>
                             </div>
                         </div>
                     `;
+                    
+                    // Add click event listener to download button
+                    const downloadBtn = resultCard.querySelector('.marquee-download-btn');
+                    if (downloadBtn) {
+                        downloadBtn.addEventListener('click', () => {
+                            const marqueeUrl = downloadBtn.getAttribute('data-marquee-url');
+                            const marqueeResult = JSON.parse(downloadBtn.getAttribute('data-marquee-result'));
+                            const game = JSON.parse(downloadBtn.getAttribute('data-marquee-game'));
+                            this.downloadSingleMarqueeImage(marqueeUrl, marqueeResult, game);
+                        });
+                    }
                     
                     // Add image load handler to update resolution
                     const img = resultCard.querySelector('img');
