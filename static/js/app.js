@@ -6458,10 +6458,11 @@ class GameCollectionManager {
             }
             
             // Display video player if this is video type and we have a URL
-            // Skip video player for ScreenScraper - ScreenScraper videos should be downloaded directly, not played in browser
+            // Skip video player for ScreenScraper and EmuMovies - these videos should be downloaded directly, not played in browser
             const isScreenScraper = result.source && result.source.toLowerCase().includes('screenscraper');
+            const isEmuMovies = result.source && result.source.toLowerCase() === 'emumovies';
             
-            if (mediaType === 'video' && videoURL && !isScreenScraper) {
+            if (mediaType === 'video' && videoURL && !isScreenScraper && !isEmuMovies) {
                 // Use the same video display logic as displayLaunchBoxMediaOptions
                 // Check for video hosting sites that need iframe embed players
                 const isYouTubeURL = videoURL.includes('youtube.com') || videoURL.includes('youtu.be');
@@ -6936,8 +6937,8 @@ class GameCollectionManager {
             downloadBtn.onclick = (e) => {
                 e.stopPropagation();
                 // If this is video type with VideoURL in multiscraper results, open YouTube preview modal instead
-                // EXCEPT for ScreenScraper - ScreenScraper videos should be downloaded directly
-                if (mediaType === 'video' && videoURL && !isScreenScraper) {
+                // EXCEPT for ScreenScraper and EmuMovies - these videos should be downloaded directly
+                if (mediaType === 'video' && videoURL && !isScreenScraper && !isEmuMovies) {
                     // Create a video object for the player
                     const video = {
                         url: videoURL,
@@ -13302,7 +13303,9 @@ class GameCollectionManager {
                 this.showAlert(`2D box generation started for ${this.selectedGames.length} game(s)`, 'success');
                 // Refresh game list after a delay
                 setTimeout(() => {
-                    this.loadGames();
+                    if (typeof this.refreshGameGrid === 'function') {
+                        this.refreshGameGrid();
+                    }
                 }, 2000);
             } else {
                 this.showAlert('Error starting 2D box generation: ' + (data.error || 'Unknown error'), 'danger');
@@ -15528,7 +15531,9 @@ class GameCollectionManager {
             if (data.success) {
                 this.showAlert(`3D Box generation started for ${this.selectedGames.length} game(s)`, 'success');
                 setTimeout(() => {
-                    this.loadGames();
+                    if (typeof this.refreshGameGrid === 'function') {
+                        this.refreshGameGrid();
+                    }
                 }, 2000);
             } else {
                 this.showAlert('Error starting 3D box generation: ' + (data.error || 'Unknown error'), 'danger');
@@ -19452,7 +19457,9 @@ class GameCollectionManager {
                     modal.hide();
                 }
                 // Refresh game list
-                this.loadGames();
+                if (typeof this.refreshGameGrid === 'function') {
+                    this.refreshGameGrid();
+                }
             } else {
                 this.showAlert('Error cropping video: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -19534,7 +19541,9 @@ class GameCollectionManager {
                     modal.hide();
                 }
                 // Refresh game list
-                this.loadGames();
+                if (typeof this.refreshGameGrid === 'function') {
+                    this.refreshGameGrid();
+                }
             } else {
                 this.showAlert('Error cropping image: ' + (data.error || 'Unknown error'), 'error');
             }
