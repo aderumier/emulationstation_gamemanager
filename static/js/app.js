@@ -6442,6 +6442,9 @@ class GameCollectionManager {
         const contentDiv = document.getElementById('multiscraperMediaContent');
         contentDiv.innerHTML = '';
         
+        // Store resolution info elements by card for later updates
+        const cardResolutionInfoMap = new Map();
+        
         mediaResults.forEach((result, index) => {
             const col = document.createElement('div');
             col.className = 'col-md-6 col-lg-4 mb-3';
@@ -6732,8 +6735,8 @@ class GameCollectionManager {
                 });
                 
                 card.appendChild(video);
-            } else if (mediaType === 'video' && videoURL && isScreenScraper) {
-                // Display image for other media types
+            } else {
+                // Display image for non-video media types
                 const img = document.createElement('img');
                 img.className = 'card-img-top';
                 img.style.height = '300px';
@@ -6848,21 +6851,124 @@ class GameCollectionManager {
                     }
                 } else {
                     // Regular image
-                    img.src = result.url;
-                    img.alt = `${mediaType} from ${result.source}`;
-                    img.onerror = () => {
-                        img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlPC90ZXh0Pjwvc3ZnPg==';
-                    };
-                    
-                    // Add hover preview functionality for images
-                    img.addEventListener('mouseenter', (e) => {
-                        this.showMediaHover(e, result.url, mediaType, game);
-                    });
-                    img.addEventListener('mouseleave', () => {
-                        this.hideMediaHover();
-                    });
-                    
-                    card.appendChild(img);
+                    if (!result.url) {
+                        // No URL provided - show error placeholder
+                        const errorPlaceholder = document.createElement('div');
+                        errorPlaceholder.className = 'card-img-top';
+                        errorPlaceholder.style.height = '300px';
+                        errorPlaceholder.style.display = 'flex';
+                        errorPlaceholder.style.alignItems = 'center';
+                        errorPlaceholder.style.justifyContent = 'center';
+                        errorPlaceholder.style.flexDirection = 'column';
+                        errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                        errorPlaceholder.innerHTML = `
+                            <i class="bi bi-image" style="font-size: 3rem; color: #6c757d; margin-bottom: 1rem;"></i>
+                            <div style="text-align: center; color: #6c757d; font-weight: 500;">No image URL</div>
+                        `;
+                        card.appendChild(errorPlaceholder);
+                    } else {
+                        // Show loading placeholder while image loads
+                        const loadingPlaceholder = document.createElement('div');
+                        loadingPlaceholder.className = 'card-img-top';
+                        loadingPlaceholder.style.height = '300px';
+                        loadingPlaceholder.style.display = 'flex';
+                        loadingPlaceholder.style.alignItems = 'center';
+                        loadingPlaceholder.style.justifyContent = 'center';
+                        loadingPlaceholder.style.flexDirection = 'column';
+                        loadingPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                        loadingPlaceholder.innerHTML = `
+                            <div class="spinner-border text-primary" role="status" style="margin-bottom: 1rem;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div style="text-align: center; color: #6c757d; font-weight: 500;">Loading image...</div>
+                        `;
+                        card.appendChild(loadingPlaceholder);
+                        
+                        // Set up image
+                        img.className = 'card-img-top';
+                        img.style.height = '300px';
+                        img.style.objectFit = 'contain';
+                        img.style.backgroundColor = this.getMediaCardBackgroundColor();
+                        img.alt = `${mediaType} from ${result.source}`;
+                        
+                        // Define handler function to replace placeholder
+                        const replacePlaceholderWithImage = () => {
+                            if (card.contains(loadingPlaceholder)) {
+                                card.replaceChild(img, loadingPlaceholder);
+                            } else {
+                                // If placeholder was already removed, just insert before cardBody
+                                const cardBody = card.querySelector('.card-body');
+                                if (cardBody) {
+                                    card.insertBefore(img, cardBody);
+                                } else {
+                                    card.appendChild(img);
+                                }
+                            }
+                            
+                            // Update resolution info when image loads
+                            // Use stored reference if available, otherwise query for it
+                            const updateResolution = () => {
+                                const resolutionInfoEl = cardResolutionInfoMap.get(card) || card.querySelector('.resolution-info');
+                                if (resolutionInfoEl) {
+                                    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                        resolutionInfoEl.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                                    } else {
+                                        resolutionInfoEl.textContent = 'Resolution: Unknown';
+                                    }
+                                }
+                            };
+                            
+                            // Try immediately, and also after a short delay in case cardBody isn't added yet
+                            updateResolution();
+                            setTimeout(updateResolution, 0);
+                        };
+                        
+                        // Set up load handler BEFORE setting src
+                        img.onload = replacePlaceholderWithImage;
+                        
+                        img.onerror = () => {
+                            // Replace loading placeholder with error placeholder
+                            const errorPlaceholder = document.createElement('div');
+                            errorPlaceholder.className = 'card-img-top';
+                            errorPlaceholder.style.height = '300px';
+                            errorPlaceholder.style.display = 'flex';
+                            errorPlaceholder.style.alignItems = 'center';
+                            errorPlaceholder.style.justifyContent = 'center';
+                            errorPlaceholder.style.flexDirection = 'column';
+                            errorPlaceholder.style.backgroundColor = this.getMediaCardBackgroundColor();
+                            errorPlaceholder.innerHTML = `
+                                <i class="bi bi-image" style="font-size: 3rem; color: #dc3545; margin-bottom: 1rem;"></i>
+                                <div style="text-align: center; color: #6c757d; font-weight: 500;">Failed to load image</div>
+                            `;
+                            if (card.contains(loadingPlaceholder)) {
+                                card.replaceChild(errorPlaceholder, loadingPlaceholder);
+                            } else {
+                                const cardBody = card.querySelector('.card-body');
+                                if (cardBody) {
+                                    card.insertBefore(errorPlaceholder, cardBody);
+                                } else {
+                                    card.appendChild(errorPlaceholder);
+                                }
+                            }
+                        };
+                        
+                        // Add hover preview functionality for images
+                        img.addEventListener('mouseenter', (e) => {
+                            this.showMediaHover(e, result.url, mediaType, game);
+                        });
+                        img.addEventListener('mouseleave', () => {
+                            this.hideMediaHover();
+                        });
+                        
+                        // Start loading the image
+                        img.src = result.url;
+                        
+                        // Check if image is already loaded (from cache) - do this AFTER setting src and handlers
+                        if (img.complete && img.naturalHeight !== 0) {
+                            // Image already loaded from cache, replace placeholder immediately
+                            replacePlaceholderWithImage();
+                        }
+                    }
                 }
             }
             
@@ -6891,6 +6997,9 @@ class GameCollectionManager {
                 resolutionInfo.className = 'resolution-info';
                 resolutionInfo.textContent = 'Loading...';
                 
+                // Store reference to resolution info for this card
+                cardResolutionInfoMap.set(card, resolutionInfo);
+                
                 const regionInfo = document.createElement('div');
                 regionInfo.className = 'region-info';
                 if (result.region) {
@@ -6902,18 +7011,37 @@ class GameCollectionManager {
                     metadataDiv.appendChild(regionInfo);
                 }
                 
-                // Add image load handler to update resolution (only for images)
+                // Update resolution info when image loads (fallback if not updated in replacePlaceholderWithImage)
                 if (mediaType !== 'video') {
-                    const img = card.querySelector('img');
-                    if (img) {
-                        img.onload = () => {
-                            if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                                resolutionInfo.textContent = `Resolution: ${img.naturalWidth}x${img.naturalHeight}`;
+                    // Find the img element that was created earlier
+                    const checkImageAndUpdateResolution = () => {
+                        const imgElement = card.querySelector('img');
+                        if (imgElement) {
+                            // Check if image is already loaded
+                            if (imgElement.complete && imgElement.naturalHeight > 0) {
+                                if (imgElement.naturalWidth > 0 && imgElement.naturalHeight > 0) {
+                                    resolutionInfo.textContent = `Resolution: ${imgElement.naturalWidth}x${imgElement.naturalHeight}`;
+                                } else {
+                                    resolutionInfo.textContent = 'Resolution: Unknown';
+                                }
                             } else {
-                                resolutionInfo.textContent = 'Resolution: Unknown';
+                                // Wait for image to load
+                                imgElement.addEventListener('load', () => {
+                                    if (imgElement.naturalWidth > 0 && imgElement.naturalHeight > 0) {
+                                        resolutionInfo.textContent = `Resolution: ${imgElement.naturalWidth}x${imgElement.naturalHeight}`;
+                                    } else {
+                                        resolutionInfo.textContent = 'Resolution: Unknown';
+                                    }
+                                }, { once: true });
                             }
-                        };
-                    }
+                        } else {
+                            // Image not in DOM yet (still in loading placeholder), check again
+                            setTimeout(checkImageAndUpdateResolution, 50);
+                        }
+                    };
+                    
+                    // Start checking for the image
+                    checkImageAndUpdateResolution();
                 }
             } else if (mediaType === 'video' && videoURL && result.source && result.source.toLowerCase() === 'emumovies' && result.emumovies_type) {
                 // For EmuMovies videos, show the media type as metadata
