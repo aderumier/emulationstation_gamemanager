@@ -23386,6 +23386,33 @@ class GameCollectionManager {
         document.getElementById('reencodeVideoOptions').style.display = 'none';
     }
 
+    isImageField(fieldName, config) {
+        // Check extensions in media_fields config for image formats
+        const media_fields = config.media_fields || {};
+        const field_config = media_fields[fieldName];
+        if (!field_config || !field_config.extensions) {
+            return false;
+        }
+        
+        const extensions = field_config.extensions;
+        const image_extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'svg', 'ico'];
+        
+        // Handle extensions as array or comma-separated string
+        let field_extensions = [];
+        if (Array.isArray(extensions)) {
+            if (extensions.length === 0) {
+                return false;
+            }
+            field_extensions = extensions.map(ext => ext.toString().toLowerCase().trim().replace('.', '')).filter(ext => ext);
+        } else if (typeof extensions === 'string' && extensions.trim()) {
+            field_extensions = extensions.toLowerCase().split(',').map(ext => ext.trim().replace('.', '')).filter(ext => ext);
+        } else {
+            return false;
+        }
+        
+        return field_extensions.length > 0 && field_extensions.some(ext => image_extensions.includes(ext));
+    }
+
     async loadReencodeMediasFields() {
         try {
             const response = await fetch('/api/config');
@@ -23396,10 +23423,16 @@ class GameCollectionManager {
             
             if (config.media_fields) {
                 Object.entries(config.media_fields).forEach(([field, info]) => {
-                    const option = document.createElement('option');
-                    option.value = field;
-                    option.textContent = `${field} (${info.description || field})`;
-                    select.appendChild(option);
+                    // Only show fields that have image or video extensions
+                    const isVideo = this.isVideoField(field, config);
+                    const isImage = this.isImageField(field, config);
+                    
+                    if (isVideo || isImage) {
+                        const option = document.createElement('option');
+                        option.value = field;
+                        option.textContent = `${field} (${info.description || field})`;
+                        select.appendChild(option);
+                    }
                 });
             }
             
@@ -23418,15 +23451,27 @@ class GameCollectionManager {
         // Check extensions in media_fields config for video formats
         const media_fields = config.media_fields || {};
         const field_config = media_fields[fieldName];
-        if (!field_config) {
+        if (!field_config || !field_config.extensions) {
             return false;
         }
         
-        const extensions = field_config.extensions || '';
+        const extensions = field_config.extensions;
         const video_extensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'];
-        const field_extensions = extensions.toLowerCase().split(',').map(ext => ext.trim());
         
-        return field_extensions.some(ext => video_extensions.includes(ext));
+        // Handle extensions as array or comma-separated string
+        let field_extensions = [];
+        if (Array.isArray(extensions)) {
+            if (extensions.length === 0) {
+                return false;
+            }
+            field_extensions = extensions.map(ext => ext.toString().toLowerCase().trim().replace('.', '')).filter(ext => ext);
+        } else if (typeof extensions === 'string' && extensions.trim()) {
+            field_extensions = extensions.toLowerCase().split(',').map(ext => ext.trim().replace('.', '')).filter(ext => ext);
+        } else {
+            return false;
+        }
+        
+        return field_extensions.length > 0 && field_extensions.some(ext => video_extensions.includes(ext));
     }
 
     onReencodeMediaFieldChange() {
@@ -23460,33 +23505,81 @@ class GameCollectionManager {
             .then(response => response.json())
             .then(config => {
                 const isVideo = this.isVideoField(selectedField, config);
+                const isImage = this.isImageField(selectedField, config);
+                console.log('Field selected:', selectedField);
                 console.log('Is video field:', isVideo);
+                console.log('Is image field:', isImage);
                 
                 if (isVideo) {
                     videoOptions.style.display = 'block';
                     imageOptions.style.display = 'none';
                     console.log('Showing video options');
-                } else {
+                } else if (isImage) {
                     imageOptions.style.display = 'block';
                     videoOptions.style.display = 'none';
                     console.log('Showing image options');
                     
-                    // Populate extension dropdown from field config
+                    // Get field config and populate defaults
                     const fieldConfig = config.media_fields[selectedField];
+                    
+                    // Populate width, height, and target_extension from config
+                    const widthInput = document.getElementById('reencodeImageWidth');
+                    const heightInput = document.getElementById('reencodeImageHeight');
                     const extensionSelect = document.getElementById('reencodeImageExtension');
-                    if (extensionSelect) {
-                        extensionSelect.innerHTML = '<option value="">Keep original</option>';
-                        
-                        if (fieldConfig && fieldConfig.extensions) {
-                            const extensions = fieldConfig.extensions.split(',').map(ext => ext.trim());
-                            extensions.forEach(ext => {
-                                const option = document.createElement('option');
-                                option.value = ext.replace('.', '');
-                                option.textContent = ext.toUpperCase();
-                                extensionSelect.appendChild(option);
-                            });
+                    
+                    if (fieldConfig) {
+                        // Set width default (0 if not configured)
+                        if (widthInput) {
+                            widthInput.value = fieldConfig.width || 0;
                         }
+                        
+                        // Set height default (0 if not configured)
+                        if (heightInput) {
+                            heightInput.value = fieldConfig.height || 0;
+                        }
+                        
+                        // Populate extension dropdown and set default
+                        if (extensionSelect) {
+                            extensionSelect.innerHTML = '<option value="">Keep original</option>';
+                            
+                            if (fieldConfig.extensions) {
+                                // Handle extensions as array or comma-separated string
+                                let extensions = [];
+                                if (Array.isArray(fieldConfig.extensions)) {
+                                    extensions = fieldConfig.extensions.map(ext => ext.toString().trim());
+                                } else if (typeof fieldConfig.extensions === 'string') {
+                                    extensions = fieldConfig.extensions.split(',').map(ext => ext.trim());
+                                }
+                                
+                                extensions.forEach(ext => {
+                                    const option = document.createElement('option');
+                                    const extValue = ext.replace('.', '');
+                                    option.value = extValue;
+                                    option.textContent = ext.toUpperCase();
+                                    extensionSelect.appendChild(option);
+                                });
+                            }
+                            
+                            // Set target_extension default if configured
+                            if (fieldConfig.target_extension) {
+                                // Remove leading dot if present for comparison
+                                const targetExt = fieldConfig.target_extension.replace('.', '');
+                                extensionSelect.value = targetExt;
+                            } else {
+                                extensionSelect.value = '';
+                            }
+                        }
+                    } else {
+                        // Reset to defaults if no config
+                        if (widthInput) widthInput.value = 0;
+                        if (heightInput) heightInput.value = 0;
+                        if (extensionSelect) extensionSelect.value = '';
                     }
+                } else {
+                    // Neither video nor image - hide both
+                    imageOptions.style.display = 'none';
+                    videoOptions.style.display = 'none';
+                    console.log('Field is neither video nor image - hiding options');
                 }
             })
             .catch(error => {
