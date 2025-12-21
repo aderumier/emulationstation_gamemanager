@@ -1803,6 +1803,7 @@ class GameCollectionManager {
         document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
         document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
+        document.getElementById('startImportRomsBtn').addEventListener('click', () => this.startImportRoms());
         
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
@@ -16056,6 +16057,7 @@ class GameCollectionManager {
         throw new Error('Task did not complete within expected time');
     }
 
+
     showRomScanConfirmation(scanSummary) {
         const { new_roms, missing_roms, total_existing, total_rom_files, is_initial_import } = scanSummary;
         
@@ -19898,6 +19900,23 @@ class GameCollectionManager {
                 this.showAlert(data.message || 'Import medias failed', 'error');
             }
         }
+        
+        // Check if this is an import ROMs task completion
+        if (data.task_type === 'import_roms') {
+            
+            // Refresh the task grid to show updated task status
+            this.refreshTaskGrid();
+            
+            // Note: Grid refresh is handled automatically by the gamelist_updated WebSocket event
+            // which is emitted by notify_gamelist_updated() in the backend
+            
+            // Show appropriate message based on success status
+            if (data.success) {
+                this.showAlert(data.message || 'Import ROMs completed successfully', 'success');
+            } else {
+                this.showAlert(data.message || 'Import ROMs failed', 'error');
+            }
+        }
     }
     
     async refreshTaskGrid() {
@@ -20818,6 +20837,43 @@ class GameCollectionManager {
             openImportMediasModal.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.openImportMediasModal();
+            });
+        }
+
+        // Add event listener for Import ROMs modal
+        const openImportRomsModal = document.getElementById('openImportRomsModal');
+        if (openImportRomsModal) {
+            openImportRomsModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openImportRomsModal();
+            });
+        }
+
+        // Add event listener for Reencode Medias modal
+        const openReencodeMediasModal = document.getElementById('openReencodeMediasModal');
+        if (openReencodeMediasModal) {
+            openReencodeMediasModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openReencodeMediasModal();
+            });
+        }
+
+        // Add event listener for media field change in reencode modal
+        // Use event delegation since modal might not be in DOM when page loads
+        document.addEventListener('change', (e) => {
+            if (e.target && e.target.id === 'reencodeMediaFieldSelect') {
+                if (window.gameManager) {
+                    window.gameManager.onReencodeMediaFieldChange();
+                }
+            }
+        });
+
+        // Add event listener for reencode medias form submission
+        const startReencodeMediasBtn = document.getElementById('startReencodeMediasBtn');
+        if (startReencodeMediasBtn) {
+            startReencodeMediasBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.startReencodeMediasTask();
             });
         }
 
@@ -23199,6 +23255,328 @@ class GameCollectionManager {
         }
     }
 
+    // Import ROMs Methods
+    async openImportRomsModal() {
+        try {
+            const modal = new bootstrap.Modal(document.getElementById('importRomsModal'));
+            modal.show();
+            
+            // Reset UI state
+            this.resetImportRomsUI();
+            
+            // Update current system name in modal
+            document.getElementById('importRomsCurrentSystemName').textContent = this.currentSystem || 'currentsystem';
+            
+            // Load source directories
+            await this.loadImportRomsData();
+            
+        } catch (error) {
+            console.error('Error opening import ROMs modal:', error);
+            this.showAlert('Error opening import ROMs modal', 'danger');
+        }
+    }
+
+    resetImportRomsUI() {
+        // Reset form fields
+        document.getElementById('importRomsSourceDirectory').value = '';
+        
+        // Clear dropdown
+        document.getElementById('importRomsSourceDirectory').innerHTML = '<option value="">Select source directory...</option>';
+    }
+
+    async loadImportRomsData() {
+        try {
+            // Load source directories
+            await this.loadImportRomsSourceDirectories();
+            
+        } catch (error) {
+            console.error('Error loading import ROMs data:', error);
+            this.showAlert('Error loading import ROMs data', 'danger');
+        }
+    }
+
+    async loadImportRomsSourceDirectories() {
+        try {
+            const response = await fetch(`/api/import-roms/source-directories/${this.currentSystem}`);
+            const data = await response.json();
+            
+            const select = document.getElementById('importRomsSourceDirectory');
+            select.innerHTML = '<option value="">Select source directory...</option>';
+            
+            if (data.directories && data.directories.length > 0) {
+                data.directories.forEach(dir => {
+                    const option = document.createElement('option');
+                    option.value = dir;
+                    option.textContent = dir;
+                    select.appendChild(option);
+                });
+            } else {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No source directories found';
+                option.disabled = true;
+                select.appendChild(option);
+            }
+            
+        } catch (error) {
+            console.error('Error loading source directories:', error);
+            this.showAlert('Error loading source directories', 'danger');
+        }
+    }
+
+    // Reencode Medias Methods
+    async openReencodeMediasModal() {
+        try {
+            // Check if games are selected
+            if (!this.selectedGames || this.selectedGames.length === 0) {
+                this.showAlert('Please select at least one game from the grid', 'warning');
+                return;
+            }
+
+            const modalElement = document.getElementById('reencodeMediasModal');
+            const modal = new bootstrap.Modal(modalElement);
+            
+            // Add event listener when modal is shown
+            const handleModalShown = () => {
+                // Reset UI state
+                this.resetReencodeMediasUI();
+                
+                // Load media fields from configuration
+                this.loadReencodeMediasFields().then(() => {
+                    // Ensure event listener is attached
+                    const fieldSelect = document.getElementById('reencodeMediaFieldSelect');
+                    if (fieldSelect) {
+                        // Remove existing listener if any (using a named function)
+                        fieldSelect.removeEventListener('change', this._reencodeFieldChangeHandler);
+                        
+                        // Create and store handler
+                        this._reencodeFieldChangeHandler = () => {
+                            this.onReencodeMediaFieldChange();
+                        };
+                        
+                        // Add new event listener
+                        fieldSelect.addEventListener('change', this._reencodeFieldChangeHandler);
+                    }
+                });
+                
+                // Remove this listener after first use
+                modalElement.removeEventListener('shown.bs.modal', handleModalShown);
+            };
+            
+            modalElement.addEventListener('shown.bs.modal', handleModalShown);
+            modal.show();
+            
+        } catch (error) {
+            console.error('Error opening reencode medias modal:', error);
+            this.showAlert('Error opening reencode medias modal', 'danger');
+        }
+    }
+
+    resetReencodeMediasUI() {
+        // Reset form fields
+        document.getElementById('reencodeMediaFieldSelect').value = '';
+        document.getElementById('reencodeImageWidth').value = '';
+        document.getElementById('reencodeImageHeight').value = '';
+        document.getElementById('reencodeImageExtension').value = '';
+        document.getElementById('reencodeVideoResolution').value = '';
+        document.getElementById('reencodeVideoFadeInOut').checked = false;
+        
+        // Hide options sections
+        document.getElementById('reencodeImageOptions').style.display = 'none';
+        document.getElementById('reencodeVideoOptions').style.display = 'none';
+    }
+
+    async loadReencodeMediasFields() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            
+            const select = document.getElementById('reencodeMediaFieldSelect');
+            select.innerHTML = '<option value="">Select media field...</option>';
+            
+            if (config.media_fields) {
+                Object.entries(config.media_fields).forEach(([field, info]) => {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = `${field} (${info.description || field})`;
+                    select.appendChild(option);
+                });
+            }
+            
+        } catch (error) {
+            console.error('Error loading reencode media fields:', error);
+            this.showAlert('Error loading media fields', 'danger');
+        }
+    }
+
+    isVideoField(fieldName, config) {
+        // Check if field name is 'video'
+        if (fieldName === 'video') {
+            return true;
+        }
+        
+        // Check extensions in media_fields config for video formats
+        const media_fields = config.media_fields || {};
+        const field_config = media_fields[fieldName];
+        if (!field_config) {
+            return false;
+        }
+        
+        const extensions = field_config.extensions || '';
+        const video_extensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v'];
+        const field_extensions = extensions.toLowerCase().split(',').map(ext => ext.trim());
+        
+        return field_extensions.some(ext => video_extensions.includes(ext));
+    }
+
+    onReencodeMediaFieldChange() {
+        const fieldSelect = document.getElementById('reencodeMediaFieldSelect');
+        if (!fieldSelect) {
+            console.error('reencodeMediaFieldSelect not found');
+            return;
+        }
+        
+        const selectedField = fieldSelect.value;
+        const imageOptions = document.getElementById('reencodeImageOptions');
+        const videoOptions = document.getElementById('reencodeVideoOptions');
+        
+        if (!imageOptions || !videoOptions) {
+            console.error('Image or video options elements not found');
+            return;
+        }
+        
+        // Hide both sections first
+        imageOptions.style.display = 'none';
+        videoOptions.style.display = 'none';
+        
+        if (!selectedField) {
+            return;
+        }
+        
+        console.log('Field selected:', selectedField);
+        
+        // Get config to determine field type
+        fetch('/api/config')
+            .then(response => response.json())
+            .then(config => {
+                const isVideo = this.isVideoField(selectedField, config);
+                console.log('Is video field:', isVideo);
+                
+                if (isVideo) {
+                    videoOptions.style.display = 'block';
+                    imageOptions.style.display = 'none';
+                    console.log('Showing video options');
+                } else {
+                    imageOptions.style.display = 'block';
+                    videoOptions.style.display = 'none';
+                    console.log('Showing image options');
+                    
+                    // Populate extension dropdown from field config
+                    const fieldConfig = config.media_fields[selectedField];
+                    const extensionSelect = document.getElementById('reencodeImageExtension');
+                    if (extensionSelect) {
+                        extensionSelect.innerHTML = '<option value="">Keep original</option>';
+                        
+                        if (fieldConfig && fieldConfig.extensions) {
+                            const extensions = fieldConfig.extensions.split(',').map(ext => ext.trim());
+                            extensions.forEach(ext => {
+                                const option = document.createElement('option');
+                                option.value = ext.replace('.', '');
+                                option.textContent = ext.toUpperCase();
+                                extensionSelect.appendChild(option);
+                            });
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error determining field type:', error);
+            });
+    }
+
+    async startReencodeMediasTask() {
+        // Check if games are selected
+        if (!this.selectedGames || this.selectedGames.length === 0) {
+            this.showAlert('Please select at least one game from the grid', 'warning');
+            return;
+        }
+
+        const mediaField = document.getElementById('reencodeMediaFieldSelect').value;
+        if (!mediaField) {
+            this.showAlert('Please select a media field', 'warning');
+            return;
+        }
+
+        // Get selected games paths
+        const selectedGamePaths = this.selectedGames.map(game => game.path);
+        
+        // Get config to determine field type
+        let isVideo = false;
+        try {
+            const configResponse = await fetch('/api/config');
+            const config = await configResponse.json();
+            isVideo = this.isVideoField(mediaField, config);
+        } catch (error) {
+            console.error('Error getting config:', error);
+            this.showAlert('Error determining media field type', 'error');
+            return;
+        }
+
+        // Build request data
+        const requestData = {
+            system_name: this.currentSystem,
+            media_field: mediaField,
+            selected_games: selectedGamePaths
+        };
+
+        if (isVideo) {
+            const resolution = document.getElementById('reencodeVideoResolution').value;
+            const fadeInOut = document.getElementById('reencodeVideoFadeInOut').checked;
+            
+            requestData.resolution = resolution ? parseInt(resolution) : null;
+            requestData.fadein = fadeInOut;
+            requestData.fadeout = fadeInOut;
+        } else {
+            const width = document.getElementById('reencodeImageWidth').value;
+            const height = document.getElementById('reencodeImageHeight').value;
+            const extension = document.getElementById('reencodeImageExtension').value;
+            
+            requestData.width = width ? parseInt(width) : 0;
+            requestData.height = height ? parseInt(height) : 0;
+            requestData.extension = extension || null;
+        }
+
+        try {
+            const response = await fetch('/api/reencode-medias', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showAlert('Reencoding task started successfully', 'success');
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('reencodeMediasModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Switch to task management tab
+                this.switchToTaskManagementTab();
+            } else {
+                this.showAlert(`Error starting reencoding task: ${result.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error starting reencoding task:', error);
+            this.showAlert('Error starting reencoding task', 'error');
+        }
+    }
+
     // Clean Missing Medias Methods
     async openCleanMissingMediasModal() {
         try {
@@ -23556,6 +23934,53 @@ class GameCollectionManager {
         } finally {
             // Re-enable button
             document.getElementById('startImportMediasBtn').disabled = false;
+        }
+    }
+
+    async startImportRoms() {
+        const sourceDirectory = document.getElementById('importRomsSourceDirectory').value;
+        
+        if (!sourceDirectory) {
+            this.showAlert('Please select a source directory', 'warning');
+            return;
+        }
+
+        try {
+            // Disable button to prevent multiple submissions
+            document.getElementById('startImportRomsBtn').disabled = true;
+
+            // Start the import task
+            const response = await fetch('/api/import-roms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    system_name: this.currentSystem,
+                    source_directory: sourceDirectory
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showAlert('Import ROMs task started successfully', 'success');
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('importRomsModal'));
+                if (modal) {
+                    modal.hide();
+                }
+            } else {
+                this.showAlert(data.error || 'Error starting import task', 'danger');
+                this.resetImportRomsUI();
+            }
+        } catch (error) {
+            console.error('Error starting import ROMs:', error);
+            this.showAlert('Error starting import task', 'danger');
+            this.resetImportRomsUI();
+        } finally {
+            document.getElementById('startImportRomsBtn').disabled = false;
         }
     }
 

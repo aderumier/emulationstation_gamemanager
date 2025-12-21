@@ -1648,6 +1648,7 @@ _mobygames_cancel_maps = {}
 _datscrapper_cancel_maps = {}
 _custom_scrapper_cancel_maps = {}
 _import_medias_cancel_maps = {}
+_import_roms_cancel_maps = {}
 
 # Client tracking for system-specific notifications
 client_systems = {}  # {client_sid: system_name}
@@ -2388,7 +2389,7 @@ class Task:
             print(f"Error writing final status to log file {self.log_file}: {e}")
         
         # Mark that grid refresh is needed for this task type
-        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias']:
+        if self.type in ['scraping', 'screenscraper_scraping', 'media_scan', 'image_download', 'youtube_download', 'rom_scan', 'template_box_generation', '3dbox_generation', 'logo_generation', 'import_medias', 'import_roms']:
             self.grid_refresh_needed = True
         
         # Clear current task and start next queued task
@@ -3189,6 +3190,27 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_resize_medias_task, args=(system_name, media_field, task.id))
             thread.daemon = True
             thread.start()
+    elif task_type == 'reencode_medias':
+        # Start reencode medias task
+        system_name = task_data.get('system_name')
+        media_field = task_data.get('media_field')
+        selected_games = task_data.get('selected_games', [])
+        if system_name and media_field and selected_games:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('reencode_medias', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start reencode medias in background thread
+            thread = threading.Thread(target=run_reencode_medias_task, args=(system_name, media_field, selected_games, task.id, task_data))
+            thread.daemon = True
+            thread.start()
     elif task_type == 'import_medias':
         # Start import medias task
         system_name = task_data.get('system_name')
@@ -3209,6 +3231,26 @@ def process_next_queued_task():
                 task.start()
             # Start import medias in background thread
             thread = threading.Thread(target=run_import_medias_task, args=(system_name, source_directory, target_field, overwrite_existing, task.id))
+            thread.daemon = True
+            thread.start()
+    elif task_type == 'import_roms':
+        # Start import ROMs task
+        system_name = task_data.get('system_name')
+        source_directory = task_data.get('source_directory')
+        if system_name and source_directory:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('import_roms', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start import ROMs in background thread
+            thread = threading.Thread(target=run_import_roms_task, args=(system_name, source_directory, task.id))
             thread.daemon = True
             thread.start()
     elif task_type == 'custom_scrapper':
@@ -3546,6 +3588,284 @@ def run_resize_medias_task(system_name, media_field, task_id):
         import traceback
         traceback.print_exc()
 
+def run_reencode_medias_task(system_name, media_field, selected_games, task_id, task_data):
+    """Run reencode medias task in background thread"""
+    global current_task_id
+    
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found")
+            return
+        
+        task = tasks[task_id]
+        
+        # Load config
+        config = load_config()
+        from game_utils import is_video_field, convert_and_resize_image_replace
+        
+        # Determine if this is a video field
+        is_video = is_video_field(media_field, config)
+        
+        # Load gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            task.complete(False, f"Gamelist not found: {gamelist_path}")
+            return
+        
+        games = parse_gamelist_xml(gamelist_path)
+        if not games:
+            task.complete(False, "No games found in gamelist")
+            return
+        
+        # Filter games to only selected games
+        selected_paths = set(selected_games)
+        games_to_process = [game for game in games if game.get('path') in selected_paths]
+        
+        if not games_to_process:
+            task.complete(True, "No selected games found to process")
+            return
+        
+        # Filter games that have media files for the selected field
+        games_with_media = []
+        for game in games_to_process:
+            if media_field in game and game[media_field]:
+                games_with_media.append(game)
+        
+        total_games = len(games_with_media)
+        if total_games == 0:
+            task.complete(True, "No media files found for selected games")
+            return
+        
+        task.update_progress(f"Found {total_games} games with {media_field} media to process")
+        
+        # Get processing parameters
+        if is_video:
+            resolution = task_data.get('resolution')
+            fadein = task_data.get('fadein', False)
+            fadeout = task_data.get('fadeout', False)
+            task.update_progress(f"Video reencoding: resolution={resolution}p, fadein={fadein}, fadeout={fadeout}")
+        else:
+            width = task_data.get('width', 0)
+            height = task_data.get('height', 0)
+            extension = task_data.get('extension')
+            task.update_progress(f"Image reencoding: width={width}, height={height}, extension={extension}")
+        
+        # Process each game
+        processed_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        
+        for i, game in enumerate(games_with_media):
+            try:
+                # Update progress
+                progress = int((i / total_games) * 100)
+                task.update_progress(f"Processing {game.get('name', 'Unknown')} ({i+1}/{total_games})")
+                
+                # Get media path
+                media_path = game[media_field]
+                if not media_path or not media_path.startswith('./media/'):
+                    task.log_message(f"⏭️ Skipped {game.get('name', 'Unknown')}: Invalid media path")
+                    skipped_count += 1
+                    continue
+                
+                # Convert to absolute path
+                full_media_path = os.path.join(system_path, media_path[2:])  # Remove './' prefix
+                
+                if not os.path.exists(full_media_path):
+                    task.log_message(f"⏭️ Skipped {game.get('name', 'Unknown')}: File not found")
+                    skipped_count += 1
+                    continue
+                
+                if is_video:
+                    # Process video
+                    success = reencode_video(task, full_media_path, game.get('name', 'Unknown'), 
+                                            resolution, fadein, fadeout, system_path, game, media_field)
+                    if success:
+                        processed_count += 1
+                    else:
+                        failed_count += 1
+                else:
+                    # Process image
+                    success = reencode_image(task, full_media_path, game.get('name', 'Unknown'),
+                                           width, height, extension, system_path, game, media_field)
+                    if success:
+                        processed_count += 1
+                    else:
+                        failed_count += 1
+                
+            except Exception as e:
+                task.log_message(f"❌ Error processing {game.get('name', 'Unknown')}: {e}")
+                failed_count += 1
+                print(f"Error processing {game.get('name', 'Unknown')}: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Save updated gamelist
+        write_gamelist_xml(games, gamelist_path)
+        
+        # Notify clients
+        try:
+            notify_gamelist_updated(system_name, len(games))
+        except Exception as e:
+            print(f"Error notifying clients: {e}")
+        
+        # Complete task
+        success_msg = f"Reencoding completed: {processed_count} processed, {skipped_count} skipped, {failed_count} failed"
+        task.complete(True, success_msg)
+        
+        # Process next task in queue if any
+        process_next_queued_task()
+        
+    except Exception as e:
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+        print(f"Error in reencode medias task: {e}")
+        import traceback
+        traceback.print_exc()
+
+def reencode_image(task, image_path, game_name, width, height, extension, system_path, game, field):
+    """Reencode an image file using ImageMagick (not PIL)"""
+    try:
+        from game_utils import convert_and_resize_image_replace
+        
+        # Convert extension format if needed
+        target_extension = None
+        if extension:
+            target_extension = extension if extension.startswith('.') else f'.{extension}'
+        
+        # Process the image
+        processed_path, process_status = convert_and_resize_image_replace(
+            image_path, target_extension, width, height
+        )
+        
+        if process_status in ["converted", "resized", "converted_and_resized"]:
+            # Update gamelist if file path changed (extension change)
+            if processed_path != image_path:
+                new_relative_path = f"./{os.path.relpath(processed_path, system_path)}"
+                old_relative_path = game[field]
+                game[field] = new_relative_path
+                task.log_message(f"📝 Updated gamelist: {old_relative_path} → {new_relative_path}")
+            
+            task.log_message(f"✅ Processed {game_name}: {process_status}")
+            return True
+        else:
+            task.log_message(f"❌ Failed to process {game_name}: {process_status}")
+            return False
+            
+    except Exception as e:
+        task.log_message(f"❌ Error reencoding image for {game_name}: {e}")
+        return False
+
+def reencode_video(task, video_path, game_name, resolution, fadein, fadeout, system_path, game, field):
+    """Reencode a video file"""
+    try:
+        import subprocess
+        
+        # Create temporary processed filename
+        base_path = os.path.splitext(video_path)[0]
+        processed_path = f"{base_path}_processed.mp4"
+        
+        # Build video filter chain
+        video_filters = []
+        
+        # Add scale filter if resolution is specified
+        if resolution:
+            # Scale to specified height, maintain aspect ratio
+            video_filters.append(f'scale=ceil(iw*{resolution}/ih/2)*2:{resolution}')
+        
+        # Get video duration for fade effects
+        fade_out_start = None
+        if fadein or fadeout:
+            try:
+                duration_result = subprocess.run([
+                    'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                    '-of', 'csv=p=0', video_path
+                ], capture_output=True, text=True, timeout=30)
+                
+                if duration_result.returncode == 0:
+                    duration = float(duration_result.stdout.strip())
+                    fade_out_start = max(0, duration - 2)  # Start fade-out 2 seconds before end
+                else:
+                    fade_out_start = 28  # Fallback
+            except Exception as e:
+                task.log_message(f"⚠️ Could not get video duration: {e}, using fallback")
+                fade_out_start = 28
+        
+        # Add fade effects
+        fade_filters = []
+        if fadein:
+            fade_filters.append('fade=t=in:st=0:d=2')
+        if fadeout and fade_out_start is not None:
+            fade_filters.append(f'fade=t=out:st={fade_out_start}:d=2')
+        
+        if fade_filters:
+            video_filters.extend(fade_filters)
+        
+        # Build audio filters for fade effects
+        af_filters = []
+        if fadein:
+            af_filters.append('afade=t=in:st=0:d=2')
+        if fadeout and fade_out_start is not None:
+            af_filters.append(f'afade=t=out:st={fade_out_start}:d=2')
+        
+        # Build ffmpeg command
+        process_cmd = ['ffmpeg', '-i', video_path]
+        
+        # Add video filters if any
+        vf_filter = ','.join(video_filters) if video_filters else None
+        if vf_filter:
+            process_cmd.extend(['-vf', vf_filter])
+        
+        # Add audio filters if any
+        af_filter = ','.join(af_filters) if af_filters else None
+        if af_filter:
+            process_cmd.extend(['-af', af_filter])
+        
+        # Add codec settings
+        process_cmd.extend([
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-y',  # Overwrite output file
+            processed_path
+        ])
+        
+        # Log operations
+        operations = []
+        if resolution:
+            operations.append(f'resize to {resolution}p')
+        if fadein:
+            operations.append('fade in (2s)')
+        if fadeout:
+            operations.append('fade out (2s)')
+        
+        task.log_message(f"🔧 Reencoding video for {game_name}: {', '.join(operations) if operations else 'no operations'}")
+        
+        # Run ffmpeg
+        result = subprocess.run(process_cmd, capture_output=True, text=True, timeout=300)
+        
+        if result.returncode == 0 and os.path.exists(processed_path):
+            # Replace original with processed
+            if os.path.exists(video_path):
+                os.remove(video_path)
+            os.rename(processed_path, video_path)
+            
+            task.log_message(f"✅ Reencoded video for {game_name}")
+            return True
+        else:
+            task.log_message(f"❌ Failed to reencode video for {game_name}: {result.stderr}")
+            # Clean up failed processed file if it exists
+            if os.path.exists(processed_path):
+                os.remove(processed_path)
+            return False
+            
+    except Exception as e:
+        task.log_message(f"❌ Error reencoding video for {game_name}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def remove_number_suffix(filename):
     """Remove number suffixes and version strings from filename"""
     import re
@@ -3636,6 +3956,243 @@ def process_import_match(game, matched_file, source_dir, target_dir, target_fiel
         task.update_progress(f"     ❌ Error moving file: {e}")
         task.log_message(f"❌ Failed to move {matched_file}: {e}")
         return False
+
+def find_existing_rom(system_path, filename):
+    """Search for existing ROM file by filename in system directory, excluding media subdirectory
+    
+    Args:
+        system_path: Path to the system ROM directory (e.g., 'roms/nes')
+        filename: Filename to search for (e.g., 'game.nes')
+    
+    Returns:
+        Full path to existing ROM file if found, None otherwise
+    """
+    filename_basename = os.path.basename(filename)
+    
+    for root, dirs, files in os.walk(system_path):
+        # Skip media directory
+        if 'media' in dirs:
+            dirs.remove('media')
+        
+        # Check for exact filename match (case-sensitive filesystem)
+        if filename_basename in files:
+            return os.path.join(root, filename_basename)
+        
+        # Also check case-insensitive match for cross-platform compatibility
+        filename_lower = filename_basename.lower()
+        for file in files:
+            if file.lower() == filename_lower:
+                return os.path.join(root, file)
+    
+    return None
+
+def create_minimal_game_entry(rom_path, system_name):
+    """Create a minimal game entry for gamelist.xml (only for new ROMs, not replacements)
+    
+    Args:
+        rom_path: Relative path to ROM file from gamelist.xml location
+        system_name: Name of the system
+    
+    Returns:
+        Dictionary with minimal game entry fields
+    """
+    game_name = os.path.splitext(os.path.basename(rom_path))[0]
+    return {
+        'path': rom_path,
+        'name': game_name
+    }
+
+def run_import_roms_task(system_name, source_directory, task_id):
+    """Run import ROMs task in background thread"""
+    global current_task_id
+    
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found")
+            return
+        
+        task = tasks[task_id]
+        
+        # Add task to cancel map
+        global _import_roms_cancel_maps
+        _import_roms_cancel_maps[task_id] = False
+        
+        def is_cancelled():
+            """Check if the import ROMs task should be cancelled"""
+            global _import_roms_cancel_maps
+            return _import_roms_cancel_maps.get(task_id, False)
+        
+        # Load system configuration to get ROM extensions
+        systems_config = load_systems_config()
+        system_config = systems_config.get(system_name, {})
+        rom_extensions = system_config.get('extensions', [])
+        
+        if not rom_extensions:
+            task.complete(False, f"System '{system_name}' is not configured with file extensions. Please configure the system first.")
+            return
+        
+        # Normalize extensions (ensure they start with .)
+        rom_extensions = [ext if ext.startswith('.') else f'.{ext}' for ext in rom_extensions]
+        rom_extensions_lower = [ext.lower() for ext in rom_extensions]
+        
+        task.update_progress(f"Supported ROM extensions: {', '.join(rom_extensions)}")
+        
+        # Load gamelist from ROMs directory (since we're working with ROMs there)
+        games = []  # Initialize games list
+        gamelist_path = get_roms_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            # Create empty gamelist if it doesn't exist
+            os.makedirs(os.path.dirname(gamelist_path), exist_ok=True)
+            # Create empty gamelist
+            root = ET.Element('gameList')
+            tree = ET.ElementTree(root)
+            tree.write(gamelist_path, encoding='utf-8', xml_declaration=True)
+        else:
+            games = parse_gamelist_xml(gamelist_path)
+            if games is None:
+                games = []
+        
+        # Get system ROM directory
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            os.makedirs(system_path, exist_ok=True)
+        
+        # Get source directory
+        source_dir = os.path.join(ROMS_FOLDER, system_name, 'media', 'import', source_directory)
+        if not os.path.exists(source_dir):
+            task.complete(False, f"Source directory does not exist: {source_dir}")
+            return
+        
+        # Walk source directory recursively to find all files
+        rom_files = []
+        for root, dirs, files in os.walk(source_dir):
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                if os.path.isfile(file_path):
+                    # Check if extension matches system extensions (case-insensitive)
+                    file_ext = os.path.splitext(filename)[1]
+                    if file_ext.lower() in rom_extensions_lower:
+                        # Get relative path from source directory
+                        rel_path = os.path.relpath(file_path, source_dir)
+                        rom_files.append((file_path, filename, rel_path))
+        
+        if not rom_files:
+            task.complete(True, "No ROM files found in source directory matching system extensions")
+            return
+        
+        task.update_progress(f"Found {len(rom_files)} ROM files to process")
+        
+        # Process each ROM file
+        replaced_count = 0
+        added_count = 0
+        skipped_count = 0
+        error_count = 0
+        new_entries_added = False
+        
+        for i, (file_path, filename, rel_path) in enumerate(rom_files):
+            # Check for cancellation
+            if is_cancelled():
+                task.update_progress("🛑 Import ROMs task cancelled by user")
+                task.complete(True, "Import ROMs task cancelled by user")
+                return
+            
+            try:
+                task.update_progress(f"Processing {i+1}/{len(rom_files)}: {filename}")
+                
+                # Search for existing ROM
+                existing_rom_path = find_existing_rom(system_path, filename)
+                
+                if existing_rom_path:
+                    # ROM exists - replace it
+                    try:
+                        # Delete old file
+                        if os.path.exists(existing_rom_path):
+                            os.remove(existing_rom_path)
+                        
+                        # Move new file to same location
+                        shutil.move(file_path, existing_rom_path)
+                        replaced_count += 1
+                        task.update_progress(f"  ✅ Replaced: {filename}")
+                    except Exception as e:
+                        error_count += 1
+                        task.update_progress(f"  ❌ Error replacing {filename}: {str(e)}")
+                else:
+                    # ROM doesn't exist - move to system directory and add to gamelist
+                    try:
+                        # Move file to system directory root
+                        target_path = os.path.join(system_path, filename)
+                        
+                        # Handle filename conflicts
+                        if os.path.exists(target_path):
+                            # If target exists, replace it
+                            os.remove(target_path)
+                        
+                        shutil.move(file_path, target_path)
+                        
+                        # Create relative path for gamelist (relative to gamelist.xml location)
+                        gamelist_dir = os.path.dirname(gamelist_path)
+                        rel_rom_path = os.path.relpath(target_path, gamelist_dir)
+                        # Normalize path separators for cross-platform compatibility
+                        rel_rom_path = rel_rom_path.replace('\\', '/')
+                        
+                        # Also create alternative path formats for comparison
+                        rel_rom_path_alt1 = f"./{rel_rom_path}" if not rel_rom_path.startswith('./') else rel_rom_path
+                        rel_rom_path_alt2 = rel_rom_path.lstrip('./')
+                        
+                        # Check if game entry already exists in gamelist (check multiple path formats)
+                        game_exists = False
+                        for game in games:
+                            game_path = game.get('path', '')
+                            if game_path:
+                                # Normalize path for comparison
+                                game_path = game_path.replace('\\', '/')
+                                if game_path == rel_rom_path or game_path == rel_rom_path_alt1 or game_path == rel_rom_path_alt2:
+                                    game_exists = True
+                                    break
+                                # Also check by filename (in case path format differs)
+                                if os.path.basename(game_path) == filename:
+                                    game_exists = True
+                                    break
+                        
+                        if not game_exists:
+                            # Add new game entry
+                            new_game = create_minimal_game_entry(rel_rom_path, system_name)
+                            games.append(new_game)
+                            new_entries_added = True
+                            task.update_progress(f"  ✅ Added new: {filename} (added to gamelist)")
+                        else:
+                            task.update_progress(f"  ✅ Moved: {filename} (already in gamelist)")
+                        
+                        added_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        task.update_progress(f"  ❌ Error adding {filename}: {str(e)}")
+            
+            except Exception as e:
+                error_count += 1
+                task.update_progress(f"  ❌ Error processing {filename}: {str(e)}")
+        
+        # Save gamelist.xml only if new entries were added
+        if new_entries_added:
+            try:
+                save_gamelist_xml(gamelist_path, games)
+                task.update_progress(f"💾 Saved gamelist.xml with {len(games)} games")
+                # Notify clients of gamelist update
+                notify_gamelist_updated(system_name, len(games), updated_count=added_count)
+            except Exception as e:
+                task.update_progress(f"  ⚠️ Error saving gamelist.xml: {str(e)}")
+        
+        # Final summary
+        summary = f"Import ROMs completed: {replaced_count} replaced, {added_count} added, {error_count} errors"
+        task.complete(True, summary)
+        print(f"✅ {summary}")
+        
+    except Exception as e:
+        print(f"Error in import ROMs task: {e}")
+        import traceback
+        traceback.print_exc()
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, f"Import ROMs task failed: {str(e)}")
 
 def run_import_medias_task(system_name, source_directory, target_field, overwrite_existing, task_id):
     """Run import medias task in background thread"""
@@ -4159,31 +4716,26 @@ def run_import_medias_task(system_name, source_directory, target_field, overwrit
         
         task.complete(True, f"Import completed: {matched_count} matches found, {moved_count} files moved, {skipped_count} skipped, {failed_count} failed")
         
-        # Emit task completion event for immediate frontend update
-        try:
-            socketio.emit('task_completed', {
-                'task_type': 'import_medias',
-                'success': True,
-                'message': f"Import completed: {matched_count} matches found, {moved_count} files moved, {skipped_count} skipped, {failed_count} failed",
-                'system_name': system_name
-            })
-        except Exception as e:
-            print(f"Error emitting task_completed event: {e}")
+        # Emit task completion event for immediate frontend update (non-blocking)
+        emit_non_blocking('task_completed', {
+            'task_type': 'import_medias',
+            'success': True,
+            'message': f"Import completed: {matched_count} matches found, {moved_count} files moved, {skipped_count} skipped, {failed_count} failed",
+            'system_name': system_name
+        })
         
     except Exception as e:
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
             
-            # Emit task failure event
-            try:
-                socketio.emit('task_completed', {
-                    'task_type': 'import_medias',
-                    'success': False,
-                    'message': str(e),
-                    'system_name': system_name
-                })
-            except Exception as emit_error:
-                print(f"Error emitting task_completed event: {emit_error}")
+            # Emit task failure event (non-blocking)
+            emit_non_blocking('task_completed', {
+                'task_type': 'import_medias',
+                'success': False,
+                'message': str(e),
+                'system_name': system_name
+            })
+        
         print(f"Error in import medias task: {e}")
         import traceback
         traceback.print_exc()
@@ -10739,10 +11291,90 @@ def resize_medias_endpoint():
         print(f"Error starting resize medias task: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+@app.route('/api/reencode-medias', methods=['POST'])
+@login_required
+def reencode_medias_endpoint():
+    """Start a background task to reencode media files for selected games"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        media_field = data.get('media_field')
+        selected_games = data.get('selected_games', [])
+        
+        if not all([system_name, media_field]):
+            return jsonify({'error': 'System name and media field are required'}), 400
+        
+        if not selected_games or len(selected_games) == 0:
+            return jsonify({'error': 'At least one game must be selected'}), 400
+        
+        # Build task parameters
+        task_params = {
+            'system_name': system_name,
+            'media_field': media_field,
+            'selected_games': selected_games
+        }
+        
+        # Add image-specific parameters if present
+        if 'width' in data:
+            task_params['width'] = data.get('width', 0)
+        if 'height' in data:
+            task_params['height'] = data.get('height', 0)
+        if 'extension' in data:
+            task_params['extension'] = data.get('extension')
+        
+        # Add video-specific parameters if present
+        if 'resolution' in data:
+            task_params['resolution'] = data.get('resolution')
+        if 'fadein' in data:
+            task_params['fadein'] = data.get('fadein', False)
+        if 'fadeout' in data:
+            task_params['fadeout'] = data.get('fadeout', False)
+        
+        # Add task to queue using the standard pattern
+        task = add_task_to_queue('reencode_medias', task_params)
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': 'Reencode medias task queued successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error starting reencode medias task: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 @app.route('/api/import-medias/source-directories/<system_name>', methods=['GET'])
 @login_required
 def get_import_source_directories(system_name):
     """Get available source directories for import medias"""
+    try:
+        import_dir = os.path.join('roms', system_name, 'media', 'import')
+        
+        if not os.path.exists(import_dir):
+            return jsonify({'directories': []})
+        
+        directories = []
+        for item in os.listdir(import_dir):
+            item_path = os.path.join(import_dir, item)
+            if os.path.isdir(item_path):
+                directories.append(item)
+        
+        directories.sort()
+        return jsonify({'directories': directories})
+        
+    except Exception as e:
+        print(f"Error getting source directories: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/import-roms/source-directories/<system_name>', methods=['GET'])
+@login_required
+def get_import_roms_source_directories(system_name):
+    """Get available source directories for import ROMs"""
     try:
         import_dir = os.path.join('roms', system_name, 'media', 'import')
         
@@ -10800,6 +11432,42 @@ def import_medias_endpoint():
         
     except Exception as e:
         print(f"Error starting import medias task: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/api/import-roms', methods=['POST'])
+@login_required
+def import_roms_endpoint():
+    """Start a background task to import ROM files for a system"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        system_name = data.get('system_name')
+        source_directory = data.get('source_directory')
+        
+        if not all([system_name, source_directory]):
+            return jsonify({'error': 'System name and source directory are required'}), 400
+        
+        # Validate source directory exists
+        import_dir = os.path.join('roms', system_name, 'media', 'import', source_directory)
+        if not os.path.exists(import_dir):
+            return jsonify({'error': f'Source directory does not exist: {import_dir}'}), 400
+        
+        # Add task to queue using the standard pattern
+        task = add_task_to_queue('import_roms', {
+            'system_name': system_name,
+            'source_directory': source_directory
+        })
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': 'Import ROMs task queued successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error starting import ROMs task: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 @app.route('/api/multiscraper-search', methods=['POST'])
@@ -18729,6 +19397,9 @@ def download_task_log(task_id):
 @login_required
 def cleanup_tasks_endpoint():
     """Clean up stuck tasks"""
+@login_required
+def cleanup_tasks_endpoint():
+    """Clean up stuck tasks"""
     try:
         stuck_tasks = cleanup_stuck_tasks()
         return jsonify({
@@ -19074,6 +19745,19 @@ def stop_task_endpoint(task_id):
                 print(f"DEBUG: Set Import Medias cancel flag for task {task_id}")
             except Exception as e:
                 print(f"Warning: could not set Import Medias cancel flag: {e}")
+        
+        # For Import ROMs tasks, we need to handle cancellation
+        if task.type == 'import_roms':
+            task.update_progress("🛑 Import ROMs task stop requested - worker will save partial changes and exit")
+            # Set the cancel flag for Import ROMs tasks
+            try:
+                global _import_roms_cancel_maps
+                if '_import_roms_cancel_maps' not in globals():
+                    _import_roms_cancel_maps = {}
+                _import_roms_cancel_maps[task_id] = True
+                print(f"DEBUG: Set Import ROMs cancel flag for task {task_id}")
+            except Exception as e:
+                print(f"Warning: could not set Import ROMs cancel flag: {e}")
         
         # Stop the task (except for YouTube batch download which handles its own completion)
         if task.type != 'youtube_download_batch':
@@ -22904,8 +23588,8 @@ def run_manual_crop_task(task_id, data):
                 else:
                     task.update_progress("Warning: Could not find game in gamelist.xml to update")
             
-            # Notify clients about the update
-            socketio.emit('game_updated', {
+            # Notify clients about the update (non-blocking)
+            emit_non_blocking('game_updated', {
                 'system': system_name,
                 'game_id': game_id,
                 'message': 'Video cropped successfully'
@@ -22917,8 +23601,8 @@ def run_manual_crop_task(task_id, data):
         # Complete the task
         task.complete(True, f'Manual crop completed successfully. Output: {original_filename}')
         
-        # Emit task completion event
-        socketio.emit('task_completed', {
+        # Emit task completion event (non-blocking)
+        emit_non_blocking('task_completed', {
             'task_type': 'manual_crop',
             'success': True,
             'message': 'Manual crop completed successfully',
@@ -22933,8 +23617,8 @@ def run_manual_crop_task(task_id, data):
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
             
-            # Emit task failure event
-            socketio.emit('task_completed', {
+            # Emit task failure event (non-blocking)
+            emit_non_blocking('task_completed', {
                 'task_type': 'manual_crop',
                 'success': False,
                 'message': str(e),
@@ -23087,8 +23771,8 @@ def run_image_crop_task(task_id, data):
                 else:
                     task.update_progress("Warning: Could not find game in gamelist.xml")
             
-            # Notify clients about the update
-            socketio.emit('game_updated', {
+            # Notify clients about the update (non-blocking)
+            emit_non_blocking('game_updated', {
                 'system': system_name,
                 'game_id': game_id,
                 'message': 'Image cropped successfully'
@@ -23100,8 +23784,8 @@ def run_image_crop_task(task_id, data):
         
         task.complete(True, 'Image cropped successfully')
         
-        # Emit task completion event
-        socketio.emit('task_completed', {
+        # Emit task completion event (non-blocking)
+        emit_non_blocking('task_completed', {
             'task_type': 'image_crop',
             'success': True,
             'message': 'Image cropped successfully',
@@ -23116,8 +23800,8 @@ def run_image_crop_task(task_id, data):
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
             
-            # Emit task failure event
-            socketio.emit('task_completed', {
+            # Emit task failure event (non-blocking)
+            emit_non_blocking('task_completed', {
                 'task_type': 'image_crop',
                 'success': False,
                 'message': str(e),
@@ -24129,9 +24813,9 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
             print(f"❌ ERROR: {error_msg}")
             task.complete(False, error_msg)
         
-        # Emit task completion event
+        # Emit task completion event (non-blocking)
         print(f"🔧 DEBUG: Emitting task completion event")
-        socketio.emit('task_completed', {
+        emit_non_blocking('task_completed', {
             'task_type': 'logo_generation',
             'success': processed > 0,
             'message': f'Generated {processed} logos, {failed} failed',
@@ -24147,8 +24831,8 @@ def run_logo_generation_task(system_name, selected_games, color, font_size, font
             print(f"🔧 DEBUG: Completing task with error: {str(e)}")
             tasks[current_task_id].complete(False, str(e))
         
-        # Emit task failure event
-        socketio.emit('task_failed', {
+        # Emit task failure event (non-blocking)
+        emit_non_blocking('task_failed', {
             'task_type': 'logo_generation',
             'error': str(e),
             'system_name': system_name
@@ -24253,6 +24937,24 @@ def handle_leave_system(data):
         import traceback
         traceback.print_exc()
 
+def emit_non_blocking(event_name, data, room=None, namespace=None):
+    """Emit a SocketIO event in a background thread to prevent blocking"""
+    def send_event():
+        try:
+            kwargs = {}
+            if room:
+                kwargs['room'] = room
+            if namespace:
+                kwargs['namespace'] = namespace
+            socketio.emit(event_name, data, **kwargs)
+        except Exception as e:
+            print(f"⚠️  Error emitting event {event_name}: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Use background task to prevent blocking the main thread
+    socketio.start_background_task(send_event)
+
 def notify_system_update(system_name, action, data=None):
     """Notify all clients in a system room about updates"""
     if system_name:
@@ -24266,22 +24968,13 @@ def notify_system_update(system_name, action, data=None):
         if client_count > 0:
             # Send notification in background thread to prevent blocking
             # This prevents the application from locking up when clients are slow/unresponsive
-            def send_notification():
-                try:
-                    socketio.emit('system_updated', {
-                        'system': system_name,
-                        'action': action,
-                        'data': data,
-                        'timestamp': datetime.now().isoformat()
-                    }, room=room)
-                    print(f"✅ Notification sent to room {room} for {action} ({client_count} clients)")
-                except Exception as e:
-                    print(f"⚠️  Error sending notification to room {room}: {e}")
-                    import traceback
-                    traceback.print_exc()
-            
-            # Use background task to prevent blocking the main thread
-            socketio.start_background_task(send_notification)
+            emit_non_blocking('system_updated', {
+                'system': system_name,
+                'action': action,
+                'data': data,
+                'timestamp': datetime.now().isoformat()
+            }, room=room)
+            print(f"✅ Notification queued for room {room} for {action} ({client_count} clients)")
         else:
             print(f"⚠️  System {system_name} has no clients to notify")
 
@@ -30099,8 +30792,8 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
                         except Exception as e:
                             print(f"⚠️ Warning: Failed to notify clients of gamelist update: {e}")
                         
-                        # Emit task completion event to refresh task grid
-                        socketio.emit('task_completed', {
+                        # Emit task completion event to refresh task grid (non-blocking)
+                        emit_non_blocking('task_completed', {
                             'task_type': 'igdb_scraping',
                             'success': True,
                             'message': res.get('message', 'IGDB scraping completed successfully'),
@@ -30110,8 +30803,8 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
                         # Task was stopped by user - treat as completed since gamelist was saved
                         t.complete(True, res.get('error', 'Task stopped by user'))
                         
-                        # Emit task completion event to refresh task grid (same as successful completion)
-                        socketio.emit('task_completed', {
+                        # Emit task completion event to refresh task grid (same as successful completion, non-blocking)
+                        emit_non_blocking('task_completed', {
                             'task_type': 'igdb_scraping',
                             'success': True,
                             'stopped': True,
@@ -30121,8 +30814,8 @@ def _igdb_scraping_result_listener(result_q, process, system_name):
                     else:
                         t.complete(False, res.get('error', 'IGDB scraping failed'))
                         
-                        # Emit task failure event
-                        socketio.emit('task_completed', {
+                        # Emit task failure event (non-blocking)
+                        emit_non_blocking('task_completed', {
                             'task_type': 'igdb_scraping',
                             'success': False,
                             'message': res.get('error', 'IGDB scraping failed'),

@@ -478,8 +478,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         <li><a class="dropdown-item" href="#" id="openResizeMediasModal">
                             <i class="bi bi-arrows-fullscreen me-2"></i>Resize Medias
                         </a></li>
+                        <li><a class="dropdown-item" href="#" id="openReencodeMediasModal">
+                            <i class="bi bi-arrow-repeat me-2"></i>Medias Reencoding
+                        </a></li>
                         <li><a class="dropdown-item" href="#" id="openImportMediasModal">
                             <i class="bi bi-download me-2"></i>Import Medias
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="openImportRomsModal">
+                            <i class="bi bi-file-earmark-arrow-up me-2"></i>Import ROMs
                         </a></li>
                         <li><a class="dropdown-item" href="#" id="openCleanMissingMediasModal">
                             <i class="bi bi-trash me-2"></i>Clean Missing Media Fields
@@ -5900,6 +5906,112 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
+    <!-- Reencode Medias Modal -->
+    <div class="modal fade" id="reencodeMediasModal" tabindex="-1" aria-labelledby="reencodeMediasModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reencodeMediasModalLabel">
+                        <i class="bi bi-arrow-repeat me-2"></i>Medias Reencoding
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This tool will reencode media files for selected games in the grid with custom parameters.
+                    </div>
+                    
+                    <form id="reencodeMediasForm">
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label for="reencodeMediaFieldSelect" class="form-label">
+                                    <i class="bi bi-folder me-1"></i>Media Field
+                                </label>
+                                <select class="form-select" id="reencodeMediaFieldSelect" required>
+                                    <option value="">Select media field...</option>
+                                </select>
+                                <div class="form-text">Select the media field to reencode</div>
+                            </div>
+                        </div>
+
+                        <!-- Image Options Section -->
+                        <div id="reencodeImageOptions" style="display: none;">
+                            <hr class="my-3">
+                            <h6 class="mb-3"><i class="bi bi-image me-2"></i>Image Reencoding Options</h6>
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="reencodeImageWidth" class="form-label">Width</label>
+                                    <input type="number" class="form-control" id="reencodeImageWidth" min="0" placeholder="0 = auto">
+                                    <div class="form-text">Target width (0 to disable)</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="reencodeImageHeight" class="form-label">Height</label>
+                                    <input type="number" class="form-control" id="reencodeImageHeight" min="0" placeholder="0 = auto">
+                                    <div class="form-text">Target height (0 to disable)</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="reencodeImageExtension" class="form-label">Extension</label>
+                                    <select class="form-select" id="reencodeImageExtension">
+                                        <option value="">Keep original</option>
+                                    </select>
+                                    <div class="form-text">Target file extension</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Video Options Section -->
+                        <div id="reencodeVideoOptions" style="display: none;">
+                            <hr class="my-3">
+                            <h6 class="mb-3"><i class="bi bi-camera-video me-2"></i>Video Reencoding Options</h6>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="reencodeVideoResolution" class="form-label">Resolution</label>
+                                    <select class="form-select" id="reencodeVideoResolution">
+                                        <option value="">Keep original</option>
+                                        <option value="480">480p</option>
+                                        <option value="720">720p</option>
+                                        <option value="1080">1080p</option>
+                                        <option value="1440">1440p</option>
+                                        <option value="2160">2160p (4K)</option>
+                                    </select>
+                                    <div class="form-text">Target video resolution height</div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="reencodeVideoFadeInOut">
+                                        <label class="form-check-label" for="reencodeVideoFadeInOut">
+                                            Fade In/Out
+                                        </label>
+                                        <div class="form-text">Add fade in and fade out effects (2 seconds each)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> This operation will:
+                            <ul class="mb-0 mt-2">
+                                <li>Reencode media files for selected games with the specified parameters</li>
+                                <li>Update gamelist.xml with new file paths if extension changes</li>
+                                <li>This action cannot be undone</li>
+                            </ul>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="startReencodeMediasBtn">
+                        <i class="bi bi-arrow-repeat me-2"></i>Start Reencoding
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Import Medias Modal -->
     <div class="modal fade" id="importMediasModal" tabindex="-1" aria-labelledby="importMediasModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -5969,6 +6081,57 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     </button>
                     <button type="button" class="btn btn-primary" id="startImportMediasBtn">
                         <i class="bi bi-download me-2"></i>Start Import
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import ROMs Modal -->
+    <div class="modal fade" id="importRomsModal" tabindex="-1" aria-labelledby="importRomsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importRomsModalLabel">
+                        <i class="bi bi-file-earmark-arrow-up me-2"></i>Import ROMs
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Import ROM files from a source directory to the current system's ROM directory. Files will be validated against system extensions, and existing ROMs with the same filename will be replaced.
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="importRomsSourceDirectory" class="form-label">
+                                <i class="bi bi-folder me-1"></i>Source Directory
+                            </label>
+                            <select class="form-select" id="importRomsSourceDirectory">
+                                <option value="">Select source directory...</option>
+                            </select>
+                            <div class="form-text">Choose a subdirectory from ./roms/<span id="importRomsCurrentSystemName">currentsystem</span>/media/import/</div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Import Behavior:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Only files with extensions matching the current system will be imported</li>
+                            <li>If a ROM with the same filename already exists, it will be replaced</li>
+                            <li>New ROMs will be moved to the system directory and added to gamelist.xml</li>
+                            <li>Files are moved (not copied) from the source directory</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="startImportRomsBtn">
+                        <i class="bi bi-file-earmark-arrow-up me-2"></i>Start Import
                     </button>
                 </div>
             </div>
