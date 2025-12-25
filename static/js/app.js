@@ -1804,6 +1804,7 @@ class GameCollectionManager {
         document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
         document.getElementById('startImportRomsBtn').addEventListener('click', () => this.startImportRoms());
+        document.getElementById('uploadRomFileBtn').addEventListener('click', () => this.handleRomUpload());
         
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
@@ -3610,6 +3611,19 @@ class GameCollectionManager {
 
         // Add row click listener for immediate media preview and right panel
         this.gridApi.addEventListener('rowClicked', async (event) => {
+            // In thumbnail view, skip row click handler if clicking on media columns
+            if (this.thumbnailViewEnabled && event.event && event.event.target) {
+                const target = event.event.target;
+                // Check if click is on a thumbnail image or thumbnail container
+                const isThumbnailClick = target.closest('.thumbnail-image') || 
+                                       target.classList.contains('thumbnail-image') ||
+                                       target.tagName === 'IMG' && target.closest('.thumbnail-image');
+                if (isThumbnailClick) {
+                    // Don't handle row click for thumbnail clicks - let selectThumbnail handle it
+                    return;
+                }
+            }
+            
             // Check if right panel is enabled
             const rightPanelEnabled = localStorage.getItem('guiPreferences_rightPanel') === 'true';
             if (rightPanelEnabled) {
@@ -3756,6 +3770,37 @@ class GameCollectionManager {
         this.gridApi.addEventListener('cellClicked', (event) => {
             if (event.column && event.column.colId) {
                 this.lastClickedColumn = event.column.colId;
+            }
+            
+            // In thumbnail view, only select row when clicking on name or checkbox columns
+            if (this.thumbnailViewEnabled && event.column && event.column.colId) {
+                const colId = event.column.colId;
+                const target = event.event && event.event.target;
+                
+                // Check if click is on a thumbnail (media column)
+                const isThumbnailClick = target && (
+                    target.closest('.thumbnail-image') || 
+                    target.classList.contains('thumbnail-image') ||
+                    (target.tagName === 'IMG' && target.closest('.thumbnail-image'))
+                );
+                
+                // Only select row if clicking on name column or checkbox column (but not on thumbnail)
+                if (!isThumbnailClick && (colId === 'name' || colId === 'checkbox')) {
+                    // Check if clicking directly on checkbox input - AG Grid handles checkbox selection automatically
+                    const isCheckboxInput = target && (
+                        target.type === 'checkbox' || 
+                        target.classList.contains('ag-checkbox-input') ||
+                        target.closest('.ag-checkbox')
+                    );
+                    
+                    // For name column, always select the row
+                    // For checkbox column, only select if not clicking directly on the checkbox input
+                    // (AG Grid's checkbox selection will handle checkbox input clicks)
+                    if (colId === 'name' || (colId === 'checkbox' && !isCheckboxInput)) {
+                        event.node.setSelected(true, false); // false = don't clear other selections
+                    }
+                }
+                // For media columns, don't select the row - let the thumbnail click handler handle it
             }
         });
 
@@ -7444,6 +7489,104 @@ class GameCollectionManager {
         }
     }
     
+    async handleRomUpload() {
+        try {
+            // Get the current game being edited
+            if (!this.editingGamePath) {
+                this.showAlert('No game is currently being edited', 'warning');
+                return;
+            }
+            
+            const game = this.games.find(g => g.path === this.editingGamePath);
+            if (!game) {
+                this.showAlert('Error: Game not found', 'error');
+                return;
+            }
+            
+            // Get the current ROM path
+            const currentRomPath = game.path;
+            if (!currentRomPath) {
+                this.showAlert('Error: Current ROM path not found', 'error');
+                return;
+            }
+            
+            // Create a file input element
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '*'; // Accept any file type for ROMs
+            fileInput.style.display = 'none';
+            
+            fileInput.addEventListener('change', async (event) => {
+                const file = event.target.files[0];
+                if (!file) {
+                    document.body.removeChild(fileInput);
+                    return;
+                }
+                
+                try {
+                    // Create FormData for file upload
+                    const formData = new FormData();
+                    formData.append('rom_file', file);
+                    formData.append('old_rom_path', currentRomPath);
+                    
+                    // Show loading state
+                    const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+                    this.showAlert(`Uploading ROM file (${fileSize} MB)... Please wait...`, 'info');
+                    
+                    // Upload the file
+                    const response = await fetch(`/api/rom-system/${this.currentSystem}/game/upload-rom`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            // Update the game object with new ROM path
+                            game.path = result.new_rom_path;
+                            this.editingGamePath = result.new_rom_path;
+                            
+                            // Update the path field in the form
+                            const pathInput = document.getElementById('editPath');
+                            if (pathInput) {
+                                pathInput.value = result.new_rom_path;
+                            }
+                            
+                            // Also update in panel if it's open
+                            const panelPathInput = document.querySelector('#rightPanelContent #editPath');
+                            if (panelPathInput) {
+                                panelPathInput.value = result.new_rom_path;
+                            }
+                            
+                            this.markGameAsModified(game);
+                            
+                            // Refresh the main grid to show updated path
+                            this.gridApi.refreshCells();
+                            
+                            this.showAlert(`ROM file uploaded successfully! (${fileSize} MB)`, 'success');
+                        } else {
+                            this.showAlert(`Failed to upload ROM: ${result.error}`, 'error');
+                        }
+                    } else {
+                        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                        this.showAlert(`Failed to upload ROM: ${errorData.error || 'Unknown error'}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error uploading ROM:', error);
+                    this.showAlert(`Error uploading ROM: ${error.message}`, 'error');
+                } finally {
+                    document.body.removeChild(fileInput);
+                }
+            });
+            
+            document.body.appendChild(fileInput);
+            fileInput.click();
+        } catch (error) {
+            console.error('Error in handleRomUpload:', error);
+            this.showAlert('Error opening file selector', 'error');
+        }
+    }
+
     async handleMediaUpload(file, mediaField, romPath) {
         try {
             // Create FormData for file upload
@@ -32517,6 +32660,9 @@ class GameCollectionManager {
         // Set row height for thumbnail view (140px image + 20px padding)
         this.gridApi.setGridOption('rowHeight', 160);
         
+        // Suppress automatic row selection on click - we'll handle it manually for name/checkbox columns
+        this.gridApi.setGridOption('suppressRowClickSelection', true);
+        
         // Setup lazy loading immediately and after delays
         this.setupLazyLoading();
         setTimeout(() => {
@@ -32535,6 +32681,9 @@ class GameCollectionManager {
         
         // Reset row height to default
         this.gridApi.setGridOption('rowHeight', 25);
+        
+        // Restore row click selection behavior for normal view
+        this.gridApi.setGridOption('suppressRowClickSelection', false);
         
         // Restore original column definitions by reinitializing the grid
         await this.initializeGrid();
@@ -32567,6 +32716,9 @@ class GameCollectionManager {
             img.onload = () => {
                 const container = document.getElementById(thumbnailId);
                 if (container) {
+                    // Check if thumbnail was already selected before replacing HTML
+                    const wasSelected = container.classList.contains('selected');
+                    
                     container.innerHTML = `
                         <div class="thumbnail-checkbox">
                             <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event);" />
@@ -32577,6 +32729,15 @@ class GameCollectionManager {
                             onmouseleave="gameManager.hideThumbnailHover()" />
                     `;
                     container.classList.remove('thumbnail-loading');
+                    
+                    // Restore selection state and checkbox if it was selected
+                    if (wasSelected) {
+                        container.classList.add('selected');
+                        const checkbox = container.querySelector('.thumbnail-checkbox-input');
+                        if (checkbox) {
+                            checkbox.checked = true;
+                        }
+                    }
                 }
             };
             img.onerror = () => {
@@ -32662,13 +32823,31 @@ class GameCollectionManager {
             return;
         }
         
+        // Get data attributes from container
+        const thumbnailId = container.id;
+        const gamePath = container.getAttribute('data-game-path');
+        const mediaPath = container.getAttribute('data-media-path');
+        
         const img = new Image();
         img.onload = () => {
-            container.innerHTML = `<img src="${src}" alt="${field}" 
-                style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
-                onmouseenter="gameManager.showThumbnailHover(event, '${src}', '${field}')" 
-                onmouseleave="gameManager.hideThumbnailHover()" />`;
+            // Include checkbox when loading the image
+            container.innerHTML = `
+                <div class="thumbnail-checkbox">
+                    <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${field}', '${gamePath}', '${mediaPath}', event);" />
+                </div>
+                <img src="${src}" alt="${field}" 
+                    style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
+                    onmouseenter="gameManager.showThumbnailHover(event, '${src}', '${field}')" 
+                    onmouseleave="gameManager.hideThumbnailHover()" />`;
             container.classList.remove('thumbnail-loading');
+            
+            // Restore checkbox state if thumbnail was previously selected
+            if (container.classList.contains('selected')) {
+                const checkbox = container.querySelector('.thumbnail-checkbox-input');
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            }
         };
         img.onerror = (error) => {
             container.innerHTML = 'Error';
@@ -32911,7 +33090,35 @@ class GameCollectionManager {
         if (!thumbnail) return;
         
         const isSelected = thumbnail.classList.contains('selected');
-        const checkbox = thumbnail.querySelector('.thumbnail-checkbox-input');
+        let checkbox = thumbnail.querySelector('.thumbnail-checkbox-input');
+        
+        // If checkbox doesn't exist, create it
+        if (!checkbox) {
+            const checkboxContainer = thumbnail.querySelector('.thumbnail-checkbox');
+            if (checkboxContainer) {
+                checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'thumbnail-checkbox-input';
+                checkbox.onclick = (e) => {
+                    e.stopPropagation();
+                    this.selectThumbnail(thumbnailId, fieldName, gamePath, mediaPath, e);
+                };
+                checkboxContainer.appendChild(checkbox);
+            } else {
+                // Create both container and checkbox
+                const newCheckboxContainer = document.createElement('div');
+                newCheckboxContainer.className = 'thumbnail-checkbox';
+                checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'thumbnail-checkbox-input';
+                checkbox.onclick = (e) => {
+                    e.stopPropagation();
+                    this.selectThumbnail(thumbnailId, fieldName, gamePath, mediaPath, e);
+                };
+                newCheckboxContainer.appendChild(checkbox);
+                thumbnail.insertBefore(newCheckboxContainer, thumbnail.firstChild);
+            }
+        }
         
         if (isSelected) {
             // Deselect
