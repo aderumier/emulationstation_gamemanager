@@ -117,6 +117,11 @@ echo "📦 Copying pyrate_limiter..."
 rm -rf debian/opt/gamemanager/pyrate_limiter
 cp -r pyrate_limiter debian/opt/gamemanager/
 
+# Copy pixelmatch module
+echo "📦 Copying pixelmatch..."
+rm -rf debian/opt/gamemanager/pixelmatch
+cp -r pixelmatch debian/opt/gamemanager/
+
 # Tools and plugins
 mkdir -p debian/opt/gamemanager/tools
 cp tools/yt-dlp debian/opt/gamemanager/tools/yt-dlp
@@ -283,6 +288,22 @@ fi
 
 if [ ! -f "debian/opt/gamemanager/pyrate_limiter/__init__.py" ]; then
     echo "❌ ERROR: pyrate_limiter/__init__.py not found!"
+    exit 1
+fi
+
+# Verify pixelmatch is included
+if [ ! -d "debian/opt/gamemanager/pixelmatch" ]; then
+    echo "❌ ERROR: pixelmatch directory not found in package!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/pixelmatch/__init__.py" ]; then
+    echo "❌ ERROR: pixelmatch/__init__.py not found!"
+    exit 1
+fi
+
+if [ ! -f "debian/opt/gamemanager/pixelmatch/contrib/PIL.py" ]; then
+    echo "❌ ERROR: pixelmatch/contrib/PIL.py not found!"
     exit 1
 fi
 

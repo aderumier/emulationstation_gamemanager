@@ -2808,6 +2808,27 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_clean_missing_medias_task, args=(system_name, media_field))
             thread.daemon = True
             thread.start()
+    elif task_type == 'search_image_similarity':
+        # Start image similarity search task
+        system_name = task_data.get('system_name')
+        media_field = task_data.get('media_field')
+        source_game_path = task_data.get('source_game_path')
+        if system_name and media_field and source_game_path:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('search_image_similarity', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start image similarity search in background thread
+            thread = threading.Thread(target=run_image_similarity_search_task, args=(system_name, media_field, source_game_path, task.id))
+            thread.daemon = True
+            thread.start()
     elif task_type == 'youtube_download':
         # Start YouTube download task
         # For youtube_download, task_data is flat (not nested under 'data')
@@ -15194,6 +15215,58 @@ def clean_missing_medias_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'Clean missing medias failed: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/search-image-similarity', methods=['POST'])
+@login_required
+def search_image_similarity_endpoint(system_name):
+    """Search for images by similarity for a specific system"""
+    global current_task_id
+
+    try:
+        # Get media field and source game from request
+        data = request.get_json()
+        media_field = data.get('media_field')
+        source_game_path = data.get('source_game_path')
+        
+        if not media_field:
+            return jsonify({'error': 'Media field is required'}), 400
+        
+        if not source_game_path:
+            return jsonify({'error': 'Source game path is required. Please select a game in the grid.'}), 400
+
+        # Add task to queue
+        task = add_task_to_queue('search_image_similarity', {
+            'system_name': system_name,
+            'media_field': media_field,
+            'source_game_path': source_game_path
+        })
+
+        return jsonify({'success': True, 'message': 'Image similarity search task started', 'task_id': task.id})
+    except Exception as e:
+        return jsonify({'error': f'Image similarity search failed: {str(e)}'}), 500
+
+@app.route('/api/tasks/<task_id>/similarity-results', methods=['GET'])
+@login_required
+def get_similarity_results(task_id):
+    """Get similarity search results for a completed task"""
+    try:
+        task = get_task(task_id)
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        
+        # Get similarity results from task data
+        similar_games = task.data.get('similar_games', [])
+        source_game_path = task.data.get('source_game_path', '')
+        media_field = task.data.get('media_field', '')
+        
+        return jsonify({
+            'success': True,
+            'similar_games': similar_games,
+            'source_game_path': source_game_path,
+            'media_field': media_field
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to get similarity results: {str(e)}'}), 500
+
 @app.route('/api/cache/statistics')
 @login_required
 def cache_statistics_endpoint():
@@ -15667,25 +15740,44 @@ def delete_files_batch():
         
         for file_path in file_paths:
             try:
+                # Normalize the path first to handle ./ and ../ components
+                file_path = os.path.normpath(file_path)
+                
                 # Convert relative path to absolute path relative to app root
                 if not os.path.isabs(file_path):
                     file_path = os.path.join(app.root_path, file_path)
                 
-                file_abs_path = os.path.abspath(file_path)
-                is_allowed = False
+                # Normalize again after joining to ensure clean path
+                file_abs_path = os.path.normpath(os.path.abspath(file_path))
                 
+                # Validate the normalized path is still within allowed directories
+                is_allowed = False
                 for allowed_dir in allowed_dirs:
-                    if file_abs_path.startswith(allowed_dir):
-                        is_allowed = True
-                        break
+                    # Use os.path.commonpath to safely check if path is within allowed directory
+                    try:
+                        common_path = os.path.commonpath([file_abs_path, allowed_dir])
+                        if common_path == allowed_dir:
+                            is_allowed = True
+                            break
+                    except ValueError:
+                        # Paths are on different drives (Windows) or incompatible
+                        continue
                 
                 if not is_allowed:
                     failed_deletions.append({'file_path': file_path, 'error': 'Access denied: file path not in allowed directories'})
+                    app.logger.warning(f'Access denied for file path: {file_abs_path}')
                     continue
                 
                 # Check if file exists using the absolute path
                 if not os.path.exists(file_abs_path):
                     failed_deletions.append({'file_path': file_path, 'error': f'File not found: {file_abs_path}'})
+                    app.logger.warning(f'File not found: {file_abs_path}')
+                    continue
+                
+                # Check if it's actually a file (not a directory)
+                if not os.path.isfile(file_abs_path):
+                    failed_deletions.append({'file_path': file_path, 'error': f'Path is not a file: {file_abs_path}'})
+                    app.logger.warning(f'Path is not a file: {file_abs_path}')
                     continue
                 
                 # Delete the file using the absolute path
@@ -15695,9 +15787,15 @@ def delete_files_batch():
                 # Log the deletion
                 app.logger.info(f'Deleted file: {file_abs_path}')
                 
+            except OSError as e:
+                # Handle OS-specific errors (like file in use, permission denied, etc.)
+                error_msg = f'OS error deleting file: {str(e)}'
+                failed_deletions.append({'file_path': file_path, 'error': error_msg})
+                app.logger.error(f'OS error deleting file {file_path}: {str(e)}')
             except Exception as e:
                 failed_deletions.append({'file_path': file_path, 'error': f'Failed to delete: {str(e)}'})
                 app.logger.error(f'Error deleting file {file_path}: {str(e)}')
+                app.logger.error(traceback.format_exc())
         
         # Return results
         result = {
@@ -15839,6 +15937,108 @@ def upload_game_media(system_name):
     except Exception as e:
         app.logger.error(f'Error uploading media: {str(e)}')
         return jsonify({'error': f'Failed to upload media: {str(e)}'}), 500
+
+@app.route('/api/rom-system/<system_name>/game/upload-rom', methods=['POST'])
+@login_required
+def upload_game_rom(system_name):
+    """Upload a new ROM file to replace the existing one"""
+    try:
+        # Check if system exists
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        if not os.path.exists(system_path):
+            return jsonify({'error': 'System not found'}), 404
+        
+        # Check if game exists in gamelist
+        gamelist_path = get_gamelist_path(system_name)
+        if not os.path.exists(gamelist_path):
+            return jsonify({'error': 'Gamelist not found'}), 404
+        
+        # Parse gamelist to find the game
+        games = parse_gamelist_xml(gamelist_path)
+        
+        # Get old ROM path from form data
+        old_rom_path = request.form.get('old_rom_path')
+        if not old_rom_path:
+            return jsonify({'error': 'Old ROM path not provided'}), 400
+        
+        # Find game by ROM path
+        game = next((g for g in games if g.get('path') == old_rom_path), None)
+        if not game:
+            return jsonify({'error': f'Game not found with ROM path: {old_rom_path}'}), 404
+        
+        # Check if file was uploaded
+        if 'rom_file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['rom_file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Get the directory of the old ROM file
+        # old_rom_path is relative to gamelist.xml (e.g., "./game.nes" or "./subdir/game.nes")
+        old_rom_path_clean = old_rom_path.lstrip('./')
+        old_rom_full_path = os.path.join(ROMS_FOLDER, system_name, old_rom_path_clean)
+        old_rom_dir = os.path.dirname(old_rom_full_path)
+        
+        # If old_rom_dir is just the system_path, use system_path
+        if old_rom_dir == system_path or not old_rom_dir or old_rom_dir == '.':
+            old_rom_dir = system_path
+        
+        # Ensure directory exists
+        os.makedirs(old_rom_dir, exist_ok=True)
+        
+        # Get the new filename (keep original filename from upload)
+        new_filename = file.filename
+        new_rom_full_path = os.path.join(old_rom_dir, new_filename)
+        
+        # Remove old ROM file if it exists and is different from new file
+        old_rom_filename = os.path.basename(old_rom_full_path)
+        if os.path.exists(old_rom_full_path) and old_rom_filename != new_filename:
+            try:
+                os.remove(old_rom_full_path)
+                print(f"🗑️ Removed old ROM file: {old_rom_filename}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not remove old ROM file {old_rom_full_path}: {e}")
+        
+        # Save the uploaded file
+        file.save(new_rom_full_path)
+        print(f"✅ Saved new ROM file: {new_rom_full_path}")
+        
+        # Calculate new relative path for gamelist.xml
+        # Paths in gamelist.xml are relative to the ROMs directory, not the gamelist.xml location
+        # So we calculate relative to the system ROMs directory
+        new_rom_relative_path = os.path.relpath(new_rom_full_path, system_path)
+        # Normalize path separators for cross-platform compatibility
+        new_rom_relative_path = new_rom_relative_path.replace('\\', '/')
+        # Ensure it starts with ./
+        if not new_rom_relative_path.startswith('./'):
+            new_rom_relative_path = './' + new_rom_relative_path
+        
+        # Update the game object with new ROM path
+        game['path'] = new_rom_relative_path
+        
+        # Update the gamelist.xml file
+        save_gamelist_xml(gamelist_path, games)
+        
+        # Notify all connected clients about the gamelist update
+        notify_gamelist_updated(system_name, len(games))
+        notify_game_updated(system_name, new_rom_relative_path, ['path'])
+        
+        # Log the upload
+        app.logger.info(f'Uploaded ROM file: {new_rom_full_path} for game (replaced {old_rom_path})')
+        
+        return jsonify({
+            'success': True,
+            'message': 'ROM file uploaded successfully',
+            'new_rom_path': new_rom_relative_path,
+            'filename': new_filename
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error uploading ROM: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to upload ROM: {str(e)}'}), 500
 
 @app.route('/api/rom-system/<system_name>/game/save-screenshot', methods=['POST'])
 @login_required
@@ -21646,6 +21846,236 @@ def run_clean_missing_medias_task(system_name, media_field):
         print(f"Error in clean missing medias task: {e}")
         import traceback
         traceback.print_exc()
+
+def run_image_similarity_search_task(system_name, media_field, source_game_path, task_id):
+    """Run image similarity search task in background thread"""
+    global current_task_id
+
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found for image similarity search")
+            return
+
+        task = tasks[task_id]
+        
+        # Import pixelmatch (local copy)
+        try:
+            from pixelmatch.contrib.PIL import pixelmatch
+            from PIL import Image
+        except ImportError as e:
+            task.complete(False, f"Failed to import pixelmatch library: {str(e)}")
+            process_next_queued_task()
+            return
+
+        # Load gamelist
+        task.update_progress(f"Loading gamelist for system: {system_name}")
+        gamelist_path = get_gamelist_path(system_name)
+
+        if not os.path.exists(gamelist_path):
+            task.update_progress(f"Gamelist not found: {gamelist_path}")
+            task.complete(False, "Gamelist not found")
+            process_next_queued_task()
+            return
+
+        games = parse_gamelist_xml(gamelist_path)
+        task.update_progress(f"Loaded {len(games)} games from gamelist")
+
+        # Find source game
+        source_game = None
+        for game in games:
+            if game.get('path') == source_game_path:
+                source_game = game
+                break
+        
+        if not source_game:
+            task.complete(False, f"Source game not found: {source_game_path}")
+            process_next_queued_task()
+            return
+
+        task.update_progress(f"Source game: {source_game.get('name', 'Unknown')}")
+
+        # Get media config
+        media_config = load_media_config()
+        media_fields = media_config.get('media_fields', {}) if media_config else {}
+        
+        if media_field not in media_fields:
+            task.complete(False, f"Media field '{media_field}' not found in configuration")
+            process_next_queued_task()
+            return
+
+        field_config = media_fields[media_field]
+        media_directory = field_config.get('directory', '')
+        extensions = field_config.get('extensions', [])
+        
+        # Convert extensions to list if string
+        if isinstance(extensions, str):
+            extensions = [ext.strip() for ext in extensions.split(',')]
+        
+        # Normalize extensions (remove dots, lowercase)
+        extensions = [ext.lower().lstrip('.') for ext in extensions]
+
+        # System path
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        media_path = os.path.join(system_path, 'media', media_directory)
+
+        if not os.path.exists(media_path):
+            task.complete(False, f"Media directory not found: {media_path}")
+            process_next_queued_task()
+            return
+
+        # Get source game's image path
+        source_media_path = source_game.get(media_field, '')
+        if not source_media_path:
+            task.complete(False, f"Source game does not have {media_field} media")
+            process_next_queued_task()
+            return
+
+        # Normalize source path
+        normalized_source_path = source_media_path.lstrip('./')
+        if normalized_source_path.startswith('media/'):
+            source_image_path = os.path.join(system_path, normalized_source_path)
+        elif normalized_source_path.startswith(os.sep):
+            source_image_path = normalized_source_path
+        else:
+            source_image_path = os.path.join(media_path, os.path.basename(normalized_source_path))
+
+        if not os.path.exists(source_image_path):
+            task.complete(False, f"Source image not found: {source_image_path}")
+            process_next_queued_task()
+            return
+
+        # Check source image extension
+        source_ext = os.path.splitext(source_image_path)[1].lower().lstrip('.')
+        if source_ext not in extensions:
+            task.complete(False, f"Source image extension '{source_ext}' not in allowed extensions: {extensions}")
+            process_next_queued_task()
+            return
+
+        task.update_progress(f"Source image: {source_image_path}")
+
+        # Load source image
+        try:
+            source_img = Image.open(source_image_path).convert('RGBA')
+        except Exception as e:
+            task.complete(False, f"Failed to load source image: {str(e)}")
+            process_next_queued_task()
+            return
+
+        task.update_progress(f"Scanning images in: {media_path}")
+
+        # Collect all other images with their game paths (excluding source game)
+        image_files = []
+        for game in games:
+            rom_path = game.get('path', '')
+            if not rom_path or rom_path == source_game_path:
+                continue  # Skip source game
+            
+            # Get media path from game
+            media_file_path = game.get(media_field, '')
+            if not media_file_path:
+                continue
+
+            # Normalize path
+            normalized_path = media_file_path.lstrip('./')
+            
+            # Build full path
+            if normalized_path.startswith('media/'):
+                full_path = os.path.join(system_path, normalized_path)
+            elif normalized_path.startswith(os.sep):
+                full_path = normalized_path
+            else:
+                full_path = os.path.join(media_path, os.path.basename(normalized_path))
+
+            if os.path.exists(full_path):
+                # Check if file extension matches
+                file_ext = os.path.splitext(full_path)[1].lower().lstrip('.')
+                if file_ext in extensions:
+                    image_files.append({
+                        'game': game,
+                        'path': full_path,
+                        'rom_path': rom_path
+                    })
+
+        task.update_progress(f"Found {len(image_files)} images to compare against source")
+
+        if len(image_files) == 0:
+            task.complete(False, "No other images found to compare")
+            process_next_queued_task()
+            return
+
+        # Compare source image to all other images
+        similar_games = []
+        threshold = 0.1  # Similarity threshold (0-1, lower = more strict)
+        
+        task.update_progress(f"Comparing source image to {len(image_files)} images...")
+        comparisons_done = 0
+
+        for img_data in image_files:
+            if task.status != TASK_STATUS_RUNNING:
+                break
+                
+            try:
+                img2 = Image.open(img_data['path']).convert('RGBA')
+            except Exception as e:
+                task.update_progress(f"Skipping {img_data['path']}: {str(e)}")
+                continue
+
+            # Check if images have the same size - if not, they are not similar
+            if source_img.size != img2.size:
+                comparisons_done += 1
+                continue  # Skip comparison if sizes don't match
+
+            # Create diff image
+            diff_img = Image.new('RGBA', source_img.size)
+            
+            # Compare images (they are guaranteed to be same size now)
+            try:
+                mismatch = pixelmatch(
+                    source_img, img2, diff_img,
+                    threshold=threshold,
+                    includeAA=True
+                )
+                
+                # Calculate similarity percentage
+                total_pixels = source_img.width * source_img.height
+                similarity = 1.0 - (mismatch / total_pixels) if total_pixels > 0 else 0.0
+                
+                # If similarity is high enough, mark game as similar
+                # Using 85% similarity threshold (0.85) to catch more similar images
+                if similarity >= 0.85:  # 85% similarity threshold
+                    similar_games.append({
+                        'path': img_data['rom_path'],
+                        'name': img_data['game'].get('name', 'Unknown'),
+                        'similarity': similarity,
+                        'media_path': img_data['path']
+                    })
+                
+                comparisons_done += 1
+                if comparisons_done % 10 == 0:
+                    task.update_progress(f"Compared {comparisons_done}/{len(image_files)} images, found {len(similar_games)} similar games")
+                    
+            except Exception as e:
+                task.update_progress(f"Error comparing images: {str(e)}")
+                continue
+
+        # Store results in task data
+        task.data['similar_games'] = similar_games
+        task.data['source_game_path'] = source_game_path
+        task.data['media_field'] = media_field
+        
+        task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images")
+        task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
+        
+        # Process next queued task
+        process_next_queued_task()
+
+    except Exception as e:
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+        print(f"Error in image similarity search task: {e}")
+        import traceback
+        traceback.print_exc()
+        process_next_queued_task()
 
 def run_rom_scan_task(system_name):
     """Run ROM scan task in background thread"""

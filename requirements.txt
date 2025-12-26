@@ -18,6 +18,7 @@ lxml>=4.9.0
 
 # Image processing
 Pillow>=10.0.0
+# pixelmatch - included locally in pixelmatch/ directory
 
 # Security and authentication
 bcrypt>=4.0.0
@@ -60,3 +61,5 @@ Wand>=0.6.0
 # Additional system packages required:
 # - python3-jellyfish (for Jaro-Winkler similarity calculations)
 #   Install with: sudo apt install python3-jellyfish
+# 
+# Note: pixelmatch is included locally in the pixelmatch/ directory

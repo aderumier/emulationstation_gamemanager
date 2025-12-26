@@ -5903,6 +5903,11 @@ class GameCollectionManager {
                                 this.hideMediaHover();
                             });
                         });
+                        
+                        // Add right-click context menu
+                        img.addEventListener('contextmenu', (e) => {
+                            this.showImageContextMenu(e, mediaItem, game, field);
+                        });
                     }
                 }
                 
@@ -5943,6 +5948,16 @@ class GameCollectionManager {
                     deleteOverlay.addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.deleteMediaForGame(game, field);
+                    });
+                }
+                
+                // Add right-click context menu to mediaItem (for images)
+                if (field !== 'video' && field !== 'manual' && field !== 'map' && field !== 'magazine') {
+                    mediaItem.addEventListener('contextmenu', (e) => {
+                        // Only show context menu if clicking on the image itself, not on buttons
+                        if (e.target.tagName === 'IMG' || e.target.closest('.media-preview-item')) {
+                            this.showImageContextMenu(e, mediaItem, game, field);
+                        }
                     });
                 }
                 
@@ -21167,6 +21182,15 @@ class GameCollectionManager {
             });
         }
 
+        // Add event listener for Search Image Similarity modal
+        const openSearchImageSimilarityModal = document.getElementById('openSearchImageSimilarityModal');
+        if (openSearchImageSimilarityModal) {
+            openSearchImageSimilarityModal.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showSearchImageSimilarityModal();
+            });
+        }
+
         // Add event listener for Clear Field modal
         const openClearFieldModal = document.getElementById('openClearFieldModal');
         if (openClearFieldModal) {
@@ -21200,6 +21224,7 @@ class GameCollectionManager {
                 this.startCleanMissingMediasTask();
             });
         }
+
 
         // Add event listener for unified scraper config modal
         const openScraperConfigModal = document.getElementById('openScraperConfigModal');
@@ -24037,6 +24062,206 @@ class GameCollectionManager {
         } catch (error) {
             console.error('Error starting clean missing medias task:', error);
             this.showAlert('Error starting clean missing medias task: ' + error.message, 'danger');
+        }
+    }
+
+    async searchSimilarImagesFromContextMenu() {
+        // Hide context menu
+        const contextMenu = document.getElementById('imageContextMenu');
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+
+        if (!this.currentSystem) {
+            this.showAlert('Please select a system first', 'warning');
+            return;
+        }
+
+        // Get game and field from context menu - try multiple sources
+        let game, mediaField;
+        
+        // First try currentSimilarityImage (set by showImageContextMenu)
+        if (this.currentSimilarityImage && this.currentSimilarityImage.game && this.currentSimilarityImage.field) {
+            game = this.currentSimilarityImage.game;
+            mediaField = this.currentSimilarityImage.field;
+        } 
+        // Fallback to rotating image context (also set by showImageContextMenu)
+        else if (this.currentRotatingImage && this.currentRotatingImage.game && this.currentRotatingImage.field) {
+            game = this.currentRotatingImage.game;
+            mediaField = this.currentRotatingImage.field;
+        } 
+        // Fallback to cropping image context (also set by showImageContextMenu)
+        else if (this.currentCroppingImage && this.currentCroppingImage.game && this.currentCroppingImage.field) {
+            game = this.currentCroppingImage.game;
+            mediaField = this.currentCroppingImage.field;
+        }
+        // Fallback to context menu data attributes
+        else if (contextMenu && contextMenu.dataset.gamePath && contextMenu.dataset.field) {
+            const gamePath = contextMenu.dataset.gamePath;
+            mediaField = contextMenu.dataset.field;
+            // Find game by path
+            game = this.games.find(g => g.path === gamePath);
+            if (!game) {
+                this.showAlert('Game not found. Please right-click on an image in the media preview.', 'warning');
+                return;
+            }
+        }
+        // Last resort: try to get from selected game
+        else {
+            const selectedRows = this.gridApi ? this.gridApi.getSelectedRows() : [];
+            if (selectedRows.length > 0) {
+                game = selectedRows[0];
+                // Try to find an image field from the game
+                const imageFields = ['image', 'marquee', 'boxart', 'fanart', 'screenshot', 'titleshot'];
+                mediaField = imageFields.find(field => game[field] && game[field].trim());
+                if (!mediaField) {
+                    this.showAlert('No image context available. Please right-click on an image in the media preview.', 'warning');
+                    return;
+                }
+            } else {
+                this.showAlert('No image context available. Please right-click on an image in the media preview.', 'warning');
+                return;
+            }
+        }
+
+        if (!game.path) {
+            this.showAlert('Game does not have a valid path', 'warning');
+            return;
+        }
+
+        // Check if the field has an image
+        if (!game[mediaField]) {
+            this.showAlert(`Game does not have ${mediaField} media`, 'warning');
+            return;
+        }
+
+        try {
+            this.showAlert(`Starting similarity search for ${mediaField}...`, 'info');
+
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/search-image-similarity`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    media_field: mediaField,
+                    source_game_path: game.path
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.showAlert('Image similarity search task started successfully', 'success');
+
+                // Refresh task grid to show the new task
+                setTimeout(() => this.refreshTasks(), 500);
+
+                // After task completes, preselect similar games
+                this.waitForTaskTypeCompletion('search_image_similarity').then(() => {
+                    if (result.task_id) {
+                        this.applySimilarityFilter(result.task_id);
+                    }
+                });
+            } else {
+                this.showAlert(result.error || 'Failed to start image similarity search task', 'danger');
+            }
+        } catch (error) {
+            console.error('Error starting image similarity search task:', error);
+            this.showAlert('Error starting image similarity search task: ' + error.message, 'danger');
+        }
+    }
+
+    async applySimilarityFilter(taskId) {
+        try {
+            // Get similarity results from task
+            const response = await fetch(`/api/tasks/${taskId}/similarity-results`);
+            if (!response.ok) {
+                throw new Error(`Failed to get similarity results: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result.success && result.similar_games && result.similar_games.length > 0) {
+                const sourceGamePath = result.source_game_path;
+                const mediaField = result.media_field;
+                const similarPaths = result.similar_games.map(g => g.path);
+                
+                // Enable thumbnail view if not already enabled
+                if (!this.thumbnailViewEnabled) {
+                    await this.toggleThumbnailView();
+                    // Wait for thumbnails to render
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } else {
+                    // If already in thumbnail view, wait a bit for any pending renders
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+                
+                // Clear existing thumbnail selection
+                this.selectedThumbnails = [];
+                document.querySelectorAll('.thumbnail-item.selected, [id^="thumb_"].selected').forEach(el => {
+                    el.classList.remove('selected');
+                    const checkbox = el.querySelector('.thumbnail-checkbox-input');
+                    if (checkbox) checkbox.checked = false;
+                });
+                
+                // Function to select a thumbnail with retries
+                const selectThumbnailWithRetry = async (thumbnailId, fieldName, gamePath, mediaPath, maxRetries = 5) => {
+                    for (let i = 0; i < maxRetries; i++) {
+                        const thumbnail = document.getElementById(thumbnailId);
+                        if (thumbnail) {
+                            this.selectThumbnail(thumbnailId, fieldName, gamePath, mediaPath, null);
+                            return true;
+                        }
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                    return false;
+                };
+                
+                // Select source thumbnail (if available)
+                if (sourceGamePath && mediaField) {
+                    const sourceThumbnailId = `thumb_${mediaField}_${sourceGamePath}`;
+                    const sourceGame = this.games.find(g => g.path === sourceGamePath);
+                    const sourceMediaPath = sourceGame && sourceGame[mediaField] ? sourceGame[mediaField] : '';
+                    await selectThumbnailWithRetry(sourceThumbnailId, mediaField, sourceGamePath, sourceMediaPath);
+                }
+                
+                // Select all similar game thumbnails for the same field
+                let selectedCount = 0;
+                for (const gamePath of similarPaths) {
+                    if (gamePath === sourceGamePath) continue; // Skip source (already selected)
+                    
+                    const thumbnailId = `thumb_${mediaField}_${gamePath}`;
+                    const game = this.games.find(g => g.path === gamePath);
+                    const mediaPath = game && game[mediaField] ? game[mediaField] : '';
+                    
+                    const selected = await selectThumbnailWithRetry(thumbnailId, mediaField, gamePath, mediaPath);
+                    if (selected) {
+                        selectedCount++;
+                    }
+                }
+                
+                // Include source in count if it was selected
+                if (sourceGamePath) {
+                    const sourceThumbnailId = `thumb_${mediaField}_${sourceGamePath}`;
+                    const sourceThumbnail = document.getElementById(sourceThumbnailId);
+                    if (sourceThumbnail && sourceThumbnail.classList.contains('selected')) {
+                        selectedCount++;
+                    }
+                }
+                
+                this.showAlert(`Found ${selectedCount} similar images (preselected in thumbnail view)`, 'success');
+            } else {
+                this.showAlert('No similar images found', 'info');
+            }
+        } catch (error) {
+            console.error('Error applying similarity filter:', error);
+            this.showAlert('Error applying similarity filter: ' + error.message, 'error');
         }
     }
 
@@ -37122,6 +37347,15 @@ class GameCollectionManager {
             field: field,
             imageSrc: img.src
         };
+        this.currentSimilarityImage = {
+            element: imageElement,
+            game: game,
+            field: field
+        };
+        
+        // Store game and field in context menu data attributes as backup
+        contextMenu.dataset.gamePath = game.path || '';
+        contextMenu.dataset.field = field || '';
         
         // Position the context menu
         const x = event.clientX;
@@ -37174,6 +37408,15 @@ class GameCollectionManager {
             game: game,
             field: field
         };
+        this.currentSimilarityImage = {
+            element: imageElement,
+            game: game,
+            field: field
+        };
+        
+        // Store game and field in context menu data attributes as backup
+        contextMenu.dataset.gamePath = game.path || '';
+        contextMenu.dataset.field = field || '';
         
         // Show/hide remove background option based on file extension
         const removeBackgroundMenuItem = document.getElementById('removeBackgroundMenuItem');
