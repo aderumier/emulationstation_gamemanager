@@ -907,36 +907,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         </div>
     </div>
 
-    <!-- Delete Similar Images Confirmation Modal -->
-    <div class="modal fade" id="deleteSimilarImagesConfirmModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title text-danger">
-                        <i class="bi bi-exclamation-triangle me-2"></i>Confirm Delete Similar Images
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to delete all similar images for <strong id="deleteSimilarImagesFieldName">this field</strong>?</p>
-                    <p class="text-muted small">This will:</p>
-                    <ul class="text-muted small">
-                        <li>Find all images similar to the selected image</li>
-                        <li>Delete the physical image files</li>
-                        <li>Clear the media field in gamelist.xml for affected games</li>
-                    </ul>
-                    <p class="text-danger small"><strong>This action cannot be undone.</strong></p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirmDeleteSimilarImagesBtn">
-                        <i class="bi bi-trash"></i> Delete Similar Images
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Force Import Gamelist Confirmation Modal -->
     <div class="modal fade" id="forceImportGamelistModal" tabindex="-1">
         <div class="modal-dialog">
@@ -4919,6 +4889,46 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                                             </div>
                                         </div>
                                         
+                                        <!-- Spine Logo Zone (Optional) -->
+                                        <div class="mb-3" id="template3DSpineLogoZone" style="display: none;">
+                                            <label class="form-label">Spine Logo Zone (Optional)</label>
+                                            <div class="form-text small mb-2">Define a zone area for logo/text placement on the spine. If defined, logo/text will use full width of zone and be centered vertically.</div>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <label class="form-label small">Top Left (X, Y)</label>
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text">X</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneTopLeftX" placeholder="0" min="0">
+                                                        <span class="input-group-text">Y</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneTopLeftY" placeholder="0" min="0">
+                                                    </div>
+                                                    <label class="form-label small mt-2">Bottom Left (X, Y)</label>
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text">X</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneBottomLeftX" placeholder="0" min="0">
+                                                        <span class="input-group-text">Y</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneBottomLeftY" placeholder="0" min="0">
+                                                    </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small">Top Right (X, Y)</label>
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text">X</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneTopRightX" placeholder="0" min="0">
+                                                        <span class="input-group-text">Y</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneTopRightY" placeholder="0" min="0">
+                                                    </div>
+                                                    <label class="form-label small mt-2">Bottom Right (X, Y)</label>
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text">X</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneBottomRightX" placeholder="0" min="0">
+                                                        <span class="input-group-text">Y</span>
+                                                        <input type="number" class="form-control" id="template3DSpineLogoZoneBottomRightY" placeholder="0" min="0">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
                                         <div class="mb-3">
                                             <label class="form-label">Active Corner</label>
                                             <div class="btn-group w-100" role="group">
@@ -6429,10 +6439,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             <i class="bi bi-backspace-reverse"></i>
             <span>Remove Background</span>
         </div>
-            <div class="image-context-menu-item" onclick="gameManager.deleteSimilarImagesFromContextMenu()">
-                <i class="bi bi-trash"></i>
-                <span>Delete Similar Images</span>
-            </div>
+        <div class="image-context-menu-item" onclick="gameManager.searchSimilarImagesFromContextMenu()">
+            <i class="bi bi-images"></i>
+            <span>Search Similar Images</span>
+        </div>
     </div>
 
     <!-- Image Cropping Modal -->

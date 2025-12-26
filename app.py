@@ -2808,8 +2808,8 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_clean_missing_medias_task, args=(system_name, media_field))
             thread.daemon = True
             thread.start()
-    elif task_type == 'delete_similar_images':
-        # Start delete similar images task
+    elif task_type == 'search_image_similarity':
+        # Start image similarity search task
         system_name = task_data.get('system_name')
         media_field = task_data.get('media_field')
         source_game_path = task_data.get('source_game_path')
@@ -2822,11 +2822,11 @@ def process_next_queued_task():
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
-                task = create_task('delete_similar_images', task_data)
+                task = create_task('search_image_similarity', task_data)
                 current_task_id = task.id
                 task.start()
-            # Start delete similar images in background thread
-            thread = threading.Thread(target=run_delete_similar_images_task, args=(system_name, media_field, source_game_path, task.id))
+            # Start image similarity search in background thread
+            thread = threading.Thread(target=run_image_similarity_search_task, args=(system_name, media_field, source_game_path, task.id))
             thread.daemon = True
             thread.start()
     elif task_type == 'youtube_download':
@@ -2938,7 +2938,9 @@ def process_next_queued_task():
             text_logo_settings = task_data.get('text_logo_settings')
             use_generate_spine_background = task_data.get('use_generate_spine_background', False)
             spine_crop_width = task_data.get('spine_crop_width')
-            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings, use_generate_spine_background, spine_crop_width))
+            spine_logo_zone = task_data.get('spine_logo_zone')
+            spine_logo_corners = task_data.get('spine_logo_corners')
+            thread = threading.Thread(target=run_3dbox_generation_task, args=(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing, spine_image_path, spine_source_field, use_marquee_field, use_text_logo, text_logo_settings, use_generate_spine_background, spine_crop_width, spine_logo_zone, spine_logo_corners))
             thread.daemon = True
             thread.start()
     elif task_type == 'igdb_scraping':
@@ -15215,10 +15217,10 @@ def clean_missing_medias_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'Clean missing medias failed: {str(e)}'}), 500
 
-@app.route('/api/rom-system/<system_name>/delete-similar-images', methods=['POST'])
+@app.route('/api/rom-system/<system_name>/search-image-similarity', methods=['POST'])
 @login_required
-def delete_similar_images_endpoint(system_name):
-    """Delete similar images for a specific system"""
+def search_image_similarity_endpoint(system_name):
+    """Search for images by similarity for a specific system"""
     global current_task_id
 
     try:
@@ -15234,16 +15236,38 @@ def delete_similar_images_endpoint(system_name):
             return jsonify({'error': 'Source game path is required. Please select a game in the grid.'}), 400
 
         # Add task to queue
-        task = add_task_to_queue('delete_similar_images', {
+        task = add_task_to_queue('search_image_similarity', {
             'system_name': system_name,
             'media_field': media_field,
             'source_game_path': source_game_path
         })
 
-        return jsonify({'success': True, 'message': 'Delete similar images task started', 'task_id': task.id})
+        return jsonify({'success': True, 'message': 'Image similarity search task started', 'task_id': task.id})
     except Exception as e:
-        return jsonify({'error': f'Delete similar images failed: {str(e)}'}), 500
+        return jsonify({'error': f'Image similarity search failed: {str(e)}'}), 500
 
+@app.route('/api/tasks/<task_id>/similarity-results', methods=['GET'])
+@login_required
+def get_similarity_results(task_id):
+    """Get similarity search results for a completed task"""
+    try:
+        task = get_task(task_id)
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        
+        # Get similarity results from task data
+        similar_games = task.data.get('similar_games', [])
+        source_game_path = task.data.get('source_game_path', '')
+        media_field = task.data.get('media_field', '')
+        
+        return jsonify({
+            'success': True,
+            'similar_games': similar_games,
+            'source_game_path': source_game_path,
+            'media_field': media_field
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to get similarity results: {str(e)}'}), 500
 
 @app.route('/api/cache/statistics')
 @login_required
@@ -21825,8 +21849,8 @@ def run_clean_missing_medias_task(system_name, media_field):
         import traceback
         traceback.print_exc()
 
-def run_delete_similar_images_task(system_name, media_field, source_game_path, task_id):
-    """Run delete similar images task in background thread"""
+def run_image_similarity_search_task(system_name, media_field, source_game_path, task_id):
+    """Run image similarity search task in background thread"""
     global current_task_id
 
     try:
@@ -21992,57 +22016,20 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
 
         for img_data in image_files:
             if task.status != TASK_STATUS_RUNNING:
-                # Task was stopped - delete what was found so far and complete
+                # Task was stopped - store partial results and complete
+                task.data['similar_games'] = similar_games
+                task.data['source_game_path'] = source_game_path
+                task.data['media_field'] = media_field
+                
                 progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
-                
-                # Delete similar images found so far
-                deleted_count = 0
-                system_path = os.path.join(ROMS_FOLDER, system_name)
-                
-                for similar_game_data in similar_games:
-                    game_path = similar_game_data['path']
-                    media_path = similar_game_data['media_path']
-                    
-                    # Find the game in the games list
-                    game = None
-                    for g in games:
-                        if g.get('path') == game_path:
-                            game = g
-                            break
-                    
-                    if game:
-                        # Delete the physical file if it exists
-                        if os.path.exists(media_path):
-                            try:
-                                os.remove(media_path)
-                                deleted_count += 1
-                            except Exception:
-                                pass
-                        
-                        # Clear the media field in the game object
-                        game[media_field] = ''
-                
-                # Save updated gamelist.xml if we deleted anything
-                if deleted_count > 0:
-                    try:
-                        write_gamelist_xml(games, gamelist_path)
-                        save_gamelist_to_roms(system_name)
-                        # Notify clients that gamelist was updated (refresh grid)
-                        try:
-                            notify_gamelist_updated(system_name, len(games), updated_count=deleted_count)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                
                 if task.status == TASK_STATUS_STOPPED:
-                    task.update_progress(f"🛑 Task stopped: Deleted {deleted_count} similar images (compared {comparisons_done}/{total_images})",
+                    task.update_progress(f"🛑 Task stopped: Found {len(similar_games)} similar images so far (compared {comparisons_done}/{total_images})",
                                        progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
-                    task.complete(True, f"Task stopped: Deleted {deleted_count} similar images (compared {comparisons_done}/{total_images})")
+                    task.complete(True, f"Task stopped: Found {len(similar_games)} similar images (compared {comparisons_done}/{total_images})")
                 else:
-                    task.update_progress(f"✅ Deleted {deleted_count} similar images",
+                    task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images",
                                        progress_percentage=100, current_step=total_images, total_steps=total_images)
-                    task.complete(True, f"Deleted {deleted_count} similar images in {media_field} field")
+                    task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
                 
                 process_next_queued_task()
                 return
@@ -22106,78 +22093,14 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
                                    progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
                 continue
 
-        # Delete similar images and update gamelist
-        deleted_count = 0
-        failed_deletions = []
+        # Store results in task data
+        task.data['similar_games'] = similar_games
+        task.data['source_game_path'] = source_game_path
+        task.data['media_field'] = media_field
         
-        task.update_progress(f"Deleting {len(similar_games)} similar images...", 
-                           progress_percentage=90, current_step=comparisons_done, total_steps=total_images)
-        
-        # System path for resolving media paths
-        system_path = os.path.join(ROMS_FOLDER, system_name)
-        
-        for similar_game_data in similar_games:
-            if task.status != TASK_STATUS_RUNNING:
-                break
-                
-            game_path = similar_game_data['path']
-            media_path = similar_game_data['media_path']
-            
-            # Find the game in the games list
-            game = None
-            for g in games:
-                if g.get('path') == game_path:
-                    game = g
-                    break
-            
-            if not game:
-                failed_deletions.append({'path': game_path, 'error': 'Game not found in gamelist'})
-                continue
-            
-            # Delete the physical file if it exists
-            if os.path.exists(media_path):
-                try:
-                    os.remove(media_path)
-                    deleted_count += 1
-                    task.update_progress(f"Deleted: {os.path.basename(media_path)} ({deleted_count}/{len(similar_games)})",
-                                       progress_percentage=90 + int((deleted_count / len(similar_games)) * 5) if len(similar_games) > 0 else 90,
-                                       current_step=comparisons_done, total_steps=total_images)
-                except Exception as e:
-                    failed_deletions.append({'path': media_path, 'error': str(e)})
-                    continue
-            
-            # Clear the media field in the game object
-            game[media_field] = ''
-        
-        # Save updated gamelist.xml
-        task.update_progress(f"Saving updated gamelist.xml...", 
-                           progress_percentage=98, current_step=comparisons_done, total_steps=total_images)
-        
-        try:
-            write_gamelist_xml(games, gamelist_path)
-            
-            # Sync to roms directory
-            sync_result = save_gamelist_to_roms(system_name)
-            if not sync_result.get('success', False):
-                raise Exception(f"Failed to sync gamelist: {sync_result.get('error', 'Unknown error')}")
-            
-            # Notify clients that gamelist was updated (refresh grid)
-            try:
-                notify_gamelist_updated(system_name, len(games), updated_count=deleted_count)
-                print(f"🔔 Notified clients of gamelist update: {len(games)} total games, {deleted_count} updated")
-            except Exception as e:
-                print(f"⚠️ Warning: Failed to notify clients of gamelist update: {e}")
-            
-            task.update_progress(f"✅ Deleted {deleted_count} similar images and updated gamelist.xml",
-                               progress_percentage=100, current_step=total_images, total_steps=total_images)
-            
-            message = f"Deleted {deleted_count} similar images in {media_field} field"
-            if failed_deletions:
-                message += f" ({len(failed_deletions)} failed)"
-            
-            task.complete(True, message)
-        except Exception as e:
-            task.complete(False, f"Failed to save gamelist: {str(e)}")
+        task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images",
+                           progress_percentage=100, current_step=total_images, total_steps=total_images)
+        task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
         
         # Process next queued task
         process_next_queued_task()
@@ -22185,7 +22108,7 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
     except Exception as e:
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
-        print(f"Error in delete similar images task: {e}")
+        print(f"Error in image similarity search task: {e}")
         import traceback
         traceback.print_exc()
         process_next_queued_task()
@@ -24785,7 +24708,7 @@ def run_template_box_generation_task(system_name, selected_games, target_field, 
         if current_task_id and current_task_id in tasks:
             tasks[current_task_id].complete(False, f"Template box generation failed: {str(e)}")
 
-def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=True, spine_crop_width=None):
+def run_3dbox_generation_task(system_name, selected_games, source_field, target_field, background_path, corners, spine_corners, temp_dir, overwrite_existing=True, spine_image_path=None, spine_source_field=None, use_marquee_field=False, use_text_logo=False, text_logo_settings=None, use_generate_spine_background=True, spine_crop_width=None, spine_logo_zone=None, spine_logo_corners=None):
     """Run 3D box generation task in background thread"""
     global current_task_id
     
@@ -24893,6 +24816,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 # Determine spine image for this game: prioritize game's spine field, then uploaded spine, then None (will use 2D box)
                 game_spine_path = None
                 using_uploaded_spine = False
+                spine_from_field = False  # Track if spine comes from a game field (should never add logo/text)
                 generated_spine_path = None  # Initialize early to avoid UnboundLocalError
                 if spine_source_field:
                     # Try to get spine from game's media field
@@ -24905,13 +24829,16 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                         else:
                             game_spine_path = os.path.join(system_path, game_spine)
                         
-                        if not os.path.exists(game_spine_path):
+                        if os.path.exists(game_spine_path):
+                            spine_from_field = True  # Spine is from game field, never add logo/text
+                        else:
                             game_spine_path = None  # Game has field but file doesn't exist
                 
                 # Fallback to uploaded spine image if game doesn't have one
                 if not game_spine_path and spine_image_path and os.path.exists(spine_image_path):
                     game_spine_path = spine_image_path
                     using_uploaded_spine = True
+                    spine_from_field = False  # Uploaded spine from template, don't add logo/text
                 
                 # Always generate spine background from 2D box if no spine is available (enabled by default)
                 # Check if spine_corners are provided and valid (not all zeros)
@@ -24940,9 +24867,9 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                             logging.warning(f"Failed to generate spine background for {game_name}: {e}")
                             game_spine_path = None
                 
-                # Get logo if using uploaded spine
+                # Get logo if using uploaded spine (but NOT if spine is from a field)
                 logo_path = None
-                if using_uploaded_spine:
+                if using_uploaded_spine and not spine_from_field:
                     if use_text_logo and text_logo_settings:
                         # Generate text logo from game name
                         temp_logo_path = os.path.join(temp_dir, f'logo_{processed}_{failed}.png')
@@ -24988,6 +24915,15 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 # When using generated spine, pass None for spine_image_path so it uses the same workflow
                 # as when no spine is provided (uses generated_spine_path or box2d_path)
                 spine_image_path_for_call = game_spine_path if game_spine_path and not generated_spine_path else None
+                
+                # Determine text logo settings for spine
+                # For generated spines, pass text logo settings directly to generate_3dbox
+                # For uploaded spines, text logo is already generated and passed as logo_path
+                # Never add logo/text if spine is from a field
+                spine_text_logo_settings_for_call = None
+                if not using_uploaded_spine and use_text_logo and text_logo_settings and not spine_from_field:
+                    spine_text_logo_settings_for_call = text_logo_settings
+                
                 generator.generate_3dbox(
                     background_path=background_path,
                     box2d_path=source_2dbox_path,
@@ -24995,8 +24931,13 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     corners=corners,
                     spine_corners=spine_corners,
                     spine_image_path=spine_image_path_for_call,  # Pass None when using generated spine
-                    spine_logo_path=logo_path,  # Pass logo path if using uploaded spine
+                    spine_logo_path=logo_path if not spine_from_field else None,  # Never add logo if spine is from field
                     generated_spine_path=generated_spine_path,  # Pass generated spine to use same workflow as box2d_path
+                    spine_logo_zone=spine_logo_zone,  # Optional spine logo zone for positioning
+                    spine_logo_corners=spine_logo_corners,  # Optional spine logo corners for perspective placement
+                    spine_text_logo_settings=spine_text_logo_settings_for_call,  # Text logo settings for generated spines
+                    spine_game_name=game_name,  # Game name for text logo generation
+                    spine_from_field=spine_from_field,  # Flag indicating spine is from field (never add logo/text)
                     debug=is_first_game
                 )
                 
@@ -27072,6 +27013,12 @@ def save_3dbox_template():
         spine_corners_json = request.form.get('spine_corners')
         spine_corners = json.loads(spine_corners_json) if spine_corners_json else {}
         
+        # Get spine logo zone and corners (optional)
+        spine_logo_zone_json = request.form.get('spine_logo_zone')
+        spine_logo_zone = json.loads(spine_logo_zone_json) if spine_logo_zone_json else None
+        spine_logo_corners_json = request.form.get('spine_logo_corners')
+        spine_logo_corners = json.loads(spine_logo_corners_json) if spine_logo_corners_json else None
+        
         # Get spine source field, spine crop width, and logo source settings if provided
         spine_source_field = request.form.get('spine_source_field')
         spine_crop_width = request.form.get('spine_crop_width')
@@ -27102,6 +27049,12 @@ def save_3dbox_template():
         
         # Always save spine_crop_width, even if empty, to properly restore undefined state
         template_data['spine_crop_width'] = spine_crop_width if spine_crop_width else ''
+        
+        # Save spine logo zone and corners if provided
+        if spine_logo_zone:
+            template_data['spine_logo_zone'] = spine_logo_zone
+        if spine_logo_corners:
+            template_data['spine_logo_corners'] = spine_logo_corners
         
         if use_marquee_field:
             template_data['use_marquee_field'] = True
@@ -27172,6 +27125,8 @@ def load_3dbox_template():
         spine_image = template_data.get('spine_image', '')
         corners = template_data.get('corners', {})
         spine_corners = template_data.get('spine_corners', {})
+        spine_logo_zone = template_data.get('spine_logo_zone')
+        spine_logo_corners = template_data.get('spine_logo_corners')
         
         response_data = {
             'success': True,
@@ -27179,6 +27134,11 @@ def load_3dbox_template():
             'corners': corners,
             'spine_corners': spine_corners
         }
+        
+        if spine_logo_zone:
+            response_data['spine_logo_zone'] = spine_logo_zone
+        if spine_logo_corners:
+            response_data['spine_logo_corners'] = spine_logo_corners
         
         if spine_image:
             response_data['spine_image_path'] = f'/api/3dbox-template-image?path={spine_image}&type=spine'
@@ -27323,6 +27283,12 @@ def preview_3dbox():
                 except:
                     text_logo_settings = None
         
+        # Get spine logo zone and corners (optional)
+        spine_logo_zone_json = request.form.get('spine_logo_zone')
+        spine_logo_zone = json.loads(spine_logo_zone_json) if spine_logo_zone_json else None
+        spine_logo_corners_json = request.form.get('spine_logo_corners')
+        spine_logo_corners = json.loads(spine_logo_corners_json) if spine_logo_corners_json else None
+        
         # Create temp directory
         temp_dir = tempfile.mkdtemp(prefix='3dbox_preview_')
         background_path = os.path.join(temp_dir, 'background.png')
@@ -27372,6 +27338,7 @@ def preview_3dbox():
             return jsonify({'error': f'Source 2D box image not found: {source_2dbox_path}'}), 404
         
         # Determine spine image: prioritize game's spine field, then uploaded spine, then 2D box
+        spine_from_field = False  # Track if spine comes from a game field (should never add logo/text)
         if spine_source_field:
             # Try to get spine from game's media field
             game_spine = game.get(spine_source_field)
@@ -27386,10 +27353,12 @@ def preview_3dbox():
                 if os.path.exists(game_spine_path):
                     spine_path = os.path.join(temp_dir, 'spine.png')
                     shutil.copy2(game_spine_path, spine_path)
+                    spine_from_field = True  # Spine is from game field, never add logo/text
         
         # Fallback to uploaded spine image if game doesn't have one
         if not spine_path:
             using_uploaded_spine = True
+            spine_from_field = False  # Uploaded spine from template, don't add logo/text
             if spine_file:
                 spine_path = os.path.join(temp_dir, 'spine.png')
                 spine_file.save(spine_path)
@@ -27439,9 +27408,9 @@ def preview_3dbox():
                     logging.warning(f"Failed to generate spine background: {e}")
                     generated_spine_path = None
         
-        # Get logo if logo options are enabled and spine exists
+        # Get logo if logo options are enabled and spine exists (but NOT if spine is from a field)
         logo_path = None
-        if (use_text_logo or use_marquee_field) and (spine_path or generated_spine_path or spine_corners):
+        if (use_text_logo or use_marquee_field) and (spine_path or generated_spine_path or spine_corners) and not spine_from_field:
             # Get game name for logging
             game_name = game.get('name', game_path)
             
@@ -27489,6 +27458,16 @@ def preview_3dbox():
         # When using generated spine, pass None for spine_image_path so it uses the same workflow
         # as when no spine is provided (uses generated_spine_path or box2d_path)
         spine_image_path_for_call = spine_path if spine_path and not generated_spine_path else None
+        
+        # Determine text logo settings for spine
+        # For generated spines, pass text logo settings directly to generate_3dbox
+        # For uploaded spines, text logo is already generated and passed as logo_path
+        # Never add logo/text if spine is from a field
+        spine_text_logo_settings_for_call = None
+        game_name = game.get('name', game_path)
+        if not using_uploaded_spine and use_text_logo and text_logo_settings and not spine_from_field:
+            spine_text_logo_settings_for_call = text_logo_settings
+        
         generator.generate_3dbox(
             background_path=background_path,
             box2d_path=source_2dbox_path,
@@ -27496,8 +27475,13 @@ def preview_3dbox():
             corners=corners,
             spine_corners=spine_corners,
             spine_image_path=spine_image_path_for_call,  # Pass None when using generated spine
-            spine_logo_path=logo_path,  # Pass logo path if using uploaded spine
+            spine_logo_path=logo_path if not spine_from_field else None,  # Never add logo if spine is from field
             generated_spine_path=generated_spine_path,  # Pass generated spine to use same workflow as box2d_path
+            spine_logo_zone=spine_logo_zone,  # Optional spine logo zone for positioning
+            spine_logo_corners=spine_logo_corners,  # Optional spine logo corners for perspective placement
+            spine_text_logo_settings=spine_text_logo_settings_for_call,  # Text logo settings for generated spines
+            spine_game_name=game_name,  # Game name for text logo generation
+            spine_from_field=spine_from_field,  # Flag indicating spine is from field (never add logo/text)
             debug=False  # Don't keep intermediate files
         )
         
@@ -27537,6 +27521,12 @@ def generate_3dbox():
         selected_games = json.loads(game_paths_json)
         corners = json.loads(corners_json) if corners_json else {}
         spine_corners = json.loads(spine_corners_json) if spine_corners_json else {}
+        
+        # Get spine logo zone and corners (optional)
+        spine_logo_zone_json = request.form.get('spine_logo_zone')
+        spine_logo_zone = json.loads(spine_logo_zone_json) if spine_logo_zone_json else None
+        spine_logo_corners_json = request.form.get('spine_logo_corners')
+        spine_logo_corners = json.loads(spine_logo_corners_json) if spine_logo_corners_json else None
         
         # Get background image
         background_file = request.files.get('background_image')
@@ -27633,6 +27623,8 @@ def generate_3dbox():
             'text_logo_settings': text_logo_settings,  # Text logo settings if using text logo
             'use_generate_spine_background': use_generate_spine_background,  # Flag indicating if spine background should be generated from 2D box
             'spine_crop_width': spine_crop_width,  # Width of 2D box crop in pixels for spine generation
+            'spine_logo_zone': spine_logo_zone,  # Optional spine logo zone for positioning
+            'spine_logo_corners': spine_logo_corners,  # Optional spine logo corners for perspective placement
             'temp_dir': temp_dir,
             'overwrite_existing': overwrite_existing
         }

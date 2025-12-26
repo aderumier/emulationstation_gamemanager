@@ -226,11 +226,11 @@ class BoxGenerator:
             if text_logo_settings.get('italic', False):
                 cmd.extend(['-shear', '15x0'])
             
-            # Generate text logo (single line)
+            # Generate text logo (single line) - use label: instead of caption: to prevent wrapping
             cmd.extend([
                 '-size', f'{width}x',
                 '-gravity', gravity,
-                f'caption:{escaped_text}',
+                f'label:{escaped_text}',
                 output_path
             ])
             
@@ -985,7 +985,7 @@ class BoxGenerator:
         logging.info(f"✅ Spine background generated successfully: {output_path}")
         return output_path
 
-    def generate_3dbox(self, background_path, box2d_path, output_path, corners, spine_corners=None, spine_image_path=None, spine_logo_path=None, generated_spine_path=None, debug=False):
+    def generate_3dbox(self, background_path, box2d_path, output_path, corners, spine_corners=None, spine_image_path=None, spine_logo_path=None, generated_spine_path=None, spine_logo_zone=None, spine_logo_corners=None, spine_text_logo_settings=None, spine_game_name='', spine_from_field=False, debug=False):
         """
         Generate a 3D box by applying perspective distortion to a 2D box image
         and compositing it onto a 3D box template.
@@ -1002,6 +1002,16 @@ class BoxGenerator:
                     'bottomRight': {'x': int, 'y': int}
                 }
             spine_corners: Optional dictionary with spine corner positions (same format as corners)
+            spine_logo_path: Optional path to spine logo image
+            generated_spine_path: Optional path to generated spine background
+            spine_logo_zone: Optional dictionary with spine logo zone positions (same format as corners)
+                If provided, logo/text will use full width of zone and be centered vertically in zone
+            spine_logo_corners: Optional dictionary with spine logo corner positions (same format as corners)
+                If provided, logo/text will be placed using perspective transformation at these exact corners
+                Takes precedence over spine_logo_zone if both are provided
+            spine_text_logo_settings: Optional dict with text logo settings for spine (color, font_size, font, etc.)
+            spine_game_name: Optional game name for spine text logo generation
+            spine_from_field: If True, spine comes from a game field and logo/text should never be added
             debug: If True, keep intermediate temp images for debugging
         """
         temp_files = []
@@ -1191,7 +1201,115 @@ class BoxGenerator:
                                 f'{spine_source_bottomleft_x},{spine_source_bottomleft_y} {spine_target_bottomleft_x},{spine_target_bottomleft_y}'
                             )
                             
-                            has_logo = spine_logo_path and os.path.exists(spine_logo_path)
+                            # Never add logo/text if spine is from a field
+                            has_logo = False
+                            has_text_logo = False
+                            # Disable logo corners for now - only use zone
+                            use_logo_corners = False
+                            if not spine_from_field:
+                                has_logo = spine_logo_path and os.path.exists(spine_logo_path)
+                                has_text_logo = spine_text_logo_settings and spine_game_name
+                            
+                            # Generate text logo if needed (before processing spine)
+                            # Calculate zone dimensions first to determine logo generation size
+                            zone_width_resized = None
+                            zone_height_resized = None
+                            if spine_logo_zone and not spine_from_field:
+                                zone_tl = spine_logo_zone.get('topLeft', {'x': 0, 'y': 0})
+                                zone_tr = spine_logo_zone.get('topRight', {'x': 0, 'y': 0})
+                                zone_bl = spine_logo_zone.get('bottomLeft', {'x': 0, 'y': 0})
+                                zone_br = spine_logo_zone.get('bottomRight', {'x': 0, 'y': 0})
+                                
+                                # Check if zone is actually defined
+                                zone_tl_x = zone_tl.get('x', 0)
+                                zone_tl_y = zone_tl.get('y', 0)
+                                zone_tr_x = zone_tr.get('x', 0)
+                                zone_tr_y = zone_tr.get('y', 0)
+                                zone_bl_x = zone_bl.get('x', 0)
+                                zone_bl_y = zone_bl.get('y', 0)
+                                zone_br_x = zone_br.get('x', 0)
+                                zone_br_y = zone_br.get('y', 0)
+                                
+                                zone_is_valid = (zone_tl_x > 0 or zone_tl_y > 0 or zone_tr_x > 0 or zone_tr_y > 0 or
+                                               zone_bl_x > 0 or zone_bl_y > 0 or zone_br_x > 0 or zone_br_y > 0)
+                                
+                                if zone_is_valid:
+                                    # Calculate zone dimensions in template space
+                                    zone_width_template = zone_tr_x - zone_tl_x
+                                    zone_height_template = zone_bl_y - zone_tl_y
+                                    
+                                    # Map zone to resized spine space
+                                    template_spine_width = spine_target_topright_x - spine_target_topleft_x
+                                    template_spine_height = spine_target_bottomright_y - spine_target_topright_y
+                                    
+                                    if template_spine_width > 0 and template_spine_height > 0 and zone_width_template > 0 and zone_height_template > 0:
+                                        scale_x = spine_resize_width / template_spine_width
+                                        scale_y = spine_resize_height / template_spine_height
+                                        
+                                        zone_width_resized = int(zone_width_template * scale_x)
+                                        zone_height_resized = int(zone_height_template * scale_y)
+                            
+                            spine_logo_to_use = spine_logo_path
+                            if has_text_logo and not has_logo:
+                                # Generate text logo for spine
+                                if debug:
+                                    output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                    temp_text_logo = os.path.join(temp_dir, f'{output_base}_spine_text_logo.png')
+                                else:
+                                    temp_text_logo = os.path.join(temp_dir, 'spine_text_logo.png')
+                                temp_files.append(temp_text_logo)
+                                
+                                # Generate logo with zone height as width, zone width as height
+                                # After rotation, this will become zone width x zone height
+                                if zone_height_resized and zone_height_resized > 0 and zone_width_resized and zone_width_resized > 0:
+                                    # Generate with zone height as width (will become height after rotation)
+                                    # and zone width as height (will become width after rotation)
+                                    text_logo_width = zone_height_resized  # Zone height becomes logo width
+                                    text_logo_height = zone_width_resized  # Zone width becomes logo height
+                                    logging.info(f"3D Box Spine: Generating text logo with dimensions {text_logo_width}x{text_logo_height} (zone height as width, zone width as height)")
+                                else:
+                                    # No zone: use spine dimensions swapped
+                                    text_logo_width = spine_resize_height  # Spine height becomes logo width
+                                    text_logo_height = spine_resize_width  # Spine width becomes logo height
+                                    logging.info(f"3D Box Spine: No zone, generating text logo with dimensions {text_logo_width}x{text_logo_height}")
+                                
+                                # Generate single-line text logo with the calculated width
+                                # The logo will be generated horizontally, then rotated
+                                generated_text_logo = self.generate_single_line_text_logo(
+                                    game_name=spine_game_name,
+                                    text_logo_settings=spine_text_logo_settings,
+                                    output_path=temp_text_logo,
+                                    width=text_logo_width
+                                )
+                                
+                                # Resize to exact dimensions (zone height x zone width) if zone is defined
+                                # This ensures the logo uses full height and is centered on width
+                                if generated_text_logo and os.path.exists(generated_text_logo) and zone_height_resized and zone_width_resized:
+                                    temp_text_logo_resized = os.path.splitext(temp_text_logo)[0] + '_resized.png'
+                                    temp_files.append(temp_text_logo_resized)
+                                    
+                                    # Resize to exact dimensions: zone height (width) x zone width (height)
+                                    # Center horizontally, use full height (preserve transparency)
+                                    cmd_resize = [
+                                        'convert',
+                                        generated_text_logo,
+                                        '-background', 'transparent',
+                                        '-alpha', 'set',
+                                        '-resize', f'{text_logo_width}x{text_logo_height}!',  # Force exact size
+                                        '-gravity', 'center',
+                                        '-extent', f'{text_logo_width}x{text_logo_height}',  # Center on width, use full height
+                                        temp_text_logo_resized
+                                    ]
+                                    logging.info(f"3D Box Spine: Resizing text logo to {text_logo_width}x{text_logo_height}: {' '.join(cmd_resize)}")
+                                    subprocess.run(cmd_resize, check=True)
+                                    generated_text_logo = temp_text_logo_resized
+                                
+                                if generated_text_logo and os.path.exists(generated_text_logo):
+                                    spine_logo_to_use = generated_text_logo
+                                    has_logo = True
+                                    logging.info(f"✅ Generated text logo for spine: {generated_text_logo}")
+                                else:
+                                    logging.warning(f"Failed to generate text logo for spine")
                             
                             if is_generated_spine:
                                 # Generated spine: always use separate steps (no optimization) to ensure perspective works correctly
@@ -1207,9 +1325,9 @@ class BoxGenerator:
                                 logging.info(f"3D Box Spine Step 1 (Generated) - Resize: {' '.join(cmd_spine_resize)}")
                                 subprocess.run(cmd_spine_resize, check=True)
                                 
-                                # Step S1.5: Add logo to spine if logo is provided
-                                if has_logo:
-                                    logging.info(f"3D Box Spine: Adding logo from {spine_logo_path}")
+                                # Step S1.5: Add logo to spine if logo is provided (skip if using corners)
+                                if has_logo and not use_logo_corners:
+                                    logging.info(f"3D Box Spine: Adding logo from {spine_logo_to_use}")
                                     
                                     # Create temp file for rotated and resized logo
                                     if debug:
@@ -1220,19 +1338,120 @@ class BoxGenerator:
                                     
                                     temp_files.append(temp_logo_rotated_resized)
                                     
-                                    # Rotate logo 90 degrees and resize to 80% of spine width (maintain aspect ratio)
-                                    logo_target_width = int(spine_resize_width * 0.8)  # 80% of spine width
-                                    cmd_logo_rotate_resize = [
+                                    # Calculate logo zone dimensions if zone is provided
+                                    zone_width_resized = None
+                                    zone_height_resized = None
+                                    zone_x_resized = None
+                                    zone_y_resized = None
+                                    
+                                    if spine_logo_zone:
+                                        # Zone coordinates are in template space, need to map to resized spine space
+                                        zone_tl = spine_logo_zone.get('topLeft', {'x': 0, 'y': 0})
+                                        zone_tr = spine_logo_zone.get('topRight', {'x': 0, 'y': 0})
+                                        zone_bl = spine_logo_zone.get('bottomLeft', {'x': 0, 'y': 0})
+                                        zone_br = spine_logo_zone.get('bottomRight', {'x': 0, 'y': 0})
+                                        
+                                        # Check if zone is actually defined (has non-zero coordinates)
+                                        zone_tl_x = zone_tl.get('x', 0)
+                                        zone_tl_y = zone_tl.get('y', 0)
+                                        zone_tr_x = zone_tr.get('x', 0)
+                                        zone_tr_y = zone_tr.get('y', 0)
+                                        zone_bl_x = zone_bl.get('x', 0)
+                                        zone_bl_y = zone_bl.get('y', 0)
+                                        zone_br_x = zone_br.get('x', 0)
+                                        zone_br_y = zone_br.get('y', 0)
+                                        
+                                        # Validate zone has valid coordinates (at least one corner is non-zero)
+                                        zone_is_valid = (zone_tl_x > 0 or zone_tl_y > 0 or zone_tr_x > 0 or zone_tr_y > 0 or
+                                                       zone_bl_x > 0 or zone_bl_y > 0 or zone_br_x > 0 or zone_br_y > 0)
+                                        
+                                        if zone_is_valid:
+                                            # Calculate zone width and height in template space
+                                            zone_width_template = zone_tr_x - zone_tl_x
+                                            zone_height_template = zone_bl_y - zone_tl_y
+                                            
+                                            # Map zone to resized spine space
+                                            # Zone is relative to spine corners in template space
+                                            zone_x_offset_template = zone_tl_x - spine_target_topleft_x
+                                            zone_y_offset_template = zone_tl_y - spine_target_topleft_y
+                                            
+                                            # Calculate scale factors from template to resized spine
+                                            template_spine_width = spine_target_topright_x - spine_target_topleft_x
+                                            template_spine_height = spine_target_bottomright_y - spine_target_topright_y
+                                            
+                                            if template_spine_width > 0 and template_spine_height > 0 and zone_width_template > 0 and zone_height_template > 0:
+                                                scale_x = spine_resize_width / template_spine_width
+                                                scale_y = spine_resize_height / template_spine_height
+                                                
+                                                # Zone dimensions in resized spine space
+                                                zone_width_resized = int(zone_width_template * scale_x)
+                                                zone_height_resized = int(zone_height_template * scale_y)
+                                                zone_x_resized = int(zone_x_offset_template * scale_x)
+                                                zone_y_resized = int(zone_y_offset_template * scale_y)
+                                                
+                                                logging.info(f"3D Box Spine: Zone mapped - template: {zone_width_template}x{zone_height_template} at ({zone_tl_x},{zone_tl_y}), resized: {zone_width_resized}x{zone_height_resized} at ({zone_x_resized},{zone_y_resized})")
+                                            else:
+                                                logging.warning(f"3D Box Spine: Invalid zone or spine dimensions - zone: {zone_width_template}x{zone_height_template}, spine: {template_spine_width}x{template_spine_height}")
+                                                zone_width_resized = None
+                                                zone_height_resized = None
+                                                zone_x_resized = None
+                                                zone_y_resized = None
+                                        else:
+                                            logging.info(f"3D Box Spine: Zone coordinates are all zero, ignoring zone")
+                                            zone_width_resized = None
+                                            zone_height_resized = None
+                                            zone_x_resized = None
+                                            zone_y_resized = None
+                                    
+                                    # Process logo: resize first to zone dimensions (height as width, width as height), then rotate
+                                    if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
+                                        # Zone is defined: use zone height as width, zone width as height
+                                        # After rotation, this will become zone width x zone height
+                                        logo_pre_rotate_width = zone_height_resized  # Zone height becomes logo width
+                                        logo_pre_rotate_height = zone_width_resized  # Zone width becomes logo height
+                                        logo_x = zone_x_resized
+                                        logging.info(f"3D Box Spine: Using zone dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}, post-rotate: {zone_width_resized}x{zone_height_resized}")
+                                    else:
+                                        # No zone: use spine dimensions swapped
+                                        logo_pre_rotate_width = spine_resize_height  # Spine height becomes logo width
+                                        logo_pre_rotate_height = spine_resize_width  # Spine width becomes logo height
+                                        logo_x = 0
+                                        logging.info(f"3D Box Spine: No zone, using spine dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                    
+                                    # Step 1: Resize logo to pre-rotate dimensions
+                                    temp_logo_resized = os.path.splitext(temp_logo_rotated_resized)[0] + '_pre_rotate.png'
+                                    temp_files.append(temp_logo_resized)
+                                    
+                                    cmd_logo_resize = [
                                         'convert',
-                                        spine_logo_path,
+                                        spine_logo_to_use,
+                                        '-background', 'transparent',
+                                        '-alpha', 'set',
+                                        '-resize', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}!',  # Force exact size
+                                        '-gravity', 'center',
+                                        '-extent', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}',  # Center on width, use full height
+                                        temp_logo_resized
+                                    ]
+                                    logging.info(f"3D Box Spine: Resizing logo to {logo_pre_rotate_width}x{logo_pre_rotate_height}: {' '.join(cmd_logo_resize)}")
+                                    subprocess.run(cmd_logo_resize, check=True)
+                                    
+                                    # Step 2: Rotate 90 degrees (preserve transparency)
+                                    cmd_logo_rotate = [
+                                        'convert',
+                                        temp_logo_resized,
+                                        '-background', 'transparent',
+                                        '-alpha', 'set',
                                         '-rotate', '90',
-                                        '-resize', f'{logo_target_width}x',  # Resize to 80% of spine width, maintain aspect ratio
                                         temp_logo_rotated_resized
                                     ]
-                                    logging.info(f"3D Box Spine: Rotate and resize logo to {logo_target_width}px width (80% of spine width): {' '.join(cmd_logo_rotate_resize)}")
-                                    subprocess.run(cmd_logo_rotate_resize, check=True)
+                                    logging.info(f"3D Box Spine: Rotating logo 90 degrees: {' '.join(cmd_logo_rotate)}")
+                                    result = subprocess.run(cmd_logo_rotate, capture_output=True, text=True, check=True)
+                                    if result.returncode != 0:
+                                        logging.error(f"3D Box Spine: Rotation failed: {result.stderr}")
+                                    else:
+                                        logging.info(f"3D Box Spine: Logo rotated successfully")
                                     
-                                    # Get logo dimensions after rotation and resize
+                                    # Get logo dimensions after rotation (for verification)
                                     identify_cmd = ['identify', '-format', '%wx%h', temp_logo_rotated_resized]
                                     logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
                                     if logo_dim_result.returncode == 0:
@@ -1240,13 +1459,30 @@ class BoxGenerator:
                                         logo_width = int(logo_dims[0])
                                         logo_height = int(logo_dims[1])
                                         
-                                        # Calculate position: centered horizontally, at 2/3 of spine height
-                                        logo_x = (spine_resize_width - logo_width) // 2  # Center horizontally
-                                        logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)  # At 2/3 height, centered vertically
+                                        # After rotation, dimensions should be swapped
+                                        expected_width = zone_width_resized if zone_width_resized else spine_resize_width
+                                        expected_height = zone_height_resized if zone_height_resized else spine_resize_height
                                         
-                                        # Composite logo onto resized spine
+                                        logging.info(f"3D Box Spine: Logo after rotation: {logo_width}x{logo_height} (expected: {expected_width}x{expected_height})")
+                                        
+                                        if logo_width == expected_width and logo_height == expected_height:
+                                            logging.info(f"3D Box Spine: ✅ Logo dimensions correct after rotation")
+                                        else:
+                                            logging.warning(f"3D Box Spine: ⚠️ Logo dimensions mismatch - got {logo_width}x{logo_height}, expected {expected_width}x{expected_height}")
+                                        
+                                        # Calculate position: use zone if provided, otherwise default
+                                        if zone_height_resized and zone_y_resized is not None:
+                                            # Center vertically within zone
+                                            logo_y = zone_y_resized + (zone_height_resized - logo_height) // 2
+                                        else:
+                                            # Default: at 2/3 of spine height, centered vertically
+                                            logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)
+                                        
+                                        # Composite logo onto resized spine (before perspective transformation)
+                                        # Use composite with alpha channel to preserve transparency
                                         cmd_logo_composite = [
                                             'composite',
+                                            '-alpha', 'set',
                                             '-geometry', f'+{logo_x}+{logo_y}',
                                             temp_logo_rotated_resized,
                                             temp_spine_resized,
@@ -1296,55 +1532,167 @@ class BoxGenerator:
                                     logging.info(f"3D Box Spine Step 1 (Uploaded/Field with logo) - Resize: {' '.join(cmd_spine_resize)}")
                                     subprocess.run(cmd_spine_resize, check=True)
                                     
-                                    # Step S1.5: Add logo to spine
-                                    logging.info(f"3D Box Spine: Adding logo from {spine_logo_path}")
-                                    
-                                    # Create temp file for rotated and resized logo
-                                    if debug:
-                                        output_base = os.path.splitext(os.path.basename(output_path))[0]
-                                        temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
+                                    # Step S1.5: Add logo to spine (skip if using corners - disabled for now)
+                                    if use_logo_corners:
+                                        logging.info(f"3D Box Spine: Skipping logo compositing (will use corner-based placement)")
                                     else:
-                                        temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
-                                    
-                                    temp_files.append(temp_logo_rotated_resized)
-                                    
-                                    # Rotate logo 90 degrees and resize to 80% of spine width (maintain aspect ratio)
-                                    logo_target_width = int(spine_resize_width * 0.8)  # 80% of spine width
-                                    cmd_logo_rotate_resize = [
-                                        'convert',
-                                        spine_logo_path,
-                                        '-rotate', '90',
-                                        '-resize', f'{logo_target_width}x',  # Resize to 80% of spine width, maintain aspect ratio
-                                        temp_logo_rotated_resized
-                                    ]
-                                    logging.info(f"3D Box Spine: Rotate and resize logo to {logo_target_width}px width (80% of spine width): {' '.join(cmd_logo_rotate_resize)}")
-                                    subprocess.run(cmd_logo_rotate_resize, check=True)
-                                    
-                                    # Get logo dimensions after rotation and resize
-                                    identify_cmd = ['identify', '-format', '%wx%h', temp_logo_rotated_resized]
-                                    logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
-                                    if logo_dim_result.returncode == 0:
-                                        logo_dims = logo_dim_result.stdout.strip().split('x')
-                                        logo_width = int(logo_dims[0])
-                                        logo_height = int(logo_dims[1])
+                                        logging.info(f"3D Box Spine: Adding logo from {spine_logo_to_use}")
                                         
-                                        # Calculate position: centered horizontally, at 2/3 of spine height
-                                        logo_x = (spine_resize_width - logo_width) // 2  # Center horizontally
-                                        logo_y = int(spine_resize_height * 2 / 3) - (logo_height // 2)  # At 2/3 height, centered vertically
+                                        # Create temp file for rotated and resized logo
+                                        if debug:
+                                            output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                            temp_logo_rotated_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_rotated_resized.png')
+                                        else:
+                                            temp_logo_rotated_resized = os.path.join(temp_dir, 'spine_logo_rotated_resized.png')
                                         
-                                        # Composite logo onto resized spine
-                                        cmd_logo_composite = [
-                                            'composite',
-                                            '-geometry', f'+{logo_x}+{logo_y}',
-                                            temp_logo_rotated_resized,
-                                            temp_spine_resized,
-                                            temp_spine_resized
+                                        temp_files.append(temp_logo_rotated_resized)
+                                        
+                                        # Calculate logo zone dimensions if zone is provided
+                                        zone_width_resized = None
+                                        zone_height_resized = None
+                                        zone_x_resized = None
+                                        zone_y_resized = None
+                                        
+                                        if spine_logo_zone:
+                                            # Zone coordinates are in template space, need to map to resized spine space
+                                            zone_tl = spine_logo_zone.get('topLeft', {'x': 0, 'y': 0})
+                                            zone_tr = spine_logo_zone.get('topRight', {'x': 0, 'y': 0})
+                                            zone_bl = spine_logo_zone.get('bottomLeft', {'x': 0, 'y': 0})
+                                            zone_br = spine_logo_zone.get('bottomRight', {'x': 0, 'y': 0})
+                                            
+                                            # Check if zone is actually defined (has non-zero coordinates)
+                                            zone_tl_x = zone_tl.get('x', 0)
+                                            zone_tl_y = zone_tl.get('y', 0)
+                                            zone_tr_x = zone_tr.get('x', 0)
+                                            zone_tr_y = zone_tr.get('y', 0)
+                                            zone_bl_x = zone_bl.get('x', 0)
+                                            zone_bl_y = zone_bl.get('y', 0)
+                                            zone_br_x = zone_br.get('x', 0)
+                                            zone_br_y = zone_br.get('y', 0)
+                                            
+                                            # Validate zone has valid coordinates (at least one corner is non-zero)
+                                            zone_is_valid = (zone_tl_x > 0 or zone_tl_y > 0 or zone_tr_x > 0 or zone_tr_y > 0 or
+                                                           zone_bl_x > 0 or zone_bl_y > 0 or zone_br_x > 0 or zone_br_y > 0)
+                                            
+                                            if zone_is_valid:
+                                                # Calculate zone width and height in template space
+                                                zone_width_template = zone_tr_x - zone_tl_x
+                                                zone_height_template = zone_bl_y - zone_tl_y
+                                                
+                                                # Map zone to resized spine space
+                                                # Zone is relative to spine corners in template space
+                                                zone_x_offset_template = zone_tl_x - spine_target_topleft_x
+                                                zone_y_offset_template = zone_tl_y - spine_target_topleft_y
+                                                
+                                                # Calculate scale factors from template to resized spine
+                                                template_spine_width = spine_target_topright_x - spine_target_topleft_x
+                                                template_spine_height = spine_target_bottomright_y - spine_target_topright_y
+                                                
+                                                if template_spine_width > 0 and template_spine_height > 0 and zone_width_template > 0 and zone_height_template > 0:
+                                                    scale_x = spine_resize_width / template_spine_width
+                                                    scale_y = spine_resize_height / template_spine_height
+                                                    
+                                                    # Zone dimensions in resized spine space
+                                                    zone_width_resized = int(zone_width_template * scale_x)
+                                                    zone_height_resized = int(zone_height_template * scale_y)
+                                                    zone_x_resized = int(zone_x_offset_template * scale_x)
+                                                    zone_y_resized = int(zone_y_offset_template * scale_y)
+                                                    
+                                                    logging.info(f"3D Box Spine: Zone mapped - template: {zone_width_template}x{zone_height_template} at ({zone_tl_x},{zone_tl_y}), resized: {zone_width_resized}x{zone_height_resized} at ({zone_x_resized},{zone_y_resized})")
+                                                else:
+                                                    logging.warning(f"3D Box Spine: Invalid zone or spine dimensions - zone: {zone_width_template}x{zone_height_template}, spine: {template_spine_width}x{template_spine_height}")
+                                                    zone_width_resized = None
+                                                    zone_height_resized = None
+                                                    zone_x_resized = None
+                                                    zone_y_resized = None
+                                            else:
+                                                logging.info(f"3D Box Spine: Zone coordinates are all zero, ignoring zone")
+                                                zone_width_resized = None
+                                                zone_height_resized = None
+                                                zone_x_resized = None
+                                                zone_y_resized = None
+                                        
+                                        # Process logo: resize first to zone dimensions (height as width, width as height), then rotate
+                                        if zone_width_resized and zone_width_resized > 0 and zone_height_resized and zone_height_resized > 0:
+                                            # Zone is defined: use zone height as width, zone width as height
+                                            # After rotation, this will become zone width x zone height
+                                            logo_pre_rotate_width = zone_height_resized  # Zone height becomes logo width
+                                            logo_pre_rotate_height = zone_width_resized  # Zone width becomes logo height
+                                            logo_x = zone_x_resized
+                                            logging.info(f"3D Box Spine: Using zone dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}, post-rotate: {zone_width_resized}x{zone_height_resized}")
+                                        else:
+                                            # No zone: use spine dimensions swapped
+                                            logo_pre_rotate_width = spine_resize_height  # Spine height becomes logo width
+                                            logo_pre_rotate_height = spine_resize_width  # Spine width becomes logo height
+                                            logo_x = 0
+                                            logging.info(f"3D Box Spine: No zone, using spine dimensions - pre-rotate: {logo_pre_rotate_width}x{logo_pre_rotate_height}")
+                                        
+                                        # Step 1: Resize logo to pre-rotate dimensions
+                                        temp_logo_resized = os.path.splitext(temp_logo_rotated_resized)[0] + '_pre_rotate.png'
+                                        temp_files.append(temp_logo_resized)
+                                        
+                                        cmd_logo_resize = [
+                                            'convert',
+                                            spine_logo_to_use,
+                                            '-background', 'transparent',
+                                            '-alpha', 'set',
+                                            '-resize', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}!',  # Force exact size
+                                            '-gravity', 'center',
+                                            '-extent', f'{logo_pre_rotate_width}x{logo_pre_rotate_height}',  # Center on width, use full height
+                                            temp_logo_resized
                                         ]
-                                        logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
-                                        subprocess.run(cmd_logo_composite, check=True)
-                                        logging.info(f"✅ Logo composited onto spine")
-                                    else:
-                                        logging.warning(f"Failed to get logo dimensions, skipping logo composite")
+                                        logging.info(f"3D Box Spine: Resizing logo to {logo_pre_rotate_width}x{logo_pre_rotate_height}: {' '.join(cmd_logo_resize)}")
+                                        subprocess.run(cmd_logo_resize, check=True)
+                                        
+                                        # Step 2: Rotate 90 degrees (preserve transparency)
+                                        cmd_logo_rotate = [
+                                            'convert',
+                                            temp_logo_resized,
+                                            '-background', 'transparent',
+                                            '-alpha', 'set',
+                                            '-rotate', '90',
+                                            temp_logo_rotated_resized
+                                        ]
+                                        logging.info(f"3D Box Spine: Rotating logo 90 degrees: {' '.join(cmd_logo_rotate)}")
+                                        result = subprocess.run(cmd_logo_rotate, capture_output=True, text=True, check=True)
+                                        if result.returncode != 0:
+                                            logging.error(f"3D Box Spine: Rotation failed: {result.stderr}")
+                                        else:
+                                            logging.info(f"3D Box Spine: Logo rotated successfully")
+                                        
+                                        # Get logo dimensions after rotation (for verification)
+                                        identify_cmd = ['identify', '-format', '%wx%h', temp_logo_rotated_resized]
+                                        logo_dim_result = subprocess.run(identify_cmd, capture_output=True, text=True, timeout=5)
+                                        if logo_dim_result.returncode == 0:
+                                            logo_dims = logo_dim_result.stdout.strip().split('x')
+                                            logo_rotated_width = int(logo_dims[0])
+                                            logo_rotated_height = int(logo_dims[1])
+                                            
+                                            logging.info(f"3D Box Spine: Logo after rotation: {logo_rotated_width}x{logo_rotated_height}")
+                                            
+                                            # Calculate position: use zone if provided, otherwise default
+                                            if zone_height_resized and zone_y_resized is not None:
+                                                # Center vertically within zone
+                                                logo_y = zone_y_resized + (zone_height_resized - logo_rotated_height) // 2
+                                            else:
+                                                # Default: at 2/3 of spine height, centered vertically
+                                                logo_y = int(spine_resize_height * 2 / 3) - (logo_rotated_height // 2)
+                                            
+                                            # Composite logo onto resized spine (before perspective transformation)
+                                            # Use composite with alpha channel to preserve transparency
+                                            cmd_logo_composite = [
+                                                'composite',
+                                                '-alpha', 'set',
+                                                '-geometry', f'+{logo_x}+{logo_y}',
+                                                temp_logo_rotated_resized,
+                                                temp_spine_resized,
+                                                temp_spine_resized
+                                            ]
+                                            logging.info(f"3D Box Spine: Composite logo at ({logo_x}, {logo_y}): {' '.join(cmd_logo_composite)}")
+                                            subprocess.run(cmd_logo_composite, check=True)
+                                            logging.info(f"✅ Logo composited onto spine")
+                                        else:
+                                            logging.warning(f"Failed to get logo dimensions, skipping logo composite")
                                     
                                     # Step S2-3: Combined perspective + resize
                                     cmd_spine_combined = [
@@ -1390,6 +1738,129 @@ class BoxGenerator:
                             subprocess.run(cmd_spine_composite, check=True)
                             
                             logging.info(f"✅ Spine composited successfully")
+                            
+                            # Step S6: Add logo using corner-based placement if corners are provided
+                            if use_logo_corners and ((has_logo and spine_logo_to_use) or has_text_logo):
+                                logging.info(f"3D Box Spine: Adding logo using corner-based placement")
+                                
+                                # Extract corner coordinates
+                                logo_tl = spine_logo_corners.get('topLeft', {'x': 0, 'y': 0})
+                                logo_tr = spine_logo_corners.get('topRight', {'x': 0, 'y': 0})
+                                logo_bl = spine_logo_corners.get('bottomLeft', {'x': 0, 'y': 0})
+                                logo_br = spine_logo_corners.get('bottomRight', {'x': 0, 'y': 0})
+                                
+                                target_tl_x = int(logo_tl.get('x', 0))
+                                target_tl_y = int(logo_tl.get('y', 0))
+                                target_tr_x = int(logo_tr.get('x', 0))
+                                target_tr_y = int(logo_tr.get('y', 0))
+                                target_bl_x = int(logo_bl.get('x', 0))
+                                target_bl_y = int(logo_bl.get('y', 0))
+                                target_br_x = int(logo_br.get('x', 0))
+                                target_br_y = int(logo_br.get('y', 0))
+                                
+                                # Calculate bounding box dimensions for logo
+                                logo_min_x = min(target_tl_x, target_tr_x, target_bl_x, target_br_x)
+                                logo_max_x = max(target_tl_x, target_tr_x, target_bl_x, target_br_x)
+                                logo_min_y = min(target_tl_y, target_tr_y, target_bl_y, target_br_y)
+                                logo_max_y = max(target_tl_y, target_tr_y, target_bl_y, target_br_y)
+                                
+                                logo_resize_width = logo_max_x - logo_min_x
+                                logo_resize_height = logo_max_y - logo_min_y
+                                
+                                if logo_resize_width > 0 and logo_resize_height > 0:
+                                    # Generate or prepare logo
+                                    if has_text_logo and not has_logo:
+                                        # Generate text logo
+                                        if debug:
+                                            output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                            temp_logo_for_corners = os.path.join(temp_dir, f'{output_base}_spine_logo_corners.png')
+                                        else:
+                                            temp_logo_for_corners = os.path.join(temp_dir, 'spine_logo_corners.png')
+                                        temp_files.append(temp_logo_for_corners)
+                                        
+                                        # Generate single-line text logo with the calculated width
+                                        generated_text_logo = self.generate_single_line_text_logo(
+                                            game_name=spine_game_name,
+                                            text_logo_settings=spine_text_logo_settings,
+                                            output_path=temp_logo_for_corners,
+                                            width=logo_resize_width
+                                        )
+                                        
+                                        if generated_text_logo and os.path.exists(generated_text_logo):
+                                            logo_file_for_corners = generated_text_logo
+                                        else:
+                                            logging.warning(f"Failed to generate text logo for corner placement")
+                                            logo_file_for_corners = None
+                                    else:
+                                        # Use existing logo
+                                        logo_file_for_corners = spine_logo_to_use
+                                    
+                                    if logo_file_for_corners and os.path.exists(logo_file_for_corners):
+                                        # Create temp file for resized and transformed logo
+                                        if debug:
+                                            output_base = os.path.splitext(os.path.basename(output_path))[0]
+                                            temp_logo_resized = os.path.join(temp_dir, f'{output_base}_spine_logo_corners_resized.png')
+                                            temp_logo_transformed = os.path.join(temp_dir, f'{output_base}_spine_logo_corners_transformed.png')
+                                        else:
+                                            temp_logo_resized = os.path.join(temp_dir, 'spine_logo_corners_resized.png')
+                                            temp_logo_transformed = os.path.join(temp_dir, 'spine_logo_corners_transformed.png')
+                                        temp_files.extend([temp_logo_resized, temp_logo_transformed])
+                                        
+                                        # Step 1: Resize logo to fit bounding box
+                                        cmd_logo_resize = [
+                                            'convert',
+                                            logo_file_for_corners,
+                                            '-resize', f'{logo_resize_width}x{logo_resize_height}!',
+                                            temp_logo_resized
+                                        ]
+                                        logging.info(f"3D Box Spine Logo: Resize to {logo_resize_width}x{logo_resize_height}: {' '.join(cmd_logo_resize)}")
+                                        subprocess.run(cmd_logo_resize, check=True)
+                                        
+                                        # Step 2: Apply perspective transformation
+                                        # Source coordinates form a rectangle
+                                        source_tl_x = 0
+                                        source_tl_y = 0
+                                        source_tr_x = logo_resize_width
+                                        source_tr_y = 0
+                                        source_br_x = logo_resize_width
+                                        source_br_y = logo_resize_height
+                                        source_bl_x = 0
+                                        source_bl_y = logo_resize_height
+                                        
+                                        logo_perspective_str = (
+                                            f'{source_tl_x},{source_tl_y} {target_tl_x},{target_tl_y}  '
+                                            f'{source_tr_x},{source_tr_y} {target_tr_x},{target_tr_y}  '
+                                            f'{source_br_x},{source_br_y} {target_br_x},{target_br_y}  '
+                                            f'{source_bl_x},{source_bl_y} {target_bl_x},{target_bl_y}'
+                                        )
+                                        
+                                        cmd_logo_perspective = [
+                                            'convert',
+                                            temp_logo_resized,
+                                            '-background', 'none',
+                                            '-virtual-pixel', 'transparent',
+                                            '-alpha', 'set',
+                                            '+distort', 'Perspective', logo_perspective_str,
+                                            temp_logo_transformed
+                                        ]
+                                        logging.info(f"3D Box Spine Logo: Apply perspective: {' '.join(cmd_logo_perspective)}")
+                                        subprocess.run(cmd_logo_perspective, check=True)
+                                        
+                                        # Step 3: Composite transformed logo onto final output
+                                        cmd_logo_composite = [
+                                            'composite',
+                                            '-geometry', f'+{logo_min_x}+{logo_min_y}',
+                                            temp_logo_transformed,
+                                            output_path,
+                                            output_path
+                                        ]
+                                        logging.info(f"3D Box Spine Logo: Composite at ({logo_min_x}, {logo_min_y}): {' '.join(cmd_logo_composite)}")
+                                        subprocess.run(cmd_logo_composite, check=True)
+                                        logging.info(f"✅ Logo composited using corner-based placement")
+                                    else:
+                                        logging.warning(f"Logo file not available for corner placement")
+                                else:
+                                    logging.warning(f"Invalid logo corner dimensions: {logo_resize_width}x{logo_resize_height}")
             
             logging.info(f"✅ 3D Box generated successfully: {output_path}")
             if debug:

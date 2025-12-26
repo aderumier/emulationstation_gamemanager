@@ -171,6 +171,38 @@ def should_process_field(field_name: str, config: dict) -> tuple[bool, str, int,
         print(f"Error checking field processing config: {e}")
         return False, "", 0, 0
 
+def is_video_field(field_name: str, config: dict) -> bool:
+    """
+    Check if a media field is a video type field.
+    
+    Args:
+        field_name: Name of the media field (e.g., 'video', 'boxart')
+        config: Configuration dictionary containing media_fields
+        
+    Returns:
+        True if field is video type, False otherwise
+    """
+    try:
+        # Check if field name is 'video'
+        if field_name == 'video':
+            return True
+        
+        # Check extensions in media_fields config for video formats
+        media_fields = config.get('media_fields', {})
+        field_config = media_fields.get(field_name)
+        if not field_config:
+            return False
+        
+        extensions = field_config.get('extensions', '')
+        video_extensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v']
+        field_extensions = [ext.strip() for ext in extensions.lower().split(',')]
+        
+        return any(ext in video_extensions for ext in field_extensions)
+        
+    except Exception as e:
+        print(f"Error checking if field is video: {e}")
+        return False
+
 def convert_and_resize_image_replace(file_path: str, target_extension: str = None, target_width: int = 0, target_height: int = 0) -> tuple[str, str]:
     """
     Convert and/or resize an image file in a single operation and return the new file path and status.
