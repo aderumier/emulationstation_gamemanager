@@ -2808,8 +2808,8 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_clean_missing_medias_task, args=(system_name, media_field))
             thread.daemon = True
             thread.start()
-    elif task_type == 'search_image_similarity':
-        # Start image similarity search task
+    elif task_type == 'delete_similar_images':
+        # Start delete similar images task
         system_name = task_data.get('system_name')
         media_field = task_data.get('media_field')
         source_game_path = task_data.get('source_game_path')
@@ -2822,11 +2822,11 @@ def process_next_queued_task():
                 task.start()
             else:
                 # Fallback: create new task if existing one not found
-                task = create_task('search_image_similarity', task_data)
+                task = create_task('delete_similar_images', task_data)
                 current_task_id = task.id
                 task.start()
-            # Start image similarity search in background thread
-            thread = threading.Thread(target=run_image_similarity_search_task, args=(system_name, media_field, source_game_path, task.id))
+            # Start delete similar images in background thread
+            thread = threading.Thread(target=run_delete_similar_images_task, args=(system_name, media_field, source_game_path, task.id))
             thread.daemon = True
             thread.start()
     elif task_type == 'youtube_download':
@@ -15215,10 +15215,10 @@ def clean_missing_medias_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'Clean missing medias failed: {str(e)}'}), 500
 
-@app.route('/api/rom-system/<system_name>/search-image-similarity', methods=['POST'])
+@app.route('/api/rom-system/<system_name>/delete-similar-images', methods=['POST'])
 @login_required
-def search_image_similarity_endpoint(system_name):
-    """Search for images by similarity for a specific system"""
+def delete_similar_images_endpoint(system_name):
+    """Delete similar images for a specific system"""
     global current_task_id
 
     try:
@@ -15234,38 +15234,16 @@ def search_image_similarity_endpoint(system_name):
             return jsonify({'error': 'Source game path is required. Please select a game in the grid.'}), 400
 
         # Add task to queue
-        task = add_task_to_queue('search_image_similarity', {
+        task = add_task_to_queue('delete_similar_images', {
             'system_name': system_name,
             'media_field': media_field,
             'source_game_path': source_game_path
         })
 
-        return jsonify({'success': True, 'message': 'Image similarity search task started', 'task_id': task.id})
+        return jsonify({'success': True, 'message': 'Delete similar images task started', 'task_id': task.id})
     except Exception as e:
-        return jsonify({'error': f'Image similarity search failed: {str(e)}'}), 500
+        return jsonify({'error': f'Delete similar images failed: {str(e)}'}), 500
 
-@app.route('/api/tasks/<task_id>/similarity-results', methods=['GET'])
-@login_required
-def get_similarity_results(task_id):
-    """Get similarity search results for a completed task"""
-    try:
-        task = get_task(task_id)
-        if not task:
-            return jsonify({'error': 'Task not found'}), 404
-        
-        # Get similarity results from task data
-        similar_games = task.data.get('similar_games', [])
-        source_game_path = task.data.get('source_game_path', '')
-        media_field = task.data.get('media_field', '')
-        
-        return jsonify({
-            'success': True,
-            'similar_games': similar_games,
-            'source_game_path': source_game_path,
-            'media_field': media_field
-        })
-    except Exception as e:
-        return jsonify({'error': f'Failed to get similarity results: {str(e)}'}), 500
 
 @app.route('/api/cache/statistics')
 @login_required
@@ -21847,8 +21825,8 @@ def run_clean_missing_medias_task(system_name, media_field):
         import traceback
         traceback.print_exc()
 
-def run_image_similarity_search_task(system_name, media_field, source_game_path, task_id):
-    """Run image similarity search task in background thread"""
+def run_delete_similar_images_task(system_name, media_field, source_game_path, task_id):
+    """Run delete similar images task in background thread"""
     global current_task_id
 
     try:
@@ -22014,20 +21992,57 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
 
         for img_data in image_files:
             if task.status != TASK_STATUS_RUNNING:
-                # Task was stopped - store partial results and complete
-                task.data['similar_games'] = similar_games
-                task.data['source_game_path'] = source_game_path
-                task.data['media_field'] = media_field
-                
+                # Task was stopped - delete what was found so far and complete
                 progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                
+                # Delete similar images found so far
+                deleted_count = 0
+                system_path = os.path.join(ROMS_FOLDER, system_name)
+                
+                for similar_game_data in similar_games:
+                    game_path = similar_game_data['path']
+                    media_path = similar_game_data['media_path']
+                    
+                    # Find the game in the games list
+                    game = None
+                    for g in games:
+                        if g.get('path') == game_path:
+                            game = g
+                            break
+                    
+                    if game:
+                        # Delete the physical file if it exists
+                        if os.path.exists(media_path):
+                            try:
+                                os.remove(media_path)
+                                deleted_count += 1
+                            except Exception:
+                                pass
+                        
+                        # Clear the media field in the game object
+                        game[media_field] = ''
+                
+                # Save updated gamelist.xml if we deleted anything
+                if deleted_count > 0:
+                    try:
+                        write_gamelist_xml(games, gamelist_path)
+                        save_gamelist_to_roms(system_name)
+                        # Notify clients that gamelist was updated (refresh grid)
+                        try:
+                            notify_gamelist_updated(system_name, len(games), updated_count=deleted_count)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                
                 if task.status == TASK_STATUS_STOPPED:
-                    task.update_progress(f"🛑 Task stopped: Found {len(similar_games)} similar images so far (compared {comparisons_done}/{total_images})",
+                    task.update_progress(f"🛑 Task stopped: Deleted {deleted_count} similar images (compared {comparisons_done}/{total_images})",
                                        progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
-                    task.complete(True, f"Task stopped: Found {len(similar_games)} similar images (compared {comparisons_done}/{total_images})")
+                    task.complete(True, f"Task stopped: Deleted {deleted_count} similar images (compared {comparisons_done}/{total_images})")
                 else:
-                    task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images",
+                    task.update_progress(f"✅ Deleted {deleted_count} similar images",
                                        progress_percentage=100, current_step=total_images, total_steps=total_images)
-                    task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
+                    task.complete(True, f"Deleted {deleted_count} similar images in {media_field} field")
                 
                 process_next_queued_task()
                 return
@@ -22091,14 +22106,78 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                                    progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
                 continue
 
-        # Store results in task data
-        task.data['similar_games'] = similar_games
-        task.data['source_game_path'] = source_game_path
-        task.data['media_field'] = media_field
+        # Delete similar images and update gamelist
+        deleted_count = 0
+        failed_deletions = []
         
-        task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images",
-                           progress_percentage=100, current_step=total_images, total_steps=total_images)
-        task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
+        task.update_progress(f"Deleting {len(similar_games)} similar images...", 
+                           progress_percentage=90, current_step=comparisons_done, total_steps=total_images)
+        
+        # System path for resolving media paths
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        
+        for similar_game_data in similar_games:
+            if task.status != TASK_STATUS_RUNNING:
+                break
+                
+            game_path = similar_game_data['path']
+            media_path = similar_game_data['media_path']
+            
+            # Find the game in the games list
+            game = None
+            for g in games:
+                if g.get('path') == game_path:
+                    game = g
+                    break
+            
+            if not game:
+                failed_deletions.append({'path': game_path, 'error': 'Game not found in gamelist'})
+                continue
+            
+            # Delete the physical file if it exists
+            if os.path.exists(media_path):
+                try:
+                    os.remove(media_path)
+                    deleted_count += 1
+                    task.update_progress(f"Deleted: {os.path.basename(media_path)} ({deleted_count}/{len(similar_games)})",
+                                       progress_percentage=90 + int((deleted_count / len(similar_games)) * 5) if len(similar_games) > 0 else 90,
+                                       current_step=comparisons_done, total_steps=total_images)
+                except Exception as e:
+                    failed_deletions.append({'path': media_path, 'error': str(e)})
+                    continue
+            
+            # Clear the media field in the game object
+            game[media_field] = ''
+        
+        # Save updated gamelist.xml
+        task.update_progress(f"Saving updated gamelist.xml...", 
+                           progress_percentage=98, current_step=comparisons_done, total_steps=total_images)
+        
+        try:
+            write_gamelist_xml(games, gamelist_path)
+            
+            # Sync to roms directory
+            sync_result = save_gamelist_to_roms(system_name)
+            if not sync_result.get('success', False):
+                raise Exception(f"Failed to sync gamelist: {sync_result.get('error', 'Unknown error')}")
+            
+            # Notify clients that gamelist was updated (refresh grid)
+            try:
+                notify_gamelist_updated(system_name, len(games), updated_count=deleted_count)
+                print(f"🔔 Notified clients of gamelist update: {len(games)} total games, {deleted_count} updated")
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to notify clients of gamelist update: {e}")
+            
+            task.update_progress(f"✅ Deleted {deleted_count} similar images and updated gamelist.xml",
+                               progress_percentage=100, current_step=total_images, total_steps=total_images)
+            
+            message = f"Deleted {deleted_count} similar images in {media_field} field"
+            if failed_deletions:
+                message += f" ({len(failed_deletions)} failed)"
+            
+            task.complete(True, message)
+        except Exception as e:
+            task.complete(False, f"Failed to save gamelist: {str(e)}")
         
         # Process next queued task
         process_next_queued_task()
@@ -22106,7 +22185,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
     except Exception as e:
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
-        print(f"Error in image similarity search task: {e}")
+        print(f"Error in delete similar images task: {e}")
         import traceback
         traceback.print_exc()
         process_next_queued_task()

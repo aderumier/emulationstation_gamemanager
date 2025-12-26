@@ -32,6 +32,7 @@ class GameCollectionManager {
         this.selectedMedia = []; // Track selected media for deletion (array for multiple selection)
         this.selectedThumbnails = []; // Track selected thumbnails for deletion
         this.thumbnailViewEnabled = false; // Track thumbnail view state
+        this.lastSelectedThumbnailPerColumn = {}; // Track last selected thumbnail per column for shift-click range selection
         this.lazyLoadingObserver = null; // Track lazy loading observer
         this.mediaFieldsCache = null; // Cache for media fields from config
         this.pendingBestMatchResults = null;
@@ -1800,6 +1801,7 @@ class GameCollectionManager {
         document.getElementById('confirmGamelistSave').addEventListener('click', () => this.confirmGamelistSave());
         document.getElementById('forceImportGamelistBtn').addEventListener('click', () => this.showForceImportModal());
         document.getElementById('confirmForceImportBtn').addEventListener('click', () => this.confirmForceImport());
+        document.getElementById('confirmDeleteSimilarImagesBtn').addEventListener('click', () => this.confirmDeleteSimilarImages());
         document.getElementById('clearImageCacheBtn').addEventListener('click', () => this.clearImageCache());
         document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
@@ -3631,6 +3633,19 @@ class GameCollectionManager {
                     // Don't handle row click for thumbnail clicks - let selectThumbnail handle it
                     return;
                 }
+                
+                // In thumbnail view, ensure single selection when clicking on row (not on checkbox)
+                // Check if clicking on checkbox - if so, let AG Grid handle multi-selection
+                const isCheckboxClick = target && (
+                    target.type === 'checkbox' || 
+                    target.classList.contains('ag-checkbox-input') ||
+                    target.closest('.ag-checkbox')
+                );
+                
+                // If not clicking on checkbox, ensure single selection (clear other selections)
+                if (!isCheckboxClick) {
+                    event.node.setSelected(true, true); // true = clear other selections (single selection)
+                }
             }
             
             // Check if right panel is enabled
@@ -3781,7 +3796,7 @@ class GameCollectionManager {
                 this.lastClickedColumn = event.column.colId;
             }
             
-            // In thumbnail view, only select row when clicking on name or checkbox columns
+            // In thumbnail view, handle row selection like grid view: single selection on row click, multi-selection via checkboxes
             if (this.thumbnailViewEnabled && event.column && event.column.colId) {
                 const colId = event.column.colId;
                 const target = event.event && event.event.target;
@@ -3793,23 +3808,19 @@ class GameCollectionManager {
                     (target.tagName === 'IMG' && target.closest('.thumbnail-image'))
                 );
                 
-                // Only select row if clicking on name column or checkbox column (but not on thumbnail)
-                if (!isThumbnailClick && (colId === 'name' || colId === 'checkbox')) {
-                    // Check if clicking directly on checkbox input - AG Grid handles checkbox selection automatically
-                    const isCheckboxInput = target && (
-                        target.type === 'checkbox' || 
-                        target.classList.contains('ag-checkbox-input') ||
-                        target.closest('.ag-checkbox')
-                    );
-                    
-                    // For name column, always select the row
-                    // For checkbox column, only select if not clicking directly on the checkbox input
-                    // (AG Grid's checkbox selection will handle checkbox input clicks)
-                    if (colId === 'name' || (colId === 'checkbox' && !isCheckboxInput)) {
-                        event.node.setSelected(true, false); // false = don't clear other selections
-                    }
+                // Check if clicking directly on checkbox input - AG Grid handles checkbox selection automatically
+                const isCheckboxInput = target && (
+                    target.type === 'checkbox' || 
+                    target.classList.contains('ag-checkbox-input') ||
+                    target.closest('.ag-checkbox')
+                );
+                
+                // For name column clicks: select only this row (single selection, like grid view)
+                if (!isThumbnailClick && colId === 'name') {
+                    event.node.setSelected(true, true); // true = clear other selections (single selection)
                 }
-                // For media columns, don't select the row - let the thumbnail click handler handle it
+                // For checkbox column: let AG Grid handle it (multi-selection via checkbox)
+                // For media columns: don't select the row - let the thumbnail click handler handle it
             }
         });
 
@@ -24070,7 +24081,7 @@ class GameCollectionManager {
         }
     }
 
-    async searchSimilarImagesFromContextMenu() {
+    async deleteSimilarImagesFromContextMenu() {
         // Hide context menu
         const contextMenu = document.getElementById('imageContextMenu');
         if (contextMenu) {
@@ -24140,10 +24151,42 @@ class GameCollectionManager {
             return;
         }
 
-        try {
-            this.showAlert(`Starting similarity search for ${mediaField}...`, 'info');
+        // Store game and mediaField for confirmation callback
+        this.pendingDeleteSimilarImages = {
+            game: game,
+            mediaField: mediaField
+        };
 
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/search-image-similarity`, {
+        // Show confirmation modal
+        const fieldNameDisplay = mediaField.charAt(0).toUpperCase() + mediaField.slice(1);
+        const fieldNameElement = document.getElementById('deleteSimilarImagesFieldName');
+        if (fieldNameElement) {
+            fieldNameElement.textContent = fieldNameDisplay;
+        }
+
+        const modal = new bootstrap.Modal(document.getElementById('deleteSimilarImagesConfirmModal'));
+        modal.show();
+    }
+
+    async confirmDeleteSimilarImages() {
+        if (!this.pendingDeleteSimilarImages) {
+            return;
+        }
+
+        const { game, mediaField } = this.pendingDeleteSimilarImages;
+        this.pendingDeleteSimilarImages = null;
+
+        // Hide modal
+        const modalElement = document.getElementById('deleteSimilarImagesConfirmModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+
+        try {
+            this.showAlert(`Starting delete similar images for ${mediaField}...`, 'info');
+
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/delete-similar-images`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -24162,141 +24205,24 @@ class GameCollectionManager {
             const result = await response.json();
 
             if (result.success) {
-                this.showAlert('Image similarity search task started successfully', 'success');
+                this.showAlert('Delete similar images task started successfully', 'success');
 
                 // Refresh task grid to show the new task
                 setTimeout(() => this.refreshTasks(), 500);
 
-                // After task completes, preselect similar games
-                this.waitForTaskTypeCompletion('search_image_similarity').then(() => {
-                    if (result.task_id) {
-                        this.applySimilarityFilter(result.task_id);
-                    }
+                // After task completes, the grid will be automatically refreshed via notify_gamelist_updated
+                this.waitForTaskTypeCompletion('delete_similar_images').then(() => {
+                    this.showAlert('Similar images deleted and gamelist updated', 'success');
                 });
             } else {
-                this.showAlert(result.error || 'Failed to start image similarity search task', 'danger');
+                this.showAlert(result.error || 'Failed to start delete similar images task', 'danger');
             }
         } catch (error) {
-            console.error('Error starting image similarity search task:', error);
-            this.showAlert('Error starting image similarity search task: ' + error.message, 'danger');
+            console.error('Error starting delete similar images task:', error);
+            this.showAlert('Error starting delete similar images task: ' + error.message, 'danger');
         }
     }
 
-    async applySimilarityFilter(taskId) {
-        try {
-            // Get similarity results from task
-            const response = await fetch(`/api/tasks/${taskId}/similarity-results`);
-            if (!response.ok) {
-                throw new Error(`Failed to get similarity results: ${response.status}`);
-            }
-
-            const result = await response.json();
-            if (result.success && result.similar_games && result.similar_games.length > 0) {
-                const sourceGamePath = result.source_game_path;
-                const mediaField = result.media_field;
-                const similarPaths = result.similar_games.map(g => g.path);
-                
-                // Create a set of all paths to show (source + similar games)
-                const pathsToShow = new Set([sourceGamePath, ...similarPaths]);
-                
-                // Filter the grid to only show games with similar images
-                if (this.gridApi) {
-                    // Store the similarity filter paths for the external filter
-                    this.similarityFilterPaths = pathsToShow;
-                    
-                    // Configure external filter using AG-Grid's external filter API
-                    this.gridApi.setGridOption('isExternalFilterPresent', () => {
-                        return this.similarityFilterPaths && this.similarityFilterPaths.size > 0;
-                    });
-                    
-                    this.gridApi.setGridOption('doesExternalFilterPass', (node) => {
-                        if (!this.similarityFilterPaths || this.similarityFilterPaths.size === 0) {
-                            return true; // No filter active, show all
-                        }
-                        const gamePath = node.data?.path;
-                        return gamePath && this.similarityFilterPaths.has(gamePath);
-                    });
-                    
-                    // Force grid to re-evaluate filters
-                    this.gridApi.onFilterChanged();
-                }
-                
-                // Enable thumbnail view if not already enabled
-                if (!this.thumbnailViewEnabled) {
-                    await this.toggleThumbnailView();
-                    // Wait for thumbnails to render
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                } else {
-                    // If already in thumbnail view, wait a bit for any pending renders
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                }
-                
-                // Clear existing thumbnail selection
-                this.selectedThumbnails = [];
-                document.querySelectorAll('.thumbnail-item.selected, [id^="thumb_"].selected').forEach(el => {
-                    el.classList.remove('selected');
-                    const checkbox = el.querySelector('.thumbnail-checkbox-input');
-                    if (checkbox) checkbox.checked = false;
-                });
-                
-                // Function to select a thumbnail with retries
-                const selectThumbnailWithRetry = async (thumbnailId, fieldName, gamePath, mediaPath, maxRetries = 5) => {
-                    for (let i = 0; i < maxRetries; i++) {
-                        const thumbnail = document.getElementById(thumbnailId);
-                        if (thumbnail) {
-                            this.selectThumbnail(thumbnailId, fieldName, gamePath, mediaPath, null);
-                            return true;
-                        }
-                        // Wait before retry
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                    }
-                    return false;
-                };
-                
-                // Select source thumbnail (if available)
-                if (sourceGamePath && mediaField) {
-                    const sourceThumbnailId = `thumb_${mediaField}_${sourceGamePath}`;
-                    const sourceGame = this.games.find(g => g.path === sourceGamePath);
-                    const sourceMediaPath = sourceGame && sourceGame[mediaField] ? sourceGame[mediaField] : '';
-                    await selectThumbnailWithRetry(sourceThumbnailId, mediaField, sourceGamePath, sourceMediaPath);
-                }
-                
-                // Select all similar game thumbnails for the same field
-                let selectedCount = 0;
-                for (const gamePath of similarPaths) {
-                    if (gamePath === sourceGamePath) continue; // Skip source (already selected)
-                    
-                    const thumbnailId = `thumb_${mediaField}_${gamePath}`;
-                    const game = this.games.find(g => g.path === gamePath);
-                    const mediaPath = game && game[mediaField] ? game[mediaField] : '';
-                    
-                    const selected = await selectThumbnailWithRetry(thumbnailId, mediaField, gamePath, mediaPath);
-                    if (selected) {
-                        selectedCount++;
-                    }
-                }
-                
-                // Include source in count if it was selected
-                if (sourceGamePath) {
-                    const sourceThumbnailId = `thumb_${mediaField}_${sourceGamePath}`;
-                    const sourceThumbnail = document.getElementById(sourceThumbnailId);
-                    if (sourceThumbnail && sourceThumbnail.classList.contains('selected')) {
-                        selectedCount++;
-                    }
-                }
-                
-                // Update games count display
-                this.updateGamesCount();
-                
-                this.showAlert(`Found ${selectedCount} similar images (preselected in thumbnail view). Grid filtered to show ${pathsToShow.size} games.`, 'success');
-            } else {
-                this.showAlert('No similar images found', 'info');
-            }
-        } catch (error) {
-            console.error('Error applying similarity filter:', error);
-            this.showAlert('Error applying similarity filter: ' + error.message, 'error');
-        }
-    }
 
     // Clear Field Methods
     async openClearFieldModal() {
@@ -31322,6 +31248,7 @@ class GameCollectionManager {
             
             // Clear selection
             this.selectedThumbnails = [];
+            this.lastSelectedThumbnailPerColumn = {}; // Clear last selected per column
             
             // Refresh the grid
             this.gridApi.refreshCells();
@@ -31344,6 +31271,7 @@ class GameCollectionManager {
     
     clearThumbnailSelection() {
         this.selectedThumbnails = [];
+        this.lastSelectedThumbnailPerColumn = {}; // Clear last selected per column
         document.querySelectorAll('.thumbnail-image').forEach(thumb => {
             thumb.classList.remove('selected');
             const checkbox = thumb.querySelector('.thumbnail-checkbox-input');
@@ -33149,6 +33077,108 @@ class GameCollectionManager {
         img.src = src;
     }
 
+    /**
+     * Force load thumbnails for specific game paths and media field
+     * This ensures thumbnails are loaded even if they're not visible (for lazy loading)
+     */
+    async forceLoadThumbnailsForGames(gamePaths, mediaField) {
+        if (!this.gridApi || !gamePaths || gamePaths.length === 0) return;
+        
+        const gamePathsSet = new Set(gamePaths);
+        
+        // Get all displayed rows (after filtering) that match our game paths
+        const displayedRows = [];
+        this.gridApi.forEachNodeAfterFilter((node) => {
+            if (node.data && gamePathsSet.has(node.data.path)) {
+                displayedRows.push(node);
+            }
+        });
+        
+        // For each row, ensure it's rendered and force load the thumbnail
+        for (const rowNode of displayedRows) {
+            const gamePath = rowNode.data.path;
+            const thumbnailId = `thumb_${mediaField}_${gamePath}`;
+            
+            // Ensure the row is visible/rendered (this triggers AG Grid to render the cell)
+            // Using 'nearest' instead of 'middle' to avoid scrolling if not necessary
+            this.gridApi.ensureNodeVisible(rowNode, 'nearest');
+            
+            // Wait a bit for AG Grid to render the cell
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Try to find the thumbnail container
+            let container = document.getElementById(thumbnailId);
+            
+            // If still not found, try scrolling to it
+            if (!container) {
+                this.gridApi.ensureNodeVisible(rowNode, 'middle');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                container = document.getElementById(thumbnailId);
+            }
+            
+            // If found, force load it
+            if (container) {
+                const src = container.getAttribute('data-src');
+                const field = container.getAttribute('data-field');
+                if (src && field && !container.querySelector('img')) {
+                    // Force load the thumbnail
+                    this.loadThumbnailImage(container, src, field);
+                }
+            }
+        }
+        
+        // Wait a bit more for all thumbnails to be loaded
+        await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    /**
+     * Wait for thumbnails to be ready (rendered in DOM and images loaded)
+     */
+    async waitForThumbnailsReady(gamePaths, mediaField) {
+        if (!this.gridApi || !gamePaths || gamePaths.length === 0) return;
+        
+        const gamePathsSet = new Set(gamePaths);
+        const maxWaitTime = 5000; // Maximum 5 seconds
+        const checkInterval = 100; // Check every 100ms
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWaitTime) {
+            let allReady = true;
+            
+            // Check all thumbnails
+            for (const gamePath of gamePaths) {
+                const thumbnailId = `thumb_${mediaField}_${gamePath}`;
+                const thumbnail = document.getElementById(thumbnailId);
+                
+                if (!thumbnail) {
+                    allReady = false;
+                    break;
+                }
+                
+                // Check if image is loaded (either has img element or is in loading state)
+                const hasImage = thumbnail.querySelector('img');
+                const isLoading = thumbnail.classList.contains('thumbnail-loading');
+                
+                if (!hasImage && !isLoading) {
+                    // Thumbnail container exists but no image - might need to load it
+                    const dataSrc = thumbnail.getAttribute('data-src');
+                    if (dataSrc) {
+                        this.loadThumbnailImage(thumbnail, dataSrc, mediaField);
+                    }
+                    allReady = false;
+                }
+            }
+            
+            if (allReady) {
+                // All thumbnails are ready, wait a bit more for images to fully render
+                await new Promise(resolve => setTimeout(resolve, 200));
+                return;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+        }
+    }
+
     showThumbnailHover(event, imageUrl, fieldName) {
         // Remove any existing tooltip
         this.hideThumbnailHover();
@@ -33382,6 +33412,21 @@ class GameCollectionManager {
         const thumbnail = document.getElementById(thumbnailId);
         if (!thumbnail) return;
         
+        const isShiftClick = event && event.shiftKey;
+        const lastSelected = this.lastSelectedThumbnailPerColumn[fieldName];
+        
+        // Handle shift-click range selection
+        if (isShiftClick && lastSelected && lastSelected.thumbnailId !== thumbnailId && lastSelected.fieldName === fieldName) {
+            // Find all thumbnails in the same column and select the range
+            // Use async/await to ensure thumbnails are loaded before selecting
+            this.selectThumbnailRange(lastSelected, { thumbnailId, fieldName, gamePath, mediaPath }).then(() => {
+                // Update last selected to the current thumbnail
+                this.lastSelectedThumbnailPerColumn[fieldName] = { thumbnailId, fieldName, gamePath, mediaPath };
+                this.updateThumbnailSelectionDisplay();
+            });
+            return;
+        }
+        
         const isSelected = thumbnail.classList.contains('selected');
         let checkbox = thumbnail.querySelector('.thumbnail-checkbox-input');
         
@@ -33422,6 +33467,12 @@ class GameCollectionManager {
             this.selectedThumbnails = this.selectedThumbnails.filter(item => 
                 !(item.thumbnailId === thumbnailId)
             );
+            
+            // Clear last selected if this was the last selected
+            if (this.lastSelectedThumbnailPerColumn[fieldName] && 
+                this.lastSelectedThumbnailPerColumn[fieldName].thumbnailId === thumbnailId) {
+                delete this.lastSelectedThumbnailPerColumn[fieldName];
+            }
         } else {
             // Select
             thumbnail.classList.add('selected');
@@ -33435,10 +33486,132 @@ class GameCollectionManager {
                 mediaPath,
                 game: this.games.find(g => g.path === gamePath)
             });
+            
+            // Update last selected for this column
+            this.lastSelectedThumbnailPerColumn[fieldName] = { thumbnailId, fieldName, gamePath, mediaPath };
         }
         
         // Update selection display
         this.updateThumbnailSelectionDisplay();
+    }
+    
+    /**
+     * Select a range of thumbnails in the same column between start and end
+     */
+    async selectThumbnailRange(startThumbnail, endThumbnail) {
+        if (!this.gridApi || startThumbnail.fieldName !== endThumbnail.fieldName) return;
+        
+        const fieldName = startThumbnail.fieldName;
+        
+        // First, find all rows that have thumbnails in this column (based on row data, not DOM)
+        const allRowsInColumn = [];
+        this.gridApi.forEachNodeAfterFilter((node) => {
+            if (!node.data) return;
+            const gamePath = node.data.path;
+            const game = this.games.find(g => g.path === gamePath);
+            // Check if this game has media for this field
+            if (game && game[fieldName]) {
+                const thumbnailId = `thumb_${fieldName}_${gamePath}`;
+                const mediaPath = game[fieldName];
+                allRowsInColumn.push({
+                    thumbnailId,
+                    fieldName,
+                    gamePath,
+                    mediaPath,
+                    rowIndex: node.rowIndex,
+                    node: node
+                });
+            }
+        });
+        
+        // Sort by row index to get the order
+        allRowsInColumn.sort((a, b) => a.rowIndex - b.rowIndex);
+        
+        // Find start and end indices
+        const startIndex = allRowsInColumn.findIndex(t => t.thumbnailId === startThumbnail.thumbnailId);
+        const endIndex = allRowsInColumn.findIndex(t => t.thumbnailId === endThumbnail.thumbnailId);
+        
+        if (startIndex === -1 || endIndex === -1) return;
+        
+        // Determine range (from smaller to larger index)
+        const rangeStart = Math.min(startIndex, endIndex);
+        const rangeEnd = Math.max(startIndex, endIndex);
+        
+        // Get all thumbnails in the range
+        const thumbnailsInRange = allRowsInColumn.slice(rangeStart, rangeEnd + 1);
+        
+        // Ensure all rows in the range are visible/rendered so thumbnails exist in DOM
+        for (const thumb of thumbnailsInRange) {
+            // Ensure the row is visible (this triggers AG Grid to render the cell)
+            this.gridApi.ensureNodeVisible(thumb.node, 'nearest');
+        }
+        
+        // Wait a bit for AG Grid to render the cells
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Now select all thumbnails in the range
+        for (const thumb of thumbnailsInRange) {
+            // Try to find the thumbnail in DOM (should exist now after ensureNodeVisible)
+            let thumbnail = document.getElementById(thumb.thumbnailId);
+            
+            // If not found, try to force load it
+            if (!thumbnail) {
+                // Wait a bit more and try again
+                await new Promise(resolve => setTimeout(resolve, 50));
+                thumbnail = document.getElementById(thumb.thumbnailId);
+            }
+            
+            // If still not found after ensuring visibility, try a few more times with delays
+            // This handles cases where AG Grid needs more time to render cells after scrolling
+            if (!thumbnail) {
+                for (let retry = 0; retry < 3 && !thumbnail; retry++) {
+                    // Ensure node is visible again (might help if it scrolled out)
+                    this.gridApi.ensureNodeVisible(thumb.node, 'nearest');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    thumbnail = document.getElementById(thumb.thumbnailId);
+                }
+            }
+            
+            if (thumbnail && !thumbnail.classList.contains('selected')) {
+                // Ensure thumbnail is loaded if it has data-src
+                const dataSrc = thumbnail.getAttribute('data-src');
+                if (dataSrc && !thumbnail.querySelector('img')) {
+                    this.loadThumbnailImage(thumbnail, dataSrc, fieldName);
+                    // Wait a bit for the image to load
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                // Select the thumbnail
+                thumbnail.classList.add('selected');
+                let checkbox = thumbnail.querySelector('.thumbnail-checkbox-input');
+                if (!checkbox) {
+                    const checkboxContainer = thumbnail.querySelector('.thumbnail-checkbox');
+                    if (checkboxContainer) {
+                        checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.className = 'thumbnail-checkbox-input';
+                        checkbox.onclick = (e) => {
+                            e.stopPropagation();
+                            this.selectThumbnail(thumb.thumbnailId, thumb.fieldName, thumb.gamePath, thumb.mediaPath, e);
+                        };
+                        checkboxContainer.appendChild(checkbox);
+                    }
+                }
+                if (checkbox) checkbox.checked = true;
+                
+                // Add to selectedThumbnails array if not already there
+                const alreadySelected = this.selectedThumbnails.some(item => item.thumbnailId === thumb.thumbnailId);
+                if (!alreadySelected) {
+                    this.selectedThumbnails.push({
+                        thumbnailId: thumb.thumbnailId,
+                        fieldName: thumb.fieldName,
+                        gamePath: thumb.gamePath,
+                        mediaPath: thumb.mediaPath,
+                        game: this.games.find(g => g.path === thumb.gamePath)
+                    });
+                }
+            }
+        }
     }
     
     updateThumbnailSelectionDisplay() {
