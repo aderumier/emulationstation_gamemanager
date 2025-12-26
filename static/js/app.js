@@ -3942,6 +3942,11 @@ class GameCollectionManager {
             // Clear all filters
             this.gridApi.setFilterModel(null);
             
+            // Clear similarity filter if active
+            this.similarityFilterPaths = null;
+            this.gridApi.setGridOption('isExternalFilterPresent', null);
+            this.gridApi.setGridOption('doesExternalFilterPass', null);
+            
             // Refresh the grid data efficiently
             await this.refreshGridData();
             
@@ -24191,6 +24196,31 @@ class GameCollectionManager {
                 const mediaField = result.media_field;
                 const similarPaths = result.similar_games.map(g => g.path);
                 
+                // Create a set of all paths to show (source + similar games)
+                const pathsToShow = new Set([sourceGamePath, ...similarPaths]);
+                
+                // Filter the grid to only show games with similar images
+                if (this.gridApi) {
+                    // Store the similarity filter paths for the external filter
+                    this.similarityFilterPaths = pathsToShow;
+                    
+                    // Configure external filter using AG-Grid's external filter API
+                    this.gridApi.setGridOption('isExternalFilterPresent', () => {
+                        return this.similarityFilterPaths && this.similarityFilterPaths.size > 0;
+                    });
+                    
+                    this.gridApi.setGridOption('doesExternalFilterPass', (node) => {
+                        if (!this.similarityFilterPaths || this.similarityFilterPaths.size === 0) {
+                            return true; // No filter active, show all
+                        }
+                        const gamePath = node.data?.path;
+                        return gamePath && this.similarityFilterPaths.has(gamePath);
+                    });
+                    
+                    // Force grid to re-evaluate filters
+                    this.gridApi.onFilterChanged();
+                }
+                
                 // Enable thumbnail view if not already enabled
                 if (!this.thumbnailViewEnabled) {
                     await this.toggleThumbnailView();
@@ -24255,7 +24285,10 @@ class GameCollectionManager {
                     }
                 }
                 
-                this.showAlert(`Found ${selectedCount} similar images (preselected in thumbnail view)`, 'success');
+                // Update games count display
+                this.updateGamesCount();
+                
+                this.showAlert(`Found ${selectedCount} similar images (preselected in thumbnail view). Grid filtered to show ${pathsToShow.size} games.`, 'success');
             } else {
                 this.showAlert('No similar images found', 'info');
             }

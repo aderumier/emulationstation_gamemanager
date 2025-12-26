@@ -21868,7 +21868,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             return
 
         # Load gamelist
-        task.update_progress(f"Loading gamelist for system: {system_name}")
+        task.update_progress(f"Loading gamelist for system: {system_name}", progress_percentage=5)
         gamelist_path = get_gamelist_path(system_name)
 
         if not os.path.exists(gamelist_path):
@@ -21878,7 +21878,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             return
 
         games = parse_gamelist_xml(gamelist_path)
-        task.update_progress(f"Loaded {len(games)} games from gamelist")
+        task.update_progress(f"Loaded {len(games)} games from gamelist", progress_percentage=10)
 
         # Find source game
         source_game = None
@@ -21892,7 +21892,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             process_next_queued_task()
             return
 
-        task.update_progress(f"Source game: {source_game.get('name', 'Unknown')}")
+        task.update_progress(f"Source game: {source_game.get('name', 'Unknown')}", progress_percentage=15)
 
         # Get media config
         media_config = load_media_config()
@@ -21951,7 +21951,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             process_next_queued_task()
             return
 
-        task.update_progress(f"Source image: {source_image_path}")
+        task.update_progress(f"Source image: {source_image_path}", progress_percentage=20)
 
         # Load source image
         try:
@@ -21961,7 +21961,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
             process_next_queued_task()
             return
 
-        task.update_progress(f"Scanning images in: {media_path}")
+        task.update_progress(f"Scanning images in: {media_path}", progress_percentage=25)
 
         # Collect all other images with their game paths (excluding source game)
         image_files = []
@@ -21996,7 +21996,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                         'rom_path': rom_path
                     })
 
-        task.update_progress(f"Found {len(image_files)} images to compare against source")
+        task.update_progress(f"Found {len(image_files)} images to compare against source", progress_percentage=30)
 
         if len(image_files) == 0:
             task.complete(False, "No other images found to compare")
@@ -22007,22 +22007,48 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
         similar_games = []
         threshold = 0.1  # Similarity threshold (0-1, lower = more strict)
         
-        task.update_progress(f"Comparing source image to {len(image_files)} images...")
+        total_images = len(image_files)
+        task.update_progress(f"Comparing source image to {total_images} images...", 
+                           progress_percentage=0, current_step=0, total_steps=total_images)
         comparisons_done = 0
 
         for img_data in image_files:
             if task.status != TASK_STATUS_RUNNING:
-                break
+                # Task was stopped - store partial results and complete
+                task.data['similar_games'] = similar_games
+                task.data['source_game_path'] = source_game_path
+                task.data['media_field'] = media_field
+                
+                progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                if task.status == TASK_STATUS_STOPPED:
+                    task.update_progress(f"🛑 Task stopped: Found {len(similar_games)} similar images so far (compared {comparisons_done}/{total_images})",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                    task.complete(True, f"Task stopped: Found {len(similar_games)} similar images (compared {comparisons_done}/{total_images})")
+                else:
+                    task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images",
+                                       progress_percentage=100, current_step=total_images, total_steps=total_images)
+                    task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
+                
+                process_next_queued_task()
+                return
                 
             try:
                 img2 = Image.open(img_data['path']).convert('RGBA')
             except Exception as e:
-                task.update_progress(f"Skipping {img_data['path']}: {str(e)}")
+                comparisons_done += 1
+                progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                task.update_progress(f"Skipping {img_data['path']}: {str(e)}",
+                                   progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
                 continue
 
             # Check if images have the same size - if not, they are not similar
             if source_img.size != img2.size:
                 comparisons_done += 1
+                progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                # Update progress every 5 images or on last image for smoother progress bar
+                if comparisons_done % 5 == 0 or comparisons_done == total_images:
+                    task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_games)} similar games",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
                 continue  # Skip comparison if sizes don't match
 
             # Create diff image
@@ -22051,11 +22077,18 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
                     })
                 
                 comparisons_done += 1
-                if comparisons_done % 10 == 0:
-                    task.update_progress(f"Compared {comparisons_done}/{len(image_files)} images, found {len(similar_games)} similar games")
+                progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                
+                # Update progress every 5 images or on last image for smoother progress bar
+                if comparisons_done % 5 == 0 or comparisons_done == total_images:
+                    task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_games)} similar games",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
                     
             except Exception as e:
-                task.update_progress(f"Error comparing images: {str(e)}")
+                comparisons_done += 1
+                progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                task.update_progress(f"Error comparing images: {str(e)}",
+                                   progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
                 continue
 
         # Store results in task data
@@ -22063,7 +22096,8 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
         task.data['source_game_path'] = source_game_path
         task.data['media_field'] = media_field
         
-        task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images")
+        task.update_progress(f"✅ Comparison complete: Found {len(similar_games)} games with similar images",
+                           progress_percentage=100, current_step=total_images, total_steps=total_images)
         task.complete(True, f"Found {len(similar_games)} games with similar images in {media_field} field")
         
         # Process next queued task
