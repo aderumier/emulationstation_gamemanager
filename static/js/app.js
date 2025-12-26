@@ -14402,10 +14402,7 @@ class GameCollectionManager {
         this.box3DSpineLogoZone = null;
         
         // Clear spine logo zone inputs
-        ['template3DSpineLogoZoneTopLeftX', 'template3DSpineLogoZoneTopLeftY',
-         'template3DSpineLogoZoneTopRightX', 'template3DSpineLogoZoneTopRightY',
-         'template3DSpineLogoZoneBottomLeftX', 'template3DSpineLogoZoneBottomLeftY',
-         'template3DSpineLogoZoneBottomRightX', 'template3DSpineLogoZoneBottomRightY'].forEach(id => {
+        ['template3DSpineLogoZoneTopY', 'template3DSpineLogoZoneBottomY'].forEach(id => {
             const input = document.getElementById(id);
             if (input) input.value = '0';
         });
@@ -14491,24 +14488,42 @@ class GameCollectionManager {
             }
         };
         
-        // Read spine logo zone values from input fields (optional)
-        const zoneTopLeftX = parseInt(document.getElementById('template3DSpineLogoZoneTopLeftX')?.value) || 0;
-        const zoneTopLeftY = parseInt(document.getElementById('template3DSpineLogoZoneTopLeftY')?.value) || 0;
-        const zoneTopRightX = parseInt(document.getElementById('template3DSpineLogoZoneTopRightX')?.value) || 0;
-        const zoneTopRightY = parseInt(document.getElementById('template3DSpineLogoZoneTopRightY')?.value) || 0;
-        const zoneBottomLeftX = parseInt(document.getElementById('template3DSpineLogoZoneBottomLeftX')?.value) || 0;
-        const zoneBottomLeftY = parseInt(document.getElementById('template3DSpineLogoZoneBottomLeftY')?.value) || 0;
-        const zoneBottomRightX = parseInt(document.getElementById('template3DSpineLogoZoneBottomRightX')?.value) || 0;
-        const zoneBottomRightY = parseInt(document.getElementById('template3DSpineLogoZoneBottomRightY')?.value) || 0;
-        
-        // Only set zone if at least one corner is non-zero
-        if (zoneTopLeftX > 0 || zoneTopLeftY > 0 || zoneTopRightX > 0 || zoneTopRightY > 0 ||
-            zoneBottomLeftX > 0 || zoneBottomLeftY > 0 || zoneBottomRightX > 0 || zoneBottomRightY > 0) {
+        // Update zone X coordinates if zone exists (X coordinates come from spine with 5px padding)
+        if (this.box3DSpineLogoZone) {
+            const padding = 5;
+            const topY = this.box3DSpineLogoZone.topLeft.y;
+            const bottomY = this.box3DSpineLogoZone.bottomLeft.y;
             this.box3DSpineLogoZone = {
-                topLeft: { x: zoneTopLeftX, y: zoneTopLeftY },
-                topRight: { x: zoneTopRightX, y: zoneTopRightY },
-                bottomLeft: { x: zoneBottomLeftX, y: zoneBottomLeftY },
-                bottomRight: { x: zoneBottomRightX, y: zoneBottomRightY }
+                topLeft: { x: this.box3DSpineCorners.topLeft.x + padding, y: topY },
+                topRight: { x: this.box3DSpineCorners.topRight.x - padding, y: topY },
+                bottomLeft: { x: this.box3DSpineCorners.bottomLeft.x + padding, y: bottomY },
+                bottomRight: { x: this.box3DSpineCorners.bottomRight.x - padding, y: bottomY }
+            };
+        }
+        
+        // Read spine logo zone values from input fields (optional)
+        // Only need top Y and bottom Y - X coordinates use spine X coordinates
+        const zoneTopYInput = document.getElementById('template3DSpineLogoZoneTopY')?.value;
+        const zoneBottomYInput = document.getElementById('template3DSpineLogoZoneBottomY')?.value;
+        
+        // Use defaults from spine if not defined
+        const zoneTopY = zoneTopYInput ? parseInt(zoneTopYInput) : (this.box3DSpineCorners.topLeft.y || 0);
+        const zoneBottomY = zoneBottomYInput ? parseInt(zoneBottomYInput) : (this.box3DSpineCorners.bottomLeft.y || 0);
+        
+        // Only set zone if spine corners are defined
+        const spineTopLeftX = this.box3DSpineCorners.topLeft.x;
+        const spineTopRightX = this.box3DSpineCorners.topRight.x;
+        const spineBottomLeftX = this.box3DSpineCorners.bottomLeft.x;
+        const spineBottomRightX = this.box3DSpineCorners.bottomRight.x;
+        
+        if (spineTopLeftX > 0 || spineTopRightX > 0 || spineBottomLeftX > 0 || spineBottomRightX > 0) {
+            // Add 5px padding to X coordinates
+            const padding = 5;
+            this.box3DSpineLogoZone = {
+                topLeft: { x: spineTopLeftX + padding, y: zoneTopY },
+                topRight: { x: spineTopRightX - padding, y: zoneTopY },
+                bottomLeft: { x: spineBottomLeftX + padding, y: zoneBottomY },
+                bottomRight: { x: spineBottomRightX - padding, y: zoneBottomY }
             };
         } else {
             this.box3DSpineLogoZone = null;
@@ -14914,10 +14929,36 @@ class GameCollectionManager {
             
             // Update the correct surface's corners
             if (this.box3DDraggingSurface === 'spine_logo_zone') {
+                const padding = 5;
                 if (!this.box3DSpineLogoZone) {
-                    this.box3DSpineLogoZone = { topLeft: {x:0,y:0}, topRight: {x:0,y:0}, bottomLeft: {x:0,y:0}, bottomRight: {x:0,y:0} };
+                    // Initialize zone using spine X coordinates with padding
+                    const spineTopLeftX = this.box3DSpineCorners.topLeft.x;
+                    const spineTopRightX = this.box3DSpineCorners.topRight.x;
+                    const spineBottomLeftX = this.box3DSpineCorners.bottomLeft.x;
+                    const spineBottomRightX = this.box3DSpineCorners.bottomRight.x;
+                    this.box3DSpineLogoZone = {
+                        topLeft: { x: spineTopLeftX + padding, y: clampedY },
+                        topRight: { x: spineTopRightX - padding, y: clampedY },
+                        bottomLeft: { x: spineBottomLeftX + padding, y: clampedY },
+                        bottomRight: { x: spineBottomRightX - padding, y: clampedY }
+                    };
+                } else {
+                    // Only update Y coordinate, keep X from spine with padding
+                    const spineTopLeftX = this.box3DSpineCorners.topLeft.x;
+                    const spineTopRightX = this.box3DSpineCorners.topRight.x;
+                    const spineBottomLeftX = this.box3DSpineCorners.bottomLeft.x;
+                    const spineBottomRightX = this.box3DSpineCorners.bottomRight.x;
+                    
+                    if (this.box3DDragging === 'topLeft' || this.box3DDragging === 'topRight') {
+                        // Update top Y for both top corners
+                        this.box3DSpineLogoZone.topLeft = { x: spineTopLeftX + padding, y: clampedY };
+                        this.box3DSpineLogoZone.topRight = { x: spineTopRightX - padding, y: clampedY };
+                    } else if (this.box3DDragging === 'bottomLeft' || this.box3DDragging === 'bottomRight') {
+                        // Update bottom Y for both bottom corners
+                        this.box3DSpineLogoZone.bottomLeft = { x: spineBottomLeftX + padding, y: clampedY };
+                        this.box3DSpineLogoZone.bottomRight = { x: spineBottomRightX - padding, y: clampedY };
+                    }
                 }
-                this.box3DSpineLogoZone[this.box3DDragging] = { x: clampedX, y: clampedY };
                 this.update3DCornerInputs();
             } else if (this.box3DDraggingSurface === 'spine') {
                 this.box3DSpineCorners[this.box3DDragging] = { x: clampedX, y: clampedY };
@@ -15211,14 +15252,56 @@ class GameCollectionManager {
                     
                     // Load spine logo zone (optional)
                     if (data.spine_logo_zone) {
-                        this.box3DSpineLogoZone = {
-                            topLeft: { x: data.spine_logo_zone.topLeft?.x || 0, y: data.spine_logo_zone.topLeft?.y || 0 },
-                            topRight: { x: data.spine_logo_zone.topRight?.x || 0, y: data.spine_logo_zone.topRight?.y || 0 },
-                            bottomLeft: { x: data.spine_logo_zone.bottomLeft?.x || 0, y: data.spine_logo_zone.bottomLeft?.y || 0 },
-                            bottomRight: { x: data.spine_logo_zone.bottomRight?.x || 0, y: data.spine_logo_zone.bottomRight?.y || 0 }
-                        };
+                        // Support both old format (with all corners) and new format (just Y coordinates)
+                        if (data.spine_logo_zone.topY !== undefined || data.spine_logo_zone.bottomY !== undefined) {
+                            // New format: just Y coordinates, X comes from spine with 5px padding
+                            // Use defaults from spine if not defined
+                            const topY = data.spine_logo_zone.topY !== undefined ? data.spine_logo_zone.topY : (this.box3DSpineCorners.topLeft.y || 0);
+                            const bottomY = data.spine_logo_zone.bottomY !== undefined ? data.spine_logo_zone.bottomY : (this.box3DSpineCorners.bottomLeft.y || 0);
+                            
+                            // Use spine X coordinates with 5px padding
+                            const padding = 5;
+                            const spineTopLeftX = this.box3DSpineCorners.topLeft.x;
+                            const spineTopRightX = this.box3DSpineCorners.topRight.x;
+                            const spineBottomLeftX = this.box3DSpineCorners.bottomLeft.x;
+                            const spineBottomRightX = this.box3DSpineCorners.bottomRight.x;
+                            
+                            this.box3DSpineLogoZone = {
+                                topLeft: { x: spineTopLeftX + padding, y: topY },
+                                topRight: { x: spineTopRightX - padding, y: topY },
+                                bottomLeft: { x: spineBottomLeftX + padding, y: bottomY },
+                                bottomRight: { x: spineBottomRightX - padding, y: bottomY }
+                            };
+                        } else {
+                            // Old format: full corners (for backward compatibility)
+                            this.box3DSpineLogoZone = {
+                                topLeft: { x: data.spine_logo_zone.topLeft?.x || 0, y: data.spine_logo_zone.topLeft?.y || 0 },
+                                topRight: { x: data.spine_logo_zone.topRight?.x || 0, y: data.spine_logo_zone.topRight?.y || 0 },
+                                bottomLeft: { x: data.spine_logo_zone.bottomLeft?.x || 0, y: data.spine_logo_zone.bottomLeft?.y || 0 },
+                                bottomRight: { x: data.spine_logo_zone.bottomRight?.x || 0, y: data.spine_logo_zone.bottomRight?.y || 0 }
+                            };
+                        }
                     } else {
-                        this.box3DSpineLogoZone = null;
+                        // No zone defined - use defaults from spine
+                        const spineTopLeftX = this.box3DSpineCorners.topLeft.x;
+                        const spineTopRightX = this.box3DSpineCorners.topRight.x;
+                        const spineBottomLeftX = this.box3DSpineCorners.bottomLeft.x;
+                        const spineBottomRightX = this.box3DSpineCorners.bottomRight.x;
+                        
+                        if (spineTopLeftX > 0 || spineTopRightX > 0 || spineBottomLeftX > 0 || spineBottomRightX > 0) {
+                            const padding = 5;
+                            const defaultTopY = this.box3DSpineCorners.topLeft.y || 0;
+                            const defaultBottomY = this.box3DSpineCorners.bottomLeft.y || 0;
+                            
+                            this.box3DSpineLogoZone = {
+                                topLeft: { x: spineTopLeftX + padding, y: defaultTopY },
+                                topRight: { x: spineTopRightX - padding, y: defaultTopY },
+                                bottomLeft: { x: spineBottomLeftX + padding, y: defaultBottomY },
+                                bottomRight: { x: spineBottomRightX - padding, y: defaultBottomY }
+                            };
+                        } else {
+                            this.box3DSpineLogoZone = null;
+                        }
                     }
                     
                     this.update3DCornerInputs();
@@ -15646,6 +15729,29 @@ class GameCollectionManager {
             formData.append('use_text_logo', 'true');
         }
         
+        // Save spine logo zone (only if values differ from defaults)
+        // First, update zone from inputs to ensure we have current values
+        this.update3DCornersFromInputs();
+        if (this.box3DSpineLogoZone) {
+            const defaultTopY = this.box3DSpineCorners.topLeft.y || 0;
+            const defaultBottomY = this.box3DSpineCorners.bottomLeft.y || 0;
+            const currentTopY = this.box3DSpineLogoZone.topLeft.y;
+            const currentBottomY = this.box3DSpineLogoZone.bottomLeft.y;
+            
+            const zoneToSave = {};
+            if (currentTopY !== defaultTopY) {
+                zoneToSave.topY = currentTopY;
+            }
+            if (currentBottomY !== defaultBottomY) {
+                zoneToSave.bottomY = currentBottomY;
+            }
+            
+            // Only save if at least one value differs from default
+            if (Object.keys(zoneToSave).length > 0) {
+                formData.append('spine_logo_zone', JSON.stringify(zoneToSave));
+            }
+        }
+        
         fetch('/api/save-3dbox-template', {
             method: 'POST',
             body: formData
@@ -15724,6 +15830,7 @@ class GameCollectionManager {
             formData.append('corners', JSON.stringify(this.box3DCorners));
             formData.append('spine_corners', JSON.stringify(this.box3DSpineCorners));
             if (this.box3DSpineLogoZone) {
+                // Send full zone object for preview/generation (backend expects full corners)
                 formData.append('spine_logo_zone', JSON.stringify(this.box3DSpineLogoZone));
             }
             if (hasBackgroundFile) {
@@ -15873,7 +15980,25 @@ class GameCollectionManager {
             formData.append('corners', JSON.stringify(this.box3DCorners));
             formData.append('spine_corners', JSON.stringify(this.box3DSpineCorners));
             if (this.box3DSpineLogoZone) {
-                formData.append('spine_logo_zone', JSON.stringify(this.box3DSpineLogoZone));
+                // Save simplified format: just topY and bottomY
+                // Only save if values differ from defaults (spine topLeft Y and bottomLeft Y)
+                const defaultTopY = this.box3DSpineCorners.topLeft.y || 0;
+                const defaultBottomY = this.box3DSpineCorners.bottomLeft.y || 0;
+                const currentTopY = this.box3DSpineLogoZone.topLeft.y;
+                const currentBottomY = this.box3DSpineLogoZone.bottomLeft.y;
+                
+                const zoneToSave = {};
+                if (currentTopY !== defaultTopY) {
+                    zoneToSave.topY = currentTopY;
+                }
+                if (currentBottomY !== defaultBottomY) {
+                    zoneToSave.bottomY = currentBottomY;
+                }
+                
+                // Only save if at least one value differs from default
+                if (Object.keys(zoneToSave).length > 0) {
+                    formData.append('spine_logo_zone', JSON.stringify(zoneToSave));
+                }
             }
             formData.append('overwrite_existing', overwriteExisting ? 'true' : 'false');
             
@@ -28171,10 +28296,7 @@ class GameCollectionManager {
          'template3DBottomLeftX', 'template3DBottomLeftY', 'template3DBottomRightX', 'template3DBottomRightY',
          'template3DSpineTopLeftX', 'template3DSpineTopLeftY', 'template3DSpineTopRightX', 'template3DSpineTopRightY',
          'template3DSpineBottomLeftX', 'template3DSpineBottomLeftY', 'template3DSpineBottomRightX', 'template3DSpineBottomRightY',
-         'template3DSpineLogoZoneTopLeftX', 'template3DSpineLogoZoneTopLeftY', 'template3DSpineLogoZoneTopRightX', 'template3DSpineLogoZoneTopRightY',
-         'template3DSpineLogoZoneBottomLeftX', 'template3DSpineLogoZoneBottomLeftY', 'template3DSpineLogoZoneBottomRightX', 'template3DSpineLogoZoneBottomRightY',
-         'template3DSpineLogoCornersTopLeftX', 'template3DSpineLogoCornersTopLeftY', 'template3DSpineLogoCornersTopRightX', 'template3DSpineLogoCornersTopRightY',
-         'template3DSpineLogoCornersBottomLeftX', 'template3DSpineLogoCornersBottomLeftY', 'template3DSpineLogoCornersBottomRightX', 'template3DSpineLogoCornersBottomRightY'].forEach(id => {
+         'template3DSpineLogoZoneTopY', 'template3DSpineLogoZoneBottomY'].forEach(id => {
             const input = document.getElementById(id);
             if (input) {
                 input.addEventListener('input', () => this.update3DCornersFromInputs());
