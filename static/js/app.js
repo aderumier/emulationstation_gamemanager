@@ -1804,7 +1804,16 @@ class GameCollectionManager {
         document.getElementById('startResizeMediasBtn').addEventListener('click', () => this.startResizeMedias());
         document.getElementById('startImportMediasBtn').addEventListener('click', () => this.startImportMedias());
         document.getElementById('startImportRomsBtn').addEventListener('click', () => this.startImportRoms());
-        document.getElementById('uploadRomFileBtn').addEventListener('click', () => this.handleRomUpload());
+        const uploadRomFileBtn = document.getElementById('uploadRomFileBtn');
+        if (uploadRomFileBtn) {
+            uploadRomFileBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleRomUpload();
+            });
+        } else {
+            console.warn('uploadRomFileBtn not found in DOM');
+        }
         
         document.getElementById('scrapLaunchboxBtn').addEventListener('click', async () => {
             await this.ensurePanelGameSavedIfOpen();
@@ -7490,6 +7499,7 @@ class GameCollectionManager {
     }
     
     async handleRomUpload() {
+        console.log('handleRomUpload called');
         try {
             // Get the current game being edited
             if (!this.editingGamePath) {
@@ -30975,9 +30985,14 @@ class GameCollectionManager {
         
         try {
             // Prepare file paths for batch deletion
-            const filePaths = this.selectedThumbnails.map(thumb => 
-                `roms/${this.currentSystem}/${thumb.mediaPath}`
-            );
+            const filePaths = this.selectedThumbnails.map(thumb => {
+                // Remove ./ prefix from mediaPath if present
+                let mediaPath = thumb.mediaPath;
+                if (mediaPath.startsWith('./')) {
+                    mediaPath = mediaPath.substring(2);
+                }
+                return `roms/${this.currentSystem}/${mediaPath}`;
+            });
             
             // Make single batch delete call
             const deleteResponse = await fetch('/api/delete-files', {
@@ -32694,6 +32709,12 @@ class GameCollectionManager {
         }
     }
 
+    // Helper function to escape single quotes for use in HTML attributes
+    escapeForHtmlAttribute(str) {
+        if (!str) return '';
+        return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
     createThumbnailRenderer(fieldName) {
         return (params) => {
             if (!params.data || !params.data[fieldName]) {
@@ -32711,6 +32732,13 @@ class GameCollectionManager {
             // Create a unique ID for this thumbnail
             const thumbnailId = `thumb_${fieldName}_${params.data.path || Math.random().toString(36).substr(2, 9)}`;
             
+            // Escape values for use in HTML attributes
+            const escapedThumbnailId = this.escapeForHtmlAttribute(thumbnailId);
+            const escapedFieldName = this.escapeForHtmlAttribute(fieldName);
+            const escapedPath = this.escapeForHtmlAttribute(params.data.path);
+            const escapedImagePath = this.escapeForHtmlAttribute(imagePath);
+            const escapedImageUrl = this.escapeForHtmlAttribute(imageUrl);
+            
             // Try loading the image directly first
             const img = new Image();
             img.onload = () => {
@@ -32721,11 +32749,11 @@ class GameCollectionManager {
                     
                     container.innerHTML = `
                         <div class="thumbnail-checkbox">
-                            <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event);" />
+                            <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedFieldName}', '${escapedPath}', '${escapedImagePath}', event);" />
                         </div>
                         <img src="${imageUrl}" alt="${fieldName}" 
                             style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
-                            onmouseenter="gameManager.showThumbnailHover(event, '${imageUrl}', '${fieldName}')" 
+                            onmouseenter="gameManager.showThumbnailHover(event, '${escapedImageUrl}', '${escapedFieldName}')" 
                             onmouseleave="gameManager.hideThumbnailHover()" />
                     `;
                     container.classList.remove('thumbnail-loading');
@@ -32752,11 +32780,11 @@ class GameCollectionManager {
             return `
                 <div id="${thumbnailId}" class="thumbnail-image thumbnail-loading" data-src="${imageUrl}" data-field="${fieldName}" 
                      data-game-path="${params.data.path}" data-media-path="${imagePath}"
-                     onmouseenter="gameManager.showThumbnailHover(event, '${imageUrl}', '${fieldName}')" 
+                     onmouseenter="gameManager.showThumbnailHover(event, '${escapedImageUrl}', '${escapedFieldName}')" 
                      onmouseleave="gameManager.hideThumbnailHover()"
-                     onclick="gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event)">
+                     onclick="gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedFieldName}', '${escapedPath}', '${escapedImagePath}', event)">
                     <div class="thumbnail-checkbox">
-                        <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${fieldName}', '${params.data.path}', '${imagePath}', event);" />
+                        <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedFieldName}', '${escapedPath}', '${escapedImagePath}', event);" />
                     </div>
                     Loading...
                 </div>
@@ -32828,16 +32856,23 @@ class GameCollectionManager {
         const gamePath = container.getAttribute('data-game-path');
         const mediaPath = container.getAttribute('data-media-path');
         
+        // Escape values for use in HTML attributes
+        const escapedThumbnailId = this.escapeForHtmlAttribute(thumbnailId);
+        const escapedField = this.escapeForHtmlAttribute(field);
+        const escapedGamePath = this.escapeForHtmlAttribute(gamePath);
+        const escapedMediaPath = this.escapeForHtmlAttribute(mediaPath);
+        const escapedSrc = this.escapeForHtmlAttribute(src);
+        
         const img = new Image();
         img.onload = () => {
             // Include checkbox when loading the image
             container.innerHTML = `
                 <div class="thumbnail-checkbox">
-                    <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${thumbnailId}', '${field}', '${gamePath}', '${mediaPath}', event);" />
+                    <input type="checkbox" class="thumbnail-checkbox-input" onclick="event.stopPropagation(); gameManager.selectThumbnail('${escapedThumbnailId}', '${escapedField}', '${escapedGamePath}', '${escapedMediaPath}', event);" />
                 </div>
                 <img src="${src}" alt="${field}" 
                     style="object-fit: contain; background-color: ${this.getMediaCardBackgroundColor()};"
-                    onmouseenter="gameManager.showThumbnailHover(event, '${src}', '${field}')" 
+                    onmouseenter="gameManager.showThumbnailHover(event, '${escapedSrc}', '${escapedField}')" 
                     onmouseleave="gameManager.hideThumbnailHover()" />`;
             container.classList.remove('thumbnail-loading');
             
