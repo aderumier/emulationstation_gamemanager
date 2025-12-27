@@ -24861,17 +24861,21 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                                 crop_width=spine_crop_width
                             )
                             game_spine_path = generated_spine_path
-                            using_uploaded_spine = True  # Treat generated spine as uploaded spine for logo purposes
+                            # When using generated spine, set using_uploaded_spine to False
+                            # so that spine_text_logo_settings_for_call is set correctly
+                            using_uploaded_spine = False
                             logging.info(f"Generated spine background for {game_name}: {game_spine_path}")
                         except Exception as e:
                             logging.warning(f"Failed to generate spine background for {game_name}: {e}")
                             game_spine_path = None
                 
-                # Get logo if using uploaded spine (but NOT if spine is from a field)
+                # Get logo if logo options are enabled (but NOT if spine is from a field)
+                # Marquee logos are always generated separately and passed as spine_logo_path
+                # Text logos: for uploaded spines, generate here; for generated spines, generate inside generate_3dbox
                 logo_path = None
-                if using_uploaded_spine and not spine_from_field:
-                    if use_text_logo and text_logo_settings:
-                        # Generate text logo from game name
+                if not spine_from_field:
+                    if using_uploaded_spine and use_text_logo and text_logo_settings:
+                        # For uploaded spines, generate text logo separately
                         temp_logo_path = os.path.join(temp_dir, f'logo_{processed}_{failed}.png')
                         generated_logo = generator.generate_single_line_text_logo(
                             game_name=game_name,
@@ -24884,7 +24888,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                         else:
                             logging.warning(f"Failed to generate text logo for {game_name}")
                     elif use_marquee_field:
-                        # Use logo from marquee field
+                        # Marquee logos are always generated separately (for both generated and uploaded spines)
                         game_logo = game.get('marquee')
                         if game_logo and game_logo.strip():  # Check if field exists and is not empty
                             if game_logo.startswith('./'):
@@ -24916,6 +24920,44 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                 # as when no spine is provided (uses generated_spine_path or box2d_path)
                 spine_image_path_for_call = game_spine_path if game_spine_path and not generated_spine_path else None
                 
+                # Reconstruct spine_logo_zone from simplified format (topY/bottomY) if needed
+                # The zone may be passed as {"topY": value, "bottomY": value} or full corner structure
+                # If zone is null, create default zone using spine corners
+                spine_logo_zone_for_call = spine_logo_zone
+                if spine_corners:
+                    padding = 5
+                    spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
+                    spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
+                    spine_bl = spine_corners.get('bottomLeft', {'x': 0, 'y': 0})
+                    spine_br = spine_corners.get('bottomRight', {'x': 0, 'y': 0})
+                    
+                    if not spine_logo_zone:
+                        # Zone is null - create default zone using full spine height
+                        spine_logo_zone_for_call = {
+                            'topLeft': {'x': spine_tl.get('x', 0) + padding, 'y': spine_tl.get('y', 0)},
+                            'topRight': {'x': spine_tr.get('x', 0) - padding, 'y': spine_tr.get('y', 0)},
+                            'bottomLeft': {'x': spine_bl.get('x', 0) + padding, 'y': spine_bl.get('y', 0)},
+                            'bottomRight': {'x': spine_br.get('x', 0) - padding, 'y': spine_br.get('y', 0)}
+                        }
+                    elif 'topY' in spine_logo_zone or 'bottomY' in spine_logo_zone:
+                        # Zone is in simplified format - reconstruct full zone from Y coordinates
+                        # Get Y coordinates from zone or use defaults from spine
+                        # Treat 0 or None as "not set" and use defaults
+                        topY = spine_logo_zone.get('topY')
+                        if topY is None or topY == 0:
+                            topY = spine_tl.get('y', 0)
+                        bottomY = spine_logo_zone.get('bottomY')
+                        if bottomY is None or bottomY == 0:
+                            bottomY = spine_bl.get('y', 0)
+                        
+                        # Reconstruct full zone structure
+                        spine_logo_zone_for_call = {
+                            'topLeft': {'x': spine_tl.get('x', 0) + padding, 'y': topY},
+                            'topRight': {'x': spine_tr.get('x', 0) - padding, 'y': topY},
+                            'bottomLeft': {'x': spine_bl.get('x', 0) + padding, 'y': bottomY},
+                            'bottomRight': {'x': spine_br.get('x', 0) - padding, 'y': bottomY}
+                        }
+                
                 # Determine text logo settings for spine
                 # For generated spines, pass text logo settings directly to generate_3dbox
                 # For uploaded spines, text logo is already generated and passed as logo_path
@@ -24933,7 +24975,7 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                     spine_image_path=spine_image_path_for_call,  # Pass None when using generated spine
                     spine_logo_path=logo_path if not spine_from_field else None,  # Never add logo if spine is from field
                     generated_spine_path=generated_spine_path,  # Pass generated spine to use same workflow as box2d_path
-                    spine_logo_zone=spine_logo_zone,  # Optional spine logo zone for positioning
+                    spine_logo_zone=spine_logo_zone_for_call,  # Optional spine logo zone for positioning (reconstructed if needed)
                     spine_logo_corners=spine_logo_corners,  # Optional spine logo corners for perspective placement
                     spine_text_logo_settings=spine_text_logo_settings_for_call,  # Text logo settings for generated spines
                     spine_game_name=game_name,  # Game name for text logo generation
@@ -27404,18 +27446,23 @@ def preview_3dbox():
                         crop_width=spine_crop_width
                     )
                     logging.info(f"Generated spine background for preview: {generated_spine_path}")
+                    # When using generated spine, set using_uploaded_spine to False
+                    # so that spine_text_logo_settings_for_call is set correctly
+                    using_uploaded_spine = False
                 except Exception as e:
                     logging.warning(f"Failed to generate spine background: {e}")
                     generated_spine_path = None
         
-        # Get logo if logo options are enabled and spine exists (but NOT if spine is from a field)
+        # Get logo if logo options are enabled (but NOT if spine is from a field)
+        # Marquee logos are always generated separately and passed as spine_logo_path
+        # Text logos: for uploaded spines, generate here; for generated spines, generate inside generate_3dbox
         logo_path = None
-        if (use_text_logo or use_marquee_field) and (spine_path or generated_spine_path or spine_corners) and not spine_from_field:
+        if not spine_from_field:
             # Get game name for logging
             game_name = game.get('name', game_path)
             
-            if use_text_logo and text_logo_settings:
-                # Generate text logo from game name
+            if using_uploaded_spine and use_text_logo and text_logo_settings:
+                # For uploaded spines, generate text logo separately
                 from box_generator import BoxGenerator
                 generator = BoxGenerator()
                 temp_logo_path = os.path.join(temp_dir, 'preview_logo.png')
@@ -27430,7 +27477,7 @@ def preview_3dbox():
                 else:
                     logging.warning(f"Failed to generate text logo for preview {game_name}")
             elif use_marquee_field:
-                # Use logo from marquee field
+                # Marquee logos are always generated separately (for both generated and uploaded spines)
                 game_logo = game.get('marquee')
                 if game_logo and game_logo.strip():  # Check if field exists and is not empty
                     if game_logo.startswith('./'):
@@ -27459,6 +27506,44 @@ def preview_3dbox():
         # as when no spine is provided (uses generated_spine_path or box2d_path)
         spine_image_path_for_call = spine_path if spine_path and not generated_spine_path else None
         
+        # Reconstruct spine_logo_zone from simplified format (topY/bottomY) if needed
+        # The zone may be passed as {"topY": value, "bottomY": value} or full corner structure
+        # If zone is null, create default zone using spine corners
+        spine_logo_zone_for_call = spine_logo_zone
+        if spine_corners:
+            padding = 5
+            spine_tl = spine_corners.get('topLeft', {'x': 0, 'y': 0})
+            spine_tr = spine_corners.get('topRight', {'x': 0, 'y': 0})
+            spine_bl = spine_corners.get('bottomLeft', {'x': 0, 'y': 0})
+            spine_br = spine_corners.get('bottomRight', {'x': 0, 'y': 0})
+            
+            if not spine_logo_zone:
+                # Zone is null - create default zone using full spine height
+                spine_logo_zone_for_call = {
+                    'topLeft': {'x': spine_tl.get('x', 0) + padding, 'y': spine_tl.get('y', 0)},
+                    'topRight': {'x': spine_tr.get('x', 0) - padding, 'y': spine_tr.get('y', 0)},
+                    'bottomLeft': {'x': spine_bl.get('x', 0) + padding, 'y': spine_bl.get('y', 0)},
+                    'bottomRight': {'x': spine_br.get('x', 0) - padding, 'y': spine_br.get('y', 0)}
+                }
+            elif 'topY' in spine_logo_zone or 'bottomY' in spine_logo_zone:
+                # Zone is in simplified format - reconstruct full zone from Y coordinates
+                # Get Y coordinates from zone or use defaults from spine
+                # Treat 0 or None as "not set" and use defaults
+                topY = spine_logo_zone.get('topY')
+                if topY is None or topY == 0:
+                    topY = spine_tl.get('y', 0)
+                bottomY = spine_logo_zone.get('bottomY')
+                if bottomY is None or bottomY == 0:
+                    bottomY = spine_bl.get('y', 0)
+                
+                # Reconstruct full zone structure
+                spine_logo_zone_for_call = {
+                    'topLeft': {'x': spine_tl.get('x', 0) + padding, 'y': topY},
+                    'topRight': {'x': spine_tr.get('x', 0) - padding, 'y': topY},
+                    'bottomLeft': {'x': spine_bl.get('x', 0) + padding, 'y': bottomY},
+                    'bottomRight': {'x': spine_br.get('x', 0) - padding, 'y': bottomY}
+                }
+        
         # Determine text logo settings for spine
         # For generated spines, pass text logo settings directly to generate_3dbox
         # For uploaded spines, text logo is already generated and passed as logo_path
@@ -27477,7 +27562,7 @@ def preview_3dbox():
             spine_image_path=spine_image_path_for_call,  # Pass None when using generated spine
             spine_logo_path=logo_path if not spine_from_field else None,  # Never add logo if spine is from field
             generated_spine_path=generated_spine_path,  # Pass generated spine to use same workflow as box2d_path
-            spine_logo_zone=spine_logo_zone,  # Optional spine logo zone for positioning
+            spine_logo_zone=spine_logo_zone_for_call,  # Optional spine logo zone for positioning (reconstructed if needed)
             spine_logo_corners=spine_logo_corners,  # Optional spine logo corners for perspective placement
             spine_text_logo_settings=spine_text_logo_settings_for_call,  # Text logo settings for generated spines
             spine_game_name=game_name,  # Game name for text logo generation
