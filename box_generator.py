@@ -1372,8 +1372,9 @@ class BoxGenerator:
                                             
                                             # Map zone to resized spine space
                                             # Zone is relative to spine corners in template space
+                                            # For vertical spine, top Y is at spine_target_topright_y
                                             zone_x_offset_template = zone_tl_x - spine_target_topleft_x
-                                            zone_y_offset_template = zone_tl_y - spine_target_topleft_y
+                                            zone_y_offset_template = zone_tl_y - spine_target_topright_y
                                             
                                             # Calculate scale factors from template to resized spine
                                             template_spine_width = spine_target_topright_x - spine_target_topleft_x
@@ -1581,8 +1582,9 @@ class BoxGenerator:
                                                 
                                                 # Map zone to resized spine space
                                                 # Zone is relative to spine corners in template space
+                                                # For vertical spine, top Y is at spine_target_topright_y
                                                 zone_x_offset_template = zone_tl_x - spine_target_topleft_x
-                                                zone_y_offset_template = zone_tl_y - spine_target_topleft_y
+                                                zone_y_offset_template = zone_tl_y - spine_target_topright_y
                                                 
                                                 # Calculate scale factors from template to resized spine
                                                 template_spine_width = spine_target_topright_x - spine_target_topleft_x

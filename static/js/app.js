@@ -15126,30 +15126,37 @@ class GameCollectionManager {
         });
         
         // Update spine logo zone inputs (if zone exists)
+        // Only update Top Y and Bottom Y - X coordinates are auto-calculated from spine with padding
         if (this.box3DSpineLogoZone) {
-            const zoneMapping = {
-                topLeft: ['template3DSpineLogoZoneTopLeftX', 'template3DSpineLogoZoneTopLeftY'],
-                topRight: ['template3DSpineLogoZoneTopRightX', 'template3DSpineLogoZoneTopRightY'],
-                bottomLeft: ['template3DSpineLogoZoneBottomLeftX', 'template3DSpineLogoZoneBottomLeftY'],
-                bottomRight: ['template3DSpineLogoZoneBottomRightX', 'template3DSpineLogoZoneBottomRightY']
-            };
+            const topYInput = document.getElementById('template3DSpineLogoZoneTopY');
+            const bottomYInput = document.getElementById('template3DSpineLogoZoneBottomY');
             
-            Object.keys(zoneMapping).forEach(corner => {
-                const [xId, yId] = zoneMapping[corner];
-                const xInput = document.getElementById(xId);
-                const yInput = document.getElementById(yId);
-                
-                if (xInput) xInput.value = this.box3DSpineLogoZone[corner].x;
-                if (yInput) yInput.value = this.box3DSpineLogoZone[corner].y;
-            });
+            if (topYInput) {
+                const topY = this.box3DSpineLogoZone.topLeft.y;
+                // Only set value if it differs from default (spine topLeft Y)
+                const defaultTopY = this.box3DSpineCorners.topLeft.y || 0;
+                if (topY !== defaultTopY) {
+                    topYInput.value = topY;
+                } else {
+                    topYInput.value = ''; // Clear if matches default
+                }
+            }
+            
+            if (bottomYInput) {
+                const bottomY = this.box3DSpineLogoZone.bottomLeft.y;
+                // Only set value if it differs from default (spine bottomLeft Y)
+                const defaultBottomY = this.box3DSpineCorners.bottomLeft.y || 0;
+                if (bottomY !== defaultBottomY) {
+                    bottomYInput.value = bottomY;
+                } else {
+                    bottomYInput.value = ''; // Clear if matches default
+                }
+            }
         } else {
             // Clear zone inputs if no zone
-            ['template3DSpineLogoZoneTopLeftX', 'template3DSpineLogoZoneTopLeftY',
-             'template3DSpineLogoZoneTopRightX', 'template3DSpineLogoZoneTopRightY',
-             'template3DSpineLogoZoneBottomLeftX', 'template3DSpineLogoZoneBottomLeftY',
-             'template3DSpineLogoZoneBottomRightX', 'template3DSpineLogoZoneBottomRightY'].forEach(id => {
+            ['template3DSpineLogoZoneTopY', 'template3DSpineLogoZoneBottomY'].forEach(id => {
                 const input = document.getElementById(id);
-                if (input) input.value = '0';
+                if (input) input.value = '';
             });
         }
     }
@@ -36426,11 +36433,18 @@ class GameCollectionManager {
             if (data.success) {
                 this.showAlert('Full-size image downloaded successfully!', 'success');
                 
-                // Refresh the game grid to reflect gamelist changes
-                this.refreshGameGrid();
+                // Refresh the game grid with latest data from server
+                await this.refreshGameGridWithData();
                 
-                // Refresh the media preview to show the new image
-                this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                // Find the updated game from the refreshed games array
+                const updatedGame = this.games.find(g => g.path === this.currentGoogleImagesSearchGame.path);
+                if (updatedGame) {
+                    // Refresh the media preview to show the new image
+                    this.showMediaPreview(updatedGame);
+                } else {
+                    // Fallback to original game if not found
+                    this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                }
                 
                 // Close the modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('googleImagesSearchModal'));
@@ -36528,11 +36542,18 @@ class GameCollectionManager {
                 // Clear the URL field
                 document.getElementById('googleImagesDirectUrl').value = '';
                 
-                // Refresh the game grid to reflect gamelist changes
-                this.refreshGameGrid();
+                // Refresh the game grid with latest data from server
+                await this.refreshGameGridWithData();
                 
-                // Refresh the media preview to show the new image
-                this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                // Find the updated game from the refreshed games array
+                const updatedGame = this.games.find(g => g.path === this.currentGoogleImagesSearchGame.path);
+                if (updatedGame) {
+                    // Refresh the media preview to show the new image
+                    this.showMediaPreview(updatedGame);
+                } else {
+                    // Fallback to original game if not found
+                    this.showMediaPreview(this.currentGoogleImagesSearchGame);
+                }
                 
                 // Close the modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('googleImagesSearchModal'));
