@@ -15279,6 +15279,12 @@ class GameCollectionManager {
                                 bottomLeft: { x: spineBottomLeftX + padding, y: bottomY },
                                 bottomRight: { x: spineBottomRightX - padding, y: bottomY }
                             };
+                            
+                            // Load keep aspect ratio option (unchecked if not present or false)
+                            const keepAspectRatioCheckbox = document.getElementById('template3DSpineLogoKeepAspectRatio');
+                            if (keepAspectRatioCheckbox) {
+                                keepAspectRatioCheckbox.checked = data.spine_logo_zone.keepAspectRatio === true;
+                            }
                         } else {
                             // Old format: full corners (for backward compatibility)
                             this.box3DSpineLogoZone = {
@@ -15287,6 +15293,12 @@ class GameCollectionManager {
                                 bottomLeft: { x: data.spine_logo_zone.bottomLeft?.x || 0, y: data.spine_logo_zone.bottomLeft?.y || 0 },
                                 bottomRight: { x: data.spine_logo_zone.bottomRight?.x || 0, y: data.spine_logo_zone.bottomRight?.y || 0 }
                             };
+                            
+                            // Load keep aspect ratio option from old format (unchecked if not present or false)
+                            const keepAspectRatioCheckbox = document.getElementById('template3DSpineLogoKeepAspectRatio');
+                            if (keepAspectRatioCheckbox) {
+                                keepAspectRatioCheckbox.checked = data.spine_logo_zone.keepAspectRatio === true;
+                            }
                         }
                     } else {
                         // No zone defined - use defaults from spine
@@ -15308,6 +15320,14 @@ class GameCollectionManager {
                             };
                         } else {
                             this.box3DSpineLogoZone = null;
+                        }
+                    }
+                    
+                    // Uncheck checkbox if no zone is defined or keepAspectRatio is not explicitly true
+                    const keepAspectRatioCheckbox = document.getElementById('template3DSpineLogoKeepAspectRatio');
+                    if (keepAspectRatioCheckbox) {
+                        if (!data.spine_logo_zone || data.spine_logo_zone.keepAspectRatio !== true) {
+                            keepAspectRatioCheckbox.checked = false;
                         }
                     }
                     
@@ -15767,6 +15787,12 @@ class GameCollectionManager {
                 zoneToSave.bottomY = currentBottomY;
             }
             
+            // Add keep aspect ratio option
+            const keepAspectRatioCheckbox = document.getElementById('template3DSpineLogoKeepAspectRatio');
+            if (keepAspectRatioCheckbox && keepAspectRatioCheckbox.checked) {
+                zoneToSave.keepAspectRatio = true;
+            }
+            
             // Only save if at least one value differs from default
             if (Object.keys(zoneToSave).length > 0) {
                 formData.append('spine_logo_zone', JSON.stringify(zoneToSave));
@@ -15852,7 +15878,12 @@ class GameCollectionManager {
             formData.append('spine_corners', JSON.stringify(this.box3DSpineCorners));
             if (this.box3DSpineLogoZone) {
                 // Send full zone object for preview/generation (backend expects full corners)
-                formData.append('spine_logo_zone', JSON.stringify(this.box3DSpineLogoZone));
+                const zoneForPreview = JSON.parse(JSON.stringify(this.box3DSpineLogoZone)); // Deep copy
+                const keepAspectRatioCheckbox = document.getElementById('template3DSpineLogoKeepAspectRatio');
+                if (keepAspectRatioCheckbox && keepAspectRatioCheckbox.checked) {
+                    zoneForPreview.keepAspectRatio = true;
+                }
+                formData.append('spine_logo_zone', JSON.stringify(zoneForPreview));
             }
             if (hasBackgroundFile) {
                 formData.append('background_image', fileInput.files[0]);
@@ -16014,6 +16045,12 @@ class GameCollectionManager {
                 }
                 if (currentBottomY !== defaultBottomY) {
                     zoneToSave.bottomY = currentBottomY;
+                }
+                
+                // Add keep aspect ratio option
+                const keepAspectRatioCheckbox = document.getElementById('template3DSpineLogoKeepAspectRatio');
+                if (keepAspectRatioCheckbox && keepAspectRatioCheckbox.checked) {
+                    zoneToSave.keepAspectRatio = true;
                 }
                 
                 // Only save if at least one value differs from default
@@ -28323,6 +28360,15 @@ class GameCollectionManager {
                 input.addEventListener('input', () => this.update3DCornersFromInputs());
             }
         });
+        
+        // Keep aspect ratio checkbox - refresh preview when changed
+        const keepAspectRatioCheckbox = document.getElementById('template3DSpineLogoKeepAspectRatio');
+        if (keepAspectRatioCheckbox) {
+            keepAspectRatioCheckbox.addEventListener('change', () => {
+                // Refresh preview when checkbox changes
+                this.generate3DBoxPreview();
+            });
+        }
         
         // 3D Box surface toggle
         document.querySelectorAll('input[name="active3DSurface"]').forEach(radio => {

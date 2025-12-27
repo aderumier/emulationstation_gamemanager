@@ -37,6 +37,18 @@
       "y": 995
     }
   },
-  "spine_source_field": "spine",
-  "spine_crop_width": "5"
+  "spine_source_field": "",
+  "spine_crop_width": "5",
+  "spine_logo_zone": {
+    "topY": 400,
+    "bottomY": 900,
+    "keepAspectRatio": true
+  },
+  "use_text_logo": true,
+  "text_logo_settings": {
+    "font": "BlackgothRegular-xRg40",
+    "color": "#ffffff",
+    "fontSize": 72,
+    "alignment": "center"
+  }
 }

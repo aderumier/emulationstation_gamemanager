@@ -24957,6 +24957,15 @@ def run_3dbox_generation_task(system_name, selected_games, source_field, target_
                             'bottomLeft': {'x': spine_bl.get('x', 0) + padding, 'y': bottomY},
                             'bottomRight': {'x': spine_br.get('x', 0) - padding, 'y': bottomY}
                         }
+                        # Preserve keepAspectRatio flag if present
+                        if 'keepAspectRatio' in spine_logo_zone:
+                            spine_logo_zone_for_call['keepAspectRatio'] = spine_logo_zone['keepAspectRatio']
+                    else:
+                        # Zone is already in full format - ensure keepAspectRatio is preserved if present
+                        if spine_logo_zone and 'keepAspectRatio' in spine_logo_zone:
+                            # Make a copy to avoid modifying the original
+                            spine_logo_zone_for_call = dict(spine_logo_zone)
+                            spine_logo_zone_for_call['keepAspectRatio'] = spine_logo_zone['keepAspectRatio']
                 
                 # Determine text logo settings for spine
                 # For generated spines, pass text logo settings directly to generate_3dbox
@@ -27543,6 +27552,15 @@ def preview_3dbox():
                     'bottomLeft': {'x': spine_bl.get('x', 0) + padding, 'y': bottomY},
                     'bottomRight': {'x': spine_br.get('x', 0) - padding, 'y': bottomY}
                 }
+                # Preserve keepAspectRatio flag if present
+                if 'keepAspectRatio' in spine_logo_zone:
+                    spine_logo_zone_for_call['keepAspectRatio'] = spine_logo_zone['keepAspectRatio']
+            else:
+                # Zone is already in full format - ensure keepAspectRatio is preserved if present
+                if spine_logo_zone and 'keepAspectRatio' in spine_logo_zone:
+                    # Make a copy to avoid modifying the original
+                    spine_logo_zone_for_call = dict(spine_logo_zone)
+                    spine_logo_zone_for_call['keepAspectRatio'] = spine_logo_zone['keepAspectRatio']
         
         # Determine text logo settings for spine
         # For generated spines, pass text logo settings directly to generate_3dbox
