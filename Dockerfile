@@ -221,6 +221,25 @@ fi
 
 # Store current image version
 echo "$IMAGE_VERSION" > "$VERSION_FILE"
+
+# Backup existing template files if they exist (before copying new ones)
+TEMPLATE_BACKUP_DIR="/opt/gamemanager/var/cache/.template_backup"
+mkdir -p "$TEMPLATE_BACKUP_DIR"
+
+if [ -n "$(ls -A /opt/gamemanager/var/2dbox/templates 2>/dev/null)" ]; then
+    echo "Backing up existing 2D box templates..."
+    mkdir -p "$TEMPLATE_BACKUP_DIR/2dbox"
+    cp -r /opt/gamemanager/var/2dbox/templates/* "$TEMPLATE_BACKUP_DIR/2dbox/" 2>/dev/null || true
+    echo "✅ Backed up 2D box templates"
+fi
+
+if [ -n "$(ls -A /opt/gamemanager/var/3dbox/templates 2>/dev/null)" ]; then
+    echo "Backing up existing 3D box templates..."
+    mkdir -p "$TEMPLATE_BACKUP_DIR/3dbox"
+    cp -r /opt/gamemanager/var/3dbox/templates/* "$TEMPLATE_BACKUP_DIR/3dbox/" 2>/dev/null || true
+    echo "✅ Backed up 3D box templates"
+fi
+
 mkdir -p /opt/gamemanager/var/temp/medias
 mkdir -p /opt/gamemanager/var/temp/videos
 mkdir -p /opt/gamemanager/var/fonts
@@ -324,31 +343,40 @@ else
     echo "⚠️  No font files found in default location"
 fi
 
-# Copy 2D box template files to var/2dbox/templates (only if directory is empty)
+# Copy 2D box template files to var/2dbox/templates (always copy from image, restore backups if they existed)
 echo "Copying 2D box template files to var/2dbox/templates..."
-if [ -z "$(ls -A /opt/gamemanager/var/2dbox/templates 2>/dev/null)" ]; then
-    if [ -d /opt/gamemanager/2dbox_templates.default ] && [ "$(ls -A /opt/gamemanager/2dbox_templates.default 2>/dev/null)" ]; then
-        cp /opt/gamemanager/2dbox_templates.default/* /opt/gamemanager/var/2dbox/templates/
-        echo "✅ 2D box template files copied to volume (directory was empty)"
-    else
-        echo "⚠️  No 2D box template files found in default location"
-    fi
+if [ -d /opt/gamemanager/2dbox_templates.default ] && [ "$(ls -A /opt/gamemanager/2dbox_templates.default 2>/dev/null)" ]; then
+    cp /opt/gamemanager/2dbox_templates.default/* /opt/gamemanager/var/2dbox/templates/ 2>/dev/null || true
+    echo "✅ 2D box template files copied from image"
 else
-    echo "⚠️  2D box templates directory not empty, skipping copy"
+    echo "⚠️  No 2D box template files found in default location"
 fi
 
-# Copy 3D box template files to var/3dbox/templates (only if directory is empty)
-echo "Copying 3D box template files to var/3dbox/templates..."
-if [ -z "$(ls -A /opt/gamemanager/var/3dbox/templates 2>/dev/null)" ]; then
-    if [ -d /opt/gamemanager/3dbox_templates.default ] && [ "$(ls -A /opt/gamemanager/3dbox_templates.default 2>/dev/null)" ]; then
-        cp /opt/gamemanager/3dbox_templates.default/* /opt/gamemanager/var/3dbox/templates/
-        echo "✅ 3D box template files copied to volume (directory was empty)"
-    else
-        echo "⚠️  No 3D box template files found in default location"
-    fi
-else
-    echo "⚠️  3D box templates directory not empty, skipping copy"
+# Restore backed up 2D box templates if they existed (overwrites image templates)
+if [ -d "$TEMPLATE_BACKUP_DIR/2dbox" ] && [ -n "$(ls -A "$TEMPLATE_BACKUP_DIR/2dbox" 2>/dev/null)" ]; then
+    echo "Restoring existing 2D box templates (directory was not empty before image update)..."
+    cp -r "$TEMPLATE_BACKUP_DIR/2dbox"/* /opt/gamemanager/var/2dbox/templates/ 2>/dev/null || true
+    echo "✅ Restored existing 2D box templates (overwrote image templates)"
 fi
+
+# Copy 3D box template files to var/3dbox/templates (always copy from image, restore backups if they existed)
+echo "Copying 3D box template files to var/3dbox/templates..."
+if [ -d /opt/gamemanager/3dbox_templates.default ] && [ "$(ls -A /opt/gamemanager/3dbox_templates.default 2>/dev/null)" ]; then
+    cp /opt/gamemanager/3dbox_templates.default/* /opt/gamemanager/var/3dbox/templates/ 2>/dev/null || true
+    echo "✅ 3D box template files copied from image"
+else
+    echo "⚠️  No 3D box template files found in default location"
+fi
+
+# Restore backed up 3D box templates if they existed (overwrites image templates)
+if [ -d "$TEMPLATE_BACKUP_DIR/3dbox" ] && [ -n "$(ls -A "$TEMPLATE_BACKUP_DIR/3dbox" 2>/dev/null)" ]; then
+    echo "Restoring existing 3D box templates (directory was not empty before image update)..."
+    cp -r "$TEMPLATE_BACKUP_DIR/3dbox"/* /opt/gamemanager/var/3dbox/templates/ 2>/dev/null || true
+    echo "✅ Restored existing 3D box templates (overwrote image templates)"
+fi
+
+# Clean up backup directory
+rm -rf "$TEMPLATE_BACKUP_DIR" 2>/dev/null || true
 
 # Ensure proper permissions
 chmod 644 /opt/gamemanager/var/config/* 2>/dev/null || true

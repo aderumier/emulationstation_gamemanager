@@ -26,24 +26,23 @@ if [ "$1" = "configure" ] && [ -z "$2" ]; then
     mkdir -p /opt/gamemanager/var/2dbox/templates
     mkdir -p /opt/gamemanager/var/3dbox/templates
     
-    # Handle template files - restore backed up templates if they existed
+    # Handle template files - restore backed up templates if they existed (directory was not empty)
+    # If no backups exist (directory was empty), templates from package are already installed
     echo "Checking template directories..."
     if [ -d "/tmp/gamemanager-upgrade/templates/2dbox" ] && [ -n "$(ls -A /tmp/gamemanager-upgrade/templates/2dbox 2>/dev/null)" ]; then
-        echo "Restoring existing 2D box templates..."
-        rm -f /opt/gamemanager/var/2dbox/templates/* 2>/dev/null || true
+        echo "Restoring existing 2D box templates (directory was not empty before installation)..."
         cp -r /tmp/gamemanager-upgrade/templates/2dbox/* /opt/gamemanager/var/2dbox/templates/ 2>/dev/null || true
-        echo "✅ Restored existing 2D box templates"
+        echo "✅ Restored existing 2D box templates (overwrote package templates)"
     else
-        echo "✅ 2D box templates directory is empty, keeping installed templates"
+        echo "✅ 2D box templates directory was empty, templates from package are installed"
     fi
     
     if [ -d "/tmp/gamemanager-upgrade/templates/3dbox" ] && [ -n "$(ls -A /tmp/gamemanager-upgrade/templates/3dbox 2>/dev/null)" ]; then
-        echo "Restoring existing 3D box templates..."
-        rm -f /opt/gamemanager/var/3dbox/templates/* 2>/dev/null || true
+        echo "Restoring existing 3D box templates (directory was not empty before installation)..."
         cp -r /tmp/gamemanager-upgrade/templates/3dbox/* /opt/gamemanager/var/3dbox/templates/ 2>/dev/null || true
-        echo "✅ Restored existing 3D box templates"
+        echo "✅ Restored existing 3D box templates (overwrote package templates)"
     else
-        echo "✅ 3D box templates directory is empty, keeping installed templates"
+        echo "✅ 3D box templates directory was empty, templates from package are installed"
     fi
 
     # Install default configuration files if they don't exist
@@ -133,24 +132,23 @@ elif [ "$1" = "configure" ] && [ "$2" != "" ]; then
     mkdir -p /opt/gamemanager/var/2dbox/templates
     mkdir -p /opt/gamemanager/var/3dbox/templates
     
-    # Handle template files - restore backed up templates if they existed
+    # Handle template files - restore backed up templates if they existed (directory was not empty)
+    # If no backups exist (directory was empty), templates from package are already installed
     echo "Checking template directories..."
     if [ -d "/tmp/gamemanager-upgrade/templates/2dbox" ] && [ -n "$(ls -A /tmp/gamemanager-upgrade/templates/2dbox 2>/dev/null)" ]; then
-        echo "Restoring existing 2D box templates..."
-        rm -f /opt/gamemanager/var/2dbox/templates/* 2>/dev/null || true
+        echo "Restoring existing 2D box templates (directory was not empty before installation)..."
         cp -r /tmp/gamemanager-upgrade/templates/2dbox/* /opt/gamemanager/var/2dbox/templates/ 2>/dev/null || true
-        echo "✅ Restored existing 2D box templates"
+        echo "✅ Restored existing 2D box templates (overwrote package templates)"
     else
-        echo "✅ 2D box templates directory is empty, keeping installed templates"
+        echo "✅ 2D box templates directory was empty, templates from package are installed"
     fi
     
     if [ -d "/tmp/gamemanager-upgrade/templates/3dbox" ] && [ -n "$(ls -A /tmp/gamemanager-upgrade/templates/3dbox 2>/dev/null)" ]; then
-        echo "Restoring existing 3D box templates..."
-        rm -f /opt/gamemanager/var/3dbox/templates/* 2>/dev/null || true
+        echo "Restoring existing 3D box templates (directory was not empty before installation)..."
         cp -r /tmp/gamemanager-upgrade/templates/3dbox/* /opt/gamemanager/var/3dbox/templates/ 2>/dev/null || true
-        echo "✅ Restored existing 3D box templates"
+        echo "✅ Restored existing 3D box templates (overwrote package templates)"
     else
-        echo "✅ 3D box templates directory is empty, keeping installed templates"
+        echo "✅ 3D box templates directory was empty, templates from package are installed"
     fi
     
     # Clear cache directory on upgrade to ensure clean state

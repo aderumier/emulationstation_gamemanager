@@ -1,49 +1,48 @@
 {
-  "name": "exodos",
-  "background_image": "exodos_background.png",
+  "name": "vgm",
+  "background_image": "scummvm_background.png",
   "corners": {
     "topLeft": {
-      "x": 88,
-      "y": 15
+      "x": 41,
+      "y": 20
     },
     "topRight": {
-      "x": 567,
-      "y": 62
+      "x": 547,
+      "y": 67
     },
     "bottomLeft": {
-      "x": 88,
-      "y": 883
+      "x": 38,
+      "y": 866
     },
     "bottomRight": {
-      "x": 567,
-      "y": 835
+      "x": 543,
+      "y": 837
     }
   },
   "spine_corners": {
     "topLeft": {
-      "x": 11,
-      "y": 47
+      "x": 6,
+      "y": 31
     },
     "topRight": {
-      "x": 88,
-      "y": 10
+      "x": 45,
+      "y": 20
     },
     "bottomLeft": {
-      "x": 11,
-      "y": 851
+      "x": 3,
+      "y": 856
     },
     "bottomRight": {
-      "x": 88,
-      "y": 887
+      "x": 41,
+      "y": 866
     }
   },
-  "spine_image": "exodos_spine.png",
   "spine_source_field": "",
   "spine_crop_width": "5",
   "use_text_logo": true,
   "text_logo_settings": {
-    "font": "Perpetua Bold",
-    "color": "#544a4a",
+    "font": "impact",
+    "color": "#ed3925",
     "fontSize": 72,
     "alignment": "left"
   }

@@ -161,6 +161,9 @@ var/
 !var/db/custom/*.json
 !var/fonts/
 !var/fonts/**
+!var/3dbox/
+!var/3dbox/templates/
+!var/3dbox/templates/**
 # Exclude credentials files for security
 var/config/credentials.json
 var/config/credentials.enc

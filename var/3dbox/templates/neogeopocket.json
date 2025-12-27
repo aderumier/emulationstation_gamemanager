@@ -1,0 +1,43 @@
+{
+  "name": "neogeopocket",
+  "background_image": "neogeopocket_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 62,
+      "y": 11
+    },
+    "topRight": {
+      "x": 660,
+      "y": 78
+    },
+    "bottomLeft": {
+      "x": 62,
+      "y": 888
+    },
+    "bottomRight": {
+      "x": 660,
+      "y": 814
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 6,
+      "y": 28
+    },
+    "topRight": {
+      "x": 62,
+      "y": 11
+    },
+    "bottomLeft": {
+      "x": 6,
+      "y": 867
+    },
+    "bottomRight": {
+      "x": 62,
+      "y": 888
+    }
+  },
+  "spine_source_field": "spine",
+  "spine_crop_width": "5",
+  "use_marquee_field": true
+}

@@ -1,0 +1,42 @@
+{
+  "name": "cdi",
+  "background_image": "cdi_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 47,
+      "y": 12
+    },
+    "topRight": {
+      "x": 397,
+      "y": 28
+    },
+    "bottomLeft": {
+      "x": 47,
+      "y": 449
+    },
+    "bottomRight": {
+      "x": 397,
+      "y": 430
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 0,
+      "y": 0
+    },
+    "topRight": {
+      "x": 0,
+      "y": 0
+    },
+    "bottomLeft": {
+      "x": 0,
+      "y": 0
+    },
+    "bottomRight": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "spine_source_field": "spine",
+  "spine_crop_width": "5"
+}

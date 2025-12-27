@@ -1,0 +1,53 @@
+{
+  "name": "c64",
+  "background_image": "cassette2_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 117,
+      "y": 31
+    },
+    "topRight": {
+      "x": 633,
+      "y": 97
+    },
+    "bottomLeft": {
+      "x": 117,
+      "y": 993
+    },
+    "bottomRight": {
+      "x": 633,
+      "y": 925
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 20,
+      "y": 45
+    },
+    "topRight": {
+      "x": 106,
+      "y": 27
+    },
+    "bottomLeft": {
+      "x": 20,
+      "y": 972
+    },
+    "bottomRight": {
+      "x": 106,
+      "y": 1000
+    }
+  },
+  "spine_source_field": "spine",
+  "spine_crop_width": "5",
+  "spine_logo_zone": {
+    "topY": 400,
+    "bottomY": 950
+  },
+  "use_text_logo": true,
+  "text_logo_settings": {
+    "font": "Microgramma D Extended Bold",
+    "color": "#ffffff",
+    "fontSize": 30,
+    "alignment": "left"
+  }
+}

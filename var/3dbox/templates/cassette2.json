@@ -1,0 +1,42 @@
+{
+  "name": "cassette2",
+  "background_image": "cassette2_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 118,
+      "y": 31
+    },
+    "topRight": {
+      "x": 633,
+      "y": 97
+    },
+    "bottomLeft": {
+      "x": 118,
+      "y": 993
+    },
+    "bottomRight": {
+      "x": 633,
+      "y": 925
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 20,
+      "y": 45
+    },
+    "topRight": {
+      "x": 108,
+      "y": 27
+    },
+    "bottomLeft": {
+      "x": 20,
+      "y": 969
+    },
+    "bottomRight": {
+      "x": 108,
+      "y": 995
+    }
+  },
+  "spine_source_field": "spine",
+  "spine_crop_width": "5"
+}

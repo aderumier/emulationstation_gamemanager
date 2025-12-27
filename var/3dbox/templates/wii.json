@@ -1,0 +1,43 @@
+{
+  "name": "wii",
+  "background_image": "wii_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 64,
+      "y": 26
+    },
+    "topRight": {
+      "x": 1014,
+      "y": 109
+    },
+    "bottomLeft": {
+      "x": 64,
+      "y": 1679
+    },
+    "bottomRight": {
+      "x": 1014,
+      "y": 1625
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 0,
+      "y": 44
+    },
+    "topRight": {
+      "x": 64,
+      "y": 26
+    },
+    "bottomLeft": {
+      "x": 0,
+      "y": 1658
+    },
+    "bottomRight": {
+      "x": 64,
+      "y": 1677
+    }
+  },
+  "spine_image": "wii_spine.png",
+  "spine_source_field": "spine",
+  "spine_crop_width": "5"
+}

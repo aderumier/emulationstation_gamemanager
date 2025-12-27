@@ -657,18 +657,30 @@ class BoxGenerator:
             
             # Step 1: Resize screenshot to fit the bounding box dimensions
             # This ensures the screenshot has the correct dimensions before placing
-            logging.info(f"Resizing screenshot from {screenshot_width}x{screenshot_height} to {target_width}x{target_height}")
+            # Use ! to force exact size (ignore aspect ratio) - this stretches smaller images to fill
+            is_smaller = screenshot_width < target_width or screenshot_height < target_height
+            logging.info(f"Resizing screenshot from {screenshot_width}x{screenshot_height} to {target_width}x{target_height} (stretching to fill)")
+            if is_smaller:
+                logging.info(f"Image is smaller than target, will be stretched to fill entire area")
+            
             temp_resized = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
             temp_files.append(temp_resized)
             
+            # Use ! to force exact dimensions (stretch to fill, ignore aspect ratio)
+            # For smaller images, this will upscale and stretch to fill the target area
+            # The ! flag forces ImageMagick to resize to exact dimensions, stretching smaller images
+            resize_spec = f'{target_width}x{target_height}!'
             cmd = [
                 'convert', screenshot_path,
-                '-resize', f'{target_width}x{target_height}!',  # ! forces exact size, ignoring aspect ratio
-                '-quality', '100',  # High quality resize
+                '-resize', resize_spec,  # ! forces exact size, ignoring aspect ratio (stretches to fill, upscales smaller images)
                 temp_resized
             ]
-            subprocess.run(cmd, check=True)
-            logging.info(f"✅ Screenshot resized to {target_width}x{target_height}")
+            logging.info(f"Resize command: {' '.join(cmd)}")
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                logging.error(f"Resize failed: {result.stderr}")
+                raise Exception(f"Failed to resize screenshot: {result.stderr}")
+            logging.info(f"✅ Screenshot resized and stretched to {target_width}x{target_height}")
             
             # Verify the resized image dimensions
             verify_cmd = ['identify', '-format', '%wx%h', temp_resized]
@@ -678,6 +690,45 @@ class BoxGenerator:
                 resized_width = int(resized_dims[0])
                 resized_height = int(resized_dims[1])
                 logging.info(f"Verified resized dimensions: {resized_width}x{resized_height}")
+                if resized_width != target_width or resized_height != target_height:
+                    logging.warning(f"⚠️  Resize dimensions don't match target! Expected {target_width}x{target_height}, got {resized_width}x{resized_height}")
+                    # For smaller images, try using scale instead of resize, or use extent to force exact size
+                    if is_smaller:
+                        logging.info("Image was smaller, trying alternative resize method...")
+                        temp_fixed = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                        temp_files.append(temp_fixed)
+                        # Use scale to force exact dimensions (more aggressive than resize)
+                        fix_cmd = [
+                            'convert', screenshot_path,
+                            '-scale', f'{target_width}x{target_height}!',  # scale with ! forces exact dimensions
+                            temp_fixed
+                        ]
+                        logging.info(f"Alternative resize command: {' '.join(fix_cmd)}")
+                        fix_result = subprocess.run(fix_cmd, check=True, capture_output=True, text=True)
+                        if fix_result.returncode == 0:
+                            # Verify the fixed dimensions
+                            fix_verify_cmd = ['identify', '-format', '%wx%h', temp_fixed]
+                            fix_verify_result = subprocess.run(fix_verify_cmd, capture_output=True, text=True, timeout=5)
+                            if fix_verify_result.returncode == 0:
+                                fix_dims = fix_verify_result.stdout.strip().split('x')
+                                fix_width = int(fix_dims[0])
+                                fix_height = int(fix_dims[1])
+                                if fix_width == target_width and fix_height == target_height:
+                                    temp_resized = temp_fixed
+                                    logging.info(f"✅ Alternative resize method worked: {fix_width}x{fix_height}")
+                                else:
+                                    logging.error(f"❌ Alternative resize also failed: {fix_width}x{fix_height}")
+                                    raise Exception(f"Resize failed: dimensions don't match target after alternative method")
+                            else:
+                                raise Exception(f"Failed to verify alternative resize dimensions")
+                        else:
+                            logging.error(f"Alternative resize failed: {fix_result.stderr}")
+                            raise Exception(f"Resize failed: dimensions don't match target")
+                    else:
+                        logging.error(f"❌ Resize dimensions don't match target! Expected {target_width}x{target_height}, got {resized_width}x{resized_height}")
+                        raise Exception(f"Resize failed: dimensions don't match target")
+                else:
+                    logging.info(f"✅ Dimensions match target: {resized_width}x{resized_height}")
             
             # Step 2: Composite the resized screenshot onto background at the correct position
             # Use composite command with geometry for exact positioning

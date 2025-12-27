@@ -1,0 +1,42 @@
+{
+  "name": "scummvm",
+  "background_image": "scummvm_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 39,
+      "y": 123
+    },
+    "topRight": {
+      "x": 542,
+      "y": 149
+    },
+    "bottomLeft": {
+      "x": 39,
+      "y": 863
+    },
+    "bottomRight": {
+      "x": 542,
+      "y": 824
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 6,
+      "y": 128
+    },
+    "topRight": {
+      "x": 39,
+      "y": 125
+    },
+    "bottomLeft": {
+      "x": 6,
+      "y": 851
+    },
+    "bottomRight": {
+      "x": 39,
+      "y": 864
+    }
+  },
+  "spine_source_field": "",
+  "spine_crop_width": "15"
+}

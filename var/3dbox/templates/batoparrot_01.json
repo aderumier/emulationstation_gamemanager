@@ -1,0 +1,43 @@
+{
+  "name": "batoparrot_01",
+  "background_image": "batoparrot_01_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 54,
+      "y": 87
+    },
+    "topRight": {
+      "x": 633,
+      "y": 134
+    },
+    "bottomLeft": {
+      "x": 53,
+      "y": 1014
+    },
+    "bottomRight": {
+      "x": 633,
+      "y": 931
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 5,
+      "y": 57
+    },
+    "topRight": {
+      "x": 135,
+      "y": 55
+    },
+    "bottomLeft": {
+      "x": 1,
+      "y": 1042
+    },
+    "bottomRight": {
+      "x": 140,
+      "y": 1043
+    }
+  },
+  "spine_image": "batoparrot_01_spine.png",
+  "spine_source_field": "",
+  "spine_crop_width": ""
+}

@@ -96,14 +96,14 @@ else
     echo "⚠️  2D box templates directory not empty, skipping copy"
 fi
 
-# 3D Box Templates (only if directory is empty)
+# 3D Box Templates (always include in package, deployment handled in postinst)
 echo "📦 Copying 3D box templates..."
 mkdir -p debian/opt/gamemanager/var/3dbox/templates
-if [ -z "$(ls -A debian/opt/gamemanager/var/3dbox/templates 2>/dev/null)" ]; then
+if [ -d "var/3dbox/templates" ] && [ -n "$(ls -A var/3dbox/templates 2>/dev/null)" ]; then
     cp var/3dbox/templates/* debian/opt/gamemanager/var/3dbox/templates/ 2>/dev/null || echo "⚠️  No 3D box templates found, skipping..."
-    echo "✅ 3D box templates copied (directory was empty)"
+    echo "✅ 3D box templates included in package"
 else
-    echo "⚠️  3D box templates directory not empty, skipping copy"
+    echo "⚠️  No 3D box templates found in source, skipping..."
 fi
 
 # Credentials and embedded modules

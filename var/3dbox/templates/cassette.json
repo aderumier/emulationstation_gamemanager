@@ -1,0 +1,44 @@
+{
+  "name": "cassette",
+  "background_image": "cassette_background.png",
+  "corners": {
+    "topLeft": {
+      "x": 101,
+      "y": 18
+    },
+    "topRight": {
+      "x": 570,
+      "y": 70
+    },
+    "bottomLeft": {
+      "x": 101,
+      "y": 897
+    },
+    "bottomRight": {
+      "x": 570,
+      "y": 843
+    }
+  },
+  "spine_corners": {
+    "topLeft": {
+      "x": 22,
+      "y": 33
+    },
+    "topRight": {
+      "x": 102,
+      "y": 14
+    },
+    "bottomLeft": {
+      "x": 22,
+      "y": 879
+    },
+    "bottomRight": {
+      "x": 102,
+      "y": 901
+    }
+  },
+  "spine_image": "exodos_spine.png",
+  "spine_source_field": "spine",
+  "spine_crop_width": "5",
+  "use_marquee_field": true
+}

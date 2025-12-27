@@ -15371,10 +15371,10 @@ class GameCollectionManager {
                     }
                     
                     // Load spine image path
-                    if (data.spine_image_path) {
-                        const spineFileInput = document.getElementById('template3DSpineImage');
-                        const spineDisplayInput = document.getElementById('template3DSpineImageDisplay');
-                        if (spineFileInput) {
+                    const spineFileInput = document.getElementById('template3DSpineImage');
+                    const spineDisplayInput = document.getElementById('template3DSpineImageDisplay');
+                    if (spineFileInput) {
+                        if (data.spine_image_path) {
                             let spineFilename = null;
                             const spineImagePath = data.spine_image_path;
                             
@@ -15421,6 +15421,20 @@ class GameCollectionManager {
                                 if (spineDeleteBtn) {
                                     spineDeleteBtn.style.display = 'block';
                                 }
+                            }
+                        } else {
+                            // Template doesn't have spine image - reset to empty
+                            spineFileInput.value = '';
+                            spineFileInput.removeAttribute('data-loaded-filename');
+                            spineFileInput.removeAttribute('data-loaded-path');
+                            if (spineDisplayInput) {
+                                spineDisplayInput.value = '';
+                                spineDisplayInput.style.color = '#212529';
+                            }
+                            // Hide delete button
+                            const spineDeleteBtn = document.getElementById('template3DSpineImageDelete');
+                            if (spineDeleteBtn) {
+                                spineDeleteBtn.style.display = 'none';
                             }
                         }
                     }
