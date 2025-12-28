@@ -21810,7 +21810,10 @@ class GameCollectionManager {
             
             const textFields = Object.keys(config.steam?.mapping || {});
             const mediaFields = Object.keys(config.steam?.image_type_mappings || {});
-            const allFields = [...textFields, ...mediaFields];
+            
+            // Static text fields (hardcoded in HTML)
+            const staticTextFields = ['desc', 'players', 'publisher', 'developer', 'releasedate', 'genre', 'youtubeurl'];
+            const allFields = [...staticTextFields, ...textFields.filter(f => !staticTextFields.includes(f)), ...mediaFields];
             
             // Populate media fields dynamically
             this.populateSteamMediaFields(mediaFields);
@@ -21823,6 +21826,8 @@ class GameCollectionManager {
                 let fieldId;
                 if (field === 'youtubeurl') {
                     fieldId = 'YoutubeUrl'; // Special case for YouTube URL
+                } else if (field === 'releasedate') {
+                    fieldId = 'ReleaseDate'; // Special case for Release Date
                 } else {
                     fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 }
@@ -21833,10 +21838,13 @@ class GameCollectionManager {
                     if (savedValue !== null) {
                         checkbox.checked = savedValue === 'true';
                     } else {
-                        // Default to checked if no saved value
-                        checkbox.checked = true;
+                        // Default: youtubeurl checked, others unchecked
+                        if (field === 'youtubeurl') {
+                            checkbox.checked = true;
+                        } else {
+                            checkbox.checked = false;
+                        }
                     }
-                } else {
                 }
             });
         } catch (error) {
@@ -21879,7 +21887,10 @@ class GameCollectionManager {
             
             const textFields = Object.keys(config.steam?.mapping || {});
             const mediaFields = Object.keys(config.steam?.image_type_mappings || {});
-            const allFields = [...textFields, ...mediaFields];
+            
+            // Static text fields (hardcoded in HTML)
+            const staticTextFields = ['desc', 'players', 'publisher', 'developer', 'releasedate', 'genre', 'youtubeurl'];
+            const allFields = [...staticTextFields, ...textFields.filter(f => !staticTextFields.includes(f)), ...mediaFields];
             
             // Save field selections to cookies
             allFields.forEach(field => {
@@ -21887,6 +21898,8 @@ class GameCollectionManager {
                 let fieldId;
                 if (field === 'youtubeurl') {
                     fieldId = 'YoutubeUrl'; // Special case for YouTube URL
+                } else if (field === 'releasedate') {
+                    fieldId = 'ReleaseDate'; // Special case for Release Date
                 } else {
                     fieldId = field.charAt(0).toUpperCase() + field.slice(1);
                 }
@@ -21896,7 +21909,6 @@ class GameCollectionManager {
                 
                 if (checkbox) {
                     this.setCookie(cookieName, checkbox.checked);
-                } else {
                 }
             });
         } catch (error) {
