@@ -919,6 +919,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 </div>
                 <div class="modal-body">
                     <p>This will find and delete all similar images in the <strong id="deleteSimilarImagesField">field</strong> field for games in the current system.</p>
+                    
+                    <div class="mb-3">
+                        <label for="deleteSimilarImagesThreshold" class="form-label">Similarity Threshold (%)</label>
+                        <input type="number" class="form-control" id="deleteSimilarImagesThreshold" min="0" max="100" value="85" step="1">
+                        <div class="form-text">Images with similarity above this threshold will be deleted. Higher values = more strict (fewer matches). Default: 85%</div>
+                    </div>
+                    
                     <p class="text-warning"><strong>Warning:</strong> This action cannot be undone. The images will be permanently deleted from the filesystem and removed from gamelist.xml.</p>
                     <p>Are you sure you want to proceed?</p>
                 </div>

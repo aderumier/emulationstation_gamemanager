@@ -2834,6 +2834,7 @@ def process_next_queued_task():
         system_name = task_data.get('system_name')
         media_field = task_data.get('media_field')
         source_game_path = task_data.get('source_game_path')
+        similarity_threshold = task_data.get('similarity_threshold', 0.85)  # Default to 85%
         if system_name and media_field and source_game_path:
             # Use the existing queued task instead of creating a new one
             task_id = next_task.get('task_id')
@@ -2847,7 +2848,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start delete similar images in background thread
-            thread = threading.Thread(target=run_delete_similar_images_task, args=(system_name, media_field, source_game_path, task.id))
+            thread = threading.Thread(target=run_delete_similar_images_task, args=(system_name, media_field, source_game_path, task.id, similarity_threshold))
             thread.daemon = True
             thread.start()
     elif task_type == 'youtube_download':
@@ -15283,6 +15284,7 @@ def delete_similar_images_endpoint(system_name):
         data = request.get_json()
         media_field = data.get('media_field')
         source_game_path = data.get('source_game_path')
+        similarity_threshold = data.get('similarity_threshold', 0.85)  # Default to 85%
         
         if not media_field:
             return jsonify({'error': 'Media field is required'}), 400
@@ -15290,11 +15292,16 @@ def delete_similar_images_endpoint(system_name):
         if not source_game_path:
             return jsonify({'error': 'Source game path is required. Please select a game in the grid.'}), 400
 
+        # Validate threshold
+        if not isinstance(similarity_threshold, (int, float)) or similarity_threshold < 0 or similarity_threshold > 1:
+            return jsonify({'error': 'Similarity threshold must be between 0 and 1'}), 400
+
         # Add task to queue
         task = add_task_to_queue('delete_similar_images', {
             'system_name': system_name,
             'media_field': media_field,
-            'source_game_path': source_game_path
+            'source_game_path': source_game_path,
+            'similarity_threshold': similarity_threshold
         })
 
         return jsonify({'success': True, 'message': 'Delete similar images task started', 'task_id': task.id})
@@ -22168,7 +22175,7 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
         traceback.print_exc()
         process_next_queued_task()
 
-def run_delete_similar_images_task(system_name, media_field, source_game_path, task_id):
+def run_delete_similar_images_task(system_name, media_field, source_game_path, task_id, similarity_threshold=0.85):
     """Run delete similar images task in background thread"""
     global current_task_id
 
@@ -22178,6 +22185,10 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
             return
 
         task = tasks[task_id]
+        
+        # Log the similarity threshold being used
+        threshold_percent = int(similarity_threshold * 100)
+        task.log_message(f"Using similarity threshold: {threshold_percent}%")
         
         # Import pixelmatch (local copy)
         try:
@@ -22384,7 +22395,7 @@ def run_delete_similar_images_task(system_name, media_field, source_game_path, t
                 similarity = 1.0 - (mismatch / total_pixels) if total_pixels > 0 else 0.0
                 
                 # If similarity is high enough, mark for deletion
-                if similarity >= 0.85:  # 85% similarity threshold
+                if similarity >= similarity_threshold:
                     similar_images.append(img_data)
                 
                 comparisons_done += 1

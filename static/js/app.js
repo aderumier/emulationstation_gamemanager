@@ -24591,7 +24591,18 @@ class GameCollectionManager {
         }
 
         try {
-            this.showAlert(`Starting deletion of similar images for ${mediaField}...`, 'info');
+            // Get similarity threshold from input (convert from percentage to decimal)
+            const thresholdInput = document.getElementById('deleteSimilarImagesThreshold');
+            const thresholdPercent = thresholdInput ? parseFloat(thresholdInput.value) : 85;
+            const similarityThreshold = thresholdPercent / 100; // Convert percentage to decimal (0-1)
+            
+            // Validate threshold
+            if (isNaN(similarityThreshold) || similarityThreshold < 0 || similarityThreshold > 1) {
+                this.showAlert('Invalid similarity threshold. Please enter a value between 0 and 100.', 'warning');
+                return;
+            }
+
+            this.showAlert(`Starting deletion of similar images for ${mediaField} with ${thresholdPercent}% similarity threshold...`, 'info');
 
             const response = await fetch(`/api/rom-system/${this.currentSystem}/delete-similar-images`, {
                 method: 'POST',
@@ -24601,7 +24612,8 @@ class GameCollectionManager {
                 credentials: 'include',
                 body: JSON.stringify({
                     media_field: mediaField,
-                    source_game_path: game.path
+                    source_game_path: game.path,
+                    similarity_threshold: similarityThreshold
                 })
             });
 
