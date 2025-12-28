@@ -8061,7 +8061,16 @@ class GameCollectionManager {
 
             // Current value
             const currentCell = document.createElement('td');
-            currentCell.textContent = fieldData.current || 'N/A';
+            let currentValue = fieldData.current || '';
+            
+            // Format release dates for display (handles both ISO 8601 and timestamps)
+            if (fieldKey === 'releasedate' && currentValue) {
+                const displayValue = this.formatReleaseDate(currentValue);
+                currentCell.textContent = displayValue;
+            } else {
+                currentCell.textContent = currentValue || 'N/A';
+            }
+            
             currentCell.className = 'text-muted';
             row.appendChild(currentCell);
 
@@ -8077,12 +8086,20 @@ class GameCollectionManager {
                 this.setTextFieldSelection(row, 'current');
             });
 
-            // Source columns (IGDB, ScreenScraper, LaunchBox, MobyGames, Custom)
-            const sources = ['igdb', 'screenscraper', 'launchbox', 'mobygames', 'custom'];
+            // Source columns (IGDB, ScreenScraper, LaunchBox, MobyGames, Steam, Custom)
+            const sources = ['igdb', 'screenscraper', 'launchbox', 'mobygames', 'steam', 'custom'];
             sources.forEach(source => {
                 const sourceCell = document.createElement('td');
-                const sourceValue = fieldData.sources[source] || '';
-                sourceCell.textContent = sourceValue || 'N/A';
+                let sourceValue = fieldData.sources[source] || '';
+                
+                // Format release dates for display (handles both ISO 8601 and timestamps)
+                if (fieldKey === 'releasedate' && sourceValue) {
+                    const displayValue = this.formatReleaseDate(sourceValue);
+                    sourceCell.textContent = displayValue;
+                } else {
+                    sourceCell.textContent = sourceValue || 'N/A';
+                }
+                
                 sourceCell.className = sourceValue ? 'text-success' : 'text-muted';
                 sourceCell.dataset.source = source;
                 sourceCell.style.cursor = 'pointer';
@@ -29477,6 +29494,62 @@ class GameCollectionManager {
             return dateString; // Return original if date is invalid
         }
         
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        
+        // Format according to preference
+        switch (dateFormat) {
+            case 'dd-mm-yyyy':
+                return `${day}-${month}-${year}`;
+            case 'mm-dd-yyyy':
+                return `${month}-${day}-${year}`;
+            case 'yyyy-mm-dd':
+                return `${year}-${month}-${day}`;
+            case 'dd/mm/yyyy':
+                return `${day}/${month}/${year}`;
+            case 'mm/dd/yyyy':
+                return `${month}/${day}/${year}`;
+            case 'yyyy/mm/dd':
+                return `${year}/${month}/${day}`;
+            default:
+                return `${day}-${month}-${year}`; // Default to dd-mm-yyyy
+        }
+    }
+    
+    formatTimestampForDisplay(timestampValue) {
+        /**
+         * Format a timestamp (seconds since epoch) for display according to user preference
+         * @param {string|number} timestampValue - Timestamp in seconds (as string or number)
+         * @returns {string} Formatted date string
+         */
+        if (!timestampValue || timestampValue === 'N/A' || timestampValue === 'Unknown' || String(timestampValue).trim() === '') {
+            return timestampValue || 'N/A';
+        }
+        
+        // Try to parse as numeric timestamp
+        let timestamp;
+        try {
+            timestamp = typeof timestampValue === 'string' ? parseFloat(timestampValue) : timestampValue;
+            
+            // Check if it's a valid number and looks like a timestamp (reasonable range: 1970-2100)
+            if (isNaN(timestamp) || timestamp < 0 || timestamp > 4102444800) {
+                // Not a valid timestamp, try formatReleaseDate as fallback
+                return this.formatReleaseDate(timestampValue);
+            }
+        } catch (e) {
+            // Not a valid timestamp, try formatReleaseDate as fallback
+            return this.formatReleaseDate(timestampValue);
+        }
+        
+        // Convert timestamp (seconds) to Date object (milliseconds)
+        const date = new Date(timestamp * 1000);
+        
+        if (isNaN(date.getTime())) {
+            return String(timestampValue); // Return original if date is invalid
+        }
+        
+        const dateFormat = this.getDateFormatPreference();
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();

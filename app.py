@@ -18533,8 +18533,10 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
         if not target_media_type:
             # Only fetch game data if we need text fields
             steam_data = await steam_service.get_steam_game_data(steam_id)
+            # Don't return early if API fails - we can still parse the game page
             if not steam_data:
-                return None
+                print(f"Warning: Steam API returned no data for Steam ID {steam_id}, will try parsing game page")
+                steam_data = {}  # Use empty dict instead of None
         else:
             # For media-only requests, create minimal steam_data with just the steam_id
             print(f"🚀 Steam MANUAL SCRAP: Skipping API call for {target_media_type}, using steam_id directly")
@@ -18543,12 +18545,13 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
         # Extract text fields (skip if target_media_type is specified for speed)
         text_fields = {}
         if not target_media_type:
+            # Extract from API data if available
             if steam_data.get('name'):
                 text_fields['name'] = steam_data['name']
             if steam_data.get('short_description'):
                 text_fields['desc'] = steam_data['short_description']
             if steam_data.get('release_date', {}).get('date'):
-                # Convert Steam date format to ISO 8601 format
+                # Convert Steam date format to ISO 8601 format (same as other scrapers)
                 release_date = steam_data['release_date']['date']
                 if release_date:
                     text_fields['releasedate'] = format_releasedate_to_iso8601(release_date)
@@ -18566,6 +18569,30 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
                     genre_text = ', '.join(genre_names)
                     # Apply genre mapping for Steam (using 'steam' as scraper name, or 'igdb' if similar)
                     text_fields['genre'] = map_genre('steam', genre_text)
+            
+            # Also parse the Steam game page for additional text fields (desc, players, publisher, developer, releasedate, genre)
+            # This provides more complete data than the API alone, and works even if API fails
+            try:
+                parsed_page_data = await steam_service.parse_steam_game_page(steam_id)
+                
+                # Override or add fields from parsed page (parsed page data takes precedence)
+                if parsed_page_data.get('desc'):
+                    text_fields['desc'] = parsed_page_data['desc']
+                if parsed_page_data.get('players'):
+                    text_fields['players'] = parsed_page_data['players']
+                if parsed_page_data.get('publisher'):
+                    text_fields['publisher'] = parsed_page_data['publisher']
+                if parsed_page_data.get('developer'):
+                    text_fields['developer'] = parsed_page_data['developer']
+                if parsed_page_data.get('releasedate'):
+                    text_fields['releasedate'] = parsed_page_data['releasedate']
+                if parsed_page_data.get('genre'):
+                    text_fields['genre'] = parsed_page_data['genre']
+            except Exception as e:
+                print(f"Warning: Failed to parse Steam game page for additional text fields: {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue with API data only (if any)
         
         # Extract media fields (arrays), using config mapping if present
         media_fields: Dict[str, List[str]] = {}
@@ -18740,13 +18767,30 @@ async def scrape_steam_manual(game, system_name, target_media_type=None):
                 # Use capsule field for header image as fallback
                 media_fields.setdefault(capsule_field, []).append(steam_data['header_image'])
         
-        return {
+        # Debug: Log what we're returning
+        print(f"DEBUG: Steam manual scrap returning - text_fields: {text_fields}, media_fields keys: {list(media_fields.keys())}")
+        
+        # Always return a result, even if empty
+        result = {
             'text_fields': text_fields,
             'media_fields': media_fields
         }
         
+        # Check if we have any data to return
+        has_text_fields = any(text_fields.values())
+        has_media_fields = any(media_fields.values())
+        
+        if not has_text_fields and not has_media_fields:
+            print(f"DEBUG: Steam manual scrap - no data found (text_fields empty: {not has_text_fields}, media_fields empty: {not has_media_fields})")
+        else:
+            print(f"DEBUG: Steam manual scrap - returning data (text_fields: {len([v for v in text_fields.values() if v])} fields, media_fields: {len(media_fields)} fields)")
+        
+        return result
+        
     except Exception as e:
         print(f"Error in Steam manual scraping: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 async def scrape_screenscraper_manual(game, system_name, system_config, target_media_type=None):

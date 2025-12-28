@@ -1031,18 +1031,18 @@ class SteamService:
                             # Remove <br> if present
                             if '<br>' in release_text:
                                 release_text = release_text.split('<br>')[0].strip()
-                            # Convert to timestamp
+                            # Convert to ISO 8601 format (same as other scrapers)
                             try:
                                 date_obj = datetime.strptime(release_text, '%d %b, %Y')
-                                results['releasedate'] = str(int(date_obj.timestamp()))
+                                results['releasedate'] = date_obj.strftime('%Y%m%dT%H%M%S')
                             except ValueError:
                                 try:
                                     date_obj = datetime.strptime(release_text, '%b %d, %Y')
-                                    results['releasedate'] = str(int(date_obj.timestamp()))
+                                    results['releasedate'] = date_obj.strftime('%Y%m%dT%H%M%S')
                                 except ValueError:
                                     try:
                                         date_obj = datetime.strptime(release_text, '%d %B, %Y')
-                                        results['releasedate'] = str(int(date_obj.timestamp()))
+                                        results['releasedate'] = date_obj.strftime('%Y%m%dT%H%M%S')
                                     except ValueError:
                                         logger.warning(f"Could not parse release date: {release_text}")
                                         results['releasedate'] = release_text
