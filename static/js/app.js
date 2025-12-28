@@ -23036,30 +23036,68 @@ class GameCollectionManager {
 
     async getSelectedSteamFields() {
         try {
-            // Fetch config to get dynamic field mappings
             const response = await fetch('/api/config');
             const config = await response.json();
             
-            // Get Steam field mappings from config
             const textFields = Object.keys(config.steam?.mapping || {});
             const mediaFields = Object.keys(config.steam?.image_type_mappings || {});
-            const allFields = [...textFields, ...mediaFields];
             
-            // Read field selections from cookies
-            const selectedFields = [];
-            allFields.forEach(field => {
+            // Static text fields (not in config mapping)
+            const staticTextFields = ['desc', 'players', 'publisher', 'developer', 'releasedate', 'genre', 'youtubeurl'];
+            const allTextFields = [...staticTextFields, ...textFields.filter(f => !staticTextFields.includes(f))];
+            
+            // Read text field selections from cookies
+            const selectedTextFields = [];
+            let hasUncheckedTextFields = false;
+            allTextFields.forEach(field => {
                 const cookieName = `steamField_${field}`;
                 const cookieValue = this.getCookie(cookieName);
                 
-                // If no cookie or cookie is true, include the field
-                if (cookieValue === null || cookieValue === 'true') {
-                    selectedFields.push(field);
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedTextFields.push(field);
+                    } else {
+                        hasUncheckedTextFields = true;
+                    }
+                } else {
+                    // Default: youtubeurl checked, others unchecked
+                    if (field === 'youtubeurl') {
+                        selectedTextFields.push(field);
+                    } else {
+                        hasUncheckedTextFields = true;
+                    }
                 }
             });
             
-            return selectedFields;
+            // Read media field selections from cookies
+            const selectedMediaFields = [];
+            let hasUncheckedMediaFields = false;
+            mediaFields.forEach(field => {
+                const cookieName = `steamField_${field}`;
+                const cookieValue = this.getCookie(cookieName);
+                
+                if (cookieValue !== null) {
+                    if (cookieValue === 'true') {
+                        selectedMediaFields.push(field);
+                    } else {
+                        hasUncheckedMediaFields = true;
+                    }
+                } else {
+                    // Default to checked if no saved value
+                    selectedMediaFields.push(field);
+                }
+            });
+            
+            return {
+                selected_text_fields: hasUncheckedTextFields ? selectedTextFields : allTextFields,
+                selected_media_fields: hasUncheckedMediaFields ? selectedMediaFields : mediaFields
+            };
         } catch (error) {
-            return ['boxart', 'marquee', 'fanart', 'image'];
+            console.error('Error getting selected Steam fields:', error);
+            return {
+                selected_text_fields: ['youtubeurl'], // Default to YouTube URL
+                selected_media_fields: ['boxart', 'marquee', 'fanart', 'image'] // Default media fields
+            };
         }
     }
 
@@ -32459,7 +32497,7 @@ class GameCollectionManager {
             this.showAlert('Starting Steam scraping...', 'info');
             
             // Get selected fields for Steam scraping
-            const selectedFields = await this.getSelectedSteamFields();
+            const fieldData = await this.getSelectedSteamFields();
             
             const response = await fetch(`/api/scrap-steam/${this.currentSystem}`, {
                 method: 'POST',
@@ -32467,8 +32505,9 @@ class GameCollectionManager {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                selected_games: gamesToScrape.map(game => game.path),
-                selected_fields: selectedFields
+                    selected_games: gamesToScrape.map(game => game.path),
+                    selected_fields: fieldData.selected_media_fields,
+                    selected_text_fields: fieldData.selected_text_fields
                 })
             });
             

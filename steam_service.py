@@ -9,7 +9,7 @@ import time
 import httpx
 import asyncio
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 import logging
 from collections import namedtuple
@@ -836,6 +836,253 @@ class SteamService:
         
         return result
 
+    async def parse_steam_game_page(self, steam_id: int) -> Dict[str, Any]:
+        """
+        Parse Steam game page HTML to extract text fields
+        
+        Args:
+            steam_id: Steam app ID
+            
+        Returns:
+            Dictionary with extracted fields: desc, players, publisher, developer, releasedate, genre
+        """
+        url = f"https://store.steampowered.com/app/{steam_id}"
+        results = {
+            'desc': None,
+            'players': None,
+            'publisher': None,
+            'developer': None,
+            'releasedate': None,
+            'genre': None
+        }
+        
+        try:
+            # Prepare headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            # Create HTTP client
+            limits = httpx.Limits(max_keepalive_connections=10, max_connections=10)
+            async with httpx.AsyncClient(
+                timeout=30.0,
+                limits=limits,
+                http2=True,
+                headers=headers,
+                follow_redirects=True
+            ) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                
+                # Store HTML text for debugging
+                html_text = response.text
+                
+                # Parse HTML
+                soup = BeautifulSoup(html_text, 'html.parser')
+                
+                # Extract description
+                desc_div = soup.find('div', class_='game_description_snippet')
+                if desc_div:
+                    desc_text = desc_div.get_text(strip=True)
+                    # Convert <br> tags to \n
+                    desc_html = str(desc_div)
+                    desc_text = desc_html.replace('<br>', '\n').replace('<br/>', '\n').replace('<br />', '\n')
+                    # Remove HTML tags
+                    desc_soup = BeautifulSoup(desc_text, 'html.parser')
+                    results['desc'] = desc_soup.get_text()
+                
+                # Extract players - ONLY check label divs in game_area_features_list_ctn, no fallbacks
+                # Priority: multiplayer modes (2 players) over single-player (1 player)
+                logger.info(f"🔍 DEBUG: Starting player extraction for Steam app {steam_id}")
+                found_multiplayer = False
+                found_single_player = False
+                
+                # Search ONLY in game_area_features_list_ctn (where features like "Single-player", "Online Co-op" are listed)
+                labels = []
+                game_area_features = soup.find('div', class_='game_area_features_list_ctn')
+                if game_area_features:
+                    logger.info(f"🔍 DEBUG: Found game_area_features_list_ctn div")
+                    # Find all label divs within this container
+                    labels = game_area_features.find_all('div', class_='label')
+                    logger.info(f"🔍 DEBUG: Found {len(labels)} label divs in game_area_features_list_ctn")
+                else:
+                    logger.warning(f"🔍 DEBUG: game_area_features_list_ctn NOT FOUND - no player info will be extracted")
+                    
+                logger.info(f"🔍 DEBUG: Total label divs found: {len(labels)}")
+                    
+                if len(labels) > 0:
+                    # Log all label texts for debugging
+                    for i, label in enumerate(labels):
+                        label_text = label.get_text(strip=True)
+                        label_html = str(label)[:200]  # First 200 chars of HTML
+                        label_classes = label.get('class', [])
+                        logger.info(f"🔍 DEBUG: Label {i+1}: classes={label_classes}, text='{label_text}', HTML='{label_html}'")
+                    
+                    # Also search for "Single-player" text directly in the HTML
+                    if 'Single-player' in html_text:
+                        logger.info(f"🔍 DEBUG: Found 'Single-player' text in page HTML")
+                        # Find the context around it
+                        idx = html_text.find('Single-player')
+                        context = html_text[max(0, idx-100):min(len(html_text), idx+100)]
+                        logger.info(f"🔍 DEBUG: Context around 'Single-player': {context}")
+                    else:
+                        logger.info(f"🔍 DEBUG: 'Single-player' text NOT found in page HTML")
+                    
+                    if 'Singleplayer' in html_text:
+                        logger.info(f"🔍 DEBUG: Found 'Singleplayer' text in page HTML")
+                        idx = html_text.find('Singleplayer')
+                        context = html_text[max(0, idx-100):min(len(html_text), idx+100)]
+                        logger.info(f"🔍 DEBUG: Context around 'Singleplayer': {context}")
+                    
+                    # First pass: check for multiplayer modes (priority)
+                    logger.info(f"🔍 DEBUG: First pass - checking for multiplayer modes")
+                    for i, label in enumerate(labels):
+                        label_text = label.get_text(strip=True)
+                        logger.info(f"🔍 DEBUG: Checking label {i+1} for multiplayer: '{label_text}'")
+                        
+                        # Check for multiplayer modes
+                        if 'Shared/Split Screen Co-op' in label_text:
+                            logger.info(f"🔍 DEBUG: Found 'Shared/Split Screen Co-op' in label {i+1}")
+                            found_multiplayer = True
+                            break
+                        elif 'Split Screen Co-op' in label_text:
+                            logger.info(f"🔍 DEBUG: Found 'Split Screen Co-op' in label {i+1}")
+                            found_multiplayer = True
+                            break
+                        elif 'Online Co-op' in label_text:
+                            logger.info(f"🔍 DEBUG: Found 'Online Co-op' in label {i+1}")
+                            found_multiplayer = True
+                            break
+                        elif 'Local Co-Op' in label_text:
+                            logger.info(f"🔍 DEBUG: Found 'Local Co-Op' in label {i+1}")
+                            found_multiplayer = True
+                            break
+                        elif 'Co-op' in label_text:
+                            logger.info(f"🔍 DEBUG: Found 'Co-op' in label {i+1}")
+                            found_multiplayer = True
+                            break
+                        elif 'Multiplayer' in label_text:
+                            logger.info(f"🔍 DEBUG: Found 'Multiplayer' in label {i+1}")
+                            found_multiplayer = True
+                            break
+                        else:
+                            logger.info(f"🔍 DEBUG: Label {i+1} does not match multiplayer patterns")
+                    
+                    # Second pass: only check for single-player if no multiplayer found
+                    if not found_multiplayer:
+                        logger.info(f"🔍 DEBUG: No multiplayer found, checking for single-player")
+                        for i, label in enumerate(labels):
+                            label_text = label.get_text(strip=True)
+                            logger.info(f"🔍 DEBUG: Checking label {i+1} for single-player: '{label_text}'")
+                            
+                            # Check for single-player
+                            if 'Single-player' in label_text:
+                                logger.info(f"🔍 DEBUG: Found 'Single-player' in label {i+1}")
+                                found_single_player = True
+                                break
+                            elif 'Singleplayer' in label_text:
+                                logger.info(f"🔍 DEBUG: Found 'Singleplayer' in label {i+1}")
+                                found_single_player = True
+                                break
+                            else:
+                                logger.info(f"🔍 DEBUG: Label {i+1} does not match single-player patterns")
+                    else:
+                        logger.info(f"🔍 DEBUG: Multiplayer found, skipping single-player check")
+                else:
+                    logger.warning(f"🔍 DEBUG: No labels found in game_area_features_list_ctn")
+                
+                if found_multiplayer:
+                    results['players'] = '2'
+                    logger.info(f"🔍 DEBUG: Final result: players = '2' (multiplayer detected)")
+                elif found_single_player:
+                    results['players'] = '1'
+                    logger.info(f"🔍 DEBUG: Final result: players = '1' (single-player detected)")
+                else:
+                    logger.info(f"🔍 DEBUG: Final result: players = None (no player info found)")
+                
+                # Extract publisher, developer, release date, and genre from details_block
+                details_block = soup.find('div', id='genresAndManufacturer')
+                if details_block:
+                    # Extract developer
+                    dev_row = details_block.find('div', class_='dev_row')
+                    if dev_row:
+                        dev_label = dev_row.find('b', string='Developer:')
+                        if dev_label:
+                            dev_link = dev_row.find('a')
+                            if dev_link:
+                                results['developer'] = dev_link.get_text(strip=True)
+                    
+                    # Extract publisher (look for Publisher: label)
+                    publisher_rows = details_block.find_all('div', class_='dev_row')
+                    for row in publisher_rows:
+                        pub_label = row.find('b', string='Publisher:')
+                        if pub_label:
+                            pub_link = row.find('a')
+                            if pub_link:
+                                results['publisher'] = pub_link.get_text(strip=True)
+                            break
+                    
+                    # Extract release date
+                    release_date_b = details_block.find('b', string='Release Date:')
+                    if release_date_b:
+                        release_text = release_date_b.next_sibling
+                        if release_text:
+                            release_text = release_text.strip()
+                            # Remove <br> if present
+                            if '<br>' in release_text:
+                                release_text = release_text.split('<br>')[0].strip()
+                            # Convert to timestamp
+                            try:
+                                date_obj = datetime.strptime(release_text, '%d %b, %Y')
+                                results['releasedate'] = str(int(date_obj.timestamp()))
+                            except ValueError:
+                                try:
+                                    date_obj = datetime.strptime(release_text, '%b %d, %Y')
+                                    results['releasedate'] = str(int(date_obj.timestamp()))
+                                except ValueError:
+                                    try:
+                                        date_obj = datetime.strptime(release_text, '%d %B, %Y')
+                                        results['releasedate'] = str(int(date_obj.timestamp()))
+                                    except ValueError:
+                                        logger.warning(f"Could not parse release date: {release_text}")
+                                        results['releasedate'] = release_text
+                    
+                    # Extract genre
+                    genre_b = details_block.find('b', string='Genre:')
+                    if genre_b:
+                        genre_span = genre_b.find_next('span')
+                        if genre_span:
+                            genre_links = genre_span.find_all('a')
+                            genres = []
+                            for link in genre_links:
+                                genre_text = link.get_text(strip=True)
+                                if genre_text:
+                                    # Apply genre mapping
+                                    mapped_genre = self._map_steam_genre(genre_text)
+                                    if mapped_genre:
+                                        genres.append(mapped_genre)
+                                    else:
+                                        genres.append(genre_text)  # Use original if no mapping
+                            if genres:
+                                results['genre'] = ', '.join(genres)
+                
+        except Exception as e:
+            logger.error(f"Error parsing Steam game page for app {steam_id}: {e}")
+        
+        return results
+    
+    def _map_steam_genre(self, genre_text: str) -> str:
+        """Map Steam genre to standardized genre name"""
+        try:
+            with open('var/config/scrapper_genre_mapping.json', 'r') as f:
+                genre_mapping = json.load(f)
+            
+            steam_mapping = genre_mapping.get('steam', {}).get('map', {})
+            return steam_mapping.get(genre_text, genre_text)
+        except Exception as e:
+            logger.error(f"Error mapping Steam genre: {e}")
+            return genre_text
+    
     def get_steam_capsule_images(self, steam_id: int) -> Dict[str, Optional[str]]:
         """Get capsule image URLs for a specific Steam app ID"""
         if not steam_id:

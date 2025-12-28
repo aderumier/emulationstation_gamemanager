@@ -3009,6 +3009,8 @@ def process_next_queued_task():
         system_name = task_data.get('system_name')
         selected_games = task_data.get('selected_games', [])
         selected_fields = task_data.get('selected_fields', [])
+        selected_text_fields = task_data.get('selected_text_fields', [])
+        cookies = task_data.get('cookies', {})
         overwrite_media_fields = task_data.get('overwrite_media_fields', False)
         overwrite_text_fields = task_data.get('overwrite_text_fields', False)
         # Ensure boolean type (handle string "true"/"false" from frontend)
@@ -3028,7 +3030,7 @@ def process_next_queued_task():
                 current_task_id = task.id
                 task.start()
             # Start Steam scraping in background thread
-            thread = threading.Thread(target=run_steam_task, args=(system_name, task.id, selected_games, overwrite_media_fields, overwrite_text_fields))
+            thread = threading.Thread(target=run_steam_task, args=(system_name, task.id, selected_games, overwrite_media_fields, overwrite_text_fields, selected_text_fields))
             thread.daemon = True
             thread.start()
     elif task_type == 'steamgriddb_scraping':
@@ -8912,6 +8914,7 @@ def scrap_steam_system(system_name):
         data = request.get_json() or {}
         selected_games = data.get('selected_games', [])
         selected_fields = data.get('selected_fields', [])
+        selected_text_fields = data.get('selected_text_fields', [])
         
         # Get overwrite settings from cookies
         overwrite_text_fields = request.cookies.get('overwriteTextFieldsSteam', 'false').lower() == 'true'
@@ -8919,12 +8922,14 @@ def scrap_steam_system(system_name):
         
         print(f"🍪 DEBUG: Steam cookie values - overwriteTextFieldsSteam: '{request.cookies.get('overwriteTextFieldsSteam', 'NOT_SET')}', overwriteMediaFieldsSteam: '{request.cookies.get('overwriteMediaFieldsSteam', 'NOT_SET')}'")
         print(f"🍪 DEBUG: Steam parsed values - overwrite_text_fields: {overwrite_text_fields}, overwrite_media_fields: {overwrite_media_fields}")
+        print(f"🔧 DEBUG: Steam request data - selected_fields: {selected_fields}, selected_text_fields: {selected_text_fields}")
         
         # Create task object
         task_data = {
             'system_name': system_name, 
             'selected_games': selected_games,
             'selected_fields': selected_fields,
+            'selected_text_fields': selected_text_fields,
             'overwrite_text_fields': overwrite_text_fields,
             'overwrite_media_fields': overwrite_media_fields
         }
@@ -33425,7 +33430,7 @@ def run_custom_scrapper_task(system_name, custom_db, task_id, selected_games=Non
 # IGDB Scraper API Routes
 # =============================================================================
 
-def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fields=False, overwrite_text_fields=False):
+def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fields=False, overwrite_text_fields=False, selected_text_fields=None):
     """Run Steam task for a specific system (Steam CDN only)"""
     import asyncio
     import threading
@@ -33450,13 +33455,14 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
             t.update_progress(progress, None, current_step=completed, total_steps=total)
             print(f"🔄 Steam Progress: {completed}/{total} ({progress}%)")
     
-    async def async_steam(overwrite_media_fields=False, overwrite_text_fields=False):
+    async def async_steam(overwrite_media_fields=False, overwrite_text_fields=False, selected_text_fields=None):
         service = None
         cancellation_event = None
         global _steam_cancel_events
         
         try:
             print(f"Starting Steam task for system: {system_name}")
+            print(f"🔧 DEBUG: async_steam called with selected_text_fields={selected_text_fields}")
             
             # Create cancellation event and store it globally
             import multiprocessing
@@ -33695,6 +33701,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                     for game_data in games_with_steam_ids:
                         game = game_data['game']
                         game_name = game_data['name']
+                        steam_id = game_data['steam_id']
                         
                         # Initialize downloaded_media as empty dict
                         downloaded_media = {}
@@ -33708,7 +33715,6 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                             
                             # Handle YouTube URL for games that already had Steam IDs
                             if 'youtubeurl' in selected_fields:
-                                steam_id = game_data['steam_id']
                                 existing_youtube_url = game.get('youtubeurl', '')
                                 print(f"🎥 DEBUG: Processing YouTube URL for existing Steam ID game '{game_name}' (Steam ID: {steam_id})")
                                 print(f"🎥 DEBUG: Existing YouTube URL: '{existing_youtube_url}'")
@@ -33734,6 +33740,66 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                             t.log_message(f"No video found for '{game_name}', using store page URL")
                                 else:
                                     print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
+                        
+                        # Parse text fields from Steam page if selected (for games that already had Steam IDs)
+                        # This runs for ALL games with Steam IDs, not just those in batch_results
+                        print(f"🔧 DEBUG: Checking if text fields should be parsed for '{game_name}' - selected_text_fields={selected_text_fields}")
+                        if selected_text_fields:
+                            print(f"📝 Parsing text fields for '{game_name}' (Steam ID: {steam_id})")
+                            print(f"🔧 DEBUG: selected_text_fields contains: {selected_text_fields}")
+                            t = get_task(task_id)
+                            if t:
+                                t.log_message(f"Parsing text fields for '{game_name}'")
+                            
+                            # Parse Steam page
+                            try:
+                                parsed_data = await service.parse_steam_game_page(steam_id)
+                                print(f"🔧 DEBUG: Parsed data for '{game_name}': {parsed_data}")
+                                
+                                # Map Steam fields to gamelist fields
+                                field_mapping = {
+                                    'desc': 'desc',
+                                    'players': 'players',
+                                    'publisher': 'publisher',
+                                    'developer': 'developer',
+                                    'releasedate': 'releasedate',
+                                    'genre': 'genre'
+                                }
+                                
+                                for steam_field, gamelist_field in field_mapping.items():
+                                    if steam_field in parsed_data and parsed_data[steam_field] is not None:
+                                        # Only update if field is selected or if overwrite is enabled
+                                        if gamelist_field in selected_text_fields:
+                                            existing_value = game.get(gamelist_field, '')
+                                            if not existing_value or overwrite_text_fields:
+                                                game[gamelist_field] = parsed_data[steam_field]
+                                                # Also update the corresponding game in all_games
+                                                for all_game in all_games:
+                                                    if all_game['path'] == game['path']:
+                                                        all_game[gamelist_field] = parsed_data[steam_field]
+                                                print(f"✅ Set '{gamelist_field}' for '{game_name}': {parsed_data[steam_field]}")
+                                                t = get_task(task_id)
+                                                if t:
+                                                    t.log_message(f"Set '{gamelist_field}' for '{game_name}': {parsed_data[steam_field]}")
+                                            else:
+                                                print(f"📝 Skipping '{gamelist_field}' for '{game_name}' - already exists and overwrite disabled")
+                                                t = get_task(task_id)
+                                                if t:
+                                                    t.log_message(f"Skipping '{gamelist_field}' for '{game_name}' - already exists and overwrite disabled")
+                                        else:
+                                            print(f"📝 Skipping '{gamelist_field}' for '{game_name}' - field not selected")
+                                            t = get_task(task_id)
+                                            if t:
+                                                t.log_message(f"Skipping '{gamelist_field}' for '{game_name}' - field not selected")
+                            except Exception as e:
+                                print(f"❌ Error parsing text fields for '{game_name}' (Steam ID: {steam_id}): {e}")
+                                import traceback
+                                traceback.print_exc()
+                                t = get_task(task_id)
+                                if t:
+                                    t.log_message(f"❌ Error parsing text fields for '{game_name}': {e}")
+                        else:
+                            print(f"🔧 DEBUG: Skipping text field parsing for '{game_name}' - selected_text_fields is empty or None")
                     
                     # Also update the corresponding game in all_games
                     for all_game in all_games:
@@ -33885,6 +33951,58 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
                                         print(f"🎥 DEBUG: Skipping YouTube URL - already exists and overwrite disabled")
                                 else:
                                     print(f"🎥 DEBUG: YouTube URL field not selected, skipping")
+                                
+                                # Parse text fields from Steam page if selected
+                                if selected_text_fields:
+                                    print(f"📝 Parsing text fields for '{game_name}' (Steam ID: {steam_id})")
+                                    t = get_task(task_id)
+                                    if t:
+                                        t.log_message(f"Parsing text fields for '{game_name}'")
+                                    
+                                    # Parse Steam page
+                                    try:
+                                        parsed_data = await service.parse_steam_game_page(steam_id)
+                                        
+                                        # Map Steam fields to gamelist fields
+                                        field_mapping = {
+                                            'desc': 'desc',
+                                            'players': 'players',
+                                            'publisher': 'publisher',
+                                            'developer': 'developer',
+                                            'releasedate': 'releasedate',
+                                            'genre': 'genre'
+                                        }
+                                        
+                                        for steam_field, gamelist_field in field_mapping.items():
+                                            if steam_field in parsed_data and parsed_data[steam_field] is not None:
+                                                # Only update if field is selected or if overwrite is enabled
+                                                if gamelist_field in selected_text_fields:
+                                                    existing_value = game.get(gamelist_field, '')
+                                                    if not existing_value or overwrite_text_fields:
+                                                        game[gamelist_field] = parsed_data[steam_field]
+                                                        # Also update the corresponding game in all_games
+                                                        for all_game in all_games:
+                                                            if all_game['path'] == game['path']:
+                                                                all_game[gamelist_field] = parsed_data[steam_field]
+                                                        print(f"✅ Set '{gamelist_field}' for '{game_name}': {parsed_data[steam_field]}")
+                                                        t = get_task(task_id)
+                                                        if t:
+                                                            t.log_message(f"Set '{gamelist_field}' for '{game_name}': {parsed_data[steam_field]}")
+                                                    else:
+                                                        print(f"📝 Skipping '{gamelist_field}' for '{game_name}' - already exists and overwrite disabled")
+                                                        t = get_task(task_id)
+                                                        if t:
+                                                            t.log_message(f"Skipping '{gamelist_field}' for '{game_name}' - already exists and overwrite disabled")
+                                                else:
+                                                    print(f"📝 Skipping '{gamelist_field}' for '{game_name}' - field not selected")
+                                                    t = get_task(task_id)
+                                                    if t:
+                                                        t.log_message(f"Skipping '{gamelist_field}' for '{game_name}' - field not selected")
+                                    except Exception as e:
+                                        print(f"❌ Error parsing text fields for '{game_name}' (Steam ID: {steam_id}): {e}")
+                                        t = get_task(task_id)
+                                        if t:
+                                            t.log_message(f"❌ Error parsing text fields for '{game_name}': {e}")
                                 
                                 # Add to games with Steam IDs for media download
                                 games_with_steam_ids.append({
@@ -34155,7 +34273,7 @@ def run_steam_task(system_name, task_id, selected_games=None, overwrite_media_fi
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(async_steam(overwrite_media_fields, overwrite_text_fields))
+            loop.run_until_complete(async_steam(overwrite_media_fields, overwrite_text_fields, selected_text_fields))
         except Exception as e:
             import traceback
             traceback.print_exc()
