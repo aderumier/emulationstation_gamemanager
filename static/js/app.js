@@ -3379,6 +3379,61 @@ class GameCollectionManager {
                     autoHeaderHeight: true
                 },
                 { 
+                    field: 'releasedate', 
+                    headerName: 'Release Date', 
+                    editable: false, 
+                    sortable: true, 
+                    filter: true,
+                    resizable: true,
+                    initialWidth: 120,
+                    wrapHeaderText: wrapHeaderText,
+                    autoHeaderHeight: true,
+                    valueGetter: (params) => {
+                        // Convert releasedate to numeric timestamp for sorting
+                        const value = params.data ? params.data.releasedate : null;
+                        if (!value || value === '') {
+                            return 0; // Empty dates sort first
+                        }
+                        
+                        // Try to parse as ISO 8601 format (YYYYMMDDTHHMMSS)
+                        const iso8601Match = String(value).match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
+                        if (iso8601Match) {
+                            const [, year, month, day, hour, minute, second] = iso8601Match;
+                            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+                            return date.getTime(); // Return milliseconds for sorting
+                        }
+                        
+                        // Try to parse as numeric timestamp (seconds)
+                        const timestamp = parseFloat(value);
+                        if (!isNaN(timestamp) && timestamp > 0) {
+                            return timestamp * 1000; // Convert seconds to milliseconds
+                        }
+                        
+                        // Try to parse as date string
+                        const date = new Date(value);
+                        if (!isNaN(date.getTime())) {
+                            return date.getTime();
+                        }
+                        
+                        return 0; // Invalid dates sort first
+                    },
+                    valueFormatter: (params) => {
+                        // Format for display using user's date format preference
+                        // Use original data value, not the valueGetter result
+                        const value = params.data ? params.data.releasedate : null;
+                        if (!value || value === '') {
+                            return '';
+                        }
+                        return this.formatReleaseDate(value);
+                    },
+                    comparator: (valueA, valueB) => {
+                        // Numeric comparison for proper sorting
+                        const a = typeof valueA === 'number' ? valueA : parseFloat(valueA) || 0;
+                        const b = typeof valueB === 'number' ? valueB : parseFloat(valueB) || 0;
+                        return a - b;
+                    }
+                },
+                { 
                     field: 'rating', 
                     headerName: 'Rating', 
                     editable: false, 
@@ -29464,25 +29519,39 @@ class GameCollectionManager {
         
         const dateFormat = this.getDateFormatPreference();
         
-        // Try to parse the date string (could be ISO8601, YYYY-MM-DD, or other formats)
+        // Try to parse the date string (could be ISO8601, YYYY-MM-DD, timestamp, or other formats)
         let date;
         try {
-            // Try parsing as ISO8601 first
-            date = new Date(dateString);
-            
-            // Check if date is valid
-            if (isNaN(date.getTime())) {
-                // Try parsing as YYYY-MM-DD
-                const parts = dateString.split('-');
-                if (parts.length === 3) {
-                    date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            // First, try parsing as ISO 8601 format (YYYYMMDDTHHMMSS)
+            const iso8601Match = String(dateString).match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
+            if (iso8601Match) {
+                const [, year, month, day, hour, minute, second] = iso8601Match;
+                date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+            } else {
+                // Try parsing as numeric timestamp (seconds)
+                const timestamp = parseFloat(dateString);
+                if (!isNaN(timestamp) && timestamp > 0 && timestamp < 4102444800) {
+                    // Looks like a timestamp in seconds
+                    date = new Date(timestamp * 1000);
                 } else {
-                    // Try parsing as DD-MM-YYYY
-                    const parts2 = dateString.split('-');
-                    if (parts2.length === 3 && parts2[2].length === 4) {
-                        date = new Date(parseInt(parts2[2]), parseInt(parts2[1]) - 1, parseInt(parts2[0]));
-                    } else {
-                        return dateString; // Return original if can't parse
+                    // Try parsing as ISO8601 standard format or other formats
+                    date = new Date(dateString);
+                    
+                    // Check if date is valid
+                    if (isNaN(date.getTime())) {
+                        // Try parsing as YYYY-MM-DD
+                        const parts = dateString.split('-');
+                        if (parts.length === 3) {
+                            date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                        } else {
+                            // Try parsing as DD-MM-YYYY
+                            const parts2 = dateString.split('-');
+                            if (parts2.length === 3 && parts2[2].length === 4) {
+                                date = new Date(parseInt(parts2[2]), parseInt(parts2[1]) - 1, parseInt(parts2[0]));
+                            } else {
+                                return dateString; // Return original if can't parse
+                            }
+                        }
                     }
                 }
             }
