@@ -31815,7 +31815,7 @@ class GameCollectionManager {
         if (scrapButton) {
             // Always keep the same text and styling
             scrapButton.disabled = false;
-            scrapButton.innerHTML = '<i class="bi bi-database-fill"></i> Launchbox Scrap';
+            scrapButton.innerHTML = '<i class="bi bi-database-fill"></i> Launchbox';
             scrapButton.className = 'btn btn-primary btn-sm ms-2';
             
             // Update tooltip based on selection
@@ -32527,7 +32527,7 @@ class GameCollectionManager {
         } finally {
             // Restore button state
             const button = document.getElementById('scrapSteamBtn');
-            button.innerHTML = '<i class="bi bi-steam"></i> Steam Scrap';
+            button.innerHTML = '<i class="bi bi-steam"></i> Steam';
             button.disabled = false;
         }
     }
