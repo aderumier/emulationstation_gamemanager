@@ -2829,6 +2829,27 @@ def process_next_queued_task():
             thread = threading.Thread(target=run_image_similarity_search_task, args=(system_name, media_field, source_game_path, task.id))
             thread.daemon = True
             thread.start()
+    elif task_type == 'delete_similar_images':
+        # Start delete similar images task
+        system_name = task_data.get('system_name')
+        media_field = task_data.get('media_field')
+        source_game_path = task_data.get('source_game_path')
+        if system_name and media_field and source_game_path:
+            # Use the existing queued task instead of creating a new one
+            task_id = next_task.get('task_id')
+            if task_id and task_id in tasks:
+                task = tasks[task_id]
+                current_task_id = task.id
+                task.start()
+            else:
+                # Fallback: create new task if existing one not found
+                task = create_task('delete_similar_images', task_data)
+                current_task_id = task.id
+                task.start()
+            # Start delete similar images in background thread
+            thread = threading.Thread(target=run_delete_similar_images_task, args=(system_name, media_field, source_game_path, task.id))
+            thread.daemon = True
+            thread.start()
     elif task_type == 'youtube_download':
         # Start YouTube download task
         # For youtube_download, task_data is flat (not nested under 'data')
@@ -15251,6 +15272,35 @@ def search_image_similarity_endpoint(system_name):
     except Exception as e:
         return jsonify({'error': f'Image similarity search failed: {str(e)}'}), 500
 
+@app.route('/api/rom-system/<system_name>/delete-similar-images', methods=['POST'])
+@login_required
+def delete_similar_images_endpoint(system_name):
+    """Delete similar images for a specific system"""
+    global current_task_id
+
+    try:
+        # Get media field and source game from request
+        data = request.get_json()
+        media_field = data.get('media_field')
+        source_game_path = data.get('source_game_path')
+        
+        if not media_field:
+            return jsonify({'error': 'Media field is required'}), 400
+        
+        if not source_game_path:
+            return jsonify({'error': 'Source game path is required. Please select a game in the grid.'}), 400
+
+        # Add task to queue
+        task = add_task_to_queue('delete_similar_images', {
+            'system_name': system_name,
+            'media_field': media_field,
+            'source_game_path': source_game_path
+        })
+
+        return jsonify({'success': True, 'message': 'Delete similar images task started', 'task_id': task.id})
+    except Exception as e:
+        return jsonify({'error': f'Delete similar images failed: {str(e)}'}), 500
+
 @app.route('/api/tasks/<task_id>/similarity-results', methods=['GET'])
 @login_required
 def get_similarity_results(task_id):
@@ -22114,6 +22164,290 @@ def run_image_similarity_search_task(system_name, media_field, source_game_path,
         if task_id and task_id in tasks:
             tasks[task_id].complete(False, str(e))
         print(f"Error in image similarity search task: {e}")
+        import traceback
+        traceback.print_exc()
+        process_next_queued_task()
+
+def run_delete_similar_images_task(system_name, media_field, source_game_path, task_id):
+    """Run delete similar images task in background thread"""
+    global current_task_id
+
+    try:
+        if not task_id or task_id not in tasks:
+            print("Error: No active task found for delete similar images")
+            return
+
+        task = tasks[task_id]
+        
+        # Import pixelmatch (local copy)
+        try:
+            from pixelmatch.contrib.PIL import pixelmatch
+            from PIL import Image
+        except ImportError as e:
+            task.complete(False, f"Failed to import pixelmatch library: {str(e)}")
+            process_next_queued_task()
+            return
+
+        # Load gamelist
+        task.update_progress(f"Loading gamelist for system: {system_name}", progress_percentage=5)
+        gamelist_path = get_gamelist_path(system_name)
+
+        if not os.path.exists(gamelist_path):
+            task.update_progress(f"Gamelist not found: {gamelist_path}")
+            task.complete(False, "Gamelist not found")
+            process_next_queued_task()
+            return
+
+        games = parse_gamelist_xml(gamelist_path)
+        task.update_progress(f"Loaded {len(games)} games from gamelist", progress_percentage=10)
+
+        # Find source game
+        source_game = None
+        for game in games:
+            if game.get('path') == source_game_path:
+                source_game = game
+                break
+        
+        if not source_game:
+            task.complete(False, f"Source game not found: {source_game_path}")
+            process_next_queued_task()
+            return
+
+        task.update_progress(f"Source game: {source_game.get('name', 'Unknown')}", progress_percentage=15)
+
+        # Get media config
+        media_config = load_media_config()
+        media_fields = media_config.get('media_fields', {}) if media_config else {}
+        
+        if media_field not in media_fields:
+            task.complete(False, f"Media field '{media_field}' not found in configuration")
+            process_next_queued_task()
+            return
+
+        field_config = media_fields[media_field]
+        media_directory = field_config.get('directory', '')
+        extensions = field_config.get('extensions', [])
+        
+        # Convert extensions to list if string
+        if isinstance(extensions, str):
+            extensions = [ext.strip() for ext in extensions.split(',')]
+        
+        # Normalize extensions (remove dots, lowercase)
+        extensions = [ext.lower().lstrip('.') for ext in extensions]
+
+        # System path
+        system_path = os.path.join(ROMS_FOLDER, system_name)
+        media_path = os.path.join(system_path, 'media', media_directory)
+
+        if not os.path.exists(media_path):
+            task.complete(False, f"Media directory not found: {media_path}")
+            process_next_queued_task()
+            return
+
+        # Get source game's image path
+        source_media_path = source_game.get(media_field, '')
+        if not source_media_path:
+            task.complete(False, f"Source game does not have {media_field} media")
+            process_next_queued_task()
+            return
+
+        # Normalize source path
+        normalized_source_path = source_media_path.lstrip('./')
+        if normalized_source_path.startswith('media/'):
+            source_image_path = os.path.join(system_path, normalized_source_path)
+        elif normalized_source_path.startswith(os.sep):
+            source_image_path = normalized_source_path
+        else:
+            source_image_path = os.path.join(media_path, os.path.basename(normalized_source_path))
+
+        if not os.path.exists(source_image_path):
+            task.complete(False, f"Source image not found: {source_image_path}")
+            process_next_queued_task()
+            return
+
+        # Check source image extension
+        source_ext = os.path.splitext(source_image_path)[1].lower().lstrip('.')
+        if source_ext not in extensions:
+            task.complete(False, f"Source image extension '{source_ext}' not in allowed extensions: {extensions}")
+            process_next_queued_task()
+            return
+
+        task.update_progress(f"Source image: {source_image_path}", progress_percentage=20)
+
+        # Load source image
+        try:
+            source_img = Image.open(source_image_path).convert('RGBA')
+        except Exception as e:
+            task.complete(False, f"Failed to load source image: {str(e)}")
+            process_next_queued_task()
+            return
+
+        task.update_progress(f"Scanning images in: {media_path}", progress_percentage=25)
+
+        # Collect all other images with their game paths (excluding source game)
+        image_files = []
+        for game in games:
+            rom_path = game.get('path', '')
+            if not rom_path or rom_path == source_game_path:
+                continue  # Skip source game
+            
+            # Get media path from game
+            media_file_path = game.get(media_field, '')
+            if not media_file_path:
+                continue
+
+            # Normalize path
+            normalized_path = media_file_path.lstrip('./')
+            
+            # Build full path
+            if normalized_path.startswith('media/'):
+                full_path = os.path.join(system_path, normalized_path)
+            elif normalized_path.startswith(os.sep):
+                full_path = normalized_path
+            else:
+                full_path = os.path.join(media_path, os.path.basename(normalized_path))
+
+            if os.path.exists(full_path):
+                # Check if file extension matches
+                file_ext = os.path.splitext(full_path)[1].lower().lstrip('.')
+                if file_ext in extensions:
+                    image_files.append({
+                        'game': game,
+                        'path': full_path,
+                        'rom_path': rom_path,
+                        'media_path': media_file_path
+                    })
+
+        task.update_progress(f"Found {len(image_files)} images to compare against source", progress_percentage=30)
+
+        if len(image_files) == 0:
+            task.complete(False, "No other images found to compare")
+            process_next_queued_task()
+            return
+
+        # Compare source image to all other images and collect similar ones
+        similar_images = []
+        threshold = 0.1  # Similarity threshold (0-1, lower = more strict)
+        
+        total_images = len(image_files)
+        task.update_progress(f"Comparing source image to {total_images} images...", 
+                           progress_percentage=30, current_step=0, total_steps=total_images)
+        comparisons_done = 0
+
+        for img_data in image_files:
+            if task.status != TASK_STATUS_RUNNING:
+                # Task was stopped
+                progress_pct = int((comparisons_done / total_images) * 100) if total_images > 0 else 0
+                if task.status == TASK_STATUS_STOPPED:
+                    task.update_progress(f"🛑 Task stopped: Found {len(similar_images)} similar images so far (compared {comparisons_done}/{total_images})",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                    task.complete(True, f"Task stopped: Found {len(similar_images)} similar images (compared {comparisons_done}/{total_images})")
+                else:
+                    task.update_progress(f"✅ Comparison complete: Found {len(similar_images)} similar images",
+                                       progress_percentage=100, current_step=total_images, total_steps=total_images)
+                    task.complete(True, f"Found {len(similar_images)} similar images in {media_field} field")
+                
+                process_next_queued_task()
+                return
+                
+            try:
+                img2 = Image.open(img_data['path']).convert('RGBA')
+            except Exception as e:
+                comparisons_done += 1
+                progress_pct = 30 + int((comparisons_done / total_images) * 70)  # 30-100% range
+                task.update_progress(f"Skipping {img_data['path']}: {str(e)}",
+                                   progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                continue
+
+            # Check if images have the same size - if not, they are not similar
+            if source_img.size != img2.size:
+                comparisons_done += 1
+                progress_pct = 30 + int((comparisons_done / total_images) * 70)
+                if comparisons_done % 5 == 0 or comparisons_done == total_images:
+                    task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_images)} similar",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                continue
+
+            # Create diff image
+            diff_img = Image.new('RGBA', source_img.size)
+            
+            # Compare images
+            try:
+                mismatch = pixelmatch(
+                    source_img, img2, diff_img,
+                    threshold=threshold,
+                    includeAA=True
+                )
+                
+                # Calculate similarity percentage
+                total_pixels = source_img.width * source_img.height
+                similarity = 1.0 - (mismatch / total_pixels) if total_pixels > 0 else 0.0
+                
+                # If similarity is high enough, mark for deletion
+                if similarity >= 0.85:  # 85% similarity threshold
+                    similar_images.append(img_data)
+                
+                comparisons_done += 1
+                progress_pct = 30 + int((comparisons_done / total_images) * 70)
+                
+                if comparisons_done % 5 == 0 or comparisons_done == total_images:
+                    task.update_progress(f"Compared {comparisons_done}/{total_images} images, found {len(similar_images)} similar",
+                                       progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                    
+            except Exception as e:
+                comparisons_done += 1
+                progress_pct = 30 + int((comparisons_done / total_images) * 70)
+                task.update_progress(f"Error comparing images: {str(e)}",
+                                   progress_percentage=progress_pct, current_step=comparisons_done, total_steps=total_images)
+                continue
+
+        task.update_progress(f"Found {len(similar_images)} similar images to delete", progress_percentage=100)
+
+        if len(similar_images) == 0:
+            task.complete(True, "No similar images found to delete")
+            process_next_queued_task()
+            return
+
+        # Delete similar images and update gamelist
+        deleted_count = 0
+        task.update_progress(f"Deleting {len(similar_images)} similar images...", progress_percentage=100)
+        
+        for img_data in similar_images:
+            try:
+                # Delete the image file
+                if os.path.exists(img_data['path']):
+                    os.remove(img_data['path'])
+                    deleted_count += 1
+                    task.log_message(f"Deleted: {img_data['path']}")
+                
+                # Remove media field from game in gamelist
+                game = img_data['game']
+                if media_field in game:
+                    del game[media_field]
+                    task.log_message(f"Removed {media_field} from game: {game.get('name', 'Unknown')}")
+                    
+            except Exception as e:
+                task.log_message(f"Error deleting {img_data['path']}: {str(e)}")
+                continue
+
+        # Save updated gamelist
+        task.update_progress(f"Saving updated gamelist...", progress_percentage=100)
+        save_gamelist_xml(gamelist_path, games)
+        
+        # Notify clients of gamelist update
+        notify_gamelist_updated(system_name, len(games), updated_count=deleted_count)
+
+        task.update_progress(f"✅ Deleted {deleted_count} similar images and updated gamelist",
+                           progress_percentage=100)
+        task.complete(True, f"Deleted {deleted_count} similar images in {media_field} field and updated gamelist.xml")
+        
+        # Process next queued task
+        process_next_queued_task()
+
+    except Exception as e:
+        if task_id and task_id in tasks:
+            tasks[task_id].complete(False, str(e))
+        print(f"Error in delete similar images task: {e}")
         import traceback
         traceback.print_exc()
         process_next_queued_task()

@@ -2480,6 +2480,11 @@ class GameCollectionManager {
             }
         });
 
+        // Delete similar images confirmation button
+        document.getElementById('confirmDeleteSimilarImagesBtn').addEventListener('click', () => {
+            this.confirmDeleteSimilarImages();
+        });
+
         // Add global keyboard event listener for delete key and arrow navigation
         document.addEventListener('keydown', (event) => {
             // Handle Delete key with priority: thumbnails first, then media, then games
@@ -24481,7 +24486,7 @@ class GameCollectionManager {
         }
     }
 
-    async searchSimilarImagesFromContextMenu() {
+    async deleteSimilarImagesFromContextMenu() {
         // Hide context menu
         const contextMenu = document.getElementById('imageContextMenu');
         if (contextMenu) {
@@ -24551,10 +24556,44 @@ class GameCollectionManager {
             return;
         }
 
-        try {
-            this.showAlert(`Starting similarity search for ${mediaField}...`, 'info');
+        // Store game and field for the confirmation modal
+        this.pendingDeleteSimilarImages = {
+            game: game,
+            mediaField: mediaField
+        };
 
-            const response = await fetch(`/api/rom-system/${this.currentSystem}/search-image-similarity`, {
+        // Show confirmation modal
+        const modalElement = document.getElementById('deleteSimilarImagesModal');
+        const fieldElement = document.getElementById('deleteSimilarImagesField');
+        if (fieldElement) {
+            fieldElement.textContent = mediaField;
+        }
+        
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+
+    async confirmDeleteSimilarImages() {
+        const pending = this.pendingDeleteSimilarImages;
+        if (!pending || !pending.game || !pending.mediaField) {
+            this.showAlert('No pending deletion. Please try again.', 'warning');
+            return;
+        }
+
+        const game = pending.game;
+        const mediaField = pending.mediaField;
+
+        // Close the modal
+        const modalElement = document.getElementById('deleteSimilarImagesModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+
+        try {
+            this.showAlert(`Starting deletion of similar images for ${mediaField}...`, 'info');
+
+            const response = await fetch(`/api/rom-system/${this.currentSystem}/delete-similar-images`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -24573,23 +24612,30 @@ class GameCollectionManager {
             const result = await response.json();
 
             if (result.success) {
-                this.showAlert('Image similarity search task started successfully', 'success');
+                this.showAlert('Delete similar images task started successfully', 'success');
 
                 // Refresh task grid to show the new task
                 setTimeout(() => this.refreshTasks(), 500);
 
-                // After task completes, preselect similar games
-                this.waitForTaskTypeCompletion('search_image_similarity').then(() => {
-                    if (result.task_id) {
-                        this.applySimilarityFilter(result.task_id);
-                    }
+                // After task completes, refresh the gamelist and grid
+                this.waitForTaskTypeCompletion('delete_similar_images').then(() => {
+                    // Reload the gamelist and refresh the grid
+                    this.loadRomSystem(this.currentSystem).then(() => {
+                        this.showAlert('Similar images deleted successfully. Gamelist updated.', 'success');
+                    }).catch((error) => {
+                        console.error('Error reloading gamelist:', error);
+                        this.showAlert('Images deleted but failed to reload gamelist. Please refresh manually.', 'warning');
+                    });
                 });
             } else {
-                this.showAlert(result.error || 'Failed to start image similarity search task', 'danger');
+                this.showAlert(result.error || 'Failed to start delete similar images task', 'danger');
             }
         } catch (error) {
-            console.error('Error starting image similarity search task:', error);
-            this.showAlert('Error starting image similarity search task: ' + error.message, 'danger');
+            console.error('Error starting delete similar images task:', error);
+            this.showAlert('Error starting delete similar images task: ' + error.message, 'danger');
+        } finally {
+            // Clear pending deletion
+            this.pendingDeleteSimilarImages = null;
         }
     }
 
