@@ -35177,11 +35177,14 @@ class GameCollectionManager {
         // Store the current game for YouTube operations
         this.currentYouTubeGame = game;
 
-        // Set game name for search
-        document.getElementById('youtubeGameName').textContent = game.name;
+        // Remove text between parentheses from game name
+        const cleanGameName = game.name.replace(/\s*\([^)]*\)\s*/g, '').trim();
         
-        // Pre-fill search input with game name and system name
-        const searchQuery = `${game.name} ${this.currentSystem}`;
+        // Set game name for search (display the clean name)
+        document.getElementById('youtubeGameName').textContent = cleanGameName;
+        
+        // Pre-fill search input with game name (without parentheses content) and system name
+        const searchQuery = `${cleanGameName} ${this.currentSystem}`;
         document.getElementById('youtubeSearchInput').value = searchQuery;
         
         // Clean up any existing backdrops before opening new modal
